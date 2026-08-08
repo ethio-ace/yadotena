@@ -1,0 +1,14 @@
+# Yadotena
+.env
+.env.local
+backend/uploads/
+backend/.env
+frontend/.next/
+frontend/node_modules/
+**/node_modules/
+*.log
+.DS_Store
+.pnpm-store/
+
+.worktrees/
+.superpowers/

@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS activity_logs;
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS order_items;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS settings;
+DROP TABLE IF EXISTS cafe_tables;
+DROP TABLE IF EXISTS menu_items;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS staff;

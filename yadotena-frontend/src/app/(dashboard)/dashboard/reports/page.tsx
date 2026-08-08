@@ -104,7 +104,7 @@ export default function ReportsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `Yadotena_Financial_Report_${dateRange}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `Yadotena_Milk_and_Foods_Financial_Report_${dateRange}_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

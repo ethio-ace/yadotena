@@ -378,7 +378,7 @@ export default function OrderTrackingPage() {
 
             {feedbackSent && (
               <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 animate-in fade-in">
-                ✓ Thank you for rating Yadotena {rating} stars!
+                ✓ Thank you for rating Yadotena Milk & Foods {rating} stars!
               </p>
             )}
           </Card>

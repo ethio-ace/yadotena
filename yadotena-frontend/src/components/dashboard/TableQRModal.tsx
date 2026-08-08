@@ -70,9 +70,9 @@ export function TableQRModal({ table, isOpen, onClose }: TableQRModalProps) {
             {/* Restaurant Logo Header */}
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-base shadow-md shadow-primary/25">
-                Y
+                🥛
               </div>
-              <span className="font-black text-lg tracking-tight">Yadotena Gourmet</span>
+              <span className="font-black text-lg tracking-tight">Yadotena Milk & Foods</span>
             </div>
 
             {/* Table Badge */}
@@ -144,7 +144,7 @@ export function TableQRModal({ table, isOpen, onClose }: TableQRModalProps) {
             {/* Capacity & WiFi Note */}
             <div className="pt-2 border-t border-muted/50 w-full flex items-center justify-around text-[11px] text-muted-foreground">
               <span>🪑 {table.capacity} Guest Seats</span>
-              <span>📶 Guest WiFi: Yadotena_5G</span>
+              <span>📶 Guest WiFi: Yadotena_Milk_5G</span>
             </div>
 
           </div>

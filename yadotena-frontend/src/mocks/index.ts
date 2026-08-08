@@ -8,15 +8,61 @@ export const mockUsers: User[] = [
 ];
 
 export const mockCategories: MenuCategory[] = [
-  { id: "cat-1", name: "Main Course", icon: "🍔", description: "Hearty chef special main dishes and steaks", sortOrder: 1 },
-  { id: "cat-2", name: "Pizza", icon: "🍕", description: "Artisanal stone-baked crust pizzas", sortOrder: 2 },
-  { id: "cat-3", name: "Appetizers", icon: "🍟", description: "Tasty snacks, dips, and finger foods", sortOrder: 3 },
-  { id: "cat-4", name: "Beverages", icon: "☕", description: "Specialty Ethiopian coffee, tea, and drinks", sortOrder: 4 },
-  { id: "cat-5", name: "Desserts", icon: "🍰", description: "Freshly baked sweets and chocolate treats", sortOrder: 5 },
-  { id: "cat-6", name: "Traditional", icon: "🍲", description: "Authentic gourmet Ethiopian cuisine & platters", sortOrder: 6 },
+  { id: "cat-0", name: "Fresh Dairy & Milk", icon: "🥛", description: "Pure farm-fresh milk, organic yogurt, milkshakes & cheeses", sortOrder: 1 },
+  { id: "cat-1", name: "Main Course", icon: "🍔", description: "Hearty chef special main dishes and steaks", sortOrder: 2 },
+  { id: "cat-2", name: "Pizza", icon: "🍕", description: "Artisanal stone-baked crust pizzas", sortOrder: 3 },
+  { id: "cat-3", name: "Appetizers", icon: "🍟", description: "Tasty snacks, dips, and finger foods", sortOrder: 4 },
+  { id: "cat-4", name: "Beverages", icon: "☕", description: "Specialty Ethiopian coffee, tea, and drinks", sortOrder: 5 },
+  { id: "cat-5", name: "Desserts", icon: "🍰", description: "Freshly baked sweets and chocolate treats", sortOrder: 6 },
+  { id: "cat-6", name: "Traditional", icon: "🍲", description: "Authentic gourmet Ethiopian cuisine & platters", sortOrder: 7 },
 ];
 
 export const mockMenu: MenuItem[] = [
+  {
+    id: "m0-1",
+    name: "Pure Farm-Fresh Cow Milk (Warm / Chilled)",
+    description: "100% organic, pasteurized rich whole milk served fresh from local dairy farms.",
+    price: 120,
+    category: "Fresh Dairy & Milk",
+    image: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=800&q=80",
+    available: true,
+    preparationTime: 5,
+    dietaryTags: ["Organic", "Popular", "Gluten-Free"],
+    customAddons: [
+      { id: "add-d1", name: "Pure Honey Drizzle", price: 30 },
+      { id: "add-d2", name: "Cinnamon & Cardamom Spice", price: 20 },
+    ],
+  },
+  {
+    id: "m0-2",
+    name: "Artisanal Spiced Ergo (Organic Yogurt)",
+    description: "Traditional fermented creamy yogurt topped with mild organic spices and freshly churned butter.",
+    price: 180,
+    category: "Fresh Dairy & Milk",
+    image: "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=800&q=80",
+    available: true,
+    preparationTime: 5,
+    dietaryTags: ["Chef's Special", "Vegetarian", "Popular"],
+    customAddons: [
+      { id: "add-d3", name: "Extra Pure Niter Kibbeh (Spiced Butter)", price: 50 },
+      { id: "add-d4", name: "Roasted Barley / Kolo Garnish", price: 40 },
+    ],
+  },
+  {
+    id: "m0-3",
+    name: "Signature Yadotena Cream Milkshake",
+    description: "Ultra-thick, rich milkshake prepared with fresh dairy cream, Madagascar vanilla, and strawberry coulis.",
+    price: 260,
+    category: "Fresh Dairy & Milk",
+    image: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=800&q=80",
+    available: true,
+    preparationTime: 8,
+    dietaryTags: ["Sweet", "Popular"],
+    customAddons: [
+      { id: "add-d5", name: "Whipped Dairy Cream & Cherry", price: 40 },
+      { id: "add-d6", name: "Belgian Chocolate Drizzle", price: 50 },
+    ],
+  },
   {
     id: "m1",
     name: "Classic Chicken Burger",

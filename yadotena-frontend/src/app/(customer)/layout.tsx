@@ -29,14 +29,14 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         <div className="flex items-center gap-3">
           <Link href="/menu" className="flex items-center gap-2 group">
             <div className="h-9 w-9 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-black text-lg shadow-md shadow-primary/25 group-hover:scale-105 transition-transform">
-              Y
+              🥛
             </div>
             <div>
               <h1 className="font-black text-lg text-foreground tracking-tight leading-none group-hover:text-primary transition-colors">
-                Yadotena
+                Yadotena <span className="text-primary text-xs font-bold block sm:inline">Milk & Foods</span>
               </h1>
               <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">
-                {tableId ? `Table ${tableId.replace('t', '')} · Dining Session` : "Artisanal Kitchen & Café"}
+                {tableId ? `Table ${tableId.replace('t', '')} · Dining Session` : "Fresh Dairy & Artisanal Kitchen"}
               </p>
             </div>
           </Link>

@@ -144,10 +144,10 @@ export default function MenuPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
             <div>
               <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-                Yadotena Gourmet & Café
+                Yadotena Milk & Foods
               </h1>
               <p className="text-muted-foreground text-sm md:text-base mt-1">
-                Artisanal handcrafted recipes, fresh organic ingredients & authentic flavors.
+                Farm-fresh dairy, pure organic milk products, craft beverages & delicious kitchen foods.
               </p>
             </div>
 

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
 import { 
   Trash2, ArrowLeft, Plus, Minus, Utensils, ShoppingBag, Truck, 
-  Tag, HeartHandshake, CreditCard, Wallet, Smartphone, Banknote, CheckCircle2, MessageSquare
+  CreditCard, Wallet, Smartphone, Banknote, CheckCircle2
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -16,8 +16,6 @@ import { useMutation } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useRouter } from "next/navigation";
 import { OrderType } from "@/types";
-
-const TIP_PERCENTAGES = [0, 5, 10, 15, 20];
 
 const PAYMENT_METHODS = [
   { id: "telebirr", name: "Telebirr / CBE Birr", icon: Smartphone },
@@ -43,15 +41,6 @@ export default function CheckoutPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [orderNotes, setOrderNotes] = useState("");
-  
-  // Promo code state
-  const [promoCode, setPromoCode] = useState("");
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountPercent?: number; discountFixed?: number } | null>(null);
-  const [promoError, setPromoError] = useState("");
-
-  // Tip state
-  const [tipPercent, setTipPercent] = useState<number>(10);
 
   // Payment method
   const [paymentMethod, setPaymentMethod] = useState("telebirr");
@@ -60,22 +49,11 @@ export default function CheckoutPage() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const subtotal = getTotal();
-  
-  // Promo discount calculation
-  let discountAmount = 0;
-  if (appliedPromo?.discountPercent) {
-    discountAmount = (subtotal * appliedPromo.discountPercent) / 100;
-  } else if (appliedPromo?.discountFixed) {
-    discountAmount = Math.min(subtotal, appliedPromo.discountFixed);
-  }
-
-  const discountedSubtotal = Math.max(0, subtotal - discountAmount);
-  const tax = discountedSubtotal * 0.15;
-  const serviceCharge = activeOrderType === "DINE_IN" ? discountedSubtotal * 0.10 : 0;
+  const tax = subtotal * 0.15;
+  const serviceCharge = activeOrderType === "DINE_IN" ? subtotal * 0.10 : 0;
   const deliveryFee = activeOrderType === "DELIVERY" ? 100.00 : 0;
-  const tipAmount = (discountedSubtotal * tipPercent) / 100;
   
-  const finalTotal = discountedSubtotal + tax + serviceCharge + deliveryFee + tipAmount;
+  const finalTotal = subtotal + tax + serviceCharge + deliveryFee;
 
   const router = useRouter();
 
@@ -87,18 +65,6 @@ export default function CheckoutPage() {
       router.push(`/order/${order.id}`);
     }
   });
-
-  const handleApplyPromo = () => {
-    setPromoError("");
-    const clean = promoCode.trim().toUpperCase();
-    if (clean === "YADOTENA10") {
-      setAppliedPromo({ code: "YADOTENA10", discountPercent: 10 });
-    } else if (clean === "WELCOME50") {
-      setAppliedPromo({ code: "WELCOME50", discountFixed: 50.00 });
-    } else {
-      setPromoError("Invalid code. Try 'YADOTENA10' for 10% off!");
-    }
-  };
 
   const handleCheckout = async () => {
     if (activeOrderType === "TAKEAWAY" && (!customerName || !customerPhone)) return alert("Name and phone are required for Takeaway");
@@ -304,99 +270,6 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        {/* Kitchen / Order Note */}
-        <Card className="border-muted-foreground/15 bg-card/70 backdrop-blur-sm rounded-3xl shadow-sm">
-          <CardContent className="p-5 space-y-2">
-            <label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
-              <MessageSquare className="h-3.5 w-3.5 text-primary" />
-              General Order Note for Waiter & Kitchen
-            </label>
-            <Input
-              value={orderNotes}
-              onChange={(e) => setOrderNotes(e.target.value)}
-              placeholder="e.g. Please bring all food together, extra napkins..."
-              className="rounded-xl bg-background/50 h-11"
-            />
-          </CardContent>
-        </Card>
-
-        {/* Promo Code Card */}
-        <Card className="border-muted-foreground/15 bg-card/70 backdrop-blur-sm rounded-3xl shadow-sm">
-          <CardContent className="p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Tag className="h-4 w-4 text-primary" />
-                <span className="font-bold text-sm">Promo Code or Voucher</span>
-              </div>
-              <span className="text-xs text-muted-foreground font-mono">Use 'YADOTENA10'</span>
-            </div>
-
-            {appliedPromo ? (
-              <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-2xl">
-                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-sm">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>Coupon {appliedPromo.code} Applied ({appliedPromo.discountPercent ? `${appliedPromo.discountPercent}% OFF` : `${formatETB(appliedPromo.discountFixed)} OFF`})</span>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-7 text-xs text-destructive hover:bg-destructive/10 rounded-lg"
-                  onClick={() => setAppliedPromo(null)}
-                >
-                  Remove
-                </Button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <Input
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value)}
-                  placeholder="Enter coupon code"
-                  className="rounded-xl uppercase font-bold bg-background/50 h-11 tracking-wider"
-                />
-                <Button 
-                  variant="secondary" 
-                  className="rounded-xl font-bold px-5 h-11 shadow-sm"
-                  onClick={handleApplyPromo}
-                >
-                  Apply
-                </Button>
-              </div>
-            )}
-            {promoError && <p className="text-xs text-destructive font-medium">{promoError}</p>}
-          </CardContent>
-        </Card>
-
-        {/* Staff Tip Selector */}
-        <Card className="border-muted-foreground/15 bg-card/70 backdrop-blur-sm rounded-3xl shadow-sm">
-          <CardContent className="p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <HeartHandshake className="h-4 w-4 text-rose-500" />
-                <span className="font-bold text-sm">Tip the Wonderful Staff</span>
-              </div>
-              <span className="text-xs font-bold text-primary">{formatETB(tipAmount)}</span>
-            </div>
-
-            <div className="grid grid-cols-5 gap-2">
-              {TIP_PERCENTAGES.map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => setTipPercent(pct)}
-                  className={`py-2.5 rounded-2xl text-xs font-bold border transition-all ${
-                    tipPercent === pct
-                      ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20 scale-105"
-                      : "bg-background/60 border-muted hover:border-muted-foreground/30 text-muted-foreground"
-                  }`}
-                >
-                  {pct === 0 ? "No Tip" : `${pct}%`}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Payment Method Selector (For Takeaway & Delivery) */}
         {(activeOrderType === "TAKEAWAY" || activeOrderType === "DELIVERY") && (
           <Card className="border-muted-foreground/15 bg-card/70 backdrop-blur-sm rounded-3xl shadow-sm">
@@ -441,13 +314,6 @@ export default function CheckoutPage() {
             <span>{formatETB(subtotal)}</span>
           </div>
 
-          {discountAmount > 0 && (
-            <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400 font-bold">
-              <span>Promo Discount ({appliedPromo?.code})</span>
-              <span>-{formatETB(discountAmount)}</span>
-            </div>
-          )}
-
           <div className="flex justify-between text-sm text-muted-foreground font-medium">
             <span>VAT & Sales Tax (15%)</span>
             <span>{formatETB(tax)}</span>
@@ -464,13 +330,6 @@ export default function CheckoutPage() {
             <div className="flex justify-between text-sm text-muted-foreground font-medium">
               <span>Delivery Dispatch Fee</span>
               <span>{formatETB(deliveryFee)}</span>
-            </div>
-          )}
-
-          {tipAmount > 0 && (
-            <div className="flex justify-between text-sm text-muted-foreground font-medium">
-              <span>Staff Gratuity Tip ({tipPercent}%)</span>
-              <span>{formatETB(tipAmount)}</span>
             </div>
           )}
 

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { formatETB } from "@/lib/currency";
 import { 
   Trash2, ArrowLeft, Plus, Minus, Utensils, ShoppingBag, Truck, 
   Tag, HeartHandshake, CreditCard, Wallet, Smartphone, Banknote, CheckCircle2, MessageSquare
@@ -19,10 +20,10 @@ import { OrderType } from "@/types";
 const TIP_PERCENTAGES = [0, 5, 10, 15, 20];
 
 const PAYMENT_METHODS = [
-  { id: "card", name: "Credit Card", icon: CreditCard },
-  { id: "applepay", name: "Apple / Google Pay", icon: Smartphone },
-  { id: "chapa", name: "Chapa / Mobile Money", icon: Wallet },
-  { id: "cash", name: "Cash on Delivery/Pickup", icon: Banknote },
+  { id: "telebirr", name: "Telebirr / CBE Birr", icon: Smartphone },
+  { id: "chapa", name: "Chapa / Mobile Pay", icon: Wallet },
+  { id: "card", name: "Credit / Debit Card", icon: CreditCard },
+  { id: "cash", name: "Cash on Delivery / Pickup", icon: Banknote },
 ];
 
 export default function CheckoutPage() {
@@ -53,7 +54,7 @@ export default function CheckoutPage() {
   const [tipPercent, setTipPercent] = useState<number>(10);
 
   // Payment method
-  const [paymentMethod, setPaymentMethod] = useState("card");
+  const [paymentMethod, setPaymentMethod] = useState("telebirr");
   
   // Payment Simulation State
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -71,7 +72,7 @@ export default function CheckoutPage() {
   const discountedSubtotal = Math.max(0, subtotal - discountAmount);
   const tax = discountedSubtotal * 0.15;
   const serviceCharge = activeOrderType === "DINE_IN" ? discountedSubtotal * 0.10 : 0;
-  const deliveryFee = activeOrderType === "DELIVERY" ? 3.00 : 0;
+  const deliveryFee = activeOrderType === "DELIVERY" ? 100.00 : 0;
   const tipAmount = (discountedSubtotal * tipPercent) / 100;
   
   const finalTotal = discountedSubtotal + tax + serviceCharge + deliveryFee + tipAmount;
@@ -92,8 +93,8 @@ export default function CheckoutPage() {
     const clean = promoCode.trim().toUpperCase();
     if (clean === "YADOTENA10") {
       setAppliedPromo({ code: "YADOTENA10", discountPercent: 10 });
-    } else if (clean === "WELCOME5") {
-      setAppliedPromo({ code: "WELCOME5", discountFixed: 5.00 });
+    } else if (clean === "WELCOME50") {
+      setAppliedPromo({ code: "WELCOME50", discountFixed: 50.00 });
     } else {
       setPromoError("Invalid code. Try 'YADOTENA10' for 10% off!");
     }
@@ -217,7 +218,7 @@ export default function CheckoutPage() {
                     <Input 
                       value={customerName} 
                       onChange={(e) => setCustomerName(e.target.value)} 
-                      placeholder="e.g. John Doe" 
+                      placeholder="e.g. Abebe Kebede" 
                       className="rounded-xl bg-background/50 h-11"
                     />
                   </div>
@@ -226,7 +227,7 @@ export default function CheckoutPage() {
                     <Input 
                       value={customerPhone} 
                       onChange={(e) => setCustomerPhone(e.target.value)} 
-                      placeholder="e.g. 091 123 4567" 
+                      placeholder="e.g. +251 91 123 4567" 
                       className="rounded-xl bg-background/50 h-11"
                     />
                   </div>
@@ -251,7 +252,7 @@ export default function CheckoutPage() {
         {/* Plate / Tray Items */}
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
-            <h3 className="font-extrabold text-lg">My Plate</h3>
+            <h3 className="font-extrabold text-lg">My Tray</h3>
             <Link href="/menu" className="text-xs font-bold text-primary hover:underline">
               + Add More Items
             </Link>
@@ -264,10 +265,10 @@ export default function CheckoutPage() {
                   <div className="flex-1 min-w-0">
                     <h4 className="font-bold text-base truncate">{item.name}</h4>
                     <div className="text-primary font-black text-sm mt-0.5">
-                      ${(item.price * item.quantity).toFixed(2)}
+                      {formatETB(item.price * item.quantity)}
                       {item.quantity > 1 && (
                         <span className="text-xs text-muted-foreground font-normal ml-1.5">
-                          (${item.price.toFixed(2)} each)
+                          ({formatETB(item.price)} each)
                         </span>
                       )}
                     </div>
@@ -334,7 +335,7 @@ export default function CheckoutPage() {
               <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-2xl">
                 <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-sm">
                   <CheckCircle2 className="h-4 w-4" />
-                  <span>Coupon {appliedPromo.code} Applied ({appliedPromo.discountPercent ? `${appliedPromo.discountPercent}% OFF` : `$${appliedPromo.discountFixed} OFF`})</span>
+                  <span>Coupon {appliedPromo.code} Applied ({appliedPromo.discountPercent ? `${appliedPromo.discountPercent}% OFF` : `${formatETB(appliedPromo.discountFixed)} OFF`})</span>
                 </div>
                 <Button 
                   variant="ghost" 
@@ -374,7 +375,7 @@ export default function CheckoutPage() {
                 <HeartHandshake className="h-4 w-4 text-rose-500" />
                 <span className="font-bold text-sm">Tip the Wonderful Staff</span>
               </div>
-              <span className="text-xs font-bold text-primary">${tipAmount.toFixed(2)}</span>
+              <span className="text-xs font-bold text-primary">{formatETB(tipAmount)}</span>
             </div>
 
             <div className="grid grid-cols-5 gap-2">
@@ -437,46 +438,46 @@ export default function CheckoutPage() {
 
           <div className="flex justify-between text-sm text-muted-foreground font-medium">
             <span>Item Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>{formatETB(subtotal)}</span>
           </div>
 
           {discountAmount > 0 && (
             <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400 font-bold">
               <span>Promo Discount ({appliedPromo?.code})</span>
-              <span>-${discountAmount.toFixed(2)}</span>
+              <span>-{formatETB(discountAmount)}</span>
             </div>
           )}
 
           <div className="flex justify-between text-sm text-muted-foreground font-medium">
             <span>VAT & Sales Tax (15%)</span>
-            <span>${tax.toFixed(2)}</span>
+            <span>{formatETB(tax)}</span>
           </div>
 
           {activeOrderType === "DINE_IN" && (
             <div className="flex justify-between text-sm text-muted-foreground font-medium">
               <span>Service Charge (10%)</span>
-              <span>${serviceCharge.toFixed(2)}</span>
+              <span>{formatETB(serviceCharge)}</span>
             </div>
           )}
 
           {activeOrderType === "DELIVERY" && (
             <div className="flex justify-between text-sm text-muted-foreground font-medium">
               <span>Delivery Dispatch Fee</span>
-              <span>${deliveryFee.toFixed(2)}</span>
+              <span>{formatETB(deliveryFee)}</span>
             </div>
           )}
 
           {tipAmount > 0 && (
             <div className="flex justify-between text-sm text-muted-foreground font-medium">
               <span>Staff Gratuity Tip ({tipPercent}%)</span>
-              <span>${tipAmount.toFixed(2)}</span>
+              <span>{formatETB(tipAmount)}</span>
             </div>
           )}
 
           <div className="border-t pt-4 mt-2 flex justify-between items-baseline font-black text-2xl">
             <span>Total Payable</span>
             <span className="text-primary tracking-tight">
-              ${finalTotal.toFixed(2)}
+              {formatETB(finalTotal)}
             </span>
           </div>
         </div>
@@ -493,8 +494,8 @@ export default function CheckoutPage() {
           >
             {isProcessingPayment ? "Simulating Secure Payment..." : 
              createOrder.isPending ? "Routing Order to Kitchen..." : 
-             activeOrderType === "DINE_IN" ? `Place Dine-In Order • $${finalTotal.toFixed(2)}` : 
-             `Pay & Place Order • $${finalTotal.toFixed(2)}`}
+             activeOrderType === "DINE_IN" ? `Place Dine-In Order • ${formatETB(finalTotal)}` : 
+             `Pay & Place Order • ${formatETB(finalTotal)}`}
           </Button>
         </div>
       </div>

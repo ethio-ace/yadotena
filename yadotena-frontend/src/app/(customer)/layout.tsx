@@ -4,6 +4,7 @@ import { useCartStore } from "@/stores/cartStore";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionManager } from "@/components/SessionManager";
+import { formatETB } from "@/lib/currency";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, Clock, Utensils } from "lucide-react";
@@ -74,7 +75,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                   <span>View Current Order</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span>${cartTotal.toFixed(2)}</span>
+                  <span>{formatETB(cartTotal)}</span>
                   <ChevronRight className="h-5 w-5 stroke-[2.5]" />
                 </div>
               </Button>

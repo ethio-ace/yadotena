@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Minus, Search, Star, Clock, Sparkles, UtensilsCrossed, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
+import { formatETB } from "@/lib/currency";
 import Link from "next/link";
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -24,9 +25,14 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export default function MenuPage() {
-  const { data: menu, isLoading } = useQuery({
+  const { data: menu, isLoading: isMenuLoading } = useQuery({
     queryKey: ["menu"],
     queryFn: api.menu.getAll,
+  });
+
+  const { data: dynamicCategories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: api.categories.getAll,
   });
 
   const tableId = useCartStore((state) => state.tableId);
@@ -52,7 +58,7 @@ export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [selectedItemForModal, setSelectedItemForModal] = useState<MenuItem | null>(null);
 
-  if (isLoading) {
+  if (isMenuLoading) {
     return (
       <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6 animate-pulse">
         <div className="h-56 bg-muted/60 rounded-3xl w-full"></div>
@@ -65,13 +71,22 @@ export default function MenuPage() {
     );
   }
 
-  const categories = ["All", ...Array.from(new Set(menu?.map(m => m.category) || []))];
+  // Combine dynamic categories with any categories present on menu items
+  const categoryNamesFromMenu = Array.from(new Set(menu?.map(m => m.category) || []));
+  const combinedCategoryList = [
+    { name: "All", icon: "✨" },
+    ...dynamicCategories.map(c => ({ name: c.name, icon: c.icon || "🍽️" })),
+    ...categoryNamesFromMenu
+      .filter(cn => !dynamicCategories.some(dc => dc.name === cn))
+      .map(cn => ({ name: cn, icon: CATEGORY_ICONS[cn] || "🍽️" }))
+  ];
   
   const filteredMenu = menu?.filter(m => {
+    const isAvailable = m.available !== false;
     const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase()) || 
                           m.description.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = activeCategory === "All" || m.category === activeCategory;
-    return matchesSearch && matchesCategory;
+    return isAvailable && matchesSearch && matchesCategory;
   });
 
   return (
@@ -168,22 +183,21 @@ export default function MenuPage() {
 
         {/* Scrollable Category Filter Pills */}
         <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none pt-1">
-          {categories.map((category) => {
-            const isActive = activeCategory === category;
-            const icon = CATEGORY_ICONS[category] || "🍽️";
+          {combinedCategoryList.map((cat) => {
+            const isActive = activeCategory === cat.name;
             return (
               <button
-                key={category}
+                key={cat.name}
                 type="button"
-                onClick={() => setActiveCategory(category)}
+                onClick={() => setActiveCategory(cat.name)}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 ${
                   isActive
                     ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-105"
                     : "bg-card border border-muted hover:border-muted-foreground/30 text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span>{icon}</span>
-                <span>{category}</span>
+                <span>{cat.icon}</span>
+                <span>{cat.name}</span>
               </button>
             );
           })}
@@ -301,13 +315,23 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
           <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
             {item.description}
           </p>
+
+          {item.dietaryTags && item.dietaryTags.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {item.dietaryTags.slice(0, 2).map((tag) => (
+                <span key={tag} className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full border border-primary/20">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         
         {/* Price & Action Button */}
         <div className="flex items-center justify-between pt-3 border-t border-muted/50">
           <div>
             <span className="text-xs text-muted-foreground block font-medium">Price</span>
-            <span className="font-black text-xl text-primary">${item.price.toFixed(2)}</span>
+            <span className="font-black text-xl text-primary">{formatETB(item.price)}</span>
           </div>
           
           {cartItem ? (

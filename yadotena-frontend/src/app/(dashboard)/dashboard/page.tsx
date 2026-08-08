@@ -4,16 +4,17 @@ import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, DollarSign, ShoppingBag, Users, Utensils } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { formatETB } from "@/lib/currency";
 import WaiterDashboard from "@/components/dashboard/WaiterDashboard";
 
 const revenueData = [
-  { name: "8 AM", total: 120 },
-  { name: "10 AM", total: 450 },
-  { name: "12 PM", total: 1800 },
-  { name: "2 PM", total: 2400 },
-  { name: "4 PM", total: 1100 },
-  { name: "6 PM", total: 2900 },
-  { name: "8 PM", total: 4280 },
+  { name: "8 AM", total: 4200 },
+  { name: "10 AM", total: 8500 },
+  { name: "12 PM", total: 18400 },
+  { name: "2 PM", total: 24200 },
+  { name: "4 PM", total: 11500 },
+  { name: "6 PM", total: 29800 },
+  { name: "8 PM", total: 42800 },
 ];
 
 export default function DashboardPage() {
@@ -27,20 +28,20 @@ export default function DashboardPage() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">
-          Good morning, {session?.user?.name?.split(" ")[0] || "User"}
+          Good day, {session?.user?.name?.split(" ")[0] || "Manager"}
         </h2>
         <p className="text-muted-foreground mt-1">
-          Here's what's happening with your restaurant today.
+          Here's what's happening with your restaurant today in Addis Ababa.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Today's Revenue"
-          value="$4,280.00"
+          value={formatETB(42800)}
           trend="+12.5%"
           trendLabel="vs yesterday"
-          icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
+          icon={<div className="font-bold text-xs text-muted-foreground">ETB</div>}
         />
         <KpiCard
           title="Today's Orders"
@@ -66,9 +67,9 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+        <Card className="col-span-4 rounded-3xl shadow-sm">
           <CardHeader>
-            <CardTitle>Revenue Overview</CardTitle>
+            <CardTitle>Revenue Overview (ETB)</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
             <div className="h-[350px] w-full">
@@ -92,11 +93,11 @@ export default function DashboardPage() {
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(value) => `$${value}`}
+                    tickFormatter={(value) => `${value / 1000}k`}
                   />
                   <Tooltip 
-                    contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
-                    formatter={(value: any) => [`$${value}`, "Revenue"]}
+                    contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                    formatter={(value: any) => [`${formatETB(Number(value))}`, "Revenue"]}
                   />
                   <Area
                     type="monotone"
@@ -112,28 +113,28 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
         
-        <Card className="col-span-3">
+        <Card className="col-span-3 rounded-3xl shadow-sm">
           <CardHeader>
-            <CardTitle>Top Selling Products</CardTitle>
+            <CardTitle>Top Selling Gourmet Dishes</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
               {[
-                { name: "Classic Chicken Burger", sales: 48, amount: "$456.00" },
-                { name: "Margherita Pizza", sales: 36, amount: "$522.00" },
-                { name: "French Fries", sales: 62, amount: "$310.00" },
-                { name: "Beef Steak", sales: 18, amount: "$432.00" },
-                { name: "Iced Latte", sales: 45, amount: "$202.50" },
+                { name: "Prime Beef Ribeye Steak", sales: 48, amount: 40800 },
+                { name: "Artisanal Margherita Pizza", sales: 36, amount: 19800 },
+                { name: "Truffle Parmesan Fries", sales: 62, amount: 13640 },
+                { name: "Classic Chicken Burger", sales: 38, amount: 14440 },
+                { name: "Signature Iced Caramel Latte", sales: 45, amount: 7200 },
               ].map((product, i) => (
                 <div key={i} className="flex items-center">
-                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-4">
+                  <div className="h-9 w-9 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black text-xs mr-4">
                     {i + 1}
                   </div>
                   <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">{product.name}</p>
-                    <p className="text-sm text-muted-foreground">{product.sales} sales</p>
+                    <p className="text-sm font-bold leading-none">{product.name}</p>
+                    <p className="text-xs text-muted-foreground">{product.sales} sales</p>
                   </div>
-                  <div className="font-medium">{product.amount}</div>
+                  <div className="font-extrabold text-sm text-primary">{formatETB(product.amount)}</div>
                 </div>
               ))}
             </div>
@@ -146,16 +147,16 @@ export default function DashboardPage() {
 
 function KpiCard({ title, value, trend, trendLabel, icon }: any) {
   return (
-    <Card>
+    <Card className="rounded-3xl shadow-sm hover:shadow-md transition-shadow">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{title}</CardTitle>
         {icon}
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className="text-2xl font-black">{value}</div>
         <p className="text-xs text-muted-foreground mt-1 flex items-center">
-          <span className="text-emerald-500 font-medium flex items-center mr-1">
-            <ArrowUpRight className="h-3 w-3 mr-0.5" />
+          <span className="text-emerald-500 font-bold flex items-center mr-1">
+            <ArrowUpRight className="h-3.5 w-3.5 mr-0.5" />
             {trend}
           </span>
           {trendLabel}

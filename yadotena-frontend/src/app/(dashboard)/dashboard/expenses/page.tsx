@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Receipt } from "lucide-react";
 import { mockExpenses } from "@/mocks";
+import { formatETB } from "@/lib/currency";
 import { format } from "date-fns";
 import { useState } from "react";
 
@@ -32,7 +33,7 @@ export default function ExpensesPage() {
     onSubmit: (values, { resetForm }) => {
       // Simulate API call
       setTimeout(() => {
-        alert("Expense added (Mock)");
+        alert("Expense recorded (Mock)");
         resetForm();
         setShowForm(false);
       }, 500);
@@ -43,19 +44,19 @@ export default function ExpensesPage() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Expenses</h2>
-          <p className="text-muted-foreground mt-1">Track and manage restaurant expenses.</p>
+          <h2 className="text-3xl font-bold tracking-tight">Expenses & Overhead</h2>
+          <p className="text-muted-foreground mt-1">Track and manage operational restaurant expenses in ETB.</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)}>
+        <Button className="rounded-xl font-bold shadow-md shadow-primary/20" onClick={() => setShowForm(!showForm)}>
           <Plus className="mr-2 h-4 w-4" /> Record Expense
         </Button>
       </div>
 
       {showForm && (
-        <Card className="border-primary/20 bg-primary/5">
+        <Card className="border-primary/20 bg-primary/5 rounded-3xl">
           <form onSubmit={formik.handleSubmit}>
             <CardHeader>
-              <CardTitle className="text-lg">Add New Expense</CardTitle>
+              <CardTitle className="text-lg font-bold">Add New Expense</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -69,13 +70,13 @@ export default function ExpensesPage() {
                 {formik.errors.description && formik.touched.description && <p className="text-xs text-destructive">{formik.errors.description}</p>}
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Amount ($)</label>
-                <Input name="amount" type="number" step="0.01" placeholder="0.00" onChange={formik.handleChange} value={formik.values.amount} />
+                <label className="text-sm font-medium">Amount (ETB)</label>
+                <Input name="amount" type="number" step="1" placeholder="0" onChange={formik.handleChange} value={formik.values.amount} />
                 {formik.errors.amount && formik.touched.amount && <p className="text-xs text-destructive">{formik.errors.amount}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Payment Method</label>
-                <Input name="paymentMethod" placeholder="Cash, Card, etc." onChange={formik.handleChange} value={formik.values.paymentMethod} />
+                <Input name="paymentMethod" placeholder="Cash, CBE, Telebirr" onChange={formik.handleChange} value={formik.values.paymentMethod} />
                 {formik.errors.paymentMethod && formik.touched.paymentMethod && <p className="text-xs text-destructive">{formik.errors.paymentMethod}</p>}
               </div>
             </CardContent>
@@ -87,7 +88,7 @@ export default function ExpensesPage() {
         </Card>
       )}
 
-      <Card>
+      <Card className="rounded-3xl border-muted-foreground/15 shadow-sm overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -109,7 +110,7 @@ export default function ExpensesPage() {
                     <td className="px-6 py-4">{expense.description}</td>
                     <td className="px-6 py-4 text-muted-foreground">{expense.paymentMethod}</td>
                     <td className="px-6 py-4 text-muted-foreground">{expense.recordedBy}</td>
-                    <td className="px-6 py-4 text-right font-bold text-destructive">${expense.amount.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-right font-bold text-destructive">{formatETB(expense.amount)}</td>
                   </tr>
                 ))}
               </tbody>

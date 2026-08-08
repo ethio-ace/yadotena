@@ -21,6 +21,20 @@ export type OrderStatus =
 export type OrderType = "DINE_IN" | "TAKEAWAY" | "DELIVERY";
 export type PaymentStatus = "PENDING" | "PAID" | "REFUNDED";
 
+export interface MenuItemAddon {
+  id: string;
+  name: string;
+  price: number; // in ETB
+}
+
+export interface MenuCategory {
+  id: string;
+  name: string;
+  icon: string;
+  description?: string;
+  sortOrder?: number;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -30,6 +44,9 @@ export interface MenuItem {
   image: string;
   available: boolean;
   preparationTime: number; // in minutes
+  dietaryTags?: string[]; // e.g. "Spicy", "Vegetarian", "Halal", "Chef's Special"
+  customAddons?: MenuItemAddon[];
+  calories?: number;
 }
 
 export interface OrderItem {
@@ -86,4 +103,14 @@ export interface Expense {
   description: string;
   date: string;
   recordedBy: string; // User ID
+}
+
+export interface ServiceRequest {
+  id: string;
+  tableId: string;
+  tableName: string;
+  type: "WAITER" | "BILL" | "ASSISTANCE";
+  status: "PENDING" | "RESOLVED";
+  createdAt: string;
+  notes?: string;
 }

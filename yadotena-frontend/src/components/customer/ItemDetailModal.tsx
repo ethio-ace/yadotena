@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { MenuItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatETB } from "@/lib/currency";
 import { X, Plus, Minus, Flame, Sparkles, Clock, Check } from "lucide-react";
 
 interface ItemDetailModalProps {
@@ -26,11 +27,11 @@ const SPICE_LEVELS = [
   { label: "Extra Hot", icon: "⚡" },
 ];
 
-const AVAILABLE_ADDONS = [
-  { id: "cheese", name: "Extra Melted Cheese", price: 1.50 },
-  { id: "truffle", name: "Truffle Aioli Dip", price: 2.00 },
-  { id: "avocado", name: "Fresh Avocado Slices", price: 1.75 },
-  { id: "bacon", name: "Crispy Beef Strips", price: 2.50 },
+const DEFAULT_ADDONS = [
+  { id: "cheese", name: "Extra Melted Cheese", price: 60 },
+  { id: "truffle", name: "Truffle Aioli Dip", price: 80 },
+  { id: "avocado", name: "Fresh Avocado Slices", price: 70 },
+  { id: "beef_strips", name: "Crispy Beef Strips", price: 100 },
 ];
 
 export function ItemDetailModal({ item, isOpen, onClose, onAddToCart }: ItemDetailModalProps) {
@@ -38,6 +39,10 @@ export function ItemDetailModal({ item, isOpen, onClose, onAddToCart }: ItemDeta
   const [selectedSpice, setSelectedSpice] = useState("Medium");
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
+
+  const availableAddons = item?.customAddons && item.customAddons.length > 0 
+    ? item.customAddons 
+    : DEFAULT_ADDONS;
 
   useEffect(() => {
     if (isOpen) {
@@ -57,7 +62,7 @@ export function ItemDetailModal({ item, isOpen, onClose, onAddToCart }: ItemDeta
   };
 
   const addonsTotal = selectedAddons.reduce((sum, id) => {
-    const addon = AVAILABLE_ADDONS.find(a => a.id === id);
+    const addon = availableAddons.find(a => a.id === id);
     return sum + (addon ? addon.price : 0);
   }, 0);
 
@@ -66,7 +71,7 @@ export function ItemDetailModal({ item, isOpen, onClose, onAddToCart }: ItemDeta
 
   const handleAdd = () => {
     const addonNames = selectedAddons
-      .map(id => AVAILABLE_ADDONS.find(a => a.id === id)?.name)
+      .map(id => availableAddons.find(a => a.id === id)?.name)
       .filter(Boolean);
 
     const instructions = [
@@ -127,11 +132,21 @@ export function ItemDetailModal({ item, isOpen, onClose, onAddToCart }: ItemDeta
           <div>
             <div className="flex items-start justify-between gap-4">
               <h2 className="text-2xl font-bold tracking-tight">{item.name}</h2>
-              <span className="text-2xl font-black text-primary">${item.price.toFixed(2)}</span>
+              <span className="text-2xl font-black text-primary">{formatETB(item.price)}</span>
             </div>
             <p className="text-muted-foreground mt-2 leading-relaxed text-sm">
               {item.description}
             </p>
+
+            {item.dietaryTags && item.dietaryTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-3">
+                {item.dietaryTags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="bg-primary/10 text-primary border border-primary/20 font-bold px-2.5 py-0.5 text-xs">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Spice Level */}
@@ -169,7 +184,7 @@ export function ItemDetailModal({ item, isOpen, onClose, onAddToCart }: ItemDeta
               <span className="text-xs text-muted-foreground">Optional</span>
             </div>
             <div className="space-y-2">
-              {AVAILABLE_ADDONS.map(addon => {
+              {availableAddons.map(addon => {
                 const isSelected = selectedAddons.includes(addon.id);
                 return (
                   <div
@@ -189,7 +204,7 @@ export function ItemDetailModal({ item, isOpen, onClose, onAddToCart }: ItemDeta
                       </div>
                       <span className="text-sm font-medium">{addon.name}</span>
                     </div>
-                    <span className="text-sm font-semibold text-primary">+${addon.price.toFixed(2)}</span>
+                    <span className="text-sm font-semibold text-primary">+{formatETB(addon.price)}</span>
                   </div>
                 );
               })}
@@ -235,7 +250,7 @@ export function ItemDetailModal({ item, isOpen, onClose, onAddToCart }: ItemDeta
             className="flex-1 h-12 rounded-full font-bold shadow-lg shadow-primary/25 text-base"
             onClick={handleAdd}
           >
-            Add to Order • ${totalPrice.toFixed(2)}
+            Add to Order • {formatETB(totalPrice)}
           </Button>
         </div>
 

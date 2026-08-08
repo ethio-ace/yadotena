@@ -29,7 +29,7 @@ export default function SettingsPage() {
 
   const formik = useFormik({
     initialValues: {
-      restaurantName: "Yadotena Cafe & Resto",
+      restaurantName: "Yadotena Milk & Foods",
       phone: "+251 91 123 4567",
       address: "Bole Road, Addis Ababa",
       serviceCharge: 10,

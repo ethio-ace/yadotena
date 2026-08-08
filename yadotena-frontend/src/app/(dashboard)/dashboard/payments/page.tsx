@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
+import { formatETB } from "@/lib/currency";
 
 export default function PaymentsPage() {
   const { data: orders, isLoading } = useQuery({
@@ -19,35 +20,36 @@ export default function PaymentsPage() {
   }
 
   const paidOrders = orders?.filter(o => o.paymentStatus === "PAID") || [];
+  const totalCollected = paidOrders.reduce((acc, order) => acc + order.total, 0);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Payments</h2>
-          <p className="text-muted-foreground mt-1">Track processed payments and refunds.</p>
+          <p className="text-muted-foreground mt-1">Track processed payments and transaction history.</p>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <Card className="bg-emerald-500/5 border-emerald-500/20">
+        <Card className="bg-emerald-500/5 border-emerald-500/20 rounded-3xl">
           <CardHeader className="py-4">
-            <CardTitle className="text-sm text-emerald-600">Total Collected</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-emerald-600">Total Collected</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">
-              ${paidOrders.reduce((acc, order) => acc + order.total, 0).toFixed(2)}
+            <div className="text-2xl font-black text-emerald-600">
+              {formatETB(totalCollected)}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
+      <Card className="rounded-3xl border-muted-foreground/15 shadow-sm overflow-hidden">
         <CardHeader className="py-4 px-6 border-b">
           <div className="flex items-center">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search payment ID or customer..." className="pl-9" />
+              <Input placeholder="Search payment ID or customer..." className="pl-9 rounded-xl" />
             </div>
           </div>
         </CardHeader>
@@ -68,7 +70,7 @@ export default function PaymentsPage() {
                   <tr key={order.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-6 py-4 font-bold">{order.id}</td>
                     <td className="px-6 py-4">
-                      {order.type === "DINE_IN" ? `Table ${order.tableId?.replace('t', '')}` : order.customerName}
+                      {order.type === "DINE_IN" ? `Table ${order.tableId?.replace('t', '')}` : (order.customerName || "Guest")}
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">
                       {format(new Date(order.updatedAt), "MMM d, yyyy h:mm a")}
@@ -77,7 +79,7 @@ export default function PaymentsPage() {
                       <Badge variant="success">Paid</Badge>
                     </td>
                     <td className="px-6 py-4 text-right font-bold text-emerald-600">
-                      ${order.total.toFixed(2)}
+                      {formatETB(order.total)}
                     </td>
                   </tr>
                 ))}

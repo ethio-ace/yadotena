@@ -1,17 +1,18 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatETB } from "@/lib/currency";
 import { 
   ArrowLeft, CheckCircle2, Clock, MapPin, Receipt, Utensils, 
-  BellRing, Plus, Star, Sparkles, Check, ChevronRight, Phone, MessageSquare
+  BellRing, Plus, Star, Sparkles, Check, ChevronRight, Phone, MessageSquare, Printer
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const statusSteps = [
   { id: "PENDING", label: "Order Received", desc: "Kitchen received ticket", icon: Receipt },
@@ -27,6 +28,20 @@ export default function OrderTrackingPage() {
   const [billRequested, setBillRequested] = useState(false);
   const [rating, setRating] = useState<number>(0);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState(720); // 12 mins
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatCountdown = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  };
 
   const { data: order, isLoading } = useQuery({
     queryKey: ["orders", id],
@@ -36,6 +51,10 @@ export default function OrderTrackingPage() {
       return foundOrder || null;
     },
     refetchInterval: 3000, 
+  });
+
+  const sendServiceRequest = useMutation({
+    mutationFn: api.serviceRequests.create,
   });
 
   if (isLoading) {
@@ -70,11 +89,17 @@ export default function OrderTrackingPage() {
   const isCancelled = order.status === "CANCELLED";
 
   const handleCallWaiter = () => {
+    if (order.tableId) {
+      sendServiceRequest.mutate({ tableId: order.tableId, type: "WAITER" });
+    }
     setWaiterCalled(true);
     setTimeout(() => setWaiterCalled(false), 8000);
   };
 
   const handleRequestBill = () => {
+    if (order.tableId) {
+      sendServiceRequest.mutate({ tableId: order.tableId, type: "BILL" });
+    }
     setBillRequested(true);
     setTimeout(() => setBillRequested(false), 8000);
   };
@@ -97,16 +122,28 @@ export default function OrderTrackingPage() {
             </div>
           </div>
 
-          <Badge 
-            variant="secondary" 
-            className={`px-3 py-1 text-xs font-bold ${
-              order.paymentStatus === "PAID" 
-                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" 
-                : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20"
-            }`}
-          >
-            {order.paymentStatus === "PAID" ? "✓ Paid" : "⏳ Pay After Dining"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="rounded-full text-xs font-bold gap-1.5 h-8"
+              onClick={() => window.print()}
+            >
+              <Printer className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Print Bill</span>
+            </Button>
+
+            <Badge 
+              variant="secondary" 
+              className={`px-3 py-1 text-xs font-bold ${
+                order.paymentStatus === "PAID" 
+                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" 
+                  : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20"
+              }`}
+            >
+              {order.paymentStatus === "PAID" ? "✓ Paid" : "⏳ Pay on Departure"}
+            </Badge>
+          </div>
         </div>
       </div>
 
@@ -138,193 +175,212 @@ export default function OrderTrackingPage() {
               )}
 
               <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <div className="inline-flex items-center gap-2 bg-black/20 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
-                  <Clock className="h-4 w-4" />
-                  <span>Est. Prep: 15–20 minutes</span>
+                <div className="inline-flex items-center gap-2 bg-black/25 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
+                  <Clock className="h-4 w-4 text-amber-300 animate-pulse" />
+                  <span>Est. Prep: {formatCountdown(secondsRemaining)} remaining</span>
                 </div>
                 <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
-                  <span>Total: ${order.total.toFixed(2)}</span>
+                  <span>Total: {formatETB(order.total)}</span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Dine-In Quick Action Bar */}
-          {order.type === "DINE_IN" && !isCancelled && (
-            <div className="grid grid-cols-3 gap-3">
-              <Button
-                variant="outline"
-                className={`h-auto py-3.5 px-3 rounded-2xl flex flex-col items-center gap-1.5 border-muted-foreground/15 bg-card/80 backdrop-blur-sm transition-all ${
-                  waiterCalled ? "border-primary bg-primary/10 text-primary" : "hover:border-primary/50"
-                }`}
-                onClick={handleCallWaiter}
-              >
-                <BellRing className={`h-5 w-5 ${waiterCalled ? "animate-bounce text-primary" : "text-muted-foreground"}`} />
-                <span className="text-xs font-bold">{waiterCalled ? "Waiter Alerted!" : "Call Waiter"}</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                className={`h-auto py-3.5 px-3 rounded-2xl flex flex-col items-center gap-1.5 border-muted-foreground/15 bg-card/80 backdrop-blur-sm transition-all ${
-                  billRequested ? "border-primary bg-primary/10 text-primary" : "hover:border-primary/50"
-                }`}
-                onClick={handleRequestBill}
-              >
-                <Receipt className={`h-5 w-5 ${billRequested ? "animate-pulse text-primary" : "text-muted-foreground"}`} />
-                <span className="text-xs font-bold">{billRequested ? "Bill Requested!" : "Request Bill"}</span>
-              </Button>
-
-              <Link href="/menu" className="w-full">
-                <Button
-                  variant="outline"
-                  className="w-full h-auto py-3.5 px-3 rounded-2xl flex flex-col items-center gap-1.5 border-muted-foreground/15 bg-card/80 backdrop-blur-sm hover:border-primary/50"
-                >
-                  <Plus className="h-5 w-5 text-muted-foreground" />
-                  <span className="text-xs font-bold">Order More</span>
-                </Button>
-              </Link>
-            </div>
-          )}
-
-          {/* Live Preparation Timeline */}
-          {!isCancelled && !isCompleted && (
-            <Card className="rounded-3xl border-muted-foreground/15 bg-card/70 backdrop-blur-sm shadow-sm overflow-hidden">
-              <CardContent className="p-6 md:p-8 space-y-6">
-                <h3 className="font-extrabold text-lg flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  <span>Live Progress</span>
-                </h3>
-
-                <div className="space-y-8 pl-2">
-                  {statusSteps.map((step, idx) => {
-                    const isActive = idx <= currentStepIndex;
-                    const isCurrent = idx === currentStepIndex;
-                    const Icon = step.icon;
-
-                    return (
-                      <div key={step.id} className="relative flex items-start gap-4">
-                        {idx !== statusSteps.length - 1 && (
-                          <div 
-                            className={`absolute left-5 top-10 bottom-[-32px] w-0.5 transition-colors duration-500 ${
-                              isActive && !isCurrent ? 'bg-primary' : 'bg-muted'
-                            }`} 
-                          />
-                        )}
-
-                        <div className={`
-                          h-10 w-10 rounded-full flex items-center justify-center shrink-0 z-10 border-4 transition-all duration-500
-                          ${isCurrent 
-                            ? 'bg-primary border-primary/30 text-primary-foreground ring-4 ring-primary/20 scale-110 shadow-lg shadow-primary/30' 
-                            : isActive 
-                            ? 'bg-primary border-primary text-primary-foreground' 
-                            : 'bg-card border-muted text-muted-foreground'}
-                        `}>
-                          <Icon className={`h-4 w-4 ${isCurrent ? 'animate-pulse' : ''}`} />
-                        </div>
-
-                        <div className="pt-0.5">
-                          <div className="flex items-center gap-2">
-                            <h4 className={`font-bold text-base ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
-                              {step.label}
-                            </h4>
-                            {isCurrent && (
-                              <span className="h-2 w-2 rounded-full bg-primary inline-block animate-ping" />
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{step.desc}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+          {/* Dine-In Interactive Action Hub (Call Waiter / Bill) */}
+          {order.type === "DINE_IN" && (
+            <Card className="border-primary/20 bg-card rounded-3xl shadow-sm p-4 md:p-5">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-extrabold text-base flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>Table Assistance & Quick Actions</span>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Signal your waiter, request your check, or add more gourmet items to your table.
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
 
-          {/* Feedback & Star Rating Box (Available once ready or completed) */}
-          {(isCompleted || order.status === "READY") && (
-            <Card className="rounded-3xl border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card shadow-sm p-6 text-center space-y-4">
-              <h3 className="font-extrabold text-lg">How was your culinary experience?</h3>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Your feedback helps Chef Yadotena perfect our artisanal recipes.
-              </p>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Button 
+                    variant={waiterCalled ? "default" : "outline"} 
+                    className={`rounded-2xl font-bold flex-1 sm:flex-none h-11 text-xs transition-all ${
+                      waiterCalled ? "bg-emerald-600 text-white hover:bg-emerald-700" : "hover:border-primary"
+                    }`}
+                    onClick={handleCallWaiter}
+                    disabled={waiterCalled}
+                  >
+                    {waiterCalled ? (
+                      <>
+                        <Check className="h-4 w-4 mr-1.5" />
+                        <span>Staff Alerted!</span>
+                      </>
+                    ) : (
+                      <>
+                        <BellRing className="h-4 w-4 mr-1.5 text-primary" />
+                        <span>Call Waiter</span>
+                      </>
+                    )}
+                  </Button>
 
-              {feedbackSent ? (
-                <div className="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-sm bg-emerald-500/10 p-3 rounded-2xl border border-emerald-500/20">
-                  <Check className="h-4 w-4" />
-                  <span>Thank you for your warm review! ⭐</span>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex justify-center gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setRating(star)}
-                        className="p-1 transition-transform hover:scale-125 focus:outline-none"
-                      >
-                        <Star 
-                          className={`h-8 w-8 transition-colors ${
-                            star <= rating 
-                              ? "text-amber-500 fill-amber-500" 
-                              : "text-muted-foreground/30 hover:text-amber-400"
-                          }`} 
-                        />
-                      </button>
-                    ))}
-                  </div>
+                  <Button 
+                    variant={billRequested ? "default" : "secondary"}
+                    className={`rounded-2xl font-bold flex-1 sm:flex-none h-11 text-xs transition-all ${
+                      billRequested ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
+                    }`}
+                    onClick={handleRequestBill}
+                    disabled={billRequested}
+                  >
+                    {billRequested ? (
+                      <>
+                        <Check className="h-4 w-4 mr-1.5" />
+                        <span>Bill Requested!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Receipt className="h-4 w-4 mr-1.5" />
+                        <span>Request Bill</span>
+                      </>
+                    )}
+                  </Button>
 
-                  {rating > 0 && (
-                    <Button 
-                      size="sm" 
-                      className="rounded-full font-bold px-6 shadow-md"
-                      onClick={() => setFeedbackSent(true)}
-                    >
-                      Submit Feedback
+                  <Link href="/menu">
+                    <Button variant="outline" size="icon" className="rounded-2xl h-11 w-11 shrink-0" title="Order More">
+                      <Plus className="h-4 w-4" />
                     </Button>
-                  )}
+                  </Link>
                 </div>
-              )}
+              </div>
             </Card>
           )}
 
-          {/* Itemized Receipt Details */}
-          <Card className="rounded-3xl border-muted-foreground/15 bg-card/70 backdrop-blur-sm shadow-sm overflow-hidden">
-            <CardContent className="p-6 space-y-4">
-              <div className="flex items-center justify-between border-b pb-3">
-                <h3 className="font-extrabold text-base">Ticket Itemization</h3>
-                <span className="text-xs font-bold text-muted-foreground">{order.items.length} items</span>
+          {/* Timeline Progress */}
+          <Card className="rounded-3xl shadow-sm border-muted-foreground/15">
+            <CardContent className="p-6 md:p-8">
+              <h3 className="font-black text-lg mb-6 flex items-center gap-2">
+                <Clock className="h-5 w-5 text-primary" />
+                <span>Kitchen Timeline</span>
+              </h3>
+
+              <div className="relative pl-6 sm:pl-8 space-y-8 before:absolute before:left-3 sm:before:left-4 before:top-3 before:bottom-3 before:w-0.5 before:bg-muted">
+                {statusSteps.map((step, idx) => {
+                  const isPassed = currentStepIndex >= idx;
+                  const isCurrent = currentStepIndex === idx;
+                  const StepIcon = step.icon;
+
+                  return (
+                    <div key={step.id} className="relative flex items-start gap-4 group">
+                      <div 
+                        className={`absolute -left-6 sm:-left-8 top-0.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                          isPassed
+                            ? "bg-primary text-primary-foreground shadow-md shadow-primary/30 ring-4 ring-background"
+                            : "bg-muted text-muted-foreground border-2 border-background"
+                        } ${isCurrent ? "scale-110 ring-primary/20 ring-4" : ""}`}
+                      >
+                        {isPassed && !isCurrent ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : <StepIcon className="h-3.5 w-3.5" />}
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <h4 className={`font-extrabold text-sm ${isPassed ? "text-foreground" : "text-muted-foreground"}`}>
+                            {step.label}
+                          </h4>
+                          {isCurrent && (
+                            <Badge className="bg-primary/15 text-primary border-primary/20 text-[10px] font-bold animate-pulse">
+                              In Progress
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {step.desc}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Order Itemized Summary */}
+          <Card className="rounded-3xl shadow-sm border-muted-foreground/15">
+            <CardContent className="p-6 md:p-8 space-y-4">
+              <div className="flex items-center justify-between border-b pb-4">
+                <div>
+                  <h3 className="font-extrabold text-base">Ordered Items</h3>
+                  <p className="text-xs text-muted-foreground">Detailed breakdown of your selection</p>
+                </div>
+                <Badge variant="secondary" className="font-bold">
+                  {order.items.reduce((s, i) => s + i.quantity, 0)} Items
+                </Badge>
               </div>
 
-              <div className="space-y-3 divide-y divide-muted/40">
-                {order.items.map((item: any, i: number) => (
-                  <div key={i} className="pt-3 first:pt-0 flex justify-between items-start gap-4">
-                    <div className="space-y-0.5 flex-1 min-w-0">
+              <div className="divide-y">
+                {order.items.map((item) => (
+                  <div key={item.id} className="py-3.5 flex items-center justify-between">
+                    <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-black text-primary text-sm">{item.quantity}x</span>
-                        <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
+                        <span className="h-6 w-6 rounded-lg bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
+                          {item.quantity}x
+                        </span>
+                        <span className="font-bold text-sm text-foreground">{item.name}</span>
                       </div>
                       {item.specialInstructions && (
-                        <p className="text-xs text-muted-foreground italic pl-6">
+                        <p className="text-xs text-muted-foreground italic pl-8">
                           "{item.specialInstructions}"
                         </p>
                       )}
                     </div>
-                    <span className="font-black text-sm text-foreground shrink-0">
-                      ${(item.price * item.quantity).toFixed(2)}
+                    <span className="font-extrabold text-sm text-foreground">
+                      {formatETB(item.price * item.quantity)}
                     </span>
                   </div>
                 ))}
               </div>
 
-              <div className="border-t pt-4 mt-4 space-y-2">
-                <div className="flex justify-between font-black text-xl">
+              {/* Total calculation */}
+              <div className="pt-4 border-t space-y-2 text-sm text-muted-foreground">
+                <div className="flex justify-between font-black text-lg text-foreground pt-2 border-t">
                   <span>Grand Total</span>
-                  <span className="text-primary">${order.total.toFixed(2)}</span>
+                  <span className="text-primary">{formatETB(order.total)}</span>
                 </div>
               </div>
             </CardContent>
+          </Card>
+
+          {/* Customer Satisfaction Feedback (After Meal) */}
+          <Card className="rounded-3xl shadow-sm border-muted-foreground/15 bg-card/60 p-6 text-center space-y-3">
+            <h4 className="font-bold text-base">How is your dining experience?</h4>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              Your instant feedback helps our chef and floor staff deliver five-star service.
+            </p>
+
+            <div className="flex items-center justify-center gap-2 pt-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => {
+                    setRating(star);
+                    setFeedbackSent(true);
+                  }}
+                  className="p-1.5 hover:scale-125 transition-transform"
+                >
+                  <Star 
+                    className={`h-7 w-7 ${
+                      rating >= star 
+                        ? "fill-amber-400 text-amber-400" 
+                        : "text-muted-foreground/30 hover:text-amber-400"
+                    } transition-colors`} 
+                  />
+                </button>
+              ))}
+            </div>
+
+            {feedbackSent && (
+              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 animate-in fade-in">
+                ✓ Thank you for rating Yadotena Milk & Foods {rating} stars!
+              </p>
+            )}
           </Card>
 
         </div>

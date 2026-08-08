@@ -48,8 +48,14 @@ export default function Sidebar({ role }: { role: Role }) {
 
   return (
     <aside className="w-64 bg-card border-r flex-shrink-0 hidden md:flex flex-col">
-      <div className="h-16 flex items-center px-6 border-b">
-        <h1 className="text-2xl font-bold text-primary tracking-tight">Yadotena</h1>
+      <div className="h-20 flex items-center px-6 border-b gap-3">
+        <div className="h-10 w-10 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-black text-lg shadow-md shadow-primary/25">
+          🥛
+        </div>
+        <div>
+          <h1 className="text-xl font-black text-primary tracking-tight leading-none">Yadotena</h1>
+          <span className="text-[11px] font-bold text-muted-foreground tracking-wider uppercase">Milk & Foods</span>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="space-y-1 px-3">

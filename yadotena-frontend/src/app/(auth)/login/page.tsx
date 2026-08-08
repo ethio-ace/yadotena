@@ -46,10 +46,13 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-          <CardDescription>Sign in to your account</CardDescription>
+      <Card className="w-full max-w-md border-muted-foreground/15 shadow-xl rounded-3xl overflow-hidden">
+        <CardHeader className="text-center pb-4">
+          <div className="mx-auto h-12 w-12 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground text-2xl font-black shadow-lg shadow-primary/25 mb-2">
+            🥛
+          </div>
+          <CardTitle className="text-2xl font-black tracking-tight">Yadotena Milk & Foods</CardTitle>
+          <CardDescription className="text-xs font-medium">Operations & Restaurant Management Portal</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">

@@ -7,9 +7,10 @@ import { OrderType, MenuItem, OrderItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { formatETB } from "@/lib/currency";
 import { 
   X, Plus, Minus, Search, Utensils, ShoppingBag, Truck, 
-  CheckCircle2, DollarSign, ChefHat, Sparkles
+  CheckCircle2, ChefHat, Sparkles
 } from "lucide-react";
 
 interface CreateOrderModalProps {
@@ -93,7 +94,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
   const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const tax = subtotal * 0.15;
   const serviceCharge = orderType === "DINE_IN" ? subtotal * 0.10 : 0;
-  const deliveryFee = orderType === "DELIVERY" ? 3.00 : 0;
+  const deliveryFee = orderType === "DELIVERY" ? 100.00 : 0;
   const total = subtotal + tax + serviceCharge + deliveryFee;
 
   const handleSubmit = () => {
@@ -270,7 +271,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
                 >
                   <div className="min-w-0 pr-2">
                     <h4 className="font-bold text-xs group-hover:text-primary transition-colors truncate">{item.name}</h4>
-                    <span className="text-xs font-black text-primary">${item.price.toFixed(2)}</span>
+                    <span className="text-xs font-black text-primary">{formatETB(item.price)}</span>
                   </div>
                   <Button size="icon" variant="secondary" className="h-7 w-7 rounded-lg shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                     <Plus className="h-3.5 w-3.5" />
@@ -305,7 +306,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
                     <div key={item.menuItemId} className="flex items-center justify-between p-2.5 rounded-xl border bg-card">
                       <div className="min-w-0 flex-1 pr-2">
                         <h5 className="font-bold text-xs truncate">{item.name}</h5>
-                        <span className="text-xs font-semibold text-primary">${(item.price * item.quantity).toFixed(2)}</span>
+                        <span className="text-xs font-semibold text-primary">{formatETB(item.price * item.quantity)}</span>
                       </div>
                       <div className="flex items-center gap-1.5 bg-muted/60 rounded-full p-0.5 border">
                         <Button 
@@ -343,8 +344,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  <span className="text-xs font-bold">{isPaid ? "Marked as Paid" : "Payment Pending"}</span>
+                  <span className="text-xs font-bold">{isPaid ? "✓ Marked as Paid" : "⏳ Payment Pending"}</span>
                 </div>
                 <Badge variant={isPaid ? "success" : "secondary"} className="text-[10px]">
                   {isPaid ? "Paid" : "Unpaid"}
@@ -355,27 +355,27 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
               <div className="space-y-1.5 text-xs text-muted-foreground">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>${subtotal.toFixed(2)}</span>
+                  <span>{formatETB(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Tax (15%)</span>
-                  <span>${tax.toFixed(2)}</span>
+                  <span>{formatETB(tax)}</span>
                 </div>
                 {orderType === "DINE_IN" && (
                   <div className="flex justify-between">
                     <span>Service (10%)</span>
-                    <span>${serviceCharge.toFixed(2)}</span>
+                    <span>{formatETB(serviceCharge)}</span>
                   </div>
                 )}
                 {orderType === "DELIVERY" && (
                   <div className="flex justify-between">
                     <span>Delivery Fee</span>
-                    <span>${deliveryFee.toFixed(2)}</span>
+                    <span>{formatETB(deliveryFee)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-base font-black text-foreground pt-2 border-t">
                   <span>Total</span>
-                  <span className="text-primary">${total.toFixed(2)}</span>
+                  <span className="text-primary">{formatETB(total)}</span>
                 </div>
               </div>
 

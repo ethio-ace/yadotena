@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { OrderStatus } from "@/types";
+import { formatETB } from "@/lib/currency";
 import { Eye, Search, Plus, ChefHat } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
@@ -108,7 +109,7 @@ export default function OrdersPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">{order.items.reduce((acc, curr) => acc + curr.quantity, 0)} items</td>
-                      <td className="px-6 py-4 font-bold text-foreground">${order.total.toFixed(2)}</td>
+                      <td className="px-6 py-4 font-bold text-foreground">{formatETB(order.total)}</td>
                       <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
                       <td className="px-6 py-4">
                         <Badge variant={order.paymentStatus === "PAID" ? "success" : "secondary"}>

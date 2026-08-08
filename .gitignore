@@ -1,14 +1,12 @@
-# Yadotena
 .env
 .env.local
-backend/uploads/
 backend/.env
-frontend/.next/
-frontend/node_modules/
+backend/uploads/
 **/node_modules/
+**/.next/
 *.log
 .DS_Store
 .pnpm-store/
-
 .worktrees/
 .superpowers/
+.cursor/

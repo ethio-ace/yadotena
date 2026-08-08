@@ -53,6 +53,17 @@ export default function OrderTrackingPage() {
     refetchInterval: 3000, 
   });
 
+  const [tableId, setTableId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (order?.tableId) {
+      setTableId(order.tableId);
+    } else if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("yadotena_table_id");
+      if (stored) setTableId(stored);
+    }
+  }, [order]);
+
   const sendServiceRequest = useMutation({
     mutationFn: api.serviceRequests.create,
     onError: (err: Error) => {
@@ -97,20 +108,26 @@ export default function OrderTrackingPage() {
   const isCompleted = order.status === "COMPLETED" || order.status === "SERVED";
   const isCancelled = order.status === "CANCELLED";
 
-  const handleCallWaiter = () => {
-    if (order.tableId) {
-      sendServiceRequest.mutate({ tableId: order.tableId, type: "WAITER" });
-    }
+  const handleCallWaiter = (customNote?: string) => {
+    const effectiveTableId = order.tableId || tableId || "t1";
+    sendServiceRequest.mutate({
+      tableId: effectiveTableId,
+      type: "WAITER",
+      notes: customNote || "Guest requested waiter assistance at table",
+    });
     setWaiterCalled(true);
-    setTimeout(() => setWaiterCalled(false), 8000);
+    setTimeout(() => setWaiterCalled(false), 12000);
   };
 
-  const handleRequestBill = () => {
-    if (order.tableId) {
-      sendServiceRequest.mutate({ tableId: order.tableId, type: "BILL" });
-    }
+  const handleRequestBill = (method: string = "Telebirr / Cash") => {
+    const effectiveTableId = order.tableId || tableId || "t1";
+    sendServiceRequest.mutate({
+      tableId: effectiveTableId,
+      type: "BILL",
+      notes: `Requested table bill via ${method} (Total: ${formatETB(order.total)})`,
+    });
     setBillRequested(true);
-    setTimeout(() => setBillRequested(false), 8000);
+    setTimeout(() => setBillRequested(false), 12000);
   };
 
   return (
@@ -215,7 +232,7 @@ export default function OrderTrackingPage() {
                     className={`rounded-2xl font-bold flex-1 sm:flex-none h-11 text-xs transition-all ${
                       waiterCalled ? "bg-emerald-600 text-white hover:bg-emerald-700" : "hover:border-primary"
                     }`}
-                    onClick={handleCallWaiter}
+                    onClick={() => handleCallWaiter()}
                     disabled={waiterCalled}
                   >
                     {waiterCalled ? (
@@ -236,7 +253,7 @@ export default function OrderTrackingPage() {
                     className={`rounded-2xl font-bold flex-1 sm:flex-none h-11 text-xs transition-all ${
                       billRequested ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
                     }`}
-                    onClick={handleRequestBill}
+                    onClick={() => handleRequestBill()}
                     disabled={billRequested}
                   >
                     {billRequested ? (

@@ -6,8 +6,12 @@ export interface User {
   email: string;
   phone?: string;
   role: Role;
+  phone?: string;
   image?: string;
+  avatar_url?: string;
   status: "ACTIVE" | "INACTIVE";
+  joinedDate?: string;
+  is_active?: boolean;
 }
 
 export type OrderStatus =

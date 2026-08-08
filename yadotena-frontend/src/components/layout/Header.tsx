@@ -16,7 +16,7 @@ export default function Header({ user }: { user: any }) {
 
   const { data: requests = [] } = useQuery({
     queryKey: ["serviceRequests"],
-    queryFn: api.serviceRequests.getAll,
+    queryFn: () => api.serviceRequests.getAll("PENDING"),
     refetchInterval: 3000,
   });
 
@@ -28,7 +28,7 @@ export default function Header({ user }: { user: any }) {
     },
   });
 
-  const pendingRequests = requests.filter(r => r.status === "PENDING");
+  const pendingRequests = requests.filter((r) => r.status === "PENDING");
 
   return (
     <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-6 shrink-0 shadow-sm z-30 relative">
@@ -53,7 +53,9 @@ export default function Header({ user }: { user: any }) {
               variant={pendingRequests.length > 0 ? "default" : "ghost"} 
               size="icon" 
               className={`relative rounded-full transition-all ${
-                pendingRequests.length > 0 ? "bg-rose-500 hover:bg-rose-600 text-white animate-bounce shadow-md shadow-rose-500/25" : "text-muted-foreground"
+                pendingRequests.length > 0
+                  ? "bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/25 animate-pulse"
+                  : "text-muted-foreground"
               }`}
               onClick={() => setShowNotifications(!showNotifications)}
             >

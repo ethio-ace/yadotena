@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { OrderType, MenuItem, OrderItem } from "@/types";
@@ -33,7 +33,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
   });
 
   const [orderType, setOrderType] = useState<OrderType>("DINE_IN");
-  const [tableId, setTableId] = useState<string>(initialTableId || "t1");
+  const [tableId, setTableId] = useState<string>(initialTableId || "");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
@@ -49,6 +49,17 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
     specialInstructions?: string;
   }>>([]);
 
+  useEffect(() => {
+    if (initialTableId) {
+      setTableId(initialTableId);
+      return;
+    }
+    if (!tableId && tables?.length) {
+      const available = tables.find((t) => t.status === "AVAILABLE") || tables[0];
+      setTableId(available.id);
+    }
+  }, [initialTableId, tables, tableId]);
+
   const createOrder = useMutation({
     mutationFn: api.orders.create,
     onSuccess: () => {
@@ -60,6 +71,9 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
       setCustomerName("");
       setCustomerPhone("");
       setDeliveryAddress("");
+    },
+    onError: (err: Error) => {
+      alert(err.message || "Failed to create order");
     },
   });
 
@@ -99,18 +113,28 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
 
   const handleSubmit = () => {
     if (orderItems.length === 0) return alert("Please select at least one item.");
+    if (orderType === "DINE_IN" && !tableId) return alert("Please select a table.");
     if (orderType === "TAKEAWAY" && (!customerName || !customerPhone)) return alert("Please enter customer name and phone.");
     if (orderType === "DELIVERY" && (!customerName || !customerPhone || !deliveryAddress)) return alert("Please enter delivery details.");
+
+    const selectedTable = tables?.find((t) => t.id === tableId);
 
     createOrder.mutate({
       type: orderType,
       status: "PENDING",
       paymentStatus: isPaid ? "PAID" : "PENDING",
+      paymentMethod: "cash",
       items: orderItems.map(i => ({ ...i, id: Math.random().toString(36).substring(7) })) as OrderItem[],
       total,
       tableId: orderType === "DINE_IN" ? tableId : undefined,
-      customerName: orderType !== "DINE_IN" ? customerName : undefined,
-      customerPhone: orderType !== "DINE_IN" ? customerPhone : undefined,
+      customerName:
+        orderType === "DINE_IN"
+          ? customerName || `Guest ${selectedTable?.name || "Table"}`
+          : customerName,
+      customerPhone:
+        orderType === "DINE_IN"
+          ? customerPhone || "0911000000"
+          : customerPhone,
       deliveryAddress: orderType === "DELIVERY" ? deliveryAddress : undefined,
     });
   };

@@ -27,9 +27,13 @@ type placeBody struct {
 	Type               string               `json:"type"`
 	OrderType          models.OrderType     `json:"order_type"`
 	CustomerName       string               `json:"customer_name"`
+	CustomerNameCamel  string               `json:"customerName"`
 	CustomerPhone      string               `json:"customer_phone"`
+	CustomerPhoneCamel string               `json:"customerPhone"`
 	DeliveryAddress    *string              `json:"delivery_address"`
+	DeliveryAddrCamel  *string              `json:"deliveryAddress"`
 	TableID            *uuid.UUID           `json:"table_id"`
+	TableIDCamel       *uuid.UUID           `json:"tableId"`
 	Notes              string               `json:"notes"`
 	Items              []placeItem          `json:"items"`
 	PaymentMethod      models.PaymentMethod `json:"payment_method"`
@@ -52,6 +56,18 @@ func (body *placeBody) normalize() error {
 		if orderType, err := dto.ParseOrderTypeAPI(string(body.OrderType)); err == nil {
 			body.OrderType = orderType
 		}
+	}
+	if body.CustomerName == "" {
+		body.CustomerName = body.CustomerNameCamel
+	}
+	if body.CustomerPhone == "" {
+		body.CustomerPhone = body.CustomerPhoneCamel
+	}
+	if body.DeliveryAddress == nil {
+		body.DeliveryAddress = body.DeliveryAddrCamel
+	}
+	if body.TableID == nil {
+		body.TableID = body.TableIDCamel
 	}
 	for i := range body.Items {
 		item := &body.Items[i]
@@ -189,17 +205,33 @@ func (s *Server) createOrder(ctx context.Context, body placeBody, takenBy *uuid.
 	payStatus := orders.InitialPaymentStatus(body.OrderType, body.PaymentMethod, body.MarkCashPaid)
 	orderStatus := models.OrderPlaced
 
+	var servicePct float64
+	_ = tx.QueryRow(ctx, `SELECT service_charge_percent::float8 FROM settings WHERE id=1`).Scan(&servicePct)
+
+	tax := subtotal * 0.15
+	serviceCharge := 0.0
+	if body.OrderType == models.OrderDineIn && servicePct > 0 {
+		serviceCharge = subtotal * (servicePct / 100)
+	}
+	deliveryFee := 0.0
+	if body.OrderType == models.OrderDelivery {
+		deliveryFee = 100
+	}
+	total := subtotal + tax + serviceCharge + deliveryFee
+
 	var id uuid.UUID
 	var num int
 	var created, updated time.Time
 	err = tx.QueryRow(ctx, `
 		INSERT INTO orders (
 			order_type, order_status, payment_status, customer_name, customer_phone,
-			delivery_address, table_id, notes, subtotal_etb, total_etb, taken_by
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10)
+			delivery_address, table_id, notes, subtotal_etb, tax_etb, service_charge_etb,
+			delivery_fee_etb, total_etb, taken_by
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 		RETURNING id, order_number, created_at, updated_at`,
 		body.OrderType, orderStatus, payStatus, body.CustomerName, body.CustomerPhone,
-		body.DeliveryAddress, body.TableID, body.Notes, subtotal, takenBy,
+		body.DeliveryAddress, body.TableID, body.Notes, subtotal, tax, serviceCharge,
+		deliveryFee, total, takenBy,
 	).Scan(&id, &num, &created, &updated)
 	if err != nil {
 		return nil, err
@@ -514,14 +546,17 @@ func (s *Server) loadOrder(ctx context.Context, id uuid.UUID) (*models.Order, er
 	err := s.Pool.QueryRow(ctx, `
 		SELECT o.id, o.order_number, o.order_type, o.order_status, o.payment_status,
 			o.customer_name, o.customer_phone, o.delivery_address, o.table_id, t.label,
-			o.notes, o.subtotal_etb::float8, o.total_etb::float8, o.taken_by, o.cancel_reason,
+			o.notes, o.subtotal_etb::float8, COALESCE(o.tax_etb,0)::float8,
+			COALESCE(o.service_charge_etb,0)::float8, COALESCE(o.delivery_fee_etb,0)::float8,
+			o.total_etb::float8, o.taken_by, o.cancel_reason,
 			o.created_at, o.updated_at
 		FROM orders o
 		LEFT JOIN cafe_tables t ON t.id=o.table_id
 		WHERE o.id=$1`, id).Scan(
 		&o.ID, &o.OrderNumber, &o.OrderType, &o.OrderStatus, &o.PaymentStatus,
 		&o.CustomerName, &o.CustomerPhone, &addr, &tableID, &tableLabel,
-		&o.Notes, &o.SubtotalETB, &o.TotalETB, &o.TakenBy, &cancel,
+		&o.Notes, &o.SubtotalETB, &o.TaxETB, &o.ServiceChargeETB, &o.DeliveryFeeETB,
+		&o.TotalETB, &o.TakenBy, &cancel,
 		&o.CreatedAt, &o.UpdatedAt,
 	)
 	if err != nil {

@@ -63,7 +63,10 @@ export default function CheckoutPage() {
       setActiveOrderId(order.id);
       clearCart();
       router.push(`/order/${order.id}`);
-    }
+    },
+    onError: (err: Error) => {
+      alert(err.message || "Could not place order. Please try again.");
+    },
   });
 
   const handleCheckout = async () => {
@@ -71,22 +74,26 @@ export default function CheckoutPage() {
     if (activeOrderType === "DELIVERY" && (!customerName || !customerPhone || !deliveryAddress)) return alert("Name, phone, and address are required for Delivery");
 
     const requiresPaymentFirst = activeOrderType === "TAKEAWAY" || activeOrderType === "DELIVERY";
+    const isCash = paymentMethod === "cash";
 
-    if (requiresPaymentFirst) {
+    if (requiresPaymentFirst && !isCash) {
       setIsProcessingPayment(true);
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 800));
       setIsProcessingPayment(false);
     }
 
     createOrder.mutate({
       type: activeOrderType,
       status: "PENDING",
-      paymentStatus: requiresPaymentFirst ? "PAID" : "PENDING",
+      paymentStatus: requiresPaymentFirst && isCash ? "PAID" : "PENDING",
+      paymentMethod: isCash ? "cash" : "digital",
+      digitalMethod: isCash ? undefined : paymentMethod,
+      reference: isCash ? undefined : `CHK-${Date.now()}`,
       items: items,
       total: finalTotal,
       tableId: sessionTableId || undefined,
-      customerName: requiresPaymentFirst ? customerName : undefined,
-      customerPhone: requiresPaymentFirst ? customerPhone : undefined,
+      customerName: requiresPaymentFirst ? customerName : customerName || "Guest",
+      customerPhone: requiresPaymentFirst ? customerPhone : customerPhone || "0911000000",
       deliveryAddress: activeOrderType === "DELIVERY" ? deliveryAddress : undefined,
     });
   };
@@ -94,7 +101,7 @@ export default function CheckoutPage() {
   if (items.length === 0) {
     return (
       <div className="p-8 text-center flex flex-col items-center justify-center min-h-[70vh] max-w-md mx-auto space-y-4">
-        <div className="h-28 w-28 bg-primary/10 rounded-full flex items-center justify-center mb-2 animate-bounce">
+        <div className="h-28 w-28 bg-primary/10 rounded-full flex items-center justify-center mb-2 animate-in zoom-in-95 duration-500">
           <Utensils className="h-12 w-12 text-primary" />
         </div>
         <h2 className="text-3xl font-black tracking-tight">Your Tray is Empty</h2>

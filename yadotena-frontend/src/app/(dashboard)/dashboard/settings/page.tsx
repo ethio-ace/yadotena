@@ -1,12 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
+import { api } from "@/services/api";
 
 const SettingsSchema = Yup.object().shape({
   restaurantName: Yup.string()
@@ -16,8 +18,7 @@ const SettingsSchema = Yup.object().shape({
   phone: Yup.string()
     .matches(/^[0-9+\-\s()]*$/, "Invalid phone number format")
     .required("Phone number is required"),
-  address: Yup.string()
-    .required("Address is required"),
+  address: Yup.string().required("Address is required"),
   serviceCharge: Yup.number()
     .min(0, "Service charge cannot be negative")
     .max(100, "Service charge cannot exceed 100%")
@@ -26,23 +27,59 @@ const SettingsSchema = Yup.object().shape({
 
 export default function SettingsPage() {
   const [isSaved, setIsSaved] = useState(false);
+  const queryClient = useQueryClient();
 
-  const formik = useFormik({
-    initialValues: {
-      restaurantName: "Yadotena Milk & Foods",
-      phone: "+251 91 123 4567",
-      address: "Bole Road, Addis Ababa",
-      serviceCharge: 10,
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.settings.get,
+  });
+
+  const saveSettings = useMutation({
+    mutationFn: api.settings.update,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
     },
-    validationSchema: SettingsSchema,
-    onSubmit: (values) => {
-      // Simulate API call
-      setTimeout(() => {
-        setIsSaved(true);
-        setTimeout(() => setIsSaved(false), 3000);
-      }, 800);
+    onError: (err: Error) => {
+      alert(err.message || "Failed to save settings (owner role required)");
     },
   });
+
+  const formik = useFormik({
+    enableReinitialize: true,
+    initialValues: {
+      restaurantName: String(settings?.cafe_name || "Yadotena Cafe & Resto"),
+      phone: String(settings?.cafe_phone || ""),
+      address: String(settings?.cafe_address || ""),
+      serviceCharge: Number(settings?.service_charge_percent ?? 10),
+    },
+    validationSchema: SettingsSchema,
+    onSubmit: async (values) => {
+      await saveSettings.mutateAsync({
+        cafe_name: values.restaurantName,
+        cafe_phone: values.phone,
+        cafe_address: values.address,
+        service_charge_percent: Number(values.serviceCharge),
+      });
+    },
+  });
+
+  useEffect(() => {
+    if (settings) {
+      formik.setValues({
+        restaurantName: String(settings.cafe_name || ""),
+        phone: String(settings.cafe_phone || ""),
+        address: String(settings.cafe_address || ""),
+        serviceCharge: Number(settings.service_charge_percent ?? 10),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings]);
+
+  if (isLoading) {
+    return <div className="p-8 text-muted-foreground">Loading settings…</div>;
+  }
 
   return (
     <div className="space-y-6 max-w-4xl animate-in fade-in duration-500">
@@ -56,7 +93,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>General Information</CardTitle>
             <CardDescription>
-              Update your restaurant's basic information and contact details.
+              Updates sync to the live API (owner can save).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -130,8 +167,8 @@ export default function SettingsPage() {
                   Saved successfully
                 </span>
               )}
-              <Button type="submit" disabled={formik.isSubmitting || !formik.isValid}>
-                {formik.isSubmitting ? "Saving..." : "Save Changes"}
+              <Button type="submit" disabled={formik.isSubmitting || saveSettings.isPending || !formik.isValid}>
+                {formik.isSubmitting || saveSettings.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </CardFooter>

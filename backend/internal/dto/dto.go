@@ -108,10 +108,16 @@ func ParseOrderTypeAPI(orderType string) (models.OrderType, error) {
 }
 
 func PaymentStatusAPI(status models.PaymentStatus) string {
-	if status == models.PayPaid {
+	switch status {
+	case models.PayPaid:
 		return "PAID"
+	case models.PayPendingVerification:
+		return "PENDING_VERIFICATION"
+	case models.PayRejected:
+		return "REJECTED"
+	default:
+		return "PENDING"
 	}
-	return "PENDING"
 }
 
 func StaffUser(staff models.Staff) map[string]any {
@@ -129,8 +135,34 @@ func StaffUser(staff models.Staff) map[string]any {
 		"id":     staff.ID.String(),
 		"name":   staff.Name,
 		"email":  email,
+		"phone":  staff.Phone,
 		"role":   RoleAPI(staff.Role),
 		"status": status,
+	}
+}
+
+func ServiceRequestAPI(req models.ServiceRequest) map[string]any {
+	out := map[string]any{
+		"id":        req.ID.String(),
+		"tableId":   req.TableID.String(),
+		"tableName": req.TableName,
+		"type":      req.Type,
+		"status":    req.Status,
+		"createdAt": req.CreatedAt.Format(time.RFC3339Nano),
+	}
+	if req.Notes != "" {
+		out["notes"] = req.Notes
+	}
+	return out
+}
+
+func ReviewAPI(rev models.Review) map[string]any {
+	return map[string]any{
+		"id":           rev.ID.String(),
+		"customerName": rev.CustomerName,
+		"rating":       rev.Rating,
+		"comment":      rev.Comment,
+		"date":         rev.CreatedAt.Format(time.RFC3339Nano),
 	}
 }
 
@@ -182,12 +214,16 @@ func OrderAPI(order *models.Order) map[string]any {
 		deliveryAddress = *order.DeliveryAddress
 	}
 
-	return map[string]any{
+	out := map[string]any{
 		"id":              order.ID.String(),
 		"type":            OrderTypeAPI(order.OrderType),
 		"status":          OrderStatusAPI(order.OrderStatus),
 		"paymentStatus":   PaymentStatusAPI(order.PaymentStatus),
 		"items":           items,
+		"subtotal":        order.SubtotalETB,
+		"tax":             order.TaxETB,
+		"serviceCharge":   order.ServiceChargeETB,
+		"deliveryFee":     order.DeliveryFeeETB,
 		"total":           order.TotalETB,
 		"createdAt":       order.CreatedAt.Format(time.RFC3339Nano),
 		"updatedAt":       order.UpdatedAt.Format(time.RFC3339Nano),
@@ -196,6 +232,10 @@ func OrderAPI(order *models.Order) map[string]any {
 		"customerPhone":   order.CustomerPhone,
 		"deliveryAddress": deliveryAddress,
 	}
+	if order.TableLabel != nil && *order.TableLabel != "" {
+		out["tableName"] = *order.TableLabel
+	}
+	return out
 }
 
 func TableAPI(id, name string, capacity int, status string, currentOrderID *uuid.UUID) map[string]any {
@@ -213,11 +253,12 @@ func TableAPI(id, name string, capacity int, status string, currentOrderID *uuid
 
 func ExpenseAPI(expense models.Expense) map[string]any {
 	return map[string]any{
-		"id":          expense.ID.String(),
-		"amount":      expense.Amount,
-		"category":    expense.Category,
-		"description": expense.Description,
-		"date":        expense.ExpenseDate.Format("2006-01-02"),
-		"recordedBy":  expense.RecordedBy.String(),
+		"id":            expense.ID.String(),
+		"amount":        expense.Amount,
+		"category":      expense.Category,
+		"description":   expense.Description,
+		"date":          expense.ExpenseDate.Format("2006-01-02"),
+		"paymentMethod": expense.PaymentMethod,
+		"recordedBy":    expense.RecordedBy.String(),
 	}
 }

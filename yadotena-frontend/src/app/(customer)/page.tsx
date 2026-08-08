@@ -7,8 +7,8 @@ export default function CustomerIndex() {
   const router = useRouter();
 
   useEffect(() => {
-    // Automatically simulate scanning Table 04 QR code for demo
-    router.replace("/menu?table=t4");
+    // Demo: Table 04 from seeded Neon data
+    router.replace("/menu?table=d0000000-0000-0000-0000-000000000004");
   }, [router]);
 
   return (

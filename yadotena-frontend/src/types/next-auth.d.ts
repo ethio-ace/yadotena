@@ -1,8 +1,9 @@
 import { Role } from "./index";
-import NextAuth, { DefaultSession } from "next-auth";
+import { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
   interface Session {
+    accessToken?: string;
     user: {
       id: string;
       role: Role;
@@ -12,6 +13,7 @@ declare module "next-auth" {
   interface User {
     id: string;
     role: Role;
+    accessToken?: string;
   }
 }
 
@@ -19,5 +21,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     role: Role;
+    accessToken?: string;
   }
 }

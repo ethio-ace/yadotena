@@ -1,216 +1,462 @@
-import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory } from "../types";
-import { mockMenu, mockOrders, mockTables, mockUsers, mockExpenses, mockCustomers, mockReviews, mockCategories } from "../mocks";
+import { getSession } from "next-auth/react";
+import { apiFetch, apiFetchServer } from "@/lib/http";
+import type {
+  CreateOrderInput,
+  Expense,
+  MenuCategory,
+  MenuItem,
+  Order,
+  OrderStatus,
+  PaymentStatus,
+  Review,
+  ServiceRequest,
+  Table,
+  User,
+} from "@/types";
 
-// Helper to simulate network delay
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const CATEGORY_ICONS: Record<string, string> = {
+  "Fresh Dairy & Milk": "🥛",
+  "Main Course": "🍔",
+  Pizza: "🍕",
+  Appetizers: "🍟",
+  Beverages: "☕",
+  Desserts: "🍰",
+  Traditional: "🍲",
+  Breakfast: "🍳",
+  Burgers: "🍔",
+  Pasta: "🍝",
+  Salads: "🥗",
+  Drinks: "🥤",
+  Coffee: "☕",
+  Sides: "🍟",
+};
 
-// In-memory data stores for active prototype simulation
-let categoriesList: MenuCategory[] = [...mockCategories];
-let menuList: MenuItem[] = [...mockMenu];
-let tablesList: Table[] = [...mockTables];
-let ordersList: Order[] = [...mockOrders];
-let expensesList: any[] = [...mockExpenses];
-let customersList: any[] = [...mockCustomers];
-let serviceRequestsList: ServiceRequest[] = [
-  {
-    id: "req-1",
-    tableId: "t3",
-    tableName: "Table 03",
-    type: "WAITER",
-    status: "PENDING",
-    createdAt: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
-    notes: "Guest requested extra napkins and water refill",
-  },
-];
+type ApiCategory = {
+  id: string;
+  name: string;
+  sort_order?: number;
+  is_active?: boolean;
+};
+
+type PublicMenu = {
+  categories: ApiCategory[];
+  items: MenuItem[];
+};
+
+type AnalyticsResponse = {
+  revenue_etb?: number;
+  paid_order_count?: number;
+  daily?: Array<{
+    date: string;
+    revenue: number;
+    dineIn?: number;
+    takeaway?: number;
+    delivery?: number;
+  }>;
+  top_items?: Array<{ name: string; qty: number; revenue_etb: number }>;
+  byOrderType?: Record<string, number>;
+  by_order_type?: Record<string, number>;
+  from?: string;
+  to?: string;
+  payment_mix?: Record<string, number>;
+};
+
+export type CustomerRow = {
+  id: string;
+  name: string;
+  phone: string;
+  totalOrders: number;
+  totalSpent: number;
+  lastOrder: string;
+  type: "VIP" | "REGULAR" | "OCCASIONAL";
+};
+
+export type ExpenseRow = Expense & {
+  paymentMethod?: string;
+  recordedByName?: string;
+};
+
+function mapCategory(c: ApiCategory): MenuCategory {
+  return {
+    id: c.id,
+    name: c.name,
+    icon: CATEGORY_ICONS[c.name] || "🍽️",
+    sortOrder: c.sort_order,
+  };
+}
+
+async function loadPublicMenu(): Promise<PublicMenu> {
+  return apiFetch<PublicMenu>("/public/menu", { auth: false });
+}
+
+async function resolveCategoryId(categoryName: string): Promise<string> {
+  const { categories } = await loadPublicMenu();
+  const found = categories.find((c) => c.name === categoryName);
+  if (!found) throw new Error(`Unknown category: ${categoryName}`);
+  return found.id;
+}
+
+function buildPlaceBody(order: CreateOrderInput) {
+  const method = order.paymentMethod || (order.paymentStatus === "PAID" ? "cash" : "cash");
+  const markPaid = order.paymentStatus === "PAID" && method === "cash";
+  return {
+    type: order.type,
+    customer_name: order.customerName || "Guest",
+    customer_phone: order.customerPhone || "0000000000",
+    customerName: order.customerName || "Guest",
+    customerPhone: order.customerPhone || "0000000000",
+    table_id: order.tableId || undefined,
+    tableId: order.tableId || undefined,
+    delivery_address: order.deliveryAddress || undefined,
+    deliveryAddress: order.deliveryAddress || undefined,
+    payment_method: method,
+    paymentMethod: method,
+    digital_method: order.digitalMethod || undefined,
+    digitalMethod: order.digitalMethod || undefined,
+    reference: order.reference || undefined,
+    mark_cash_paid: markPaid,
+    markCashPaid: markPaid,
+    items: order.items.map((i) => ({
+      menuItemId: i.menuItemId,
+      quantity: i.quantity,
+      specialInstructions: i.specialInstructions || "",
+    })),
+  };
+}
+
+function analyticsRangeQuery(from?: string, to?: string): string {
+  const end = to || new Date().toISOString().slice(0, 10);
+  const start =
+    from ||
+    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return `?from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}`;
+}
 
 export const api = {
+  auth: {
+    login(phone: string, pin: string) {
+      return apiFetchServer<{ token: string; user: User }>("/staff/auth/login", {
+        method: "POST",
+        body: { phone, pin },
+      });
+    },
+  },
+
   categories: {
-    getAll: async (): Promise<MenuCategory[]> => {
-      await delay(150);
-      return [...categoriesList];
+    async getAll(): Promise<MenuCategory[]> {
+      try {
+        const cats = await apiFetch<ApiCategory[]>("/staff/categories");
+        return (cats || []).map(mapCategory);
+      } catch {
+        const data = await loadPublicMenu();
+        return (data.categories || []).map(mapCategory);
+      }
     },
-    create: async (category: Omit<MenuCategory, "id">): Promise<MenuCategory> => {
-      await delay(200);
-      const newCategory: MenuCategory = {
-        ...category,
-        id: `cat-${Date.now()}`,
-        sortOrder: categoriesList.length + 1,
+
+    async create(category: Omit<MenuCategory, "id">): Promise<MenuCategory> {
+      const res = await apiFetch<{ id: string }>("/staff/categories", {
+        body: { name: category.name, sort_order: category.sortOrder ?? 0 },
+      });
+      return {
+        id: res.id,
+        name: category.name,
+        icon: category.icon || CATEGORY_ICONS[category.name] || "🍽️",
+        description: category.description,
+        sortOrder: category.sortOrder,
       };
-      categoriesList = [...categoriesList, newCategory];
-      return newCategory;
     },
-    update: async (id: string, updates: Partial<MenuCategory>): Promise<MenuCategory> => {
-      await delay(200);
-      const index = categoriesList.findIndex(c => c.id === id);
-      if (index === -1) throw new Error("Category not found");
-      categoriesList[index] = { ...categoriesList[index], ...updates };
-      return categoriesList[index];
+
+    async update(id: string, updates: Partial<MenuCategory>): Promise<MenuCategory> {
+      await apiFetch(`/staff/categories/${id}`, {
+        method: "PATCH",
+        body: {
+          name: updates.name,
+          sort_order: updates.sortOrder,
+        },
+      });
+      return {
+        id,
+        name: updates.name || "",
+        icon: updates.icon || "🍽️",
+        description: updates.description,
+        sortOrder: updates.sortOrder,
+      };
     },
-    delete: async (id: string): Promise<void> => {
-      await delay(200);
-      categoriesList = categoriesList.filter(c => c.id !== id);
+
+    async delete(id: string): Promise<void> {
+      await apiFetch(`/staff/categories/${id}`, {
+        method: "PATCH",
+        body: { is_active: false },
+      });
     },
   },
+
   menu: {
-    getAll: async (): Promise<MenuItem[]> => {
-      await delay(200);
-      return [...menuList];
+    async getAll(): Promise<MenuItem[]> {
+      try {
+        return await apiFetch<MenuItem[]>("/staff/items");
+      } catch {
+        const data = await loadPublicMenu();
+        return data.items || [];
+      }
     },
-    getById: async (id: string): Promise<MenuItem | undefined> => {
-      await delay(150);
-      return menuList.find((m) => m.id === id);
+
+    async getById(id: string): Promise<MenuItem | undefined> {
+      const items = await this.getAll();
+      return items.find((m) => m.id === id);
     },
-    create: async (item: Omit<MenuItem, "id">): Promise<MenuItem> => {
-      await delay(250);
-      const newItem: MenuItem = {
-        ...item,
-        id: `m-${Date.now()}`,
+
+    async create(item: Omit<MenuItem, "id">): Promise<MenuItem> {
+      const categoryId = await resolveCategoryId(item.category);
+      const res = await apiFetch<{ id: string }>("/staff/items", {
+        body: {
+          categoryId,
+          name: item.name,
+          description: item.description,
+          price: item.price,
+          image: item.image,
+          available: item.available,
+          preparationTime: item.preparationTime,
+        },
+      });
+      return { ...item, id: res.id };
+    },
+
+    async update(id: string, updates: Partial<MenuItem>): Promise<MenuItem> {
+      const body: Record<string, unknown> = {
+        name: updates.name,
+        description: updates.description,
+        price: updates.price,
+        image: updates.image,
+        available: updates.available,
+        preparationTime: updates.preparationTime,
       };
-      menuList = [newItem, ...menuList];
-      return newItem;
+      if (updates.category) {
+        body.categoryId = await resolveCategoryId(updates.category);
+      }
+      await apiFetch(`/staff/items/${id}`, { method: "PATCH", body });
+      const current = await this.getById(id);
+      return { ...(current as MenuItem), ...updates, id };
     },
-    update: async (id: string, updates: Partial<MenuItem>): Promise<MenuItem> => {
-      await delay(200);
-      const index = menuList.findIndex(m => m.id === id);
-      if (index === -1) throw new Error("Menu item not found");
-      menuList[index] = { ...menuList[index], ...updates };
-      return menuList[index];
+
+    async toggleAvailability(id: string): Promise<MenuItem> {
+      const current = await this.getById(id);
+      if (!current) throw new Error("Menu item not found");
+      return this.update(id, { available: !current.available });
     },
-    toggleAvailability: async (id: string): Promise<MenuItem> => {
-      await delay(150);
-      const index = menuList.findIndex(m => m.id === id);
-      if (index === -1) throw new Error("Menu item not found");
-      menuList[index] = { ...menuList[index], available: !menuList[index].available };
-      return menuList[index];
-    },
-    delete: async (id: string): Promise<void> => {
-      await delay(200);
-      menuList = menuList.filter(m => m.id !== id);
+
+    async delete(id: string): Promise<void> {
+      // Hosted API has no hard delete — soft-hide via availability.
+      await apiFetch(`/staff/items/${id}`, {
+        method: "PATCH",
+        body: { available: false },
+      });
     },
   },
+
   tables: {
-    getAll: async (): Promise<Table[]> => {
-      await delay(200);
-      return [...tablesList];
+    async getAll(): Promise<Table[]> {
+      try {
+        return await apiFetch<Table[]>("/staff/tables");
+      } catch {
+        return apiFetch<Table[]>("/public/tables", { auth: false });
+      }
     },
-    getById: async (id: string): Promise<Table | undefined> => {
-      await delay(150);
-      return tablesList.find((t) => t.id === id);
+
+    async getById(id: string): Promise<Table | undefined> {
+      const tables = await this.getAll();
+      return tables.find((t) => t.id === id);
     },
-    updateStatus: async (id: string, status: Table["status"]): Promise<Table> => {
-      await delay(200);
-      const tableIndex = tablesList.findIndex((t) => t.id === id);
-      if (tableIndex === -1) throw new Error("Table not found");
-      tablesList[tableIndex] = { ...tablesList[tableIndex], status };
-      return tablesList[tableIndex];
+
+    async updateStatus(_id: string, _status: Table["status"]): Promise<Table> {
+      // Table status is derived from orders on the backend.
+      const table = await this.getById(_id);
+      if (!table) throw new Error("Table not found");
+      return table;
     },
   },
+
   orders: {
-    getAll: async (): Promise<Order[]> => {
-      await delay(200);
-      return [...ordersList];
+    async getAll(): Promise<Order[]> {
+      return apiFetch<Order[]>("/staff/orders");
     },
-    getById: async (id: string): Promise<Order | undefined> => {
-      await delay(150);
-      return ordersList.find((o) => o.id === id);
-    },
-    create: async (order: Omit<Order, "id" | "createdAt" | "updatedAt">): Promise<Order> => {
-      await delay(300);
-      const newOrder: Order = {
-        ...order,
-        id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      
-      ordersList = [newOrder, ...ordersList];
 
-      if (order.tableId) {
-        const tIndex = tablesList.findIndex(t => t.id === order.tableId);
-        if (tIndex !== -1) {
-          tablesList[tIndex] = { ...tablesList[tIndex], status: "PREPARING" };
+    async getById(id: string): Promise<Order | undefined> {
+      try {
+        return await apiFetch<Order>(`/staff/orders/${id}`);
+      } catch {
+        try {
+          return await apiFetch<Order>(`/public/orders/track?id=${encodeURIComponent(id)}`, {
+            auth: false,
+          });
+        } catch {
+          return undefined;
         }
       }
-
-      return newOrder;
     },
-    updateStatus: async (id: string, status: Order["status"]): Promise<Order> => {
-      await delay(200);
-      const orderIndex = ordersList.findIndex((o) => o.id === id);
-      if (orderIndex === -1) throw new Error("Order not found");
-      ordersList[orderIndex] = { 
-        ...ordersList[orderIndex], 
-        status, 
-        updatedAt: new Date().toISOString() 
-      };
-      return ordersList[orderIndex];
+
+    async create(order: CreateOrderInput): Promise<Order> {
+      const body = buildPlaceBody(order);
+      if (typeof window !== "undefined") {
+        const session = await getSession();
+        if ((session as { accessToken?: string } | null)?.accessToken) {
+          return apiFetch<Order>("/staff/orders", { body });
+        }
+      }
+      return apiFetch<Order>("/public/orders", { auth: false, body });
+    },
+
+    async updateStatus(id: string, status: OrderStatus): Promise<Order> {
+      return apiFetch<Order>(`/staff/orders/${id}/status`, {
+        method: "PATCH",
+        body: { status },
+      });
+    },
+
+    async updatePayment(
+      id: string,
+      paymentStatus: PaymentStatus,
+      opts?: { method?: "cash" | "digital"; digitalMethod?: string; reference?: string },
+    ): Promise<Order> {
+      if (paymentStatus === "PAID") {
+        return apiFetch<Order>(`/staff/orders/${id}/payment`, {
+          method: "POST",
+          body: {
+            method: opts?.method || "cash",
+            markCashPaid: (opts?.method || "cash") === "cash",
+            digitalMethod: opts?.digitalMethod,
+            reference: opts?.reference,
+          },
+        });
+      }
+      return apiFetch<Order>(`/staff/orders/${id}`);
+    },
+
+    async verifyPayment(id: string): Promise<Order> {
+      return apiFetch<Order>(`/staff/orders/${id}/payment/verify`, { method: "POST", body: {} });
+    },
+
+    async rejectPayment(id: string): Promise<Order> {
+      return apiFetch<Order>(`/staff/orders/${id}/payment/reject`, {
+        method: "POST",
+        body: {},
+      });
     },
   },
+
   serviceRequests: {
-    getAll: async (): Promise<ServiceRequest[]> => {
-      await delay(150);
-      return [...serviceRequestsList];
+    async getAll(status?: "PENDING" | "RESOLVED"): Promise<ServiceRequest[]> {
+      const q = status ? `?status=${status}` : "";
+      return apiFetch<ServiceRequest[]>(`/staff/service-requests${q}`);
     },
-    create: async (req: { tableId: string; type: "WAITER" | "BILL" | "ASSISTANCE"; notes?: string }): Promise<ServiceRequest> => {
-      await delay(200);
-      const table = tablesList.find(t => t.id === req.tableId);
-      const newReq: ServiceRequest = {
-        id: `req-${Date.now()}`,
-        tableId: req.tableId,
-        tableName: table ? table.name : `Table ${req.tableId.replace("t", "")}`,
-        type: req.type,
-        status: "PENDING",
-        createdAt: new Date().toISOString(),
-        notes: req.notes || (req.type === "BILL" ? "Requested table check / bill" : "Called for table waiter"),
-      };
-
-      // Set table status to waiting for service if not already
-      const tIndex = tablesList.findIndex(t => t.id === req.tableId);
-      if (tIndex !== -1) {
-        tablesList[tIndex] = { 
-          ...tablesList[tIndex], 
-          status: req.type === "BILL" ? "WAITING_FOR_PAYMENT" : "WAITING_FOR_SERVICE" 
-        };
-      }
-
-      serviceRequestsList = [newReq, ...serviceRequestsList];
-      return newReq;
+    async create(req: {
+      tableId: string;
+      type: "WAITER" | "BILL" | "ASSISTANCE";
+      notes?: string;
+    }): Promise<ServiceRequest> {
+      return apiFetch<ServiceRequest>("/public/service-requests", {
+        auth: false,
+        body: req,
+      });
     },
-    resolve: async (id: string): Promise<void> => {
-      await delay(150);
-      const req = serviceRequestsList.find(r => r.id === id);
-      if (req) {
-        req.status = "RESOLVED";
-        // Also update table status back to OCCUPIED if needed
-        const tIndex = tablesList.findIndex(t => t.id === req.tableId);
-        if (tIndex !== -1 && (tablesList[tIndex].status === "WAITING_FOR_SERVICE" || tablesList[tIndex].status === "WAITING_FOR_PAYMENT")) {
-          tablesList[tIndex] = { ...tablesList[tIndex], status: "OCCUPIED" };
-        }
-      }
+    async resolve(id: string): Promise<ServiceRequest> {
+      return apiFetch<ServiceRequest>(`/staff/service-requests/${id}/resolve`, {
+        method: "PATCH",
+        body: {},
+      });
     },
   },
+
   expenses: {
-    getAll: async () => {
-      await delay(200);
-      return [...expensesList];
+    async getAll(): Promise<ExpenseRow[]> {
+      return apiFetch<ExpenseRow[]>("/staff/expenses");
+    },
+    async create(data: {
+      category: string;
+      description: string;
+      amount: number;
+      paymentMethod: string;
+      date?: string;
+    }): Promise<ExpenseRow> {
+      return apiFetch<ExpenseRow>("/staff/expenses", {
+        body: {
+          category: data.category,
+          description: data.description,
+          amount: data.amount,
+          paymentMethod: data.paymentMethod,
+          date: data.date || new Date().toISOString().slice(0, 10),
+        },
+      });
     },
   },
+
   customers: {
-    getAll: async () => {
-      await delay(200);
-      return [...customersList];
+    async getAll(): Promise<CustomerRow[]> {
+      return apiFetch<CustomerRow[]>("/staff/customers");
     },
   },
+
   reviews: {
-    getAll: async () => {
-      await delay(200);
-      return [...mockReviews];
+    async getAll(): Promise<Review[]> {
+      return apiFetch<Review[]>("/staff/reviews");
+    },
+    async create(data: {
+      orderId?: string;
+      rating: number;
+      comment?: string;
+      customerName?: string;
+    }): Promise<Review> {
+      return apiFetch<Review>("/public/reviews", { auth: false, body: data });
     },
   },
+
   users: {
-    getAll: async (): Promise<User[]> => {
-      await delay(200);
-      return [...mockUsers];
+    async getAll(): Promise<User[]> {
+      return apiFetch<User[]>("/staff/staff");
+    },
+    async create(data: {
+      name: string;
+      phone: string;
+      pin: string;
+      role: User["role"];
+      email?: string;
+    }): Promise<{ id: string }> {
+      return apiFetch("/staff/staff", { body: data });
+    },
+    async update(
+      id: string,
+      data: Partial<Pick<User, "name" | "email" | "phone" | "role" | "status">> & { pin?: string },
+    ): Promise<void> {
+      await apiFetch(`/staff/staff/${id}`, {
+        method: "PATCH",
+        body: {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          role: data.role,
+          status: data.status,
+          pin: data.pin,
+        },
+      });
+    },
+  },
+
+  analytics: {
+    async getSummary(from?: string, to?: string): Promise<AnalyticsResponse> {
+      return apiFetch<AnalyticsResponse>(`/staff/analytics${analyticsRangeQuery(from, to)}`);
+    },
+  },
+
+  settings: {
+    async get(): Promise<Record<string, unknown>> {
+      try {
+        return await apiFetch("/staff/settings");
+      } catch {
+        return apiFetch("/public/settings", { auth: false });
+      }
+    },
+    async update(data: Record<string, unknown>): Promise<Record<string, unknown>> {
+      return apiFetch("/staff/settings", { method: "PATCH", body: data });
     },
   },
 };

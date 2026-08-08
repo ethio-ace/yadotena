@@ -4,6 +4,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: Role;
   image?: string;
   status: "ACTIVE" | "INACTIVE";
@@ -19,7 +20,12 @@ export type OrderStatus =
   | "CANCELLED";
 
 export type OrderType = "DINE_IN" | "TAKEAWAY" | "DELIVERY";
-export type PaymentStatus = "PENDING" | "PAID" | "REFUNDED";
+export type PaymentStatus =
+  | "PENDING"
+  | "PENDING_VERIFICATION"
+  | "PAID"
+  | "REJECTED"
+  | "REFUNDED";
 
 export interface MenuItemAddon {
   id: string;
@@ -64,19 +70,39 @@ export interface Order {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   items: OrderItem[];
+  subtotal?: number;
+  tax?: number;
+  serviceCharge?: number;
+  deliveryFee?: number;
   total: number;
   createdAt: string;
   updatedAt: string;
-  
+
   // Specific to Dine-in
   tableId?: string;
-  
+  tableName?: string;
+
   // Specific to Takeaway/Delivery
   customerName?: string;
   customerPhone?: string;
-  
+
   // Specific to Delivery
   deliveryAddress?: string;
+}
+
+/** Extra fields accepted by api.orders.create (not always on Order responses). */
+export type CreateOrderInput = Omit<Order, "id" | "createdAt" | "updatedAt"> & {
+  paymentMethod?: "cash" | "digital";
+  digitalMethod?: string;
+  reference?: string;
+};
+
+export interface Review {
+  id: string;
+  customerName: string;
+  rating: number;
+  comment: string;
+  date: string;
 }
 
 export type TableStatus =

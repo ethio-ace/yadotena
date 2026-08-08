@@ -123,26 +123,50 @@ type Payment struct {
 }
 
 type Order struct {
-	ID              uuid.UUID     `json:"id"`
-	OrderNumber     int           `json:"order_number"`
-	OrderType       OrderType     `json:"order_type"`
-	OrderStatus     OrderStatus   `json:"order_status"`
-	PaymentStatus   PaymentStatus `json:"payment_status"`
-	CustomerName    string        `json:"customer_name"`
-	CustomerPhone   string        `json:"customer_phone"`
-	DeliveryAddress *string       `json:"delivery_address,omitempty"`
-	TableID         *uuid.UUID    `json:"table_id,omitempty"`
-	TableLabel      *string       `json:"table_label,omitempty"`
-	Notes           string        `json:"notes"`
-	SubtotalETB     float64       `json:"subtotal_etb"`
-	TotalETB        float64       `json:"total_etb"`
-	TakenBy         *uuid.UUID    `json:"taken_by,omitempty"`
-	CancelReason    *string       `json:"cancel_reason,omitempty"`
-	Items           []OrderItem   `json:"items,omitempty"`
-	Payment         *Payment      `json:"payment,omitempty"`
-	CreatedAt       time.Time     `json:"created_at"`
-	UpdatedAt       time.Time     `json:"updated_at"`
-	KitchenVisible  bool          `json:"kitchen_visible"`
+	ID               uuid.UUID     `json:"id"`
+	OrderNumber      int           `json:"order_number"`
+	OrderType        OrderType     `json:"order_type"`
+	OrderStatus      OrderStatus   `json:"order_status"`
+	PaymentStatus    PaymentStatus `json:"payment_status"`
+	CustomerName     string        `json:"customer_name"`
+	CustomerPhone    string        `json:"customer_phone"`
+	DeliveryAddress  *string       `json:"delivery_address,omitempty"`
+	TableID          *uuid.UUID    `json:"table_id,omitempty"`
+	TableLabel       *string       `json:"table_label,omitempty"`
+	Notes            string        `json:"notes"`
+	SubtotalETB      float64       `json:"subtotal_etb"`
+	TaxETB           float64       `json:"tax_etb"`
+	ServiceChargeETB float64       `json:"service_charge_etb"`
+	DeliveryFeeETB   float64       `json:"delivery_fee_etb"`
+	TotalETB         float64       `json:"total_etb"`
+	TakenBy          *uuid.UUID    `json:"taken_by,omitempty"`
+	CancelReason     *string       `json:"cancel_reason,omitempty"`
+	Items            []OrderItem   `json:"items,omitempty"`
+	Payment          *Payment      `json:"payment,omitempty"`
+	CreatedAt        time.Time     `json:"created_at"`
+	UpdatedAt        time.Time     `json:"updated_at"`
+	KitchenVisible   bool          `json:"kitchen_visible"`
+}
+
+type ServiceRequest struct {
+	ID         uuid.UUID  `json:"id"`
+	TableID    uuid.UUID  `json:"table_id"`
+	TableName  string     `json:"table_name"`
+	Type       string     `json:"type"`
+	Status     string     `json:"status"`
+	Notes      string     `json:"notes"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
+	ResolvedBy *uuid.UUID `json:"resolved_by,omitempty"`
+}
+
+type Review struct {
+	ID           uuid.UUID  `json:"id"`
+	OrderID      *uuid.UUID `json:"order_id,omitempty"`
+	CustomerName string     `json:"customer_name"`
+	Rating       int        `json:"rating"`
+	Comment      string     `json:"comment"`
+	CreatedAt    time.Time  `json:"created_at"`
 }
 
 type Expense struct {

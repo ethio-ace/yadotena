@@ -26,7 +26,8 @@ func (s *Server) publicMenu(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listCategories(w http.ResponseWriter, r *http.Request) {
-	cats, err := s.fetchCategories(r, false)
+	activeOnly := r.URL.Query().Get("include_inactive") != "1"
+	cats, err := s.fetchCategories(r, activeOnly)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -107,7 +108,8 @@ func (s *Server) patchCategory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
-	items, err := s.fetchItems(r, false)
+	availableOnly := r.URL.Query().Get("include_unavailable") != "1"
+	items, err := s.fetchItems(r, availableOnly)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -477,20 +479,62 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) patchSettings(w http.ResponseWriter, r *http.Request) {
 	c := claimsFrom(r)
-	var body models.Settings
+	current, err := s.loadSettings(r)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	var body struct {
+		CafeName             *string   `json:"cafe_name"`
+		CafePhone            *string   `json:"cafe_phone"`
+		CafeAddress          *string   `json:"cafe_address"`
+		AcceptingOrders      *bool     `json:"accepting_orders"`
+		CashEnabled          *bool     `json:"cash_enabled"`
+		DigitalEnabled       *bool     `json:"digital_enabled"`
+		DigitalMethods       *[]string `json:"digital_methods"`
+		PublicBaseURL        *string   `json:"public_base_url"`
+		ServiceChargePercent *float64  `json:"service_charge_percent"`
+	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, 400, "invalid body")
 		return
 	}
-	methods, _ := json.Marshal(body.DigitalMethods)
-	_, err := s.Pool.Exec(r.Context(), `
+	if body.CafeName != nil {
+		current.CafeName = *body.CafeName
+	}
+	if body.CafePhone != nil {
+		current.CafePhone = *body.CafePhone
+	}
+	if body.CafeAddress != nil {
+		current.CafeAddress = *body.CafeAddress
+	}
+	if body.AcceptingOrders != nil {
+		current.AcceptingOrders = *body.AcceptingOrders
+	}
+	if body.CashEnabled != nil {
+		current.CashEnabled = *body.CashEnabled
+	}
+	if body.DigitalEnabled != nil {
+		current.DigitalEnabled = *body.DigitalEnabled
+	}
+	if body.DigitalMethods != nil {
+		current.DigitalMethods = *body.DigitalMethods
+	}
+	if body.PublicBaseURL != nil {
+		current.PublicBaseURL = *body.PublicBaseURL
+	}
+	if body.ServiceChargePercent != nil {
+		current.ServiceChargePercent = *body.ServiceChargePercent
+	}
+	methods, _ := json.Marshal(current.DigitalMethods)
+	_, err = s.Pool.Exec(r.Context(), `
 		UPDATE settings SET cafe_name=$1, cafe_phone=$2, cafe_address=$3, accepting_orders=$4,
 		cash_enabled=$5, digital_enabled=$6, digital_methods=$7, public_base_url=$8,
 		service_charge_percent=$9, updated_at=now()
 		WHERE id=1`,
-		body.CafeName, body.CafePhone, body.CafeAddress, body.AcceptingOrders,
-		body.CashEnabled, body.DigitalEnabled, methods, body.PublicBaseURL,
-		body.ServiceChargePercent)
+		current.CafeName, current.CafePhone, current.CafeAddress, current.AcceptingOrders,
+		current.CashEnabled, current.DigitalEnabled, methods, current.PublicBaseURL,
+		current.ServiceChargePercent)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return

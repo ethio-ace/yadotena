@@ -34,10 +34,10 @@ func TestPaymentStatusAPI(t *testing.T) {
 	if dto.PaymentStatusAPI(models.PayUnpaid) != "PENDING" {
 		t.Fatal()
 	}
-	if dto.PaymentStatusAPI(models.PayPendingVerification) != "PENDING" {
+	if dto.PaymentStatusAPI(models.PayPendingVerification) != "PENDING_VERIFICATION" {
 		t.Fatal()
 	}
-	if dto.PaymentStatusAPI(models.PayRejected) != "PENDING" {
+	if dto.PaymentStatusAPI(models.PayRejected) != "REJECTED" {
 		t.Fatal()
 	}
 	if dto.PaymentStatusAPI(models.PayPaid) != "PAID" {

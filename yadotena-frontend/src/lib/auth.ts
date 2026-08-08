@@ -1,31 +1,30 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { mockUsers } from "../mocks";
+import { api } from "@/services/api";
+import type { Role } from "@/types";
 
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "owner@demo.com" },
-        password: { label: "Password", type: "password" },
+        phone: { label: "Phone", type: "text", placeholder: "0900000001" },
+        pin: { label: "PIN", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email) return null;
-        
-        // In a real app we'd check password here. For demo, we just check email.
-        const user = mockUsers.find((u) => u.email === credentials.email);
-        
-        if (user) {
+        if (!credentials?.phone || !credentials?.pin) return null;
+        try {
+          const { token, user } = await api.auth.login(credentials.phone, credentials.pin);
           return {
             id: user.id,
             name: user.name,
             email: user.email,
-            role: user.role,
+            role: user.role as Role,
+            accessToken: token,
           };
+        } catch {
+          return null;
         }
-        
-        return null;
       },
     }),
   ],
@@ -34,14 +33,16 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = user.role;
         token.id = user.id;
+        token.accessToken = (user as { accessToken?: string }).accessToken;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role as any;
+        session.user.role = token.role as Role;
         session.user.id = token.id as string;
       }
+      (session as { accessToken?: string }).accessToken = token.accessToken as string | undefined;
       return session;
     },
   },

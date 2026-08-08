@@ -43,6 +43,8 @@ func (s *Server) Router() http.Handler {
 			r.Post("/orders", s.publicPlaceOrder)
 			r.Get("/orders/track", s.publicTrackOrder)
 			r.Get("/orders/{id}/stream", s.publicOrderStream)
+			r.Post("/service-requests", s.publicCreateServiceRequest)
+			r.Post("/reviews", s.publicCreateReview)
 		})
 
 		r.Post("/staff/auth/login", s.staffLogin)
@@ -61,6 +63,10 @@ func (s *Server) Router() http.Handler {
 			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment/verify", s.staffVerifyPayment)
 			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment/reject", s.staffRejectPayment)
 			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Get("/staff/customers", s.listCustomers)
+
+			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Get("/staff/service-requests", s.listServiceRequests)
+			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Patch("/staff/service-requests/{id}/resolve", s.resolveServiceRequest)
+			r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Get("/staff/reviews", s.listReviews)
 
 			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Route("/staff/categories", func(r chi.Router) {
 				r.Get("/", s.listCategories)

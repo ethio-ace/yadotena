@@ -39,20 +39,28 @@ export default function MenuPage() {
   const activeOrderId = useCartStore((state) => state.activeOrderId);
   const addItem = useCartStore((state) => state.addItem);
 
-  // Poll for live table/session orders
-  const { data: allOrders } = useQuery({
-    queryKey: ["orders"],
-    queryFn: api.orders.getAll,
+  const { data: tables = [] } = useQuery({
+    queryKey: ["public-tables"],
+    queryFn: api.tables.getAll,
+  });
+
+  // Poll the customer's own order via public track (no staff auth)
+  const { data: trackedOrder } = useQuery({
+    queryKey: ["orders", activeOrderId],
+    queryFn: async () => {
+      if (!activeOrderId) return null;
+      return (await api.orders.getById(activeOrderId)) || null;
+    },
+    enabled: !!activeOrderId,
     refetchInterval: 3000,
   });
 
-  // Find active table session order if one is currently being prepared
-  const activeSessionOrder = allOrders?.find((o) => {
-    const isMatchingTable = tableId && o.tableId === tableId;
-    const isMatchingOrderId = activeOrderId && o.id === activeOrderId;
-    const isActiveStatus = o.status !== "COMPLETED" && o.status !== "CANCELLED";
-    return (isMatchingTable || isMatchingOrderId) && isActiveStatus;
-  });
+  const activeSessionOrder =
+    trackedOrder && trackedOrder.status !== "COMPLETED" && trackedOrder.status !== "CANCELLED"
+      ? trackedOrder
+      : null;
+
+  const tableName = tables.find((t) => t.id === tableId)?.name;
   
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
@@ -102,7 +110,7 @@ export default function MenuPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base text-foreground">
-                  {tableId ? `Table ${tableId.replace("t", "")} Session` : "Your Active Order"}: <span className="text-primary">{activeSessionOrder.status}</span>
+                  {tableId ? `${tableName || "Table"} Session` : "Your Active Order"}: <span className="text-primary">{activeSessionOrder.status}</span>
                 </span>
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block animate-ping" />
               </div>
@@ -154,7 +162,7 @@ export default function MenuPage() {
             {tableId && (
               <div className="flex items-center gap-2 bg-primary/15 border border-primary/30 px-4 py-2 rounded-2xl self-start md:self-auto backdrop-blur-md shadow-sm">
                 <UtensilsCrossed className="h-4 w-4 text-primary" />
-                <span className="text-sm font-bold text-primary">Table {tableId.replace("t", "")} · Dine-In</span>
+                <span className="text-sm font-bold text-primary">{tableName || "Table"} · Dine-In</span>
               </div>
             )}
           </div>

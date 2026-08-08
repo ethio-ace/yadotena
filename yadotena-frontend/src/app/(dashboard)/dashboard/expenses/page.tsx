@@ -2,12 +2,13 @@
 
 import { useFormik } from "formik";
 import * as Yup from "yup";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Receipt } from "lucide-react";
-import { mockExpenses } from "@/mocks";
+import { api } from "@/services/api";
 import { formatETB } from "@/lib/currency";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -21,22 +22,37 @@ const ExpenseSchema = Yup.object().shape({
 
 export default function ExpensesPage() {
   const [showForm, setShowForm] = useState(false);
-  
+  const queryClient = useQueryClient();
+
+  const { data: expenses = [], isLoading } = useQuery({
+    queryKey: ["expenses"],
+    queryFn: api.expenses.getAll,
+  });
+
+  const createExpense = useMutation({
+    mutationFn: api.expenses.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      setShowForm(false);
+    },
+  });
+
   const formik = useFormik({
     initialValues: {
       category: "",
       description: "",
       amount: "",
-      paymentMethod: "",
+      paymentMethod: "Cash",
     },
     validationSchema: ExpenseSchema,
-    onSubmit: (values, { resetForm }) => {
-      // Simulate API call
-      setTimeout(() => {
-        alert("Expense recorded (Mock)");
-        resetForm();
-        setShowForm(false);
-      }, 500);
+    onSubmit: async (values, { resetForm }) => {
+      await createExpense.mutateAsync({
+        category: values.category,
+        description: values.description,
+        amount: Number(values.amount),
+        paymentMethod: values.paymentMethod,
+      });
+      resetForm();
     },
   });
 
@@ -82,7 +98,9 @@ export default function ExpensesPage() {
             </CardContent>
             <CardFooter className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button type="submit" disabled={!formik.isValid || formik.isSubmitting}>Save Expense</Button>
+              <Button type="submit" disabled={!formik.isValid || formik.isSubmitting || createExpense.isPending}>
+                {createExpense.isPending ? "Saving..." : "Save Expense"}
+              </Button>
             </CardFooter>
           </form>
         </Card>
@@ -90,32 +108,41 @@ export default function ExpensesPage() {
 
       <Card className="rounded-3xl border-muted-foreground/15 shadow-sm overflow-hidden">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
-                <tr>
-                  <th className="px-6 py-3 font-medium">Date</th>
-                  <th className="px-6 py-3 font-medium">Category</th>
-                  <th className="px-6 py-3 font-medium">Description</th>
-                  <th className="px-6 py-3 font-medium">Method</th>
-                  <th className="px-6 py-3 font-medium">Recorded By</th>
-                  <th className="px-6 py-3 font-medium text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {mockExpenses.map((expense) => (
-                  <tr key={expense.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 text-muted-foreground">{format(new Date(expense.date), "MMM d, yyyy")}</td>
-                    <td className="px-6 py-4 font-medium"><Badge variant="outline">{expense.category}</Badge></td>
-                    <td className="px-6 py-4">{expense.description}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{expense.paymentMethod}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{expense.recordedBy}</td>
-                    <td className="px-6 py-4 text-right font-bold text-destructive">{formatETB(expense.amount)}</td>
+          {isLoading ? (
+            <div className="p-8 text-center text-muted-foreground">Loading expenses…</div>
+          ) : expenses.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
+              <Receipt className="h-8 w-8 opacity-40" />
+              No expenses recorded yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
+                  <tr>
+                    <th className="px-6 py-3 font-medium">Date</th>
+                    <th className="px-6 py-3 font-medium">Category</th>
+                    <th className="px-6 py-3 font-medium">Description</th>
+                    <th className="px-6 py-3 font-medium">Method</th>
+                    <th className="px-6 py-3 font-medium">Recorded By</th>
+                    <th className="px-6 py-3 font-medium text-right">Amount</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y">
+                  {expenses.map((expense) => (
+                    <tr key={expense.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-6 py-4 text-muted-foreground">{format(new Date(expense.date), "MMM d, yyyy")}</td>
+                      <td className="px-6 py-4 font-medium"><Badge variant="outline">{expense.category}</Badge></td>
+                      <td className="px-6 py-4">{expense.description}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{expense.paymentMethod || "—"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{expense.recordedByName || expense.recordedBy}</td>
+                      <td className="px-6 py-4 text-right font-bold text-destructive">{formatETB(expense.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

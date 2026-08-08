@@ -45,13 +45,48 @@ Ping **`/health`** every ~14 minutes (not `/ready`).
 
 Seed includes 7 categories / 11 menu items (with images), 8 tables, open kitchen/waiter orders, sample customers (Abebe / Sara / Dawit VIP), and 3 expenses.
 
-## Deploy backend
+## Deploy backend (Render)
 
-1. Neon → `DATABASE_URL` (`sslmode=require`)
-2. Optional Upstash → `REDIS_URL` (`rediss://…`)
-3. Optional R2 → `R2_*` (see `backend/.env.example`)
-4. Deploy `backend/`: build `go build -o bin/api ./cmd/api`, start `./bin/api`
-5. Set `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` (Vercel URL), `RUN_SEEDS=true` once then `false`
-6. Frontend: `NEXT_PUBLIC_API_URL` → API URL
+| Field | Value |
+|-------|--------|
+| Name | `yadotena` |
+| Language | Go |
+| Branch | `main` |
+| Region | Oregon (US West) — or closest to Neon |
+| **Root Directory** | `backend` |
+| **Build Command** | `go build -tags netgo -ldflags '-s -w' -o app ./cmd/api` |
+| **Start Command** | `./app` |
+| Instance | Free (or paid) |
+
+Frontend origin (CORS / public URL): `https://yadotena.vercel.app` (no trailing slash).
+
+### Environment variables (Render → Environment)
+
+Copy values from your local `backend/.env` (do not commit secrets):
+
+```text
+APP_ENV=production
+JWT_SECRET=<strong-random-secret>
+JWT_EXPIRY=24h
+DATABASE_URL=<neon pooled url>
+REDIS_URL=<upstash rediss url>
+CORS_ALLOWED_ORIGINS=https://yadotena.vercel.app
+PUBLIC_BASE_URL=https://yadotena.vercel.app
+MIGRATIONS_DIR=migrations
+SEEDS_DIR=seeds
+RUN_SEEDS=false
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=menuvista-uploads
+R2_ENDPOINT=...
+R2_PUBLIC_URL=...
+```
+
+`PORT` is set by Render automatically — do not override.
+
+After deploy: health `https://yadotena.onrender.com/health` (use your real hostname).  
+Keep-alive: cron-job.org → that `/health` URL every 14 minutes.  
+Frontend: set `NEXT_PUBLIC_API_URL=https://yadotena.onrender.com` on Vercel.
 
 Migrations run on API boot.

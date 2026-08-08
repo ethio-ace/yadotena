@@ -1,10 +1,12 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useCartStore } from "@/stores/cartStore";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionManager } from "@/components/SessionManager";
 import { formatETB } from "@/lib/currency";
+import { api } from "@/services/api";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, Clock, Utensils } from "lucide-react";
@@ -16,6 +18,12 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const activeOrderId = useCartStore((state) => state.activeOrderId);
   const cartItemCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const cartTotal = useCartStore((state) => state.getTotal());
+
+  const { data: tables = [] } = useQuery({
+    queryKey: ["public-tables"],
+    queryFn: api.tables.getAll,
+  });
+  const tableName = tables.find((t) => t.id === tableId)?.name;
 
   // Only show the floating View Order button on the /menu page
   const showFloatingOrderButton = cartItemCount > 0 && pathname === "/menu";
@@ -36,7 +44,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                 Yadotena <span className="text-primary text-xs font-bold block sm:inline">Milk & Foods</span>
               </h1>
               <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">
-                {tableId ? `Table ${tableId.replace('t', '')} · Dining Session` : "Fresh Dairy & Artisanal Kitchen"}
+                {tableId
+                  ? `${tableName || "Table"} · Dining Session`
+                  : "Fresh Dairy & Artisanal Kitchen"}
               </p>
             </div>
           </Link>

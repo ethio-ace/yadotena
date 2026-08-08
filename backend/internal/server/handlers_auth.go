@@ -192,14 +192,26 @@ func (s *Server) patchStaff(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name     *string `json:"name"`
 		Email    *string `json:"email"`
+		Phone    *string `json:"phone"`
 		Notes    *string `json:"notes"`
 		PIN      *string `json:"pin"`
 		IsActive *bool   `json:"is_active"`
+		Status   *string `json:"status"`
 		Role     *string `json:"role"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, 400, "invalid body")
 		return
+	}
+	if body.IsActive == nil && body.Status != nil {
+		switch *body.Status {
+		case "ACTIVE":
+			v := true
+			body.IsActive = &v
+		case "INACTIVE":
+			v := false
+			body.IsActive = &v
+		}
 	}
 	var role *models.Role
 	if body.Role != nil {
@@ -219,6 +231,13 @@ func (s *Server) patchStaff(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Email != nil {
 		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET email=$1, updated_at=now() WHERE id=$2`, *body.Email, id)
+	}
+	if body.Phone != nil && *body.Phone != "" {
+		_, err := s.Pool.Exec(r.Context(), `UPDATE staff SET phone=$1, updated_at=now() WHERE id=$2`, *body.Phone, id)
+		if err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
 	}
 	if body.Notes != nil {
 		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET notes=$1, updated_at=now() WHERE id=$2`, *body.Notes, id)

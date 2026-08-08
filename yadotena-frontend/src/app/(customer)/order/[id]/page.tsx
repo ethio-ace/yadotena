@@ -55,6 +55,15 @@ export default function OrderTrackingPage() {
 
   const sendServiceRequest = useMutation({
     mutationFn: api.serviceRequests.create,
+    onError: (err: Error) => {
+      alert(err.message || "Could not send request");
+    },
+  });
+
+  const submitReview = useMutation({
+    mutationFn: api.reviews.create,
+    onSuccess: () => setFeedbackSent(true),
+    onError: (err: Error) => alert(err.message || "Could not submit review"),
   });
 
   if (isLoading) {
@@ -359,11 +368,17 @@ export default function OrderTrackingPage() {
                 <button
                   key={star}
                   type="button"
+                  disabled={feedbackSent || submitReview.isPending}
                   onClick={() => {
                     setRating(star);
-                    setFeedbackSent(true);
+                    submitReview.mutate({
+                      orderId: order.id,
+                      rating: star,
+                      customerName: order.customerName,
+                      comment: "Quick rating from order tracking",
+                    });
                   }}
-                  className="p-1.5 hover:scale-125 transition-transform"
+                  className="p-1.5 hover:scale-110 transition-transform"
                 >
                   <Star 
                     className={`h-7 w-7 ${

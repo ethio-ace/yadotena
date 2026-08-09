@@ -22,7 +22,12 @@ export type OrderStatus =
   | "COMPLETED"
   | "CANCELLED";
 
-export type OrderType = "DINE_IN" | "TAKEAWAY" | "DELIVERY";
+export type OrderType =
+  | "DINE_IN"
+  | "TAKEAWAY"
+  | "DELIVERY"
+  | "SHOP_PICKUP"
+  | "SHOP_DELIVERY";
 export type PaymentStatus =
   | "PENDING"
   | "PENDING_VERIFICATION"
@@ -58,9 +63,29 @@ export interface MenuItem {
   calories?: number;
 }
 
+export interface ProductCategory {
+  id: string;
+  name: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface Product {
+  id: string;
+  categoryId: string;
+  category: string;
+  name: string;
+  description: string;
+  price: number;
+  image: string;
+  available: boolean;
+  sortOrder?: number;
+}
+
 export interface OrderItem {
   id: string;
-  menuItemId: string;
+  menuItemId?: string;
+  productId?: string;
   name: string; // snapshot of name
   price: number; // snapshot of price
   quantity: number;

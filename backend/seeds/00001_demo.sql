@@ -1,6 +1,5 @@
--- Yadotena demo seed (aligned with yadotena-frontend mocks)
--- Demo PIN for all staff: 1234
--- bcrypt: $2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u
+-- Yadotena demo seed (aligned with yadotena-frontend)
+-- Staff login = phone + PIN (see TEST CREDENTIALS at bottom of 00002_extra_demo.sql)
 -- Safe to re-run: upserts on fixed IDs.
 
 INSERT INTO settings (
@@ -22,11 +21,11 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = now();
 
 INSERT INTO staff (id, phone, pin_hash, name, email, role, is_active) VALUES
-('a0000000-0000-0000-0000-000000000001', '0900000001', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Alice Owner', 'owner@demo.com', 'owner', true),
-('a0000000-0000-0000-0000-000000000002', '0900000002', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Bob Manager', 'manager@demo.com', 'manager', true),
-('a0000000-0000-0000-0000-000000000003', '0900000003', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Charlie Waiter', 'waiter@demo.com', 'waiter', true),
-('a0000000-0000-0000-0000-000000000004', '0900000004', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Dave Chef', 'kitchen@demo.com', 'chef', true),
-('a0000000-0000-0000-0000-000000000005', '0900000005', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Eve Server', 'eve@demo.com', 'waiter', false)
+('a0000000-0000-0000-0000-000000000001', '0900000001', '$2a$10$Qg47GaaX3Btfh7XS1R9ddOld8COuGXlHFpw.4humVEo7pBGL4hPXK', 'Alice Owner', 'owner@demo.com', 'owner', true),
+('a0000000-0000-0000-0000-000000000002', '0900000002', '$2a$10$nioP4trwNAOdKQwqhgj9Me7bFU8bIuQtaLAgi3KusH5/wuQNvCsRa', 'Bob Manager', 'manager@demo.com', 'manager', true),
+('a0000000-0000-0000-0000-000000000003', '0900000003', '$2a$10$QCrtyrY6hlvFFKpKWb3UBee3.STW1azBZ1Q6IGHXzX4624HQatMty', 'Charlie Waiter', 'waiter@demo.com', 'waiter', true),
+('a0000000-0000-0000-0000-000000000004', '0900000004', '$2a$10$IKzoBKoqElUDVymR9TBADOt/OE6/8.TZU8q8gGXvhAUmH79OsK9si', 'Dave Chef', 'kitchen@demo.com', 'chef', true),
+('a0000000-0000-0000-0000-000000000005', '0900000005', '$2a$10$mjaxArzx/LJJJsbRgT6OIex45owK1ukoQ6gA1ljDwCo06mMg.Jm1q', 'Eve Server', 'eve@demo.com', 'waiter', false)
 ON CONFLICT (phone) DO UPDATE SET
   pin_hash = EXCLUDED.pin_hash,
   name = EXCLUDED.name,

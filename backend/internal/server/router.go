@@ -38,6 +38,7 @@ func (s *Server) Router() http.Handler {
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/public", func(r chi.Router) {
 			r.Get("/menu", s.publicMenu)
+			r.Get("/products", s.publicProducts)
 			r.Get("/tables", s.publicTables)
 			r.Get("/settings", s.publicSettings)
 			r.Post("/orders", s.publicPlaceOrder)
@@ -77,6 +78,16 @@ func (s *Server) Router() http.Handler {
 				r.Get("/", s.listItems)
 				r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Post("/", s.createItem)
 				r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Patch("/{id}", s.patchItem)
+			})
+			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Route("/staff/product-categories", func(r chi.Router) {
+				r.Get("/", s.listProductCategories)
+				r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Post("/", s.createProductCategory)
+				r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Patch("/{id}", s.patchProductCategory)
+			})
+			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Route("/staff/products", func(r chi.Router) {
+				r.Get("/", s.listProducts)
+				r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Post("/", s.createProduct)
+				r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Patch("/{id}", s.patchProduct)
 			})
 			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Route("/staff/tables", func(r chi.Router) {
 				r.Get("/", s.listTables)

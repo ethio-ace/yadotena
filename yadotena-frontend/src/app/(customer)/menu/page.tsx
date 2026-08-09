@@ -8,7 +8,7 @@ import { MenuItem } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Minus, Search, Star, Clock, Sparkles, UtensilsCrossed, ArrowRight } from "lucide-react";
+import { Plus, Minus, Search, Sparkles, UtensilsCrossed, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
 import { formatETB } from "@/lib/currency";
@@ -154,28 +154,15 @@ export default function MenuPage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent opacity-60 pointer-events-none" />
         
         <div className="relative z-10 space-y-3">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold px-3 py-1 text-xs">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block mr-1.5 animate-pulse" />
-              Open Now
-            </Badge>
-            <Badge variant="secondary" className="bg-background/80 backdrop-blur-md font-semibold px-3 py-1 text-xs">
-              <Clock className="h-3.5 w-3.5 mr-1 text-primary" />
-              15-25 min avg prep
-            </Badge>
-            <Badge variant="secondary" className="bg-background/80 backdrop-blur-md font-semibold px-3 py-1 text-xs flex items-center text-amber-500">
-              <Star className="h-3.5 w-3.5 fill-amber-500 mr-1" />
-              4.9 (520+ reviews)
-            </Badge>
-          </div>
-
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
             <div>
               <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
                 Yadotena Milk & Foods
               </h1>
               <p className="text-muted-foreground text-sm md:text-base mt-1">
-                Farm-fresh dairy, pure organic milk products, craft beverages & delicious kitchen foods.
+                {tableId
+                  ? "Order to your table — kitchen receives it when you check out."
+                  : "Browse the menu. At checkout choose takeaway, delivery, or a free table for dine-in."}
               </p>
             </div>
 
@@ -325,13 +312,6 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
         <div className="absolute top-3 left-3 flex gap-1.5">
           <Badge variant="secondary" className="bg-background/85 backdrop-blur-md font-bold text-xs shadow-sm">
             {item.category}
-          </Badge>
-        </div>
-
-        <div className="absolute bottom-3 right-3">
-          <Badge variant="secondary" className="bg-background/85 backdrop-blur-md font-semibold text-[11px] flex items-center gap-1 shadow-sm">
-            <Clock className="h-3 w-3 text-primary" />
-            15m
           </Badge>
         </div>
       </div>

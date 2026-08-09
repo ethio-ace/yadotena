@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -159,7 +160,10 @@ export default function LoginPage() {
           </div>
         </CardContent>
 
-        <CardFooter className="flex justify-center text-sm text-muted-foreground pb-8">
+        <CardFooter className="flex flex-col items-center gap-2 text-sm text-muted-foreground pb-8">
+          <Link href="/" className="hover:underline text-muted-foreground font-semibold text-xs">
+            ← Back to home
+          </Link>
           <a
             href={`/menu?table=${DEMO_TABLE_ID}`}
             className="hover:underline text-primary font-semibold text-xs"

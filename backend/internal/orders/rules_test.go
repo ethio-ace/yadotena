@@ -19,6 +19,12 @@ func TestKitchenVisible(t *testing.T) {
 	if KitchenVisible(models.OrderDelivery, models.PayPendingVerification, models.OrderPlaced) {
 		t.Fatal("delivery pending should hide")
 	}
+	if KitchenVisible(models.OrderShopPickup, models.PayPaid, models.OrderPlaced) {
+		t.Fatal("shop never kitchen visible")
+	}
+	if KitchenVisible(models.OrderShopDelivery, models.PayPaid, models.OrderPlaced) {
+		t.Fatal("shop delivery never kitchen visible")
+	}
 }
 
 func TestCanCompleteDineIn(t *testing.T) {
@@ -42,6 +48,12 @@ func TestInitialPaymentStatus(t *testing.T) {
 	}
 	if got := InitialPaymentStatus(models.OrderDelivery, models.PayCash, true); got != models.PayPaid {
 		t.Fatalf("got %s", got)
+	}
+	if got := InitialPaymentStatus(models.OrderShopPickup, models.PayCash, false); got != models.PayPendingVerification {
+		t.Fatalf("shop cash pending got %s", got)
+	}
+	if got := InitialPaymentStatus(models.OrderShopDelivery, models.PayDigital, false); got != models.PayPendingVerification {
+		t.Fatalf("shop digital pending got %s", got)
 	}
 }
 

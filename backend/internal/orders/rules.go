@@ -8,6 +8,8 @@ func KitchenVisible(orderType models.OrderType, payment models.PaymentStatus, or
 		return false
 	}
 	switch orderType {
+	case models.OrderShopPickup, models.OrderShopDelivery:
+		return false // retail never hits kitchen
 	case models.OrderPickup, models.OrderDelivery:
 		return payment == models.PayPaid
 	default:
@@ -34,16 +36,21 @@ func InitialPaymentStatus(orderType models.OrderType, method models.PaymentMetho
 			return models.PayPendingVerification
 		}
 		return models.PayUnpaid
-	default: // pickup / delivery — pay first
+	default: // pickup / delivery / shop — pay first
 		if method == models.PayCash && markCashPaid {
 			return models.PayPaid
 		}
 		if method == models.PayDigital {
 			return models.PayPendingVerification
 		}
-		// cash not yet settled at counter for pickup/delivery
+		// cash not yet settled at counter for pickup/delivery/shop
 		return models.PayPendingVerification
 	}
+}
+
+// IsShopOrder reports retail shop order types.
+func IsShopOrder(orderType models.OrderType) bool {
+	return orderType == models.OrderShopPickup || orderType == models.OrderShopDelivery
 }
 
 // CanChefTransition checks chef may move order_status.

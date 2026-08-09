@@ -89,6 +89,10 @@ func OrderTypeAPI(orderType models.OrderType) string {
 		return "TAKEAWAY"
 	case models.OrderDelivery:
 		return "DELIVERY"
+	case models.OrderShopPickup:
+		return "SHOP_PICKUP"
+	case models.OrderShopDelivery:
+		return "SHOP_DELIVERY"
 	default:
 		return ""
 	}
@@ -98,12 +102,43 @@ func ParseOrderTypeAPI(orderType string) (models.OrderType, error) {
 	switch orderType {
 	case "DINE_IN":
 		return models.OrderDineIn, nil
-	case "TAKEAWAY":
+	case "TAKEAWAY", "PICKUP":
 		return models.OrderPickup, nil
 	case "DELIVERY":
 		return models.OrderDelivery, nil
+	case "SHOP_PICKUP":
+		return models.OrderShopPickup, nil
+	case "SHOP_DELIVERY":
+		return models.OrderShopDelivery, nil
 	default:
 		return "", fmt.Errorf("unknown API order type %q", orderType)
+	}
+}
+
+func ProductCategoryAPI(c models.ProductCategory) map[string]any {
+	return map[string]any{
+		"id":        c.ID.String(),
+		"name":      c.Name,
+		"sortOrder": c.SortOrder,
+		"isActive":  c.IsActive,
+	}
+}
+
+func ProductAPI(p models.Product, categoryName string) map[string]any {
+	image := ""
+	if p.ImageURL != nil {
+		image = *p.ImageURL
+	}
+	return map[string]any{
+		"id":          p.ID.String(),
+		"categoryId":  p.CategoryID.String(),
+		"category":    categoryName,
+		"name":        p.Name,
+		"description": p.Description,
+		"price":       p.PriceETB,
+		"image":       image,
+		"available":   p.IsAvailable,
+		"sortOrder":   p.SortOrder,
 	}
 }
 
@@ -195,9 +230,14 @@ func OrderAPI(order *models.Order) map[string]any {
 		if item.MenuItemID != nil {
 			menuItemID = item.MenuItemID.String()
 		}
+		productID := ""
+		if item.ProductID != nil {
+			productID = item.ProductID.String()
+		}
 		items = append(items, map[string]any{
 			"id":                  item.ID.String(),
 			"menuItemId":          menuItemID,
+			"productId":           productID,
 			"name":                item.NameSnapshot,
 			"price":               item.UnitPriceETB,
 			"quantity":            item.Qty,

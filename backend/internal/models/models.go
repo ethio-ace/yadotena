@@ -18,9 +18,11 @@ const (
 type OrderType string
 
 const (
-	OrderDineIn   OrderType = "dine_in"
-	OrderPickup   OrderType = "pickup"
-	OrderDelivery OrderType = "delivery"
+	OrderDineIn       OrderType = "dine_in"
+	OrderPickup       OrderType = "pickup"
+	OrderDelivery     OrderType = "delivery"
+	OrderShopPickup   OrderType = "shop_pickup"
+	OrderShopDelivery OrderType = "shop_delivery"
 )
 
 type OrderStatus string
@@ -69,6 +71,24 @@ type Category struct {
 	IsActive  bool      `json:"is_active"`
 }
 
+type ProductCategory struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	SortOrder int       `json:"sort_order"`
+	IsActive  bool      `json:"is_active"`
+}
+
+type Product struct {
+	ID          uuid.UUID `json:"id"`
+	CategoryID  uuid.UUID `json:"category_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	PriceETB    float64   `json:"price_etb"`
+	ImageURL    *string   `json:"image_url,omitempty"`
+	IsAvailable bool      `json:"is_available"`
+	SortOrder   int       `json:"sort_order"`
+}
+
 type MenuItem struct {
 	ID                     uuid.UUID `json:"id"`
 	CategoryID             uuid.UUID `json:"category_id"`
@@ -104,12 +124,13 @@ type Settings struct {
 }
 
 type OrderItem struct {
-	ID            uuid.UUID  `json:"id"`
-	MenuItemID    *uuid.UUID `json:"menu_item_id,omitempty"`
-	NameSnapshot  string     `json:"name_snapshot"`
-	UnitPriceETB  float64    `json:"unit_price_etb"`
-	Qty           int        `json:"qty"`
-	Note          string     `json:"note"`
+	ID           uuid.UUID  `json:"id"`
+	MenuItemID   *uuid.UUID `json:"menu_item_id,omitempty"`
+	ProductID    *uuid.UUID `json:"product_id,omitempty"`
+	NameSnapshot string     `json:"name_snapshot"`
+	UnitPriceETB float64    `json:"unit_price_etb"`
+	Qty          int        `json:"qty"`
+	Note         string     `json:"note"`
 }
 
 type Payment struct {

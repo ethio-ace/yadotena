@@ -392,12 +392,24 @@ func (s *Server) createTable(w http.ResponseWriter, r *http.Request) {
 	c := claimsFrom(r)
 	var body struct {
 		Label            string     `json:"label"`
+		Name             string     `json:"name"`
 		Seats            int        `json:"seats"`
+		Capacity         int        `json:"capacity"`
 		AssignedWaiterID *uuid.UUID `json:"assigned_waiter_id"`
 	}
-	if err := decodeJSON(r, &body); err != nil || body.Label == "" {
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, 400, "invalid body")
+		return
+	}
+	if body.Label == "" {
+		body.Label = body.Name
+	}
+	if body.Label == "" {
 		writeErr(w, 400, "label required")
 		return
+	}
+	if body.Seats <= 0 {
+		body.Seats = body.Capacity
 	}
 	if body.Seats <= 0 {
 		body.Seats = 2
@@ -423,7 +435,9 @@ func (s *Server) patchTable(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		Label            *string    `json:"label"`
+		Name             *string    `json:"name"`
 		Seats            *int       `json:"seats"`
+		Capacity         *int       `json:"capacity"`
 		AssignedWaiterID *uuid.UUID `json:"assigned_waiter_id"`
 		ClearWaiter      bool       `json:"clear_waiter"`
 		IsActive         *bool      `json:"is_active"`
@@ -431,6 +445,12 @@ func (s *Server) patchTable(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, 400, "invalid body")
 		return
+	}
+	if body.Label == nil {
+		body.Label = body.Name
+	}
+	if body.Seats == nil {
+		body.Seats = body.Capacity
 	}
 	if body.Label != nil {
 		_, _ = s.Pool.Exec(r.Context(), `UPDATE cafe_tables SET label=$1, updated_at=now() WHERE id=$2`, *body.Label, id)

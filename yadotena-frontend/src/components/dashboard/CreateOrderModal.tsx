@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
+import {
+  computeOrderTotals,
+  parseServiceChargePercent,
+} from "@/lib/order-totals";
 import { 
   X, Plus, Minus, Search, Utensils, ShoppingBag, Truck, 
   CheckCircle2, ChefHat, Sparkles
@@ -31,6 +35,13 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
   });
+
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.settings.get,
+    staleTime: 60_000,
+  });
+  const serviceChargePercent = parseServiceChargePercent(settings);
 
   const [orderType, setOrderType] = useState<OrderType>("DINE_IN");
   const [tableId, setTableId] = useState<string>(initialTableId || "");
@@ -106,10 +117,11 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
   };
 
   const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = subtotal * 0.15;
-  const serviceCharge = orderType === "DINE_IN" ? subtotal * 0.10 : 0;
-  const deliveryFee = orderType === "DELIVERY" ? 100.00 : 0;
-  const total = subtotal + tax + serviceCharge + deliveryFee;
+  const { tax, serviceCharge, deliveryFee, total } = computeOrderTotals({
+    subtotal,
+    orderType,
+    serviceChargePercent,
+  });
 
   const handleSubmit = () => {
     if (orderItems.length === 0) return alert("Please select at least one item.");
@@ -360,19 +372,28 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
             {/* Payment & Totals */}
             <div className="pt-4 border-t space-y-3">
               
-              {/* Payment toggle */}
-              <div 
+              {/* Payment toggle — cash only; unpaid takeaway/delivery kitchen-hidden until paid */}
+              <div
                 onClick={() => setIsPaid(!isPaid)}
-                className={`p-3 rounded-2xl border cursor-pointer flex items-center justify-between transition-colors ${
-                  isPaid ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-muted bg-card text-muted-foreground"
+                className={`p-3 rounded-2xl border cursor-pointer flex flex-col gap-1 transition-colors ${
+                  isPaid
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : "border-muted bg-card text-muted-foreground"
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold">{isPaid ? "✓ Marked as Paid" : "⏳ Payment Pending"}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold">
+                    {isPaid ? "Cash marked paid" : "Cash not yet received"}
+                  </span>
+                  <Badge variant={isPaid ? "success" : "secondary"} className="text-[10px]">
+                    {isPaid ? "Paid" : "Unpaid"}
+                  </Badge>
                 </div>
-                <Badge variant={isPaid ? "success" : "secondary"} className="text-[10px]">
-                  {isPaid ? "Paid" : "Unpaid"}
-                </Badge>
+                {!isPaid && orderType !== "DINE_IN" && (
+                  <p className="text-[10px] leading-snug opacity-80">
+                    Kitchen waits until cash is marked paid for takeaway/delivery.
+                  </p>
+                )}
               </div>
 
               {/* Price Breakdown */}
@@ -387,7 +408,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
                 </div>
                 {orderType === "DINE_IN" && (
                   <div className="flex justify-between">
-                    <span>Service (10%)</span>
+                    <span>Service ({serviceChargePercent}%)</span>
                     <span>{formatETB(serviceCharge)}</span>
                   </div>
                 )}
@@ -409,7 +430,11 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
                 onClick={handleSubmit}
                 disabled={createOrder.isPending || orderItems.length === 0}
               >
-                {createOrder.isPending ? "Routing to Kitchen..." : "Dispatch Order to Kitchen"}
+                {createOrder.isPending
+                  ? "Placing order…"
+                  : isPaid || orderType === "DINE_IN"
+                    ? "Dispatch order to kitchen"
+                    : "Place order (kitchen after cash)"}
               </Button>
             </div>
 

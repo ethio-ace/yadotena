@@ -61,7 +61,10 @@ func Load() Config {
 		RunSeeds:       getenv("RUN_SEEDS", "true") == "true",
 		UploadsDir:     getenv("UPLOADS_DIR", "uploads"),
 		PublicBaseURL:  getenv("PUBLIC_BASE_URL", "http://localhost:3000"),
-		CORSOrigins:    getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
+		CORSOrigins: getenv(
+			"CORS_ALLOWED_ORIGINS",
+			"http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,http://127.0.0.1:3002",
+		),
 		UploadMaxBytes: maxBytes,
 
 		R2AccountID:       os.Getenv("R2_ACCOUNT_ID"),

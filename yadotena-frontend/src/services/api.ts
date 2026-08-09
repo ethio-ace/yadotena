@@ -8,6 +8,8 @@ import type {
   Order,
   OrderStatus,
   PaymentStatus,
+  Product,
+  ProductCategory,
   Review,
   ServiceRequest,
   Table,
@@ -78,6 +80,20 @@ function mapCategory(c: ApiCategory): MenuCategory {
   };
 }
 
+function mapProduct(p: Record<string, unknown>): Product {
+  return {
+    id: String(p.id),
+    categoryId: String(p.categoryId || ""),
+    category: String(p.category || ""),
+    name: String(p.name || ""),
+    description: String(p.description || ""),
+    price: Number(p.price || 0),
+    image: String(p.image || ""),
+    available: p.available !== false,
+    sortOrder: Number(p.sortOrder ?? 0),
+  };
+}
+
 async function loadPublicMenu(): Promise<PublicMenu> {
   return apiFetch<PublicMenu>("/public/menu", { auth: false });
 }
@@ -110,7 +126,8 @@ function buildPlaceBody(order: CreateOrderInput) {
     mark_cash_paid: markPaid,
     markCashPaid: markPaid,
     items: order.items.map((i) => ({
-      menuItemId: i.menuItemId,
+      menuItemId: i.menuItemId || undefined,
+      productId: i.productId || undefined,
       quantity: i.quantity,
       specialInstructions: i.specialInstructions || "",
     })),
@@ -319,6 +336,108 @@ export const api = {
       await apiFetch(`/staff/tables/${id}`, {
         method: "PATCH",
         body: { is_active: false },
+      });
+    },
+  },
+
+  products: {
+    async getCatalog(): Promise<{ categories: ProductCategory[]; items: Product[] }> {
+      const data = await apiFetch<{
+        categories?: Array<Record<string, unknown>>;
+        items?: Array<Record<string, unknown>>;
+      }>("/public/products", { auth: false });
+      return {
+        categories: (data.categories || []).map((c) => ({
+          id: String(c.id),
+          name: String(c.name || ""),
+          sortOrder: Number(c.sortOrder ?? 0),
+          isActive: c.isActive !== false,
+        })),
+        items: (data.items || []).map(mapProduct),
+      };
+    },
+
+    async getAll(): Promise<Product[]> {
+      const session = typeof window !== "undefined" ? await getSession() : null;
+      const token = (session as { accessToken?: string } | null)?.accessToken;
+      if (token) {
+        try {
+          const items = await apiFetch<Array<Record<string, unknown>>>(
+            "/staff/products?include_unavailable=1",
+          );
+          return (items || []).map(mapProduct);
+        } catch {
+          /* fall through */
+        }
+      }
+      const { items } = await this.getCatalog();
+      return items;
+    },
+
+    async getCategories(): Promise<ProductCategory[]> {
+      const session = typeof window !== "undefined" ? await getSession() : null;
+      const token = (session as { accessToken?: string } | null)?.accessToken;
+      if (token) {
+        try {
+          const cats = await apiFetch<Array<Record<string, unknown>>>(
+            "/staff/product-categories?include_inactive=1",
+          );
+          return (cats || []).map((c) => ({
+            id: String(c.id),
+            name: String(c.name || ""),
+            sortOrder: Number(c.sortOrder ?? 0),
+            isActive: c.isActive !== false,
+          }));
+        } catch {
+          /* fall through */
+        }
+      }
+      const { categories } = await this.getCatalog();
+      return categories;
+    },
+
+    async createCategory(name: string, sortOrder = 0): Promise<{ id: string }> {
+      return apiFetch("/staff/product-categories", {
+        body: { name, sortOrder },
+      });
+    },
+
+    async create(data: {
+      categoryId: string;
+      name: string;
+      description?: string;
+      price: number;
+      image?: string;
+    }): Promise<{ id: string }> {
+      return apiFetch("/staff/products", {
+        body: {
+          categoryId: data.categoryId,
+          name: data.name,
+          description: data.description || "",
+          price: data.price,
+          image: data.image || "",
+        },
+      });
+    },
+
+    async update(id: string, updates: Partial<Product> & { available?: boolean }): Promise<void> {
+      await apiFetch(`/staff/products/${id}`, {
+        method: "PATCH",
+        body: {
+          categoryId: updates.categoryId,
+          name: updates.name,
+          description: updates.description,
+          price: updates.price,
+          image: updates.image,
+          available: updates.available,
+        },
+      });
+    },
+
+    async setAvailable(id: string, available: boolean): Promise<void> {
+      await apiFetch(`/staff/products/${id}`, {
+        method: "PATCH",
+        body: { available },
       });
     },
   },
@@ -558,6 +677,9 @@ export const api = {
       } catch {
         return apiFetch("/public/settings", { auth: false });
       }
+    },
+    async getPublic(): Promise<Record<string, unknown>> {
+      return apiFetch("/public/settings", { auth: false });
     },
     async update(data: Record<string, unknown>): Promise<Record<string, unknown>> {
       return apiFetch("/staff/settings", { method: "PATCH", body: data });

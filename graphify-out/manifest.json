@@ -1,0 +1,150 @@
+{
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/cmd/api/main.go": {
+    "mtime": 1786228453.9178705,
+    "hash": "9e6acd9719fc05de06711c31ccd915f5"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/cmd/seed/main.go": {
+    "mtime": 1786230789.5395515,
+    "hash": "30c28c300edd56c3965625935368fb8b"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/config/config.go": {
+    "mtime": 1786234953.853573,
+    "hash": "5713b21515be8e3d35dc90e6da20bb47"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/db/db.go": {
+    "mtime": 1786224184.1410353,
+    "hash": "ff13a4e75686495bad0b3d544c5276b8"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/models/models.go": {
+    "mtime": 1786233322.302721,
+    "hash": "70fc688abe522871704f7520d9a6d051"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/auth/auth.go": {
+    "mtime": 1786224184.1410353,
+    "hash": "76feae50b0b30a7a75c3a2953cfea98c"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/activity/logger.go": {
+    "mtime": 1786224184.1410353,
+    "hash": "8ccf99e96c3503a45ad52c3dcb59e724"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/orders/rules.go": {
+    "mtime": 1786226285.4092114,
+    "hash": "91efb4f7ba3bc7b37da95dc2b8c66735"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/orders/rules_test.go": {
+    "mtime": 1786226265.3176477,
+    "hash": "4126027f8430a47bdf0e296e15ef67da"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/orders/tables_test.go": {
+    "mtime": 1786225839.7014673,
+    "hash": "54bf55e35ed09f6fa9dee41ca437ce11"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/orders/tables.go": {
+    "mtime": 1786225892.7239096,
+    "hash": "c09518a3615767a41a944940632cabeb"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/server.go": {
+    "mtime": 1786228451.0948465,
+    "hash": "a628fc73451fec8545fdd6f38c1a0190"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/middleware.go": {
+    "mtime": 1786224184.1410353,
+    "hash": "2818fb34685d84fc93f7c87f1deb0897"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/router.go": {
+    "mtime": 1786233322.2767208,
+    "hash": "378d08b4187a4a1ddc323d87c8e68695"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/handlers_auth.go": {
+    "mtime": 1786233322.2767208,
+    "hash": "b5a63f33e47677e70decb6cae5b94e62"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/handlers_menu.go": {
+    "mtime": 1786233872.1190367,
+    "hash": "6320e4daf93183e296cbf62b8b0b9200"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/handlers_orders.go": {
+    "mtime": 1786233322.2767208,
+    "hash": "67eeb77c8528021e987ca91035efba23"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/handlers_misc.go": {
+    "mtime": 1786229545.2408667,
+    "hash": "a8c92cd389e66f4e0c89787174742681"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/handlers_customers.go": {
+    "mtime": 1786228011.820911,
+    "hash": "0dd0996ebbb5a00fce66b28b289ffb82"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/handlers_expenses.go": {
+    "mtime": 1786228408.7652383,
+    "hash": "e2b354f8bfb6a5f04df0505d3e71c5d9"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/handlers_service_requests.go": {
+    "mtime": 1786233322.2767208,
+    "hash": "954cfa2c6cf94f59797cfdc8e86cdf74"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/server/handlers_reviews.go": {
+    "mtime": 1786233322.2767208,
+    "hash": "b7a447900469cee5c1d2edbffc42db54"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/sse/hub.go": {
+    "mtime": 1786224184.1410353,
+    "hash": "772fe8e70ef0b1372787729b66097409"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/dto/dto_test.go": {
+    "mtime": 1786233322.2857208,
+    "hash": "44907c094ddba80cff211967772d5de0"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/dto/dto.go": {
+    "mtime": 1786233322.294721,
+    "hash": "92b5da43e18f050f1ec4d4eff51cc3d2"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/customers/classify_test.go": {
+    "mtime": 1786227968.3932912,
+    "hash": "7f18fc51c4463dfc71d750f674b30549"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/customers/classify.go": {
+    "mtime": 1786227986.7015524,
+    "hash": "0e4f8174c5a5111d7c8f75b39cfbc4f5"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/storage/r2.go": {
+    "mtime": 1786229545.2408667,
+    "hash": "a951a6814ee2db9da5ebc5d039ce317e"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/internal/cache/redis.go": {
+    "mtime": 1786228437.1557279,
+    "hash": "eb84c786fbbe508f5d5183fd10bb3fa6"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/migrations/000001_init.up.sql": {
+    "mtime": 1786224184.1410353,
+    "hash": "542fb5770c8fede28c1df672ae584363"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/migrations/000001_init.down.sql": {
+    "mtime": 1786224184.1410353,
+    "hash": "dce7e6c3ba05754dbc7217599219f297"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/migrations/000002_frontend_align.up.sql": {
+    "mtime": 1786225433.0911384,
+    "hash": "a617110f82ef0305128694806261398c"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/migrations/000002_frontend_align.down.sql": {
+    "mtime": 1786225433.1328318,
+    "hash": "e064165cc5de632a463c3ce1c71352ed"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/migrations/000003_compatibility.up.sql": {
+    "mtime": 1786233322.302721,
+    "hash": "ab037a0cd4abbcbe4fa08cdb2a7081da"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/migrations/000003_compatibility.down.sql": {
+    "mtime": 1786233322.302721,
+    "hash": "808e4219fd22125bc5fcebdd6c9bb1f5"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/seeds/00001_demo.sql": {
+    "mtime": 1786234953.846411,
+    "hash": "9aa4fb910f63be3be6fa0a7253325be4"
+  },
+  "/home/yene/Documents/code/backend/ethio-ace/yadotena/backend/seeds/00002_extra_demo.sql": {
+    "mtime": 1786234953.846411,
+    "hash": "0fddba7e077af092619e7ae025094adb"
+  }
+}

@@ -17,6 +17,8 @@ import (
 type placeItem struct {
 	MenuItemID          uuid.UUID `json:"menu_item_id"`
 	MenuItemIDCamel     uuid.UUID `json:"menuItemId"`
+	ProductID           uuid.UUID `json:"product_id"`
+	ProductIDCamel      uuid.UUID `json:"productId"`
 	Qty                 int       `json:"qty"`
 	Quantity            int       `json:"quantity"`
 	Note                string    `json:"note"`
@@ -73,6 +75,9 @@ func (body *placeBody) normalize() error {
 		item := &body.Items[i]
 		if item.MenuItemID == uuid.Nil {
 			item.MenuItemID = item.MenuItemIDCamel
+		}
+		if item.ProductID == uuid.Nil {
+			item.ProductID = item.ProductIDCamel
 		}
 		if item.Qty == 0 {
 			item.Qty = item.Quantity
@@ -156,14 +161,15 @@ func (s *Server) createOrder(ctx context.Context, body placeBody, takenBy *uuid.
 		if body.TableID == nil {
 			return nil, errMsg("table_id required for dine_in")
 		}
-	case models.OrderDelivery:
+	case models.OrderDelivery, models.OrderShopDelivery:
 		if body.DeliveryAddress == nil || *body.DeliveryAddress == "" {
 			return nil, errMsg("delivery_address required")
 		}
-	case models.OrderPickup:
+	case models.OrderPickup, models.OrderShopPickup:
 	default:
 		return nil, errMsg("invalid order_type")
 	}
+	isShop := orders.IsShopOrder(body.OrderType)
 	if body.PaymentMethod != models.PayCash && body.PaymentMethod != models.PayDigital {
 		return nil, errMsg("payment_method required")
 	}
@@ -178,11 +184,12 @@ func (s *Server) createOrder(ctx context.Context, body placeBody, takenBy *uuid.
 	defer tx.Rollback(ctx)
 
 	type line struct {
-		id    uuid.UUID
-		name  string
-		price float64
-		qty   int
-		note  string
+		menuID    *uuid.UUID
+		productID *uuid.UUID
+		name      string
+		price     float64
+		qty       int
+		note      string
 	}
 	var lines []line
 	var subtotal float64
@@ -190,15 +197,37 @@ func (s *Server) createOrder(ctx context.Context, body placeBody, takenBy *uuid.
 		if it.Qty <= 0 {
 			return nil, errMsg("invalid qty")
 		}
+		hasMenu := it.MenuItemID != uuid.Nil
+		hasProduct := it.ProductID != uuid.Nil
+		if hasMenu == hasProduct {
+			return nil, errMsg("each item needs exactly one of menuItemId or productId")
+		}
+		if isShop && !hasProduct {
+			return nil, errMsg("shop orders require productId on items")
+		}
+		if !isShop && !hasMenu {
+			return nil, errMsg("menu orders require menuItemId on items")
+		}
 		var name string
 		var price float64
 		var avail bool
-		err := tx.QueryRow(ctx, `SELECT name, price_etb::float8, is_available FROM menu_items WHERE id=$1`, it.MenuItemID).
-			Scan(&name, &price, &avail)
-		if err != nil || !avail {
-			return nil, errMsg("menu item unavailable")
+		if hasProduct {
+			err := tx.QueryRow(ctx, `SELECT name, price_etb::float8, is_available FROM products WHERE id=$1`, it.ProductID).
+				Scan(&name, &price, &avail)
+			if err != nil || !avail {
+				return nil, errMsg("product unavailable")
+			}
+			pid := it.ProductID
+			lines = append(lines, line{nil, &pid, name, price, it.Qty, it.Note})
+		} else {
+			err := tx.QueryRow(ctx, `SELECT name, price_etb::float8, is_available FROM menu_items WHERE id=$1`, it.MenuItemID).
+				Scan(&name, &price, &avail)
+			if err != nil || !avail {
+				return nil, errMsg("menu item unavailable")
+			}
+			mid := it.MenuItemID
+			lines = append(lines, line{&mid, nil, name, price, it.Qty, it.Note})
 		}
-		lines = append(lines, line{it.MenuItemID, name, price, it.Qty, it.Note})
 		subtotal += price * float64(it.Qty)
 	}
 
@@ -214,7 +243,7 @@ func (s *Server) createOrder(ctx context.Context, body placeBody, takenBy *uuid.
 		serviceCharge = subtotal * (servicePct / 100)
 	}
 	deliveryFee := 0.0
-	if body.OrderType == models.OrderDelivery {
+	if body.OrderType == models.OrderDelivery || body.OrderType == models.OrderShopDelivery {
 		deliveryFee = 100
 	}
 	total := subtotal + tax + serviceCharge + deliveryFee
@@ -238,10 +267,9 @@ func (s *Server) createOrder(ctx context.Context, body placeBody, takenBy *uuid.
 	}
 
 	for _, ln := range lines {
-		mid := ln.id
 		_, err := tx.Exec(ctx, `
-			INSERT INTO order_items (order_id, menu_item_id, name_snapshot, unit_price_etb, qty, note)
-			VALUES ($1,$2,$3,$4,$5,$6)`, id, mid, ln.name, ln.price, ln.qty, ln.note)
+			INSERT INTO order_items (order_id, menu_item_id, product_id, name_snapshot, unit_price_etb, qty, note)
+			VALUES ($1,$2,$3,$4,$5,$6,$7)`, id, ln.menuID, ln.productID, ln.name, ln.price, ln.qty, ln.note)
 		if err != nil {
 			return nil, err
 		}
@@ -333,7 +361,7 @@ func (s *Server) staffListOrders(w http.ResponseWriter, r *http.Request) {
 		n++
 	}
 	if c.Role == models.RoleChef {
-		q += ` AND order_status IN ('placed','preparing','ready')`
+		q += ` AND order_status IN ('placed','preparing','ready') AND order_type NOT IN ('shop_pickup','shop_delivery')`
 	}
 	q += ` ORDER BY created_at DESC LIMIT 100`
 	rows, err := s.Pool.Query(r.Context(), q, args...)
@@ -566,7 +594,7 @@ func (s *Server) loadOrder(ctx context.Context, id uuid.UUID) (*models.Order, er
 	o.KitchenVisible = orders.KitchenVisible(o.OrderType, o.PaymentStatus, o.OrderStatus)
 
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, menu_item_id, name_snapshot, unit_price_etb::float8, qty, note
+		SELECT id, menu_item_id, product_id, name_snapshot, unit_price_etb::float8, qty, note
 		FROM order_items WHERE order_id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -574,7 +602,7 @@ func (s *Server) loadOrder(ctx context.Context, id uuid.UUID) (*models.Order, er
 	defer rows.Close()
 	for rows.Next() {
 		var it models.OrderItem
-		if err := rows.Scan(&it.ID, &it.MenuItemID, &it.NameSnapshot, &it.UnitPriceETB, &it.Qty, &it.Note); err != nil {
+		if err := rows.Scan(&it.ID, &it.MenuItemID, &it.ProductID, &it.NameSnapshot, &it.UnitPriceETB, &it.Qty, &it.Note); err != nil {
 			return nil, err
 		}
 		o.Items = append(o.Items, it)

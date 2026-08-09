@@ -17,7 +17,9 @@ import {
   BarChart3, 
   MessageSquare, 
   Settings,
-  Bell
+  Bell,
+  Package,
+  Store,
 } from "lucide-react";
 
 interface NavItem {
@@ -30,9 +32,11 @@ interface NavItem {
 const navItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER", "MANAGER", "WAITER"] },
   { name: "Orders", href: "/dashboard/orders", icon: ShoppingCart, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN"] },
+  { name: "Shop", href: "/dashboard/shop", icon: Store, roles: ["OWNER", "MANAGER", "WAITER"] },
   { name: "Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER", "WAITER"] },
   { name: "Kitchen", href: "/dashboard/kitchen", icon: ChefHat, roles: ["OWNER", "MANAGER", "KITCHEN"] },
   { name: "Menu", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER"] },
+  { name: "Products", href: "/dashboard/products", icon: Package, roles: ["OWNER", "MANAGER"] },
   { name: "Customers", href: "/dashboard/customers", icon: Users, roles: ["OWNER", "MANAGER", "WAITER"] },
   { name: "Payments", href: "/dashboard/payments", icon: CreditCard, roles: ["OWNER", "MANAGER"] },
   { name: "Expenses", href: "/dashboard/expenses", icon: Receipt, roles: ["OWNER", "MANAGER"] },

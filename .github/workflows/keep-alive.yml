@@ -17,10 +17,10 @@ jobs:
     steps:
       - name: Ping /health
         env:
-          URL: ${{ secrets.RENDER_HEALTH_URL || vars.RENDER_HEALTH_URL }}
+          URL: ${{ secrets.RENDER_HEALTH_URL || vars.RENDER_HEALTH_URL || 'https://yadotena-api.onrender.com/health' }}
         run: |
           if [ -z "$URL" ]; then
-            echo "Set secret or variable RENDER_HEALTH_URL (e.g. https://yadotena-api.onrender.com/health)"
+            echo "Set secret or variable RENDER_HEALTH_URL (falls back to https://yadotena-api.onrender.com/health)"
             exit 1
           fi
           curl --fail --silent --show-error --max-time 30 "$URL"

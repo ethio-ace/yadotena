@@ -27,7 +27,7 @@ interface NavItem {
   roles: Role[];
 }
 
-const navItems: NavItem[] = [
+export const navItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER", "MANAGER", "WAITER"] },
   { name: "Orders", href: "/dashboard/orders", icon: ShoppingCart, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN"] },
   { name: "Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER", "WAITER"] },
@@ -60,7 +60,10 @@ export default function Sidebar({ role }: { role: Role }) {
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="space-y-1 px-3">
           {allowedItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const isActive = 
+              item.href === "/dashboard" 
+                ? pathname === "/dashboard" 
+                : pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.name}

@@ -55,9 +55,9 @@ export default function KitchenDashboard() {
         )}
       </div>
 
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-hidden min-h-[500px]">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-y-auto lg:overflow-hidden min-h-0 lg:min-h-[500px] pb-24 lg:pb-0">
         {/* New Orders Column */}
-        <div className="flex flex-col bg-rose-500/5 rounded-2xl p-4 overflow-hidden border border-rose-500/20">
+        <div className="flex flex-col bg-rose-500/5 rounded-2xl p-4 overflow-hidden border border-rose-500/20 lg:h-full h-[500px]">
           <h3 className="font-extrabold text-base mb-4 flex items-center justify-between text-rose-600 dark:text-rose-400">
             <span className="flex items-center gap-1.5">
               <Flame className="h-4 w-4" />
@@ -89,7 +89,7 @@ export default function KitchenDashboard() {
         </div>
 
         {/* Preparing Column */}
-        <div className="flex flex-col bg-amber-500/5 rounded-2xl p-4 overflow-hidden border border-amber-500/20">
+        <div className="flex flex-col bg-amber-500/5 rounded-2xl p-4 overflow-hidden border border-amber-500/20 lg:h-full h-[500px]">
           <h3 className="font-extrabold text-base mb-4 flex items-center justify-between text-amber-600 dark:text-amber-400">
             <span className="flex items-center gap-1.5">
               <Clock className="h-4 w-4" />
@@ -120,7 +120,7 @@ export default function KitchenDashboard() {
         </div>
 
         {/* Ready Column */}
-        <div className="flex flex-col bg-emerald-500/5 rounded-2xl p-4 overflow-hidden border border-emerald-500/20">
+        <div className="flex flex-col bg-emerald-500/5 rounded-2xl p-4 overflow-hidden border border-emerald-500/20 lg:h-full h-[500px]">
           <h3 className="font-extrabold text-base mb-4 flex items-center justify-between text-emerald-600 dark:text-emerald-400">
             <span className="flex items-center gap-1.5">
               <Check className="h-4 w-4" />

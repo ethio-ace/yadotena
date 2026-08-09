@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { 
   Bell, Search, LogOut, Check, Utensils, Receipt, BellRing, 
-  Volume2, VolumeX, Flame, ChevronRight, SlidersHorizontal, Sparkles
+  Volume2, VolumeX, Flame, ChevronRight, SlidersHorizontal, Sparkles, Menu, X
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,16 @@ import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useSoundNotifications } from "@/contexts/SoundNotificationContext";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { navItems } from "@/components/layout/Sidebar";
 
 export default function Header({ user }: { user: any }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAudioControls, setShowAudioControls] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const queryClient = useQueryClient();
+  const pathname = usePathname();
 
   const {
     isMuted,
@@ -42,12 +46,24 @@ export default function Header({ user }: { user: any }) {
   });
 
   const totalUrgentCount = pendingOrders.length + pendingServiceRequests.length;
+  const allowedItems = navItems.filter((item) => item.roles.includes(user.role));
 
   return (
     <div className="flex flex-col shrink-0 z-30 relative">
       {/* Top Header Bar */}
       <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-6 shadow-sm">
-        <div className="flex-1 flex items-center">
+        <div className="flex-1 flex items-center gap-3">
+          {/* Mobile Menu Toggle */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="md:hidden text-foreground hover:bg-muted"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+
+          {/* Desktop Search */}
           <div className="relative w-full max-w-md hidden md:block">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -246,6 +262,41 @@ export default function Header({ user }: { user: any }) {
           </div>
         </div>
       </header>
+
+      {/* Mobile Sidebar Menu */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden absolute top-16 left-0 right-0 bg-card border-b shadow-xl z-40 p-4 animate-in slide-in-from-top-2 duration-200">
+          <nav className="space-y-1">
+            {allowedItems.map((item) => {
+              const isActive = 
+                item.href === "/dashboard" 
+                  ? pathname === "/dashboard" 
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={cn(
+                    "flex items-center px-4 py-3 rounded-xl text-sm font-bold transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <item.icon
+                    className={cn(
+                      "mr-3 h-5 w-5 flex-shrink-0 transition-colors",
+                      isActive ? "text-primary" : "text-muted-foreground"
+                    )}
+                  />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      )}
 
       {/* Live Urgent Notification Bar for Pending Orders & Waiter Calls */}
       {totalUrgentCount > 0 && (

@@ -66,6 +66,17 @@ export default function CheckoutPage() {
     }
   });
 
+  const { activeOrderId } = useCartStore();
+
+  const addItemsToOrder = useMutation({
+    mutationFn: ({ id, items, total }: { id: string, items: any[], total: number }) => 
+      api.orders.addItems(id, items, total),
+    onSuccess: (order) => {
+      clearCart();
+      router.push(`/order/${order.id}`);
+    }
+  });
+
   const handleCheckout = async () => {
     if (activeOrderType === "TAKEAWAY" && (!customerName || !customerPhone)) return alert("Name and phone are required for Takeaway");
     if (activeOrderType === "DELIVERY" && (!customerName || !customerPhone || !deliveryAddress)) return alert("Name, phone, and address are required for Delivery");
@@ -78,17 +89,25 @@ export default function CheckoutPage() {
       setIsProcessingPayment(false);
     }
 
-    createOrder.mutate({
-      type: activeOrderType,
-      status: "PENDING",
-      paymentStatus: requiresPaymentFirst ? "PAID" : "PENDING",
-      items: items,
-      total: finalTotal,
-      tableId: sessionTableId || undefined,
-      customerName: requiresPaymentFirst ? customerName : undefined,
-      customerPhone: requiresPaymentFirst ? customerPhone : undefined,
-      deliveryAddress: activeOrderType === "DELIVERY" ? deliveryAddress : undefined,
-    });
+    if (activeOrderId && activeOrderType === "DINE_IN") {
+      addItemsToOrder.mutate({
+        id: activeOrderId,
+        items: items,
+        total: finalTotal
+      });
+    } else {
+      createOrder.mutate({
+        type: activeOrderType,
+        status: "PENDING",
+        paymentStatus: requiresPaymentFirst ? "PAID" : "PENDING",
+        items: items,
+        total: finalTotal,
+        tableId: sessionTableId || undefined,
+        customerName: requiresPaymentFirst ? customerName : undefined,
+        customerPhone: requiresPaymentFirst ? customerPhone : undefined,
+        deliveryAddress: activeOrderType === "DELIVERY" ? deliveryAddress : undefined,
+      });
+    }
   };
 
   if (items.length === 0) {
@@ -110,7 +129,7 @@ export default function CheckoutPage() {
     );
   }
 
-  const isCheckoutDisabled = createOrder.isPending || isProcessingPayment;
+  const isCheckoutDisabled = createOrder.isPending || addItemsToOrder.isPending || isProcessingPayment;
 
   return (
     <div className="flex flex-col min-h-full bg-muted/10 animate-in slide-in-from-right-4 duration-300 pb-36">
@@ -352,7 +371,8 @@ export default function CheckoutPage() {
             disabled={isCheckoutDisabled}
           >
             {isProcessingPayment ? "Simulating Secure Payment..." : 
-             createOrder.isPending ? "Routing Order to Kitchen..." : 
+             createOrder.isPending || addItemsToOrder.isPending ? "Routing Order to Kitchen..." : 
+             activeOrderId ? `Add to Existing Order • ${formatETB(finalTotal)}` :
              activeOrderType === "DINE_IN" ? `Place Dine-In Order • ${formatETB(finalTotal)}` : 
              `Pay & Place Order • ${formatETB(finalTotal)}`}
           </Button>

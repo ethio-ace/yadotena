@@ -342,6 +342,32 @@ export const api = {
         }
       );
     },
+    addItems: async (id: string, newItems: any[], addedTotal: number): Promise<Order> => {
+      return requestApi<Order>(
+        `/orders/${id}/add-items/`,
+        {
+          method: "POST",
+          body: JSON.stringify({ items: newItems, addedTotal }),
+        },
+        () => {
+          const orderIndex = ordersList.findIndex((o) => o.id === id);
+          if (orderIndex === -1) throw new Error("Order not found");
+          
+          const existingOrder = ordersList[orderIndex];
+          const combinedItems = [...existingOrder.items, ...newItems];
+          
+          ordersList[orderIndex] = {
+            ...existingOrder,
+            items: combinedItems,
+            total: existingOrder.total + addedTotal,
+            status: "PENDING", // Reset to pending to alert the kitchen
+            updatedAt: new Date().toISOString(),
+          };
+          
+          return ordersList[orderIndex];
+        }
+      );
+    },
   },
 
   serviceRequests: {

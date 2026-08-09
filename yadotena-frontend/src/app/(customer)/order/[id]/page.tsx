@@ -398,6 +398,25 @@ export default function OrderTrackingPage() {
                 ✓ Thank you for rating Yadotena Milk & Foods {rating} stars!
               </p>
             )}
+
+            {(isCompleted || order.status === "READY") && order.type === "DINE_IN" && (
+              <div className="pt-4 mt-4 border-t border-muted-foreground/10 animate-in fade-in">
+                <Button 
+                  className="rounded-full px-6 font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
+                  onClick={() => {
+                    sessionStorage.removeItem("yadotena_table_id");
+                    if (typeof window !== "undefined") {
+                      window.location.href = "/menu";
+                    }
+                  }}
+                >
+                  End Session & Start Fresh Order
+                </Button>
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  Clicking this will close your current table session. You can scan the QR code to start again.
+                </p>
+              </div>
+            )}
           </Card>
 
         </div>

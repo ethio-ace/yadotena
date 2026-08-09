@@ -1,14 +1,13 @@
 import { Package, QrCode, ShoppingBag } from "lucide-react";
 import Link from "next/link";
-import { DEMO_TABLE_ID } from "@/lib/cafe-facts";
 
 const steps = [
   {
     title: "At the cafe",
-    body: "Scan the table QR (or use the demo table link) to open the menu for that table and pay after you dine.",
+    body: "Scan a table QR to open the menu for that table and pay after you dine.",
     icon: QrCode,
-    href: `/menu?table=${DEMO_TABLE_ID}`,
-    linkLabel: "Try demo table",
+    href: "/menu",
+    linkLabel: "Open menu",
   },
   {
     title: "Browse anywhere",
@@ -34,8 +33,8 @@ export function HowToOrder() {
           How to order
         </h2>
         <p className="mt-4 max-w-2xl text-base leading-7 text-[#1a2118]/75">
-          Same menu for guests at the table and guests ordering from elsewhere —
-          checkout adapts to dine-in, takeaway, or delivery.
+          Same live menu for guests at the table and guests ordering from
+          elsewhere — checkout adapts to dine-in, takeaway, or delivery.
         </p>
 
         <div className="mt-14 grid gap-12 md:grid-cols-3 md:gap-10">

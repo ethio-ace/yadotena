@@ -18,18 +18,24 @@ export function LandingFooter({
           <p className="font-[family-name:var(--font-display)] text-2xl tracking-tight">
             {displayName}
           </p>
-          <address className="mt-3 flex flex-col gap-1 text-sm leading-6 text-[#1a2118]/7 not-italic sm:flex-row sm:gap-3">
-            <span>{address}</span>
-            <span aria-hidden="true" className="hidden text-[#9a6b1f] sm:inline">
-              /
-            </span>
-            <a
-              href={`tel:${phone}`}
-              className="transition-colors hover:text-[#7a5414] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b84a]"
-            >
-              {phone}
-            </a>
-          </address>
+          {(address || phone) && (
+            <address className="mt-3 flex flex-col gap-1 text-sm leading-6 text-[#1a2118]/7 not-italic sm:flex-row sm:gap-3">
+              {address ? <span>{address}</span> : null}
+              {address && phone ? (
+                <span aria-hidden="true" className="hidden text-[#9a6b1f] sm:inline">
+                  /
+                </span>
+              ) : null}
+              {phone ? (
+                <a
+                  href={`tel:${phone}`}
+                  className="transition-colors hover:text-[#7a5414] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b84a]"
+                >
+                  {phone}
+                </a>
+              ) : null}
+            </address>
+          )}
         </div>
 
         <nav aria-label="Footer navigation" className="flex flex-wrap gap-6 text-sm">

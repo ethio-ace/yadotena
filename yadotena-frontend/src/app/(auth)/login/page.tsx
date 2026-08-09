@@ -16,18 +16,9 @@ import {
 } from "@/components/ui/card";
 import { Lock, Phone, AlertCircle } from "lucide-react";
 
-const DEMO_ACCOUNTS = [
-  { label: "Owner", phone: "0900000001", pin: "1234" },
-  { label: "Manager", phone: "0900000002", pin: "2345" },
-  { label: "Waiter", phone: "0900000003", pin: "3456" },
-  { label: "Kitchen", phone: "0900000004", pin: "4567" },
-] as const;
-
-const DEMO_TABLE_ID = "d0000000-0000-0000-0000-000000000004";
-
 export default function LoginPage() {
   const [phone, setPhone] = useState("");
-  const [pin, setPin] = useState("1234");
+  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -45,7 +36,7 @@ export default function LoginPage() {
       });
 
       if (res?.error || !res?.ok) {
-        setError("Invalid phone or PIN. Use a demo account button below for the correct PIN.");
+        setError("Invalid phone or PIN.");
         return;
       }
 
@@ -95,7 +86,7 @@ export default function LoginPage() {
                   id="phone"
                   type="tel"
                   inputMode="numeric"
-                  placeholder="0900000001"
+                  placeholder="Phone number"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="pl-10 rounded-xl h-11"
@@ -127,49 +118,15 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
-
-          <div className="pt-2 space-y-3">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase tracking-wider">
-                <span className="bg-card px-2 text-muted-foreground font-bold">
-                  Demo accounts (fills phone + PIN)
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <Button
-                  key={acc.phone}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl text-xs font-bold"
-                  onClick={() => {
-                    setPhone(acc.phone);
-                    setPin(acc.pin);
-                    setError("");
-                  }}
-                >
-                  {acc.label} · {acc.pin}
-                </Button>
-              ))}
-            </div>
-          </div>
         </CardContent>
 
         <CardFooter className="flex flex-col items-center gap-2 text-sm text-muted-foreground pb-8">
           <Link href="/" className="hover:underline text-muted-foreground font-semibold text-xs">
             ← Back to home
           </Link>
-          <a
-            href={`/menu?table=${DEMO_TABLE_ID}`}
-            className="hover:underline text-primary font-semibold text-xs"
-          >
-            Continue as Customer (Table 04 QR Demo)
-          </a>
+          <Link href="/menu" className="hover:underline text-primary font-semibold text-xs">
+            Browse menu
+          </Link>
         </CardFooter>
       </Card>
     </div>

@@ -5,14 +5,8 @@ import { ArrowRight, LockKeyhole } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
-import {
-  BRAND_NAME,
-  BRAND_TAGLINE,
-  DEMO_TABLE_ID,
-} from "@/lib/cafe-facts";
+import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/cafe-facts";
 import { cn } from "@/lib/utils";
-
-const demoHref = `/menu?table=${DEMO_TABLE_ID}`;
 
 const primaryCtaClass = cn(
   "inline-flex h-12 items-center justify-center rounded-full bg-[#e8b84a] px-6 text-sm font-semibold text-[#1a2118]",
@@ -67,8 +61,8 @@ export function LandingHero() {
               {BRAND_TAGLINE}
             </p>
             <p className="mt-3 max-w-lg text-base leading-7 text-[#f4efe4]/85 sm:text-lg">
-              Dairy and kitchen plates from Bole — order at your table, take away,
-              or have it delivered.
+              Dairy and kitchen plates — order at your table, take away, shop
+              retail, or have it delivered.
             </p>
           </motion.div>
 
@@ -76,14 +70,11 @@ export function LandingHero() {
             initial={{ opacity: 1, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center"
+            className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:flex-wrap"
           >
-            <Link href={demoHref} className={primaryCtaClass}>
-              Order at table (demo)
-              <ArrowRight className="ml-2 size-4" aria-hidden="true" />
-            </Link>
-            <Link href="/menu" className={secondaryCtaClass}>
+            <Link href="/menu" className={primaryCtaClass}>
               View menu
+              <ArrowRight className="ml-2 size-4" aria-hidden="true" />
             </Link>
             <Link href="/shop" className={secondaryCtaClass}>
               Retail shop

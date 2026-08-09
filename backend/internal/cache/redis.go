@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -29,9 +30,14 @@ func Connect(url string) *redis.Client {
 	return client
 }
 
-// AllowRate returns true if the key is under limit within window. If client is nil, always allows.
+// AllowRate returns true if the key is under limit within window.
+// Always allows when Redis is nil, limit <= 0, APP_ENV=development, or DISABLE_RATE_LIMIT=true.
 func AllowRate(ctx context.Context, client *redis.Client, key string, limit int, window time.Duration) bool {
 	if client == nil || limit <= 0 {
+		return true
+	}
+	env := os.Getenv("APP_ENV")
+	if env == "development" || env == "dev" || os.Getenv("DISABLE_RATE_LIMIT") == "true" {
 		return true
 	}
 	n, err := client.Incr(ctx, key).Result()

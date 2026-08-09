@@ -12,13 +12,19 @@ import (
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID, chimw.RealIP, chimw.Logger, chimw.Recoverer)
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   splitOrigins(s.Cfg.CORSOrigins),
+	corsOpts := cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Requested-With"},
+		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300,
-	}))
+	}
+	if corsAllowAll(s.Cfg.AppEnv, s.Cfg.CORSOrigins) {
+		corsOpts.AllowOriginFunc = func(_ *http.Request, _ string) bool { return true }
+	} else {
+		corsOpts.AllowedOrigins = splitOrigins(s.Cfg.CORSOrigins)
+	}
+	r.Use(cors.Handler(corsOpts))
 
 	// Cheap liveness for Render / cron-job.org / GitHub Actions — no DB/Redis.
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -123,6 +129,18 @@ func splitOrigins(s string) []string {
 		return []string{"http://localhost:3000"}
 	}
 	return parts
+}
+
+func corsAllowAll(appEnv, corsOrigins string) bool {
+	if appEnv == "development" || appEnv == "dev" {
+		return true
+	}
+	for _, p := range stringsSplitComma(corsOrigins) {
+		if p == "*" {
+			return true
+		}
+	}
+	return false
 }
 
 func stringsSplitComma(s string) []string {

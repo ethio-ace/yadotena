@@ -6,8 +6,8 @@ export const TAX_RATE = 0.15;
 /** Matches backend createOrder delivery fee (ETB). */
 export const DELIVERY_FEE_ETB = 100;
 
-/** Seed / settings default when API value is missing. */
-export const DEFAULT_SERVICE_CHARGE_PERCENT = 10;
+/** Fallback only while public settings load; prefer API service_charge_percent. */
+export const DEFAULT_SERVICE_CHARGE_PERCENT = 0;
 
 export function parseServiceChargePercent(
   settings?: Record<string, unknown> | null,

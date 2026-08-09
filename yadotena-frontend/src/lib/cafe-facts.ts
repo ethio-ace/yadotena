@@ -1,20 +1,16 @@
-export const DEMO_TABLE_ID = "d0000000-0000-0000-0000-000000000004";
 export const BRAND_NAME = "Yadotena Milk & Foods";
 export const BRAND_TAGLINE = "Fresh Dairy & Artisanal Kitchen";
-export const SEED_FALLBACK = {
-  phone: "+251911234567",
-  address: "Bole Road, Addis Ababa",
-} as const;
 
+/** Cafe contact facts from public settings only — no seed/demo fallbacks. */
 export function resolveCafeFacts(raw?: Record<string, unknown> | null) {
+  const apiName =
+    typeof raw?.cafe_name === "string" ? raw.cafe_name.trim() : "";
   const phone =
-    (typeof raw?.cafe_phone === "string" && raw.cafe_phone.trim()) ||
-    SEED_FALLBACK.phone;
+    typeof raw?.cafe_phone === "string" ? raw.cafe_phone.trim() : "";
   const address =
-    (typeof raw?.cafe_address === "string" && raw.cafe_address.trim()) ||
-    SEED_FALLBACK.address;
+    typeof raw?.cafe_address === "string" ? raw.cafe_address.trim() : "";
   return {
-    displayName: BRAND_NAME,
+    displayName: apiName || BRAND_NAME,
     phone,
     address,
   };

@@ -60,7 +60,7 @@ export function parseDigitalMethods(
   if (Array.isArray(raw)) {
     return raw.filter((m): m is string => typeof m === "string" && m.trim() !== "");
   }
-  return ["Telebirr", "CBE Birr"];
+  return [];
 }
 
 export function cashEnabled(settings?: Record<string, unknown> | null): boolean {

@@ -31,7 +31,7 @@ go run ./cmd/api
 Ping **`/health`** every ~14 minutes (not `/ready`).
 
 1. **cron-job.org** (recommended): `GET https://YOUR-SERVICE.onrender.com/health`
-2. **GitHub Actions**: `.github/workflows/keep-alive.yml` — set secret/variable `RENDER_HEALTH_URL` to that URL
+2. **GitHub Actions**: `.github/workflows/keep-alive.yml` — defaults to `https://yadotena.onrender.com/health`; optional secret/variable `RENDER_HEALTH_URL` to override
 
 ## Demo data (PIN `1234`)
 

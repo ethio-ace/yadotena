@@ -138,13 +138,13 @@ export default function EmployeesPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-purple-500/20 bg-purple-500/5 rounded-2xl">
+        <Card className="border-amber-500/20 bg-amber-500/5 rounded-2xl">
           <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4">
-            <CardTitle className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Admins / Managers</CardTitle>
-            <Shield className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <CardTitle className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Admins / Managers</CardTitle>
+            <Shield className="h-4 w-4 text-amber-700 dark:text-amber-400" />
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <div className="text-2xl font-black text-purple-600 dark:text-purple-400">{managerCount}</div>
+            <div className="text-2xl font-black text-amber-700 dark:text-amber-400">{managerCount}</div>
             <p className="text-[11px] text-muted-foreground mt-0.5">Full console access</p>
           </CardContent>
         </Card>
@@ -417,9 +417,9 @@ function getRoleBadge(role: Role) {
     case "MANAGER":
       return {
         label: "Manager",
-        icon: <Shield className="h-3 w-3 text-purple-500" />,
-        badgeClass: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/20",
-        avatarBg: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30",
+        icon: <Shield className="h-3 w-3 text-amber-600" />,
+        badgeClass: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20",
+        avatarBg: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30",
       };
     case "WAITER":
       return {
@@ -451,7 +451,7 @@ function AddUserModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<Role>("WAITER");
-  const [password, setPassword] = useState("password123");
+  const [password, setPassword] = useState("1234");
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const [error, setError] = useState("");
 
@@ -462,23 +462,23 @@ function AddUserModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose
       onSuccess();
     },
     onError: (err: any) => {
-      setError(err.message || "Failed to create user. Ensure email is unique.");
+      setError(err.message || "Failed to create user. Phone must be unique.");
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim()) {
-      setError("Please provide both name and email.");
+    if (!name.trim() || !phone.trim()) {
+      setError("Please provide name and phone (used for staff login).");
       return;
     }
     setError("");
     createMutation.mutate({
       name: name.trim(),
-      email: email.trim().toLowerCase(),
-      phone: phone.trim() || "+251 911 000 000",
+      email: email.trim().toLowerCase() || undefined,
+      phone: phone.trim().replace(/\s+/g, ""),
       role,
-      password: password || "password123",
+      pin: password || "1234",
       status,
     });
   };
@@ -573,14 +573,14 @@ function AddUserModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-foreground flex items-center justify-between">
-              <span>Initial Password *</span>
-              <span className="text-[10px] text-muted-foreground font-normal">Default: password123</span>
+              <span>Initial PIN *</span>
+              <span className="text-[10px] text-muted-foreground font-normal">Default: 1234</span>
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="password123"
+                placeholder="1234"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="rounded-xl h-10 pl-9 text-xs font-mono"
@@ -739,14 +739,14 @@ function EditUserModal({ user, isOpen, onClose, onSuccess }: { user: User; isOpe
 
           <div className="space-y-1 pt-1">
             <label className="text-xs font-bold text-foreground flex items-center justify-between">
-              <span>Reset Password (Optional)</span>
+              <span>Reset PIN (Optional)</span>
               <span className="text-[10px] text-muted-foreground font-normal">Leave blank to keep unchanged</span>
             </label>
             <div className="relative">
               <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="password"
-                placeholder="Enter new password to update..."
+                placeholder="Enter new PIN to update..."
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="rounded-xl h-10 pl-9 text-xs"

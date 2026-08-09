@@ -25,7 +25,13 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export default function MenuPage() {
-  const { data: menu, isLoading: isMenuLoading } = useQuery({
+  const {
+    data: menu = [],
+    isLoading: isMenuLoading,
+    isError: isMenuError,
+    error: menuError,
+    refetch: refetchMenu,
+  } = useQuery({
     queryKey: ["menu"],
     queryFn: api.menu.getAll,
   });
@@ -80,7 +86,7 @@ export default function MenuPage() {
   }
 
   // Combine dynamic categories with any categories present on menu items
-  const categoryNamesFromMenu = Array.from(new Set(menu?.map(m => m.category) || []));
+  const categoryNamesFromMenu = Array.from(new Set(menu.map((m) => m.category).filter(Boolean)));
   const combinedCategoryList = [
     { name: "All", icon: "✨" },
     ...dynamicCategories.map(c => ({ name: c.name, icon: c.icon || "🍽️" })),
@@ -89,16 +95,30 @@ export default function MenuPage() {
       .map(cn => ({ name: cn, icon: CATEGORY_ICONS[cn] || "🍽️" }))
   ];
   
-  const filteredMenu = menu?.filter(m => {
+  const filteredMenu = menu.filter((m) => {
     const isAvailable = m.available !== false;
-    const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase()) || 
-                          m.description.toLowerCase().includes(search.toLowerCase());
+    const name = (m.name || "").toLowerCase();
+    const description = (m.description || "").toLowerCase();
+    const q = search.toLowerCase();
+    const matchesSearch = name.includes(q) || description.includes(q);
     const matchesCategory = activeCategory === "All" || m.category === activeCategory;
     return isAvailable && matchesSearch && matchesCategory;
   });
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
+
+      {isMenuError && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm space-y-2">
+          <p className="font-semibold text-foreground">Could not load the menu</p>
+          <p className="text-muted-foreground">
+            {(menuError as Error)?.message || "Check that the API is reachable, then try again."}
+          </p>
+          <Button size="sm" variant="outline" onClick={() => refetchMenu()}>
+            Retry
+          </Button>
+        </div>
+      )}
       
       {/* Live Active Table Order Banner */}
       {activeSessionOrder && (
@@ -214,7 +234,7 @@ export default function MenuPage() {
 
       {/* Menu Grid */}
       <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {filteredMenu?.map((item) => (
+        {filteredMenu.map((item) => (
           <MenuItemCard 
             key={item.id} 
             item={item} 
@@ -222,14 +242,16 @@ export default function MenuPage() {
           />
         ))}
 
-        {filteredMenu?.length === 0 && (
+        {!isMenuError && filteredMenu.length === 0 && (
           <div className="text-center py-16 text-muted-foreground col-span-full space-y-3 bg-card/40 rounded-3xl border border-dashed p-8">
             <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mx-auto text-2xl">
               🔍
             </div>
             <h3 className="text-lg font-bold text-foreground">No dishes found</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              We couldn't find any dishes matching "{search}". Try searching for something else or browse categories.
+              {search
+                ? `We couldn't find any dishes matching "${search}". Try searching for something else or browse categories.`
+                : "The menu is empty right now. Please check back shortly."}
             </p>
             <Button variant="outline" size="sm" className="rounded-full" onClick={() => { setSearch(""); setActiveCategory("All"); }}>
               Reset Filters

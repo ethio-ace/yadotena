@@ -5,13 +5,28 @@ import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Lock, Mail, AlertCircle, Sparkles, ArrowRight } from "lucide-react";
-import Link from "next/link";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
+import { Lock, Phone, AlertCircle } from "lucide-react";
+
+const DEMO_ACCOUNTS = [
+  { label: "Owner", phone: "0900000001", pin: "1234" },
+  { label: "Manager", phone: "0900000002", pin: "2345" },
+  { label: "Waiter", phone: "0900000003", pin: "3456" },
+  { label: "Kitchen", phone: "0900000004", pin: "4567" },
+] as const;
+
+const DEMO_TABLE_ID = "d0000000-0000-0000-0000-000000000004";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [pin, setPin] = useState("1234");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -20,30 +35,26 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    
+
     try {
       const res = await signIn("credentials", {
-        email: email.trim().toLowerCase(),
-        password: password,
+        phone: phone.trim(),
+        pin: pin.trim(),
         redirect: false,
       });
 
       if (res?.error || !res?.ok) {
-        setError("Invalid email or password. Please verify your credentials.");
-      } else {
-        const session = await getSession();
-        const role = (session?.user as any)?.role;
-        
-        if (role === "WAITER") {
-          router.push("/dashboard");
-        } else if (role === "KITCHEN") {
-          router.push("/dashboard/kitchen");
-        } else {
-          router.push("/dashboard");
-        }
+        setError("Invalid phone or PIN. Use a demo account button below for the correct PIN.");
+        return;
       }
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred during login.");
+
+      const session = await getSession();
+      const role = session?.user?.role;
+
+      if (role === "KITCHEN") router.push("/dashboard/kitchen");
+      else router.push("/dashboard");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed.");
     } finally {
       setLoading(false);
     }
@@ -53,20 +64,20 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/40 to-background p-4 animate-in fade-in duration-500">
       <Card className="w-full max-w-md border shadow-2xl rounded-3xl overflow-hidden bg-card/95 backdrop-blur-md">
         <CardHeader className="text-center pb-4 pt-8">
-          <div className="mx-auto h-16 w-16 rounded-3xl bg-primary flex items-center justify-center text-primary-foreground text-3xl font-black shadow-xl shadow-primary/30 mb-3 animate-bounce duration-1000">
+          <div className="mx-auto h-16 w-16 rounded-3xl bg-primary flex items-center justify-center text-primary-foreground text-3xl font-black shadow-xl shadow-primary/30 mb-3 animate-in zoom-in-95 duration-500">
             🥛
           </div>
           <CardTitle className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
             Yadotena Milk & Foods
           </CardTitle>
           <CardDescription className="text-xs font-semibold text-muted-foreground mt-1">
-            Staff & Operations Portal • Sign in to access your floor console
+            Staff portal — sign in with phone + PIN
           </CardDescription>
         </CardHeader>
 
         <CardContent className="px-6 sm:px-8 space-y-4">
           {error && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in shake duration-300">
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-2xl text-xs font-bold flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -74,60 +85,87 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground" htmlFor="email">
-                Staff Email Address
+              <label className="text-xs font-bold text-foreground" htmlFor="phone">
+                Phone Number
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="e.g. manager@yadotena.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="rounded-2xl h-11 pl-10 text-xs bg-muted/40 border-muted"
+                  id="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="0900000001"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="pl-10 rounded-xl h-11"
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground" htmlFor="password">
-                Password
+              <label className="text-xs font-bold text-foreground" htmlFor="pin">
+                PIN
               </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="password"
+                  id="pin"
                   type="password"
-                  placeholder="Enter account password..."
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="rounded-2xl h-11 pl-10 text-xs bg-muted/40 border-muted"
+                  inputMode="numeric"
+                  placeholder="••••"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  className="pl-10 rounded-xl h-11"
                   required
                 />
               </div>
             </div>
 
-            <Button 
-              type="submit" 
-              className="w-full h-11 rounded-2xl font-black text-xs shadow-lg shadow-primary/25 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 transition-all mt-2" 
-              disabled={loading}
-            >
-              {loading ? "Signing in to Console..." : "Sign in to Dashboard"}
-              <ArrowRight className="h-4 w-4" />
+            <Button type="submit" className="w-full rounded-xl h-11 font-bold" disabled={loading}>
+              {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
+
+          <div className="pt-2 space-y-3">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase tracking-wider">
+                <span className="bg-card px-2 text-muted-foreground font-bold">
+                  Demo accounts (fills phone + PIN)
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {DEMO_ACCOUNTS.map((acc) => (
+                <Button
+                  key={acc.phone}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl text-xs font-bold"
+                  onClick={() => {
+                    setPhone(acc.phone);
+                    setPin(acc.pin);
+                    setError("");
+                  }}
+                >
+                  {acc.label} · {acc.pin}
+                </Button>
+              ))}
+            </div>
+          </div>
         </CardContent>
 
-        <CardFooter className="flex flex-col items-center justify-center pt-2 pb-8 border-t border-border/50 bg-muted/20 gap-2 text-xs text-muted-foreground">
-          <p className="text-[11px]">Visiting as a customer?</p>
-          <Link 
-            href="/menu?table=t1" 
-            className="hover:underline text-primary font-black flex items-center gap-1.5 bg-primary/10 px-4 py-2 rounded-xl"
+        <CardFooter className="flex justify-center text-sm text-muted-foreground pb-8">
+          <a
+            href={`/menu?table=${DEMO_TABLE_ID}`}
+            className="hover:underline text-primary font-semibold text-xs"
           >
-            <span>📱 Order from Table Stand (QR Demo)</span>
-          </Link>
+            Continue as Customer (Table 04 QR Demo)
+          </a>
         </CardFooter>
       </Card>
     </div>

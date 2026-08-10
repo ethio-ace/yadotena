@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/services/api";
 import { formatETB } from "@/lib/currency";
 import { format } from "date-fns";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 
 export default function CustomersPage() {
   const [search, setSearch] = useState("");
-  const { data: customers = [], isLoading } = useQuery({
+  const { data: customers = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["customers"],
     queryFn: api.customers.getAll,
   });
@@ -36,6 +37,14 @@ export default function CustomersPage() {
         </div>
       </div>
 
+      {isError && (
+        <ErrorState
+          title="Could not load customers"
+          description="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
+      )}
+
       <Card className="rounded-3xl border-muted-foreground/15 shadow-sm overflow-hidden">
         <CardHeader className="py-4 px-6 border-b">
           <div className="flex items-center">
@@ -54,10 +63,15 @@ export default function CustomersPage() {
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading customers…</div>
           ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
-              <Users className="h-8 w-8 opacity-40" />
-              No customers yet.
-            </div>
+            <EmptyState
+              className="border-0 rounded-none"
+              title={search.trim() ? "No matches" : "No customers yet"}
+              description={
+                search.trim()
+                  ? "Try another name or phone."
+                  : "Customers appear here after guest or staff orders."
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
@@ -79,16 +93,12 @@ export default function CustomersPage() {
                       <td className="px-6 py-4">{customer.totalOrders} visits</td>
                       <td className="px-6 py-4 font-black text-primary">{formatETB(customer.totalSpent)}</td>
                       <td className="px-6 py-4">
-                        {customer.type === "VIP" ? (
-                          <Badge variant="default" className="bg-purple-500 hover:bg-purple-600 font-bold">VIP Gold</Badge>
-                        ) : customer.type === "REGULAR" ? (
-                          <Badge variant="outline" className="border-blue-500 text-blue-500 font-bold">Regular</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="font-bold">Occasional</Badge>
-                        )}
+                        <Badge variant="secondary">{customer.type}</Badge>
                       </td>
                       <td className="px-6 py-4 text-muted-foreground text-xs">
-                        {customer.lastOrder ? format(new Date(customer.lastOrder), "MMM d, yyyy") : "—"}
+                        {customer.lastOrder
+                          ? format(new Date(customer.lastOrder), "MMM d, yyyy")
+                          : "—"}
                       </td>
                     </tr>
                   ))}

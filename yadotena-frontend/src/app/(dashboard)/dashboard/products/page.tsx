@@ -7,12 +7,13 @@ import type { Product } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { formatETB } from "@/lib/currency";
 import { Plus } from "lucide-react";
 
 export default function ProductsAdminPage() {
   const qc = useQueryClient();
-  const { data: products = [], isLoading } = useQuery({
+  const { data: products = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["staff-products"],
     queryFn: () => api.products.getAll(),
   });
@@ -26,13 +27,16 @@ export default function ProductsAdminPage() {
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
   const [newCat, setNewCat] = useState("");
+  const [formError, setFormError] = useState("");
 
   const createCat = useMutation({
     mutationFn: () => api.products.createCategory(newCat.trim()),
     onSuccess: () => {
+      setFormError("");
       setNewCat("");
       qc.invalidateQueries({ queryKey: ["staff-product-categories"] });
     },
+    onError: (err: Error) => setFormError(err.message || "Could not create category"),
   });
 
   const createProduct = useMutation({
@@ -44,17 +48,23 @@ export default function ProductsAdminPage() {
         price: Number(price),
       }),
     onSuccess: () => {
+      setFormError("");
       setName("");
       setPrice("");
       setDescription("");
       qc.invalidateQueries({ queryKey: ["staff-products"] });
     },
+    onError: (err: Error) => setFormError(err.message || "Could not create product"),
   });
 
   const toggle = useMutation({
     mutationFn: ({ id, available }: { id: string; available: boolean }) =>
       api.products.setAvailable(id, available),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["staff-products"] }),
+    onSuccess: () => {
+      setFormError("");
+      qc.invalidateQueries({ queryKey: ["staff-products"] });
+    },
+    onError: (err: Error) => setFormError(err.message || "Could not update availability"),
   });
 
   return (
@@ -65,6 +75,12 @@ export default function ProductsAdminPage() {
           Catalog for the guest shop — not kitchen menu items.
         </p>
       </div>
+
+      {formError ? (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {formError}
+        </div>
+      ) : null}
 
       <section className="rounded-2xl border p-4 space-y-3">
         <h2 className="font-bold text-sm">Add category</h2>
@@ -139,6 +155,17 @@ export default function ProductsAdminPage() {
         <h2 className="font-bold">Catalog</h2>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : isError ? (
+          <ErrorState
+            title="Could not load products"
+            description="Check your connection and try again."
+            onRetry={() => refetch()}
+          />
+        ) : products.length === 0 ? (
+          <EmptyState
+            title="No retail products yet"
+            description="Add a category, then create products for the guest shop."
+          />
         ) : (
           <ul className="divide-y rounded-2xl border">
             {products.map((p: Product) => (
@@ -160,6 +187,7 @@ export default function ProductsAdminPage() {
                     size="sm"
                     variant="outline"
                     type="button"
+                    disabled={toggle.isPending}
                     onClick={() =>
                       toggle.mutate({ id: p.id, available: !p.available })
                     }

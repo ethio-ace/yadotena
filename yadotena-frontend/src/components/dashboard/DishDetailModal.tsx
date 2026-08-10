@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
 import { 
-  X, Clock, Edit, Trash2, CheckCircle2, AlertCircle, 
-  Sparkles, Flame, Layers, Utensils
+  X, Clock, Edit, Trash2, CheckCircle2, AlertCircle
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
+import { useState } from "react";
 
 interface DishDetailModalProps {
   item: MenuItem | null;
@@ -20,20 +20,25 @@ interface DishDetailModalProps {
 
 export function DishDetailModal({ item, isOpen, onClose, onEdit }: DishDetailModalProps) {
   const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState("");
 
   const toggleAvailability = useMutation({
     mutationFn: (id: string) => api.menu.toggleAvailability(id),
     onSuccess: () => {
+      setActionError("");
       queryClient.invalidateQueries({ queryKey: ["menu"] });
     },
+    onError: (err: Error) => setActionError(err.message || "Could not update availability"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.menu.delete(id),
     onSuccess: () => {
+      setActionError("");
       queryClient.invalidateQueries({ queryKey: ["menu"] });
       onClose();
     },
+    onError: (err: Error) => setActionError(err.message || "Could not delete dish"),
   });
 
   if (!isOpen || !item) return null;
@@ -49,6 +54,11 @@ export function DishDetailModal({ item, isOpen, onClose, onEdit }: DishDetailMod
       <div className="fixed inset-0" onClick={onClose} />
 
       <div className="relative w-full max-w-lg bg-card border rounded-3xl shadow-2xl overflow-hidden z-10 max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+        {actionError ? (
+          <div className="px-4 py-2 text-xs font-semibold text-destructive bg-destructive/10 border-b border-destructive/30">
+            {actionError}
+          </div>
+        ) : null}
         
         {/* Cover Photo */}
         <div className="relative h-60 w-full bg-muted flex-shrink-0">
@@ -102,35 +112,6 @@ export function DishDetailModal({ item, isOpen, onClose, onEdit }: DishDetailMod
               {item.description}
             </p>
           </div>
-
-          {/* Dietary & Highlights */}
-          {item.dietaryTags && item.dietaryTags.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Dietary Attributes</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {item.dietaryTags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="bg-primary/10 text-primary border border-primary/20 font-bold px-3 py-1">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Configured Add-ons */}
-          {item.customAddons && item.customAddons.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Available Add-ons</h3>
-              <div className="divide-y rounded-2xl border bg-muted/20 overflow-hidden">
-                {item.customAddons.map((addon) => (
-                  <div key={addon.id} className="p-3 flex items-center justify-between text-xs">
-                    <span className="font-semibold">{addon.name}</span>
-                    <span className="font-bold text-primary">+{formatETB(addon.price)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Quick Toggle Status */}
           <div 

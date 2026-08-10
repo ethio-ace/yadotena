@@ -3,15 +3,12 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { MenuItem, MenuItemAddon } from "@/types";
+import { MenuItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
-import { 
-  X, Plus, Trash2, Utensils, Image as ImageIcon, Sparkles, 
-  Clock, Flame, Check, HelpCircle, Eye
-} from "lucide-react";
+import { X, Utensils, Image as ImageIcon, Clock, Check, Eye } from "lucide-react";
 
 interface MenuItemModalProps {
   isOpen: boolean;
@@ -54,16 +51,6 @@ const PHOTO_PRESETS = [
   },
 ];
 
-const DIETARY_TAG_OPTIONS = [
-  "Chef's Special",
-  "Popular",
-  "Spicy",
-  "Vegetarian",
-  "Vegan",
-  "Halal",
-  "Gluten-Free",
-];
-
 export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProps) {
   const queryClient = useQueryClient();
 
@@ -79,12 +66,6 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
   const [prepTime, setPrepTime] = useState<number>(15);
   const [image, setImage] = useState(PHOTO_PRESETS[0].url);
   const [available, setAvailable] = useState(true);
-  const [dietaryTags, setDietaryTags] = useState<string[]>([]);
-  const [customAddons, setCustomAddons] = useState<MenuItemAddon[]>([]);
-
-  // Local Addon inputs
-  const [newAddonName, setNewAddonName] = useState("");
-  const [newAddonPrice, setNewAddonPrice] = useState<number | "">("");
 
   const [error, setError] = useState("");
 
@@ -97,8 +78,6 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
       setPrepTime(itemToEdit.preparationTime || 15);
       setImage(itemToEdit.image || PHOTO_PRESETS[0].url);
       setAvailable(itemToEdit.available);
-      setDietaryTags(itemToEdit.dietaryTags || []);
-      setCustomAddons(itemToEdit.customAddons || []);
     } else {
       setName("");
       setDescription("");
@@ -107,8 +86,6 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
       setPrepTime(15);
       setImage(PHOTO_PRESETS[0].url);
       setAvailable(true);
-      setDietaryTags([]);
-      setCustomAddons([]);
     }
     setError("");
   }, [itemToEdit, isOpen, categories]);
@@ -116,60 +93,40 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
   const createMutation = useMutation({
     mutationFn: api.menu.create,
     onSuccess: () => {
+      setError("");
       queryClient.invalidateQueries({ queryKey: ["menu"] });
       onClose();
     },
+    onError: (err: Error) => setError(err.message || "Could not create dish"),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<MenuItem> }) => 
       api.menu.update(id, data),
     onSuccess: () => {
+      setError("");
       queryClient.invalidateQueries({ queryKey: ["menu"] });
       onClose();
     },
+    onError: (err: Error) => setError(err.message || "Could not update dish"),
   });
 
   if (!isOpen) return null;
-
-  const toggleTag = (tag: string) => {
-    setDietaryTags(prev => 
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-    );
-  };
-
-  const handleAddAddon = () => {
-    if (!newAddonName.trim()) return;
-    const addonPriceNum = Number(newAddonPrice) || 0;
-    const newAddon: MenuItemAddon = {
-      id: `add-${Date.now()}`,
-      name: newAddonName.trim(),
-      price: addonPriceNum,
-    };
-    setCustomAddons(prev => [...prev, newAddon]);
-    setNewAddonName("");
-    setNewAddonPrice("");
-  };
-
-  const handleRemoveAddon = (id: string) => {
-    setCustomAddons(prev => prev.filter(a => a.id !== id));
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError("Dish title is required");
     if (!price || Number(price) <= 0) return setError("Please specify a valid ETB price");
+    if (!description.trim()) return setError("Description is required");
 
     const payload = {
       name: name.trim(),
-      description: description.trim() || "Artisanal specialty prepared with fresh local ingredients.",
+      description: description.trim(),
       category: category || "Main Course",
       price: Number(price),
       preparationTime: Number(prepTime) || 15,
-      image: image || PHOTO_PRESETS[0].url,
+      image: image.trim(),
       available,
-      dietaryTags,
-      customAddons,
     };
 
     if (itemToEdit) {
@@ -198,7 +155,7 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
                 {itemToEdit ? "Edit Dish Details" : "Create New Menu Item"}
               </h2>
               <p className="text-xs text-muted-foreground">
-                Set name, category, ETB price, photo, dietary attributes, and customize add-ons
+                Set name, category, ETB price, photo, and availability
               </p>
             </div>
           </div>
@@ -331,86 +288,6 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
               />
             </div>
 
-            {/* Dietary Tags Multi-Select */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground">Dietary & Highlight Tags</label>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {DIETARY_TAG_OPTIONS.map((tag) => {
-                  const isSelected = dietaryTags.includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => toggleTag(tag)}
-                      className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
-                        isSelected
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-background border-muted text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {isSelected && "✓ "}
-                      {tag}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Custom Addons Builder */}
-            <div className="space-y-2 pt-2 border-t">
-              <label className="text-xs font-bold text-foreground flex items-center justify-between">
-                <span>Custom Add-ons (Optional)</span>
-                <span className="text-[11px] text-muted-foreground font-normal">Customer selectable extras</span>
-              </label>
-
-              {/* Existing Addons */}
-              <div className="space-y-1.5">
-                {customAddons.map((addon) => (
-                  <div key={addon.id} className="flex items-center justify-between p-2 rounded-xl border bg-muted/30 text-xs">
-                    <span className="font-semibold">{addon.name}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-primary">+{formatETB(addon.price)}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-destructive rounded-lg"
-                        onClick={() => handleRemoveAddon(addon.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add Addon Input */}
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Addon name (e.g. Extra Cheese)"
-                  value={newAddonName}
-                  onChange={(e) => setNewAddonName(e.target.value)}
-                  className="rounded-xl text-xs bg-background flex-1 h-9"
-                />
-                <Input
-                  type="number"
-                  placeholder="Price (ETB)"
-                  value={newAddonPrice}
-                  onChange={(e) => setNewAddonPrice(e.target.value ? Number(e.target.value) : "")}
-                  className="rounded-xl text-xs bg-background w-28 h-9 font-bold"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="rounded-xl h-9 text-xs font-bold px-3"
-                  onClick={handleAddAddon}
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Add
-                </Button>
-              </div>
-            </div>
-
             {/* Availability Toggle */}
             <div 
               onClick={() => setAvailable(!available)}
@@ -469,22 +346,6 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
                   <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                     {description || "Dish description will appear here..."}
                   </p>
-
-                  {dietaryTags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {dietaryTags.map((t) => (
-                        <span key={t} className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full border border-primary/20">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {customAddons.length > 0 && (
-                    <p className="text-[11px] text-muted-foreground italic pt-1">
-                      +{customAddons.length} custom add-on option{customAddons.length > 1 ? "s" : ""} available
-                    </p>
-                  )}
                 </div>
               </div>
             </div>

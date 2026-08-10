@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Users, Plus, Utensils, QrCode, Sparkles, Edit3, Trash2, 
+  Users, Plus, Utensils, QrCode, Edit3, Trash2, 
   CheckCircle2, AlertCircle, Clock, RefreshCw, X, Shield, Eye
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,8 +16,11 @@ import { CreateOrderModal } from "@/components/dashboard/CreateOrderModal";
 import { TableQRModal } from "@/components/dashboard/TableQRModal";
 import { Table, TableStatus } from "@/types";
 import { soundAlerts } from "@/lib/audioAlerts";
+import { useStaffRealtime, ssePollInterval } from "@/lib/realtime";
+import { ErrorState } from "@/components/ui/empty-state";
 
 export default function TablesPage() {
+  const { connected } = useStaffRealtime();
   const queryClient = useQueryClient();
   const [selectedTableForOrder, setSelectedTableForOrder] = useState<string | null>(null);
   const [selectedTableForQR, setSelectedTableForQR] = useState<Table | null>(null);
@@ -25,29 +28,34 @@ export default function TablesPage() {
   const [deletingTable, setDeletingTable] = useState<Table | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [actionError, setActionError] = useState("");
 
-  const { data: tables = [], isLoading, isRefetching } = useQuery({
+  const { data: tables = [], isLoading, isRefetching, isError, refetch } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
-    refetchInterval: 3000,
+    refetchInterval: ssePollInterval(connected),
   });
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: TableStatus }) => 
       api.tables.updateStatus(id, status),
     onSuccess: () => {
+      setActionError("");
       soundAlerts.playActionPing();
       queryClient.invalidateQueries({ queryKey: ["tables"] });
     },
+    onError: (err: Error) => setActionError(err.message || "Could not update table status"),
   });
 
   const deleteTableMutation = useMutation({
     mutationFn: (id: string) => api.tables.delete(id),
     onSuccess: () => {
+      setActionError("");
       soundAlerts.playActionPing();
       setDeletingTable(null);
       queryClient.invalidateQueries({ queryKey: ["tables"] });
     },
+    onError: (err: Error) => setActionError(err.message || "Could not delete table"),
   });
 
   // Filtered tables
@@ -61,7 +69,6 @@ export default function TablesPage() {
   const availableCount = tables.filter((t) => t.status === "AVAILABLE").length;
   const occupiedCount = tables.filter((t) => ["OCCUPIED", "ORDERING", "PREPARING"].includes(t.status)).length;
   const serviceCount = tables.filter((t) => ["WAITING_FOR_SERVICE", "WAITING_FOR_PAYMENT"].includes(t.status)).length;
-  const cleaningCount = tables.filter((t) => t.status === "CLEANING").length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
@@ -96,8 +103,22 @@ export default function TablesPage() {
         </div>
       </div>
 
+      {isError ? (
+        <ErrorState
+          title="Could not load tables"
+          description="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
+      ) : null}
+
+      {actionError ? (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {actionError}
+        </div>
+      ) : null}
+
       {/* Floor Metrics Cards */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <Card className="rounded-2xl border-primary/20 bg-primary/5">
           <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
             <CardTitle className="text-[11px] font-bold text-primary uppercase tracking-wider">Total Tables</CardTitle>
@@ -141,17 +162,6 @@ export default function TablesPage() {
             <p className="text-[10px] text-muted-foreground mt-0.5">Needs staff attention</p>
           </CardContent>
         </Card>
-
-        <Card className="rounded-2xl border-slate-500/20 bg-slate-500/5">
-          <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Cleaning</CardTitle>
-            <Sparkles className="h-3.5 w-3.5 text-slate-600 dark:text-slate-400" />
-          </CardHeader>
-          <CardContent className="px-4 pb-3.5">
-            <div className="text-2xl font-black text-slate-600 dark:text-slate-400">{cleaningCount}</div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Turnover in progress</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Filter Tabs */}
@@ -163,7 +173,7 @@ export default function TablesPage() {
             { id: "OCCUPIED", label: "Occupied" },
             { id: "PREPARING", label: "Preparing" },
             { id: "WAITING_FOR_SERVICE", label: "Needs Service" },
-            { id: "CLEANING", label: "Cleaning" },
+            { id: "WAITING_FOR_PAYMENT", label: "Needs Payment" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -279,7 +289,7 @@ export default function TablesPage() {
       <CreateOrderModal
         isOpen={!!selectedTableForOrder}
         onClose={() => setSelectedTableForOrder(null)}
-        initialTableId={selectedTableForOrder || "t1"}
+        initialTableId={selectedTableForOrder || undefined}
       />
 
       {/* Printable QR Stand Modal */}
@@ -339,12 +349,6 @@ function TableCard({
           cardBg: "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20 animate-pulse",
           badge: "bg-purple-500/25 text-purple-700 dark:text-purple-300 border-purple-500/40",
           icon: <AlertCircle className="h-3 w-3 mr-1 text-purple-600" />
-        };
-      case "CLEANING": 
-        return {
-          cardBg: "bg-slate-500/10 border-slate-500/25 text-slate-700 dark:text-slate-300",
-          badge: "bg-slate-500/20 text-slate-700 dark:text-slate-300 border-slate-500/30",
-          icon: <Sparkles className="h-3 w-3 mr-1 text-slate-600" />
         };
       default: 
         return {
@@ -416,7 +420,6 @@ function TableCard({
             <option value="PREPARING">🟡 Preparing Food</option>
             <option value="WAITING_FOR_SERVICE">🔴 Waiting For Service</option>
             <option value="WAITING_FOR_PAYMENT">🟣 Waiting For Payment</option>
-            <option value="CLEANING">⚪ Cleaning Required</option>
           </select>
         </div>
         
@@ -553,7 +556,6 @@ function AddTableModal({
               >
                 <option value="AVAILABLE">Available</option>
                 <option value="OCCUPIED">Occupied</option>
-                <option value="CLEANING">Cleaning</option>
               </select>
             </div>
           </div>
@@ -690,7 +692,6 @@ function EditTableModal({
                 <option value="PREPARING">Preparing</option>
                 <option value="WAITING_FOR_SERVICE">Waiting For Service</option>
                 <option value="WAITING_FOR_PAYMENT">Waiting For Payment</option>
-                <option value="CLEANING">Cleaning</option>
               </select>
             </div>
           </div>

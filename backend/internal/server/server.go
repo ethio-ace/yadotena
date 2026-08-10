@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -20,11 +21,13 @@ type Server struct {
 }
 
 func New(cfg config.Config, pool *pgxpool.Pool, rdb *redis.Client) *Server {
+	hub := sse.NewHub()
+	hub.AttachRedis(context.Background(), rdb)
 	return &Server{
 		Cfg:   cfg,
 		Pool:  pool,
 		Log:   &activity.Logger{Pool: pool},
-		Hub:   sse.NewHub(),
+		Hub:   hub,
 		Redis: rdb,
 	}
 }

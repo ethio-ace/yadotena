@@ -63,7 +63,7 @@ func (s *Server) createExpense(w http.ResponseWriter, r *http.Request) {
 	}
 	dateStr := body.Date
 	if dateStr == "" {
-		dateStr = time.Now().Format("2006-01-02")
+		dateStr = cafeNow().Format("2006-01-02")
 	}
 	d, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {

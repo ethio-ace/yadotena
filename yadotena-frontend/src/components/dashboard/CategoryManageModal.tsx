@@ -3,20 +3,16 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { MenuCategory, MenuItem } from "@/types";
+import { MenuItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Trash2, FolderPlus, Tag, Layers, CheckCircle2 } from "lucide-react";
+import { X, Plus, Trash2, FolderPlus, Layers } from "lucide-react";
 
 interface CategoryManageModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const EMOJI_PRESETS = [
-  "🍔", "🍕", "🥩", "🍟", "☕", "🍰", "🍲", "🥗", "🥪", "🍣", "🍹", "🥞", "🍝", "🥣", "🍦", "🍷"
-];
 
 export function CategoryManageModal({ isOpen, onClose }: CategoryManageModalProps) {
   const queryClient = useQueryClient();
@@ -32,7 +28,6 @@ export function CategoryManageModal({ isOpen, onClose }: CategoryManageModalProp
   });
 
   const [name, setName] = useState("");
-  const [icon, setIcon] = useState("🍽️");
   const [description, setDescription] = useState("");
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [error, setError] = useState("");
@@ -43,17 +38,19 @@ export function CategoryManageModal({ isOpen, onClose }: CategoryManageModalProp
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       setName("");
       setDescription("");
-      setIcon("🍽️");
       setIsAddingNew(false);
       setError("");
     },
+    onError: (err: Error) => setError(err.message || "Could not create category"),
   });
 
   const deleteCategory = useMutation({
     mutationFn: api.categories.delete,
     onSuccess: () => {
+      setError("");
       queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
+    onError: (err: Error) => setError(err.message || "Could not delete category"),
   });
 
   if (!isOpen) return null;
@@ -72,7 +69,7 @@ export function CategoryManageModal({ isOpen, onClose }: CategoryManageModalProp
 
     createCategory.mutate({
       name: name.trim(),
-      icon: icon || "🍽️",
+      icon: "",
       description: description.trim() || undefined,
     });
   };
@@ -141,27 +138,6 @@ export function CategoryManageModal({ isOpen, onClose }: CategoryManageModalProp
                 </Button>
               </div>
 
-              {/* Emoji Icon Picker */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Select Category Icon</label>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {EMOJI_PRESETS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => setIcon(emoji)}
-                      className={`h-9 w-9 text-lg rounded-xl flex items-center justify-center border transition-all ${
-                        icon === emoji 
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm scale-110" 
-                          : "bg-background border-muted hover:border-muted-foreground/40"
-                      }`}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Category Name & Description */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -208,8 +184,8 @@ export function CategoryManageModal({ isOpen, onClose }: CategoryManageModalProp
                   className="p-4 rounded-2xl border bg-card hover:border-muted-foreground/30 transition-all flex items-center justify-between gap-4 shadow-sm"
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="h-11 w-11 rounded-2xl bg-muted flex items-center justify-center text-xl shrink-0">
-                      {category.icon || "🍽️"}
+                    <div className="h-11 w-11 rounded-2xl bg-muted flex items-center justify-center text-primary shrink-0">
+                      <Layers className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">

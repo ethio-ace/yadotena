@@ -2,21 +2,33 @@ package server
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"yadotena/internal/auth"
+	"yadotena/internal/cache"
 	"yadotena/internal/dto"
 	"yadotena/internal/models"
 )
 
 func (s *Server) staffLogin(w http.ResponseWriter, r *http.Request) {
+	ip := r.RemoteAddr
+	if !cache.AllowRate(r.Context(), s.Redis, "rl:login:"+ip, 20, time.Minute) {
+		writeErr(w, 429, "too many login attempts")
+		return
+	}
 	var body struct {
 		Phone string `json:"phone"`
 		PIN   string `json:"pin"`
 	}
 	if err := decodeJSON(r, &body); err != nil || body.Phone == "" || body.PIN == "" {
 		writeErr(w, 400, "phone and pin required")
+		return
+	}
+	// Per-phone throttle (brute-force PIN)
+	if !cache.AllowRate(r.Context(), s.Redis, "rl:login:phone:"+body.Phone, 10, time.Minute) {
+		writeErr(w, 429, "too many login attempts for this phone")
 		return
 	}
 	var id uuid.UUID

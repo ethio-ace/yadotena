@@ -15,6 +15,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Lock, Phone, AlertCircle } from "lucide-react";
+import { BRAND_NAME } from "@/lib/cafe-facts";
 
 export default function LoginPage() {
   const [phone, setPhone] = useState("");
@@ -56,11 +57,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/40 to-background p-4 animate-in fade-in duration-500">
       <Card className="w-full max-w-md border shadow-2xl rounded-3xl overflow-hidden bg-card/95 backdrop-blur-md">
         <CardHeader className="text-center pb-4 pt-8">
-          <div className="mx-auto h-16 w-16 rounded-3xl bg-primary flex items-center justify-center text-primary-foreground text-3xl font-black shadow-xl shadow-primary/30 mb-3 animate-in zoom-in-95 duration-500">
-            🥛
+          <div className="mx-auto h-16 w-16 rounded-3xl bg-primary flex items-center justify-center text-primary-foreground shadow-xl shadow-primary/30 mb-3 animate-in zoom-in-95 duration-500">
+            <Lock className="h-7 w-7" />
           </div>
           <CardTitle className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-            Yadotena Milk & Foods
+            {BRAND_NAME}
           </CardTitle>
           <CardDescription className="text-xs font-semibold text-muted-foreground mt-1">
             Staff portal — sign in with phone + PIN

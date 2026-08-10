@@ -35,12 +35,6 @@ export type PaymentStatus =
   | "REJECTED"
   | "REFUNDED";
 
-export interface MenuItemAddon {
-  id: string;
-  name: string;
-  price: number; // in ETB
-}
-
 export interface MenuCategory {
   id: string;
   name: string;
@@ -58,8 +52,6 @@ export interface MenuItem {
   image: string;
   available: boolean;
   preparationTime: number; // in minutes
-  dietaryTags?: string[]; // e.g. "Spicy", "Vegetarian", "Halal", "Chef's Special"
-  customAddons?: MenuItemAddon[];
   calories?: number;
 }
 
@@ -97,6 +89,8 @@ export interface Order {
   type: OrderType;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  /** Present on staff/public order payloads; false for shop + unpaid pickup/delivery. */
+  kitchenVisible?: boolean;
   items: OrderItem[];
   subtotal?: number;
   tax?: number;
@@ -139,8 +133,7 @@ export type TableStatus =
   | "ORDERING"
   | "PREPARING"
   | "WAITING_FOR_SERVICE"
-  | "WAITING_FOR_PAYMENT"
-  | "CLEANING";
+  | "WAITING_FOR_PAYMENT";
 
 export interface Table {
   id: string;

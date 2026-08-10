@@ -16,11 +16,12 @@ import {
 import { CategoryManageModal } from "@/components/dashboard/CategoryManageModal";
 import { MenuItemModal } from "@/components/dashboard/MenuItemModal";
 import { DishDetailModal } from "@/components/dashboard/DishDetailModal";
+import { ErrorState } from "@/components/ui/empty-state";
 
 export default function MenuManagementPage() {
   const queryClient = useQueryClient();
 
-  const { data: menu = [], isLoading: isMenuLoading } = useQuery({
+  const { data: menu = [], isLoading: isMenuLoading, isError: isMenuError, refetch: refetchMenu } = useQuery({
     queryKey: ["menu"],
     queryFn: api.menu.getAll,
   });
@@ -40,19 +41,24 @@ export default function MenuManagementPage() {
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<MenuItem | null>(null);
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<MenuItem | null>(null);
+  const [actionError, setActionError] = useState("");
 
   const toggleAvailability = useMutation({
     mutationFn: (id: string) => api.menu.toggleAvailability(id),
     onSuccess: () => {
+      setActionError("");
       queryClient.invalidateQueries({ queryKey: ["menu"] });
     },
+    onError: (err: Error) => setActionError(err.message || "Could not update availability"),
   });
 
   const deleteItem = useMutation({
     mutationFn: (id: string) => api.menu.delete(id),
     onSuccess: () => {
+      setActionError("");
       queryClient.invalidateQueries({ queryKey: ["menu"] });
     },
+    onError: (err: Error) => setActionError(err.message || "Could not delete dish"),
   });
 
   const handleOpenCreate = () => {
@@ -80,10 +86,11 @@ export default function MenuManagementPage() {
 
   // Filtered menu logic
   const filteredMenu = menu.filter((item) => {
-    const matchesSearch = 
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.description.toLowerCase().includes(search.toLowerCase()) ||
-      item.category.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchesSearch =
+      (item.name || "").toLowerCase().includes(q) ||
+      (item.description || "").toLowerCase().includes(q) ||
+      (item.category || "").toLowerCase().includes(q);
 
     const matchesCategory = selectedCategory === "All" || item.category === selectedCategory;
 
@@ -134,6 +141,20 @@ export default function MenuManagementPage() {
           </Button>
         </div>
       </div>
+
+      {isMenuError ? (
+        <ErrorState
+          title="Could not load menu"
+          description="Check your connection and try again."
+          onRetry={() => refetchMenu()}
+        />
+      ) : null}
+
+      {actionError ? (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {actionError}
+        </div>
+      ) : null}
 
       {/* Overview Stat Widgets */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -188,7 +209,7 @@ export default function MenuManagementPage() {
                 : "bg-card border border-muted hover:border-muted-foreground/30 text-muted-foreground"
             }`}
           >
-            ✨ All Dishes ({totalItems})
+            All dishes ({totalItems})
           </button>
 
           {categories.map((cat) => {
@@ -205,7 +226,6 @@ export default function MenuManagementPage() {
                     : "bg-card border border-muted hover:border-muted-foreground/30 text-muted-foreground"
                 }`}
               >
-                <span>{cat.icon || "🍽️"}</span>
                 <span>{cat.name}</span>
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                   {count}
@@ -294,7 +314,6 @@ export default function MenuManagementPage() {
                     <th className="px-6 py-3.5 font-bold">Category</th>
                     <th className="px-6 py-3.5 font-bold">Price</th>
                     <th className="px-6 py-3.5 font-bold">Prep Time</th>
-                    <th className="px-6 py-3.5 font-bold">Dietary Tags</th>
                     <th className="px-6 py-3.5 font-bold">Status</th>
                     <th className="px-6 py-3.5 font-bold text-right">Actions</th>
                   </tr>
@@ -339,19 +358,6 @@ export default function MenuManagementPage() {
                           <Clock className="h-3.5 w-3.5 text-primary" />
                           {item.preparationTime || 15} min
                         </span>
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1 max-w-xs">
-                          {item.dietaryTags?.map((tag) => (
-                            <span key={tag} className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full border border-primary/20">
-                              {tag}
-                            </span>
-                          ))}
-                          {(!item.dietaryTags || item.dietaryTags.length === 0) && (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </div>
                       </td>
 
                       <td className="px-6 py-4">
@@ -401,7 +407,7 @@ export default function MenuManagementPage() {
 
                   {filteredMenu.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="p-12 text-center text-muted-foreground">
+                      <td colSpan={6} className="p-12 text-center text-muted-foreground">
                         No dishes match your search and filters.
                       </td>
                     </tr>

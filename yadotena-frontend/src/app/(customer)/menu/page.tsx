@@ -8,21 +8,15 @@ import { MenuItem } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Minus, Search, Sparkles, UtensilsCrossed, ArrowRight } from "lucide-react";
+import { Plus, Minus, Search, UtensilsCrossed, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
+import { ErrorState } from "@/components/ui/empty-state";
 import { formatETB } from "@/lib/currency";
+import { useOrderStream, ssePollInterval } from "@/lib/realtime";
+import { withExclusiveCart } from "@/lib/cart-guard";
+import { BRAND_NAME } from "@/lib/cafe-facts";
 import Link from "next/link";
-
-const CATEGORY_ICONS: Record<string, string> = {
-  All: "✨",
-  "Main Course": "🍔",
-  "Appetizers": "🍟",
-  "Beverages": "☕",
-  "Desserts": "🍰",
-  "Pizza": "🍕",
-  "Salads": "🥗",
-};
 
 export default function MenuPage() {
   const {
@@ -41,9 +35,20 @@ export default function MenuPage() {
     queryFn: api.categories.getAll,
   });
 
+  const { data: settings, isSuccess: settingsReady } = useQuery({
+    queryKey: ["public-settings"],
+    queryFn: () => api.settings.getPublic(),
+    staleTime: 60_000,
+  });
+  const acceptingOrders = settingsReady && settings?.accepting_orders !== false;
+
   const tableId = useCartStore((state) => state.tableId);
   const activeOrderId = useCartStore((state) => state.activeOrderId);
   const addItem = useCartStore((state) => state.addItem);
+  const { connected: orderLive } = useOrderStream(
+    activeOrderId ?? undefined,
+    !!activeOrderId,
+  );
 
   const { data: tables = [] } = useQuery({
     queryKey: ["public-tables"],
@@ -58,7 +63,7 @@ export default function MenuPage() {
       return (await api.orders.getById(activeOrderId)) || null;
     },
     enabled: !!activeOrderId,
-    refetchInterval: 3000,
+    refetchInterval: ssePollInterval(orderLive),
   });
 
   const activeSessionOrder =
@@ -88,11 +93,9 @@ export default function MenuPage() {
   // Combine dynamic categories with any categories present on menu items
   const categoryNamesFromMenu = Array.from(new Set(menu.map((m) => m.category).filter(Boolean)));
   const combinedCategoryList = [
-    { name: "All", icon: "✨" },
-    ...dynamicCategories.map(c => ({ name: c.name, icon: c.icon || "🍽️" })),
-    ...categoryNamesFromMenu
-      .filter(cn => !dynamicCategories.some(dc => dc.name === cn))
-      .map(cn => ({ name: cn, icon: CATEGORY_ICONS[cn] || "🍽️" }))
+    "All",
+    ...dynamicCategories.map((c) => c.name),
+    ...categoryNamesFromMenu.filter((cn) => !dynamicCategories.some((dc) => dc.name === cn)),
   ];
   
   const filteredMenu = menu.filter((m) => {
@@ -109,15 +112,11 @@ export default function MenuPage() {
     <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
 
       {isMenuError && (
-        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm space-y-2">
-          <p className="font-semibold text-foreground">Could not load the menu</p>
-          <p className="text-muted-foreground">
-            {(menuError as Error)?.message || "Check that the API is reachable, then try again."}
-          </p>
-          <Button size="sm" variant="outline" onClick={() => refetchMenu()}>
-            Retry
-          </Button>
-        </div>
+        <ErrorState
+          title="Could not load the menu"
+          description={(menuError as Error)?.message || "Check that the API is reachable, then try again."}
+          onRetry={() => refetchMenu()}
+        />
       )}
       
       {/* Live Active Table Order Banner */}
@@ -149,6 +148,12 @@ export default function MenuPage() {
         </div>
       )}
 
+      {!settingsReady ? null : !acceptingOrders ? (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          Online ordering is paused right now. You can browse the menu, but checkout is unavailable until staff reopen orders.
+        </div>
+      ) : null}
+
       {/* Restaurant Hero Banner */}
       <div className="relative rounded-3xl overflow-hidden border border-muted-foreground/15 shadow-xl bg-gradient-to-br from-amber-600/20 via-primary/10 to-background p-6 md:p-10 flex flex-col justify-end min-h-[220px]">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent opacity-60 pointer-events-none" />
@@ -157,12 +162,19 @@ export default function MenuPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
             <div>
               <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-                Yadotena Milk & Foods
+                {BRAND_NAME}
               </h1>
               <p className="text-muted-foreground text-sm md:text-base mt-1">
-                {tableId
-                  ? "Order to your table — kitchen receives it when you check out."
-                  : "Browse the menu. At checkout choose takeaway, delivery, or a free table for dine-in."}
+                {tableId ? (
+                  "Order to your table — kitchen receives it when you check out."
+                ) : (
+                  <>
+                    Browse the menu. At checkout choose takeaway, delivery, or a free table for dine-in. Need packaged goods?{" "}
+                    <Link href="/shop" className="text-primary font-semibold underline-offset-2 hover:underline">
+                      Open the retail shop
+                    </Link>
+                  </>
+                )}
               </p>
             </div>
 
@@ -198,21 +210,20 @@ export default function MenuPage() {
 
         {/* Scrollable Category Filter Pills */}
         <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none pt-1">
-          {combinedCategoryList.map((cat) => {
-            const isActive = activeCategory === cat.name;
+          {combinedCategoryList.map((catName) => {
+            const isActive = activeCategory === catName;
             return (
               <button
-                key={cat.name}
+                key={catName}
                 type="button"
-                onClick={() => setActiveCategory(cat.name)}
+                onClick={() => setActiveCategory(catName)}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 ${
                   isActive
                     ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-105"
                     : "bg-card border border-muted hover:border-muted-foreground/30 text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span>{cat.icon}</span>
-                <span>{cat.name}</span>
+                <span>{catName}</span>
               </button>
             );
           })}
@@ -252,7 +263,9 @@ export default function MenuPage() {
         item={selectedItemForModal}
         isOpen={!!selectedItemForModal}
         onClose={() => setSelectedItemForModal(null)}
-        onAddToCart={(customItem) => addItem(customItem)}
+        onAddToCart={(customItem) => {
+          withExclusiveCart("menu", () => addItem(customItem));
+        }}
       />
     </div>
   );
@@ -269,11 +282,13 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
-    addItem({
-      menuItemId: item.id,
-      name: item.name,
-      price: item.price,
-      quantity: 1,
+    withExclusiveCart("menu", () => {
+      addItem({
+        menuItemId: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: 1,
+      });
     });
   };
 
@@ -325,16 +340,6 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
           <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
             {item.description}
           </p>
-
-          {item.dietaryTags && item.dietaryTags.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-1">
-              {item.dietaryTags.slice(0, 2).map((tag) => (
-                <span key={tag} className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full border border-primary/20">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
         
         {/* Price & Action Button */}

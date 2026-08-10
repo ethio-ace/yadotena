@@ -27,16 +27,20 @@ import { useRouter } from "next/navigation";
 import { OrderType, Table } from "@/types";
 import {
   computeOrderTotals,
+  parseDeliveryFeeEtb,
   parseServiceChargePercent,
+  parseTaxPercent,
 } from "@/lib/order-totals";
 import {
   CHECKOUT_STEP_LABELS,
   CheckoutStep,
   buildGuestPlacePayload,
   cashEnabled,
+  hasGuestPaymentOptions,
   parseDigitalMethods,
   placeOrderCtaLabel,
 } from "@/lib/checkout-payment";
+import { isValidGuestPhone, paymentExpectationCopy } from "@/lib/guest-validation";
 
 function isTableFree(t: Table) {
   return t.status === "AVAILABLE" && !t.currentOrderId;
@@ -97,16 +101,21 @@ export default function CheckoutPage() {
         : pickedTableId
       : null;
 
-  const { data: settings } = useQuery({
+  const { data: settings, isLoading: settingsLoading, isError: settingsError, refetch: refetchSettings } = useQuery({
     queryKey: ["public-settings"],
     queryFn: () => api.settings.getPublic(),
     staleTime: 60_000,
   });
+  const settingsReady = !!settings && !settingsLoading && !settingsError;
   const serviceChargePercent = parseServiceChargePercent(settings);
-  const digitalMethods = parseDigitalMethods(settings);
-  const showCash = cashEnabled(settings);
+  const taxPercent = parseTaxPercent(settings);
+  const deliveryFeeEtb = parseDeliveryFeeEtb(settings);
+  const digitalMethods = settingsReady ? parseDigitalMethods(settings) : [];
+  const showCash = settingsReady ? cashEnabled(settings) : false;
+  const canPay = settingsReady && hasGuestPaymentOptions(settings);
+  const acceptingOrders = settingsReady && settings?.accepting_orders !== false;
 
-  const { data: tables = [] } = useQuery({
+  const { data: tables = [], refetch: refetchTables } = useQuery({
     queryKey: ["public-tables"],
     queryFn: api.tables.getAll,
     enabled: activeOrderType === "DINE_IN" && !lockedFromQr,
@@ -122,11 +131,19 @@ export default function CheckoutPage() {
     }
   }, [showCash, digitalMethods, paymentChoice]);
 
+  useEffect(() => {
+    if (activeOrderType === "DINE_IN" && showCash) {
+      setPaymentChoice("cash");
+    }
+  }, [activeOrderType, showCash]);
+
   const subtotal = getTotal();
   const { tax, serviceCharge, deliveryFee, total: finalTotal } = computeOrderTotals({
     subtotal,
     orderType: activeOrderType,
     serviceChargePercent,
+    taxPercent,
+    deliveryFeeEtb,
   });
 
   const router = useRouter();
@@ -171,16 +188,24 @@ export default function CheckoutPage() {
       if (!customerName.trim() || !customerPhone.trim()) {
         return "Name and phone are required.";
       }
+      if (!isValidGuestPhone(customerPhone)) {
+        return "Enter a valid phone number (at least 9 digits).";
+      }
       if (activeOrderType === "DELIVERY" && !deliveryAddress.trim()) {
         return "Delivery address is required.";
       }
       return null;
     }
     if (s === 3) {
-      if (activeOrderType === "DINE_IN") return null;
+      if (activeOrderType === "DINE_IN" && showCash && paymentChoice === "cash") {
+        return null;
+      }
       if (!paymentChoice) return "Select a payment method.";
       if (paymentChoice !== "cash" && !transactionReference.trim()) {
         return "Enter your transaction reference for digital payment.";
+      }
+      if (activeOrderType === "DINE_IN" && !showCash && paymentChoice === "cash") {
+        return "Cash is disabled — select a digital payment method.";
       }
       return null;
     }
@@ -207,6 +232,18 @@ export default function CheckoutPage() {
   };
 
   const handlePlace = () => {
+    if (!settingsReady) {
+      setFormError("Cafe settings are still loading. Please wait a moment.");
+      return;
+    }
+    if (!acceptingOrders) {
+      setFormError("The cafe is not accepting orders right now. Please try again later.");
+      return;
+    }
+    if (!canPay) {
+      setFormError("Online ordering is paused: no payment methods are enabled. Please ask staff.");
+      return;
+    }
     const err =
       validateStep(1) || validateStep(2) || validateStep(3) || validateStep(4);
     if (err) {
@@ -223,7 +260,7 @@ export default function CheckoutPage() {
         deliveryAddress,
         items,
         total: finalTotal,
-        paymentChoice: activeOrderType === "DINE_IN" ? "cash" : paymentChoice,
+        paymentChoice,
         transactionReference,
       });
       createOrder.mutate(payload);
@@ -251,8 +288,7 @@ export default function CheckoutPage() {
     );
   }
 
-  const isCash =
-    activeOrderType === "DINE_IN" || paymentChoice === "cash";
+  const isCash = paymentChoice === "cash";
   const cta = placeOrderCtaLabel(activeOrderType, isCash);
 
   return (
@@ -376,9 +412,20 @@ export default function CheckoutPage() {
               <div className="space-y-3">
                 <h3 className="font-extrabold text-base px-1">Choose a free table</h3>
                 {freeTables.length === 0 ? (
-                  <p className="text-sm text-muted-foreground px-1">
-                    No free tables right now. Try takeaway or delivery, or ask staff.
-                  </p>
+                  <div className="rounded-2xl border border-dashed border-muted-foreground/30 p-4 space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      No free tables right now. Try takeaway or delivery, or ask staff.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => refetchTables()}
+                    >
+                      Refresh tables
+                    </Button>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {freeTables.map((t) => {
@@ -512,8 +559,10 @@ export default function CheckoutPage() {
               )}
               {activeOrderType === "DINE_IN" && (
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  We use your phone if staff need to find your table. You pay after
-                  dining.
+                  We use your phone if staff need to find your table.
+                  {showCash
+                    ? " You can pay after dining when cash is enabled."
+                    : " Cash is off — you’ll pay digitally before or as kitchen starts."}
                 </p>
               )}
             </CardContent>
@@ -523,15 +572,16 @@ export default function CheckoutPage() {
         {step === 3 && (
           <Card className="rounded-3xl border-muted-foreground/15">
             <CardContent className="p-5 space-y-4">
-              {activeOrderType === "DINE_IN" ? (
+              {activeOrderType === "DINE_IN" && showCash ? (
                 <div className="flex items-start gap-4 bg-primary/10 p-4 rounded-2xl border border-primary/20">
                   <Banknote className="h-6 w-6 text-primary shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-extrabold text-base">Pay after dining</h3>
                     <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                      Your order goes to the kitchen now. Settle cash or digital
-                      with staff when you are ready — no transaction reference
-                      needed at this step.
+                      {paymentExpectationCopy({
+                        orderType: activeOrderType,
+                        paymentChoice: "cash",
+                      })}
                     </p>
                   </div>
                 </div>
@@ -541,14 +591,19 @@ export default function CheckoutPage() {
                     <CreditCard className="h-4 w-4 text-primary" />
                     <span className="font-bold text-sm">Payment method</span>
                   </div>
+                  {activeOrderType === "DINE_IN" && !showCash ? (
+                    <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+                      Cash settlement is disabled. Choose a digital method and submit a transfer reference.
+                    </p>
+                  ) : null}
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Pickup and delivery start in the kitchen after payment is
-                    confirmed. Cash: pay at the counter (or on delivery) — staff
-                    mark it received. Digital: transfer first, then enter your
-                    reference for staff to verify.
+                    {paymentExpectationCopy({
+                      orderType: activeOrderType,
+                      paymentChoice,
+                    })}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {showCash && (
+                    {showCash && activeOrderType !== "DINE_IN" && (
                       <button
                         type="button"
                         onClick={() => setPaymentChoice("cash")}
@@ -652,11 +707,11 @@ export default function CheckoutPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Payment</span>
                   <span className="font-semibold text-right">
-                    {activeOrderType === "DINE_IN"
-                      ? "Pay later"
-                      : paymentChoice === "cash"
-                        ? "Cash (pending staff confirm)"
-                        : `${paymentChoice} · ref ${transactionReference}`}
+                    {paymentChoice === "cash"
+                      ? activeOrderType === "DINE_IN"
+                        ? "Pay later (cash)"
+                        : "Cash (pending staff confirm)"
+                      : `${paymentChoice} · ref ${transactionReference}`}
                   </span>
                 </div>
               </CardContent>
@@ -671,7 +726,7 @@ export default function CheckoutPage() {
                 <span>{formatETB(subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm text-muted-foreground">
-                <span>VAT (15%)</span>
+                <span>Tax ({taxPercent}%)</span>
                 <span>{formatETB(tax)}</span>
               </div>
               {activeOrderType === "DINE_IN" && (
@@ -685,6 +740,29 @@ export default function CheckoutPage() {
                   <span>Delivery fee</span>
                   <span>{formatETB(deliveryFee)}</span>
                 </div>
+              )}
+              {settingsLoading && (
+                <p className="text-sm text-muted-foreground font-medium pt-2">
+                  Loading cafe settings…
+                </p>
+              )}
+              {settingsError && (
+                <p className="text-sm text-destructive font-medium pt-2">
+                  Could not load cafe settings.{" "}
+                  <button type="button" className="underline font-semibold" onClick={() => refetchSettings()}>
+                    Retry
+                  </button>
+                </p>
+              )}
+              {settingsReady && !acceptingOrders && (
+                <p className="text-sm text-destructive font-medium pt-2">
+                  The cafe is not accepting orders right now.
+                </p>
+              )}
+              {settingsReady && !canPay && acceptingOrders && (
+                <p className="text-sm text-destructive font-medium pt-2">
+                  No payment methods are enabled. Ask staff to turn on cash or digital in Settings.
+                </p>
               )}
               <div className="border-t pt-4 flex justify-between items-baseline font-black text-2xl">
                 <span>Total</span>
@@ -709,7 +787,7 @@ export default function CheckoutPage() {
             <Button
               className="w-full h-14 rounded-full font-black text-base"
               onClick={handlePlace}
-              disabled={createOrder.isPending}
+              disabled={createOrder.isPending || !settingsReady || !acceptingOrders || !canPay}
               type="button"
             >
               {createOrder.isPending ? (

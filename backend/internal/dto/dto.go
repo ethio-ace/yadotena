@@ -167,12 +167,13 @@ func StaffUser(staff models.Staff) map[string]any {
 	}
 
 	return map[string]any{
-		"id":     staff.ID.String(),
-		"name":   staff.Name,
-		"email":  email,
-		"phone":  staff.Phone,
-		"role":   RoleAPI(staff.Role),
-		"status": status,
+		"id":         staff.ID.String(),
+		"name":       staff.Name,
+		"email":      email,
+		"phone":      staff.Phone,
+		"role":       RoleAPI(staff.Role),
+		"status":     status,
+		"joinedDate": staff.CreatedAt.Format(time.RFC3339Nano),
 	}
 }
 
@@ -259,6 +260,7 @@ func OrderAPI(order *models.Order) map[string]any {
 		"type":            OrderTypeAPI(order.OrderType),
 		"status":          OrderStatusAPI(order.OrderStatus),
 		"paymentStatus":   PaymentStatusAPI(order.PaymentStatus),
+		"kitchenVisible":  order.KitchenVisible,
 		"items":           items,
 		"subtotal":        order.SubtotalETB,
 		"tax":             order.TaxETB,

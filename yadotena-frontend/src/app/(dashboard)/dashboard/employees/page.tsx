@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import { 
   Plus, Search, UserSquare2, Shield, ChefHat, Utensils, 
   KeyRound, Trash2, Edit3, CheckCircle2, XCircle, Phone, 
-  Mail, Calendar, Filter, MoreVertical, X, Lock, RefreshCw
+  Mail, Calendar, X, Lock, RefreshCw
 } from "lucide-react";
 import { soundAlerts } from "@/lib/audioAlerts";
+import { ErrorState } from "@/components/ui/empty-state";
 
 export default function EmployeesPage() {
   const queryClient = useQueryClient();
@@ -25,8 +26,9 @@ export default function EmployeesPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [actionError, setActionError] = useState("");
 
-  const { data: users = [], isLoading, isRefetching } = useQuery({
+  const { data: users = [], isLoading, isRefetching, isError, refetch } = useQuery({
     queryKey: ["users"],
     queryFn: api.users.getAll,
   });
@@ -34,18 +36,22 @@ export default function EmployeesPage() {
   const toggleStatusMutation = useMutation({
     mutationFn: (id: string) => api.users.toggleStatus(id),
     onSuccess: () => {
+      setActionError("");
       soundAlerts.playActionPing();
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
+    onError: (err: Error) => setActionError(err.message || "Could not update staff status"),
   });
 
   const deleteUserMutation = useMutation({
     mutationFn: (id: string) => api.users.delete(id),
     onSuccess: () => {
+      setActionError("");
       soundAlerts.playActionPing();
       setDeletingUser(null);
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
+    onError: (err: Error) => setActionError(err.message || "Could not deactivate staff"),
   });
 
   // Filtered staff list
@@ -102,6 +108,20 @@ export default function EmployeesPage() {
           </Button>
         </div>
       </div>
+
+      {isError ? (
+        <ErrorState
+          title="Could not load staff"
+          description="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
+      ) : null}
+
+      {actionError ? (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {actionError}
+        </div>
+      ) : null}
 
       {/* Staff Metrics Cards */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -243,12 +263,14 @@ export default function EmployeesPage() {
                               <div className="font-extrabold text-sm text-foreground flex items-center gap-1.5">
                                 {user.name || "Unnamed User"}
                                 {user.role === "OWNER" && (
-                                  <span title="Administrator / Owner" className="text-amber-500 text-xs">👑</span>
+                                  <Badge variant="outline" className="text-[10px] font-bold px-1.5 py-0 h-5">
+                                    Owner
+                                  </Badge>
                                 )}
                               </div>
                               <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                                 <Mail className="h-3 w-3 opacity-60" />
-                                <span>{user.email}</span>
+                                <span>{user.email || "—"}</span>
                               </div>
                             </div>
                           </div>
@@ -266,7 +288,7 @@ export default function EmployeesPage() {
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-1.5 text-foreground font-medium">
                             <Phone className="h-3 w-3 text-muted-foreground" />
-                            <span>{user.phone || "+251 900 000 000"}</span>
+                            <span>{user.phone || "—"}</span>
                           </div>
                         </td>
 
@@ -275,9 +297,9 @@ export default function EmployeesPage() {
                           <div className="flex items-center gap-1.5">
                             <Calendar className="h-3 w-3 opacity-60" />
                             <span>
-                              {user.joinedDate 
-                                ? new Date(user.joinedDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) 
-                                : "Nov 12, 2024"}
+                              {user.joinedDate
+                                ? new Date(user.joinedDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                                : "—"}
                             </span>
                           </div>
                         </td>
@@ -372,13 +394,14 @@ export default function EmployeesPage() {
                 <Trash2 className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-extrabold text-base">Remove Staff Account</h3>
-                <p className="text-xs text-muted-foreground">This action cannot be undone.</p>
+                <h3 className="font-extrabold text-base">Deactivate staff account</h3>
+                <p className="text-xs text-muted-foreground">They will lose login access until reactivated.</p>
               </div>
             </div>
 
             <p className="text-xs text-foreground bg-muted/40 p-3 rounded-2xl border">
-              Are you sure you want to remove <span className="font-black text-rose-600">{deletingUser.name}</span> ({deletingUser.email})?
+              Deactivate <span className="font-black text-rose-600">{deletingUser.name}</span>
+              {deletingUser.phone ? ` (${deletingUser.phone})` : ""}?
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2">
@@ -394,7 +417,7 @@ export default function EmployeesPage() {
                 onClick={() => deleteUserMutation.mutate(deletingUser.id)}
                 disabled={deleteUserMutation.isPending}
               >
-                {deleteUserMutation.isPending ? "Removing..." : "Confirm Delete"}
+                {deleteUserMutation.isPending ? "Deactivating..." : "Deactivate"}
               </Button>
             </div>
           </div>
@@ -521,24 +544,24 @@ function AddUserModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-foreground">Email Address *</label>
+              <label className="text-xs font-bold text-foreground">Email (optional)</label>
               <Input
                 type="email"
                 placeholder="almaz@yadotena.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="rounded-xl h-10 text-xs"
-                required
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-foreground">Phone Number</label>
+              <label className="text-xs font-bold text-foreground">Phone Number *</label>
               <Input
-                placeholder="+251 911 234 567"
+                placeholder="0911234567"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="rounded-xl h-10 text-xs"
+                required
               />
             </div>
           </div>

@@ -40,15 +40,17 @@ func main() {
 		log.Fatalf("seed: %v", err)
 	}
 
-	var staff, cats, items, tables, orders, expenses int
+	var staff, cats, items, tables, orders, expenses, productCats, products int
 	_ = pool.QueryRow(ctx, `SELECT COUNT(*) FROM staff`).Scan(&staff)
 	_ = pool.QueryRow(ctx, `SELECT COUNT(*) FROM categories`).Scan(&cats)
 	_ = pool.QueryRow(ctx, `SELECT COUNT(*) FROM menu_items`).Scan(&items)
 	_ = pool.QueryRow(ctx, `SELECT COUNT(*) FROM cafe_tables`).Scan(&tables)
 	_ = pool.QueryRow(ctx, `SELECT COUNT(*) FROM orders`).Scan(&orders)
 	_ = pool.QueryRow(ctx, `SELECT COUNT(*) FROM expenses WHERE deleted_at IS NULL`).Scan(&expenses)
+	_ = pool.QueryRow(ctx, `SELECT COUNT(*) FROM product_categories`).Scan(&productCats)
+	_ = pool.QueryRow(ctx, `SELECT COUNT(*) FROM products`).Scan(&products)
 
-	log.Printf("done — staff=%d categories=%d items=%d tables=%d orders=%d expenses=%d",
-		staff, cats, items, tables, orders, expenses)
+	log.Printf("done — staff=%d categories=%d items=%d tables=%d orders=%d expenses=%d product_categories=%d products=%d",
+		staff, cats, items, tables, orders, expenses, productCats, products)
 	os.Exit(0)
 }

@@ -1,28 +1,26 @@
 "use client";
 
 import { useEffect, Suspense } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCartStore } from "@/stores/cartStore";
 
 function SessionManagerInner() {
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const setTableId = useCartStore((state) => state.setTableId);
   const setOrderType = useCartStore((state) => state.setOrderType);
 
   useEffect(() => {
     const table = searchParams.get("table");
+    // Only apply QR/table deep-links. Do not wipe a free-table pick from checkout
+    // when the guest returns to /menu without ?table=.
     if (table) {
       setTableId(table);
       setOrderType("DINE_IN");
-      return;
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("yadotena_table_id", table);
+      }
     }
-    // Clear dine-in session when browsing /menu without ?table=
-    if (pathname === "/menu") {
-      setTableId(null);
-      setOrderType(null);
-    }
-  }, [pathname, searchParams, setTableId, setOrderType]);
+  }, [searchParams, setTableId, setOrderType]);
 
   return null;
 }

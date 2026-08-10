@@ -14,12 +14,16 @@ import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useSoundNotifications } from "@/contexts/SoundNotificationContext";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 
 export default function Header({ user }: { user: any }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAudioControls, setShowAudioControls] = useState(false);
+  const [headerSearch, setHeaderSearch] = useState("");
+  const [actionError, setActionError] = useState("");
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const {
     isMuted,
@@ -27,32 +31,50 @@ export default function Header({ user }: { user: any }) {
     toggleMute,
     setVolume,
     pendingOrders,
+    pendingPayments,
     pendingServiceRequests,
     testOrderSound,
     testWaiterSound,
     unlockAudio,
   } = useSoundNotifications();
 
+  const isKitchen = user?.role === "KITCHEN";
+  const paymentAlerts = isKitchen ? [] : pendingPayments;
+  const totalUrgentCount =
+    pendingOrders.length + pendingServiceRequests.length + paymentAlerts.length;
+
   const resolveMutation = useMutation({
     mutationFn: api.serviceRequests.resolve,
     onSuccess: () => {
+      setActionError("");
       queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
     },
+    onError: (err: Error) => setActionError(err.message || "Could not resolve request"),
   });
-
-  const totalUrgentCount = pendingOrders.length + pendingServiceRequests.length;
 
   return (
     <div className="flex flex-col shrink-0 z-30 relative">
+      {actionError ? (
+        <div className="px-4 py-2 text-xs font-semibold text-destructive bg-destructive/10 border-b border-destructive/30">
+          {actionError}
+        </div>
+      ) : null}
       {/* Top Header Bar */}
       <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-6 shadow-sm">
         <div className="flex-1 flex items-center">
           <div className="relative w-full max-w-md hidden md:block">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              type="search" 
-              placeholder="Search orders, tables, dishes..." 
+            <Input
+              type="search"
+              value={headerSearch}
+              onChange={(e) => setHeaderSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && headerSearch.trim()) {
+                  router.push(`/dashboard/orders?q=${encodeURIComponent(headerSearch.trim())}`);
+                }
+              }}
+              placeholder="Search orders… press Enter"
               className="w-full bg-muted/50 pl-9 border-none focus-visible:ring-1"
             />
           </div>
@@ -134,7 +156,7 @@ export default function Header({ user }: { user: any }) {
                         className="rounded-xl text-[11px] h-8 font-bold"
                         onClick={testOrderSound}
                       >
-                        🔔 Order Chime
+                        Order chime
                       </Button>
                       <Button
                         size="sm"
@@ -142,7 +164,7 @@ export default function Header({ user }: { user: any }) {
                         className="rounded-xl text-[11px] h-8 font-bold"
                         onClick={testWaiterSound}
                       >
-                        🛎️ Waiter Chime
+                        Waiter chime
                       </Button>
                     </div>
                   </div>
@@ -157,7 +179,7 @@ export default function Header({ user }: { user: any }) {
                 size="icon" 
                 className={`relative rounded-full transition-all ${
                   pendingServiceRequests.length > 0 
-                    ? "bg-rose-500 hover:bg-rose-600 text-white animate-bounce shadow-md shadow-rose-500/25" 
+                    ? "bg-rose-500 hover:bg-rose-600 text-white animate-pulse shadow-md shadow-rose-500/25" 
                     : "text-muted-foreground"
                 }`}
                 onClick={() => setShowNotifications(!showNotifications)}
@@ -203,7 +225,7 @@ export default function Header({ user }: { user: any }) {
                                     : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20"
                                 }`}
                               >
-                                {req.type === "BILL" ? "🧾 Request Bill" : "🛎️ Call Waiter"}
+                                {req.type === "BILL" ? "Request bill" : "Call waiter"}
                               </Badge>
                             </div>
                             <p className="text-xs text-muted-foreground">{req.notes}</p>
@@ -258,18 +280,24 @@ export default function Header({ user }: { user: any }) {
 
             {pendingServiceRequests.length > 0 && (
               <span className="flex items-center gap-1 bg-black/20 rounded-full px-2.5 py-0.5">
-                🛎️ {pendingServiceRequests.length} Table Assistance {pendingServiceRequests.length === 1 ? "Call" : "Calls"} Active
+                {pendingServiceRequests.length} table {pendingServiceRequests.length === 1 ? "call" : "calls"}
               </span>
             )}
 
             {pendingOrders.length > 0 && (
               <span className="flex items-center gap-1 bg-black/20 rounded-full px-2.5 py-0.5">
-                🔥 {pendingOrders.length} New Unprepared {pendingOrders.length === 1 ? "Order" : "Orders"}
+                {pendingOrders.length} new {pendingOrders.length === 1 ? "order" : "orders"}
+              </span>
+            )}
+
+            {paymentAlerts.length > 0 && (
+              <span className="flex items-center gap-1 bg-black/20 rounded-full px-2.5 py-0.5">
+                {paymentAlerts.length} payment{paymentAlerts.length === 1 ? "" : "s"} to verify
               </span>
             )}
 
             <span className="opacity-80 hidden md:inline font-normal">
-              (Sound alerting until marked preparing or resolved)
+              (Alerts until acknowledged)
             </span>
           </div>
 
@@ -282,6 +310,17 @@ export default function Header({ user }: { user: any }) {
               >
                 View Table Calls ({pendingServiceRequests.length})
               </Button>
+            )}
+
+            {paymentAlerts.length > 0 && (
+              <Link href="/dashboard/payments">
+                <Button
+                  size="sm"
+                  className="bg-white/20 hover:bg-white/30 text-white border border-white/30 rounded-full text-xs font-bold h-7 px-3"
+                >
+                  Verify payments ({paymentAlerts.length})
+                </Button>
+              </Link>
             )}
 
             {pendingOrders.length > 0 && (

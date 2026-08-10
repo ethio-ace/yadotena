@@ -11,12 +11,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatETB } from "@/lib/currency";
-import { computeOrderTotals } from "@/lib/order-totals";
+import {
+  computeOrderTotals,
+  parseDeliveryFeeEtb,
+  parseTaxPercent,
+} from "@/lib/order-totals";
+import { isValidGuestPhone, paymentExpectationCopy } from "@/lib/guest-validation";
 import {
   CHECKOUT_STEP_LABELS,
   CheckoutStep,
   buildGuestPlacePayload,
   cashEnabled,
+  hasGuestPaymentOptions,
   parseDigitalMethods,
   placeOrderCtaLabel,
 } from "@/lib/checkout-payment";
@@ -55,13 +61,18 @@ export default function ShopCheckoutPage() {
   const [transactionReference, setTransactionReference] = useState("");
   const [formError, setFormError] = useState("");
 
-  const { data: settings } = useQuery({
+  const { data: settings, isLoading: settingsLoading, isError: settingsError, refetch: refetchSettings } = useQuery({
     queryKey: ["public-settings"],
     queryFn: () => api.settings.getPublic(),
     staleTime: 60_000,
   });
-  const digitalMethods = parseDigitalMethods(settings);
-  const showCash = cashEnabled(settings);
+  const settingsReady = !!settings && !settingsLoading && !settingsError;
+  const digitalMethods = settingsReady ? parseDigitalMethods(settings) : [];
+  const showCash = settingsReady ? cashEnabled(settings) : false;
+  const canPay = settingsReady && hasGuestPaymentOptions(settings);
+  const taxPercent = parseTaxPercent(settings);
+  const deliveryFeeEtb = parseDeliveryFeeEtb(settings);
+  const acceptingOrders = settingsReady && settings?.accepting_orders !== false;
   const orderType = fulfillment as OrderType;
 
   useEffect(() => {
@@ -75,6 +86,8 @@ export default function ShopCheckoutPage() {
     subtotal,
     orderType,
     serviceChargePercent: 0,
+    taxPercent,
+    deliveryFeeEtb,
   });
 
   const createOrder = useMutation({
@@ -94,6 +107,9 @@ export default function ShopCheckoutPage() {
     if (s === 2) {
       if (!customerName.trim() || !customerPhone.trim()) {
         return "Name and phone are required.";
+      }
+      if (!isValidGuestPhone(customerPhone)) {
+        return "Enter a valid phone number (at least 9 digits).";
       }
       if (fulfillment === "SHOP_DELIVERY" && !deliveryAddress.trim()) {
         return "Delivery address is required.";
@@ -128,6 +144,18 @@ export default function ShopCheckoutPage() {
   };
 
   const handlePlace = () => {
+    if (!settingsReady) {
+      setFormError("Cafe settings are still loading. Please wait a moment.");
+      return;
+    }
+    if (!acceptingOrders) {
+      setFormError("The cafe is not accepting orders right now. Please try again later.");
+      return;
+    }
+    if (!canPay) {
+      setFormError("Online ordering is paused: no payment methods are enabled. Please ask staff.");
+      return;
+    }
     const err =
       validateStep(1) || validateStep(2) || validateStep(3);
     if (err) {
@@ -299,8 +327,10 @@ export default function ShopCheckoutPage() {
           <Card className="rounded-3xl">
             <CardContent className="p-5 space-y-3">
               <p className="text-xs text-muted-foreground">
-                Shop orders wait for payment confirmation before staff pack them.
-                Cash: pay at counter / on delivery. Digital: paste your transfer reference.
+                {paymentExpectationCopy({
+                  orderType,
+                  paymentChoice,
+                })}
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {showCash && (
@@ -369,7 +399,7 @@ export default function ShopCheckoutPage() {
                 <span>{formatETB(subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm text-muted-foreground">
-                <span>VAT (15%)</span>
+                <span>Tax ({taxPercent}%)</span>
                 <span>{formatETB(tax)}</span>
               </div>
               {fulfillment === "SHOP_DELIVERY" && (
@@ -388,7 +418,30 @@ export default function ShopCheckoutPage() {
       </div>
 
       <div className="fixed bottom-0 inset-x-0 p-4 border-t bg-background/95 z-40">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-3xl mx-auto space-y-2">
+          {settingsLoading && (
+            <p className="text-center text-xs font-semibold text-muted-foreground">
+              Loading cafe settings…
+            </p>
+          )}
+          {settingsError && (
+            <p className="text-center text-xs font-semibold text-destructive">
+              Could not load settings.{" "}
+              <button type="button" className="underline" onClick={() => refetchSettings()}>
+                Retry
+              </button>
+            </p>
+          )}
+          {settingsReady && !acceptingOrders && (
+            <p className="text-center text-xs font-semibold text-destructive">
+              The cafe is not accepting orders right now.
+            </p>
+          )}
+          {settingsReady && !canPay && acceptingOrders && (
+            <p className="text-center text-xs font-semibold text-destructive">
+              No payment methods are enabled. Ask staff to update Settings.
+            </p>
+          )}
           {step < 4 ? (
             <Button className="w-full h-14 rounded-full font-black" onClick={goNext} type="button">
               Continue
@@ -397,7 +450,7 @@ export default function ShopCheckoutPage() {
             <Button
               className="w-full h-14 rounded-full font-black"
               onClick={handlePlace}
-              disabled={createOrder.isPending}
+              disabled={createOrder.isPending || !settingsReady || !acceptingOrders || !canPay}
               type="button"
             >
               {createOrder.isPending ? (

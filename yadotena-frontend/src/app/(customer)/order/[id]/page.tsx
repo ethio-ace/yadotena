@@ -8,49 +8,45 @@ import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
 import { 
   ArrowLeft, CheckCircle2, Clock, MapPin, Receipt, Utensils, 
-  BellRing, Plus, Star, Sparkles, Check, ChevronRight, Phone, MessageSquare, Printer
+  BellRing, Plus, Star, Sparkles, Check, Printer
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
+import { useOrderStream, ssePollInterval } from "@/lib/realtime";
+import { isDeliveryType, orderTypeLabel } from "@/lib/order-type-label";
+import { tableLabel } from "@/lib/table-label";
+import { BRAND_NAME } from "@/lib/cafe-facts";
+import { ErrorState } from "@/components/ui/empty-state";
 
 const statusSteps = [
   { id: "PENDING", label: "Order Received", desc: "Kitchen received ticket", icon: Receipt },
   { id: "CONFIRMED", label: "Confirmed", desc: "Chef scheduled prep", icon: CheckCircle2 },
   { id: "PREPARING", label: "Preparing in Kitchen", desc: "Artisanal preparation in progress", icon: Utensils },
   { id: "READY", label: "Ready to Serve", desc: "Plated & ready for delivery/pickup", icon: Clock },
+  { id: "SERVED", label: "Served", desc: "At your table", icon: CheckCircle2 },
+  { id: "COMPLETED", label: "Completed", desc: "Thanks for dining with us", icon: Sparkles },
 ];
 
 export default function OrderTrackingPage() {
   const { id } = useParams();
+  const orderId = typeof id === "string" ? id : Array.isArray(id) ? id[0] : undefined;
+  const { connected } = useOrderStream(orderId, !!orderId);
   
   const [waiterCalled, setWaiterCalled] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
   const [rating, setRating] = useState<number>(0);
   const [feedbackSent, setFeedbackSent] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState(720); // 12 mins
+  const [actionError, setActionError] = useState("");
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatCountdown = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s < 10 ? "0" : ""}${s}`;
-  };
-
-  const { data: order, isLoading } = useQuery({
+  const { data: order, isLoading, isError, refetch } = useQuery({
     queryKey: ["orders", id],
     queryFn: async () => {
       if (!id) return null;
       const foundOrder = await api.orders.getById(id as string);
       return foundOrder || null;
     },
-    refetchInterval: 3000, 
+    refetchInterval: ssePollInterval(connected),
   });
 
   const [tableId, setTableId] = useState<string | null>(null);
@@ -67,14 +63,17 @@ export default function OrderTrackingPage() {
   const sendServiceRequest = useMutation({
     mutationFn: api.serviceRequests.create,
     onError: (err: Error) => {
-      alert(err.message || "Could not send request");
+      setActionError(err.message || "Could not send request");
     },
   });
 
   const submitReview = useMutation({
     mutationFn: api.reviews.create,
-    onSuccess: () => setFeedbackSent(true),
-    onError: (err: Error) => alert(err.message || "Could not submit review"),
+    onSuccess: () => {
+      setActionError("");
+      setFeedbackSent(true);
+    },
+    onError: (err: Error) => setActionError(err.message || "Could not submit review"),
   });
 
   if (isLoading) {
@@ -83,6 +82,18 @@ export default function OrderTrackingPage() {
         <div className="h-44 bg-muted/60 rounded-3xl w-full"></div>
         <div className="h-64 bg-muted/60 rounded-3xl w-full"></div>
         <div className="h-48 bg-muted/60 rounded-3xl w-full"></div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-8 max-w-md mx-auto">
+        <ErrorState
+          title="Could not load this order"
+          description="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }
@@ -107,9 +118,16 @@ export default function OrderTrackingPage() {
   const currentStepIndex = statusSteps.findIndex(s => s.id === order.status);
   const isCompleted = order.status === "COMPLETED" || order.status === "SERVED";
   const isCancelled = order.status === "CANCELLED";
+  const effectiveTableId = order.tableId || tableId || null;
+  const canRequestAssistance = order.type === "DINE_IN" && !!effectiveTableId;
+  const dineInTableLabel = tableLabel(effectiveTableId, undefined, order.tableName);
 
   const handleCallWaiter = (customNote?: string) => {
-    const effectiveTableId = order.tableId || tableId || "t1";
+    if (!effectiveTableId) {
+      setActionError("This order is not linked to a table, so we cannot alert staff from here.");
+      return;
+    }
+    setActionError("");
     sendServiceRequest.mutate({
       tableId: effectiveTableId,
       type: "WAITER",
@@ -119,12 +137,16 @@ export default function OrderTrackingPage() {
     setTimeout(() => setWaiterCalled(false), 12000);
   };
 
-  const handleRequestBill = (method: string = "Telebirr / Cash") => {
-    const effectiveTableId = order.tableId || tableId || "t1";
+  const handleRequestBill = () => {
+    if (!effectiveTableId) {
+      setActionError("This order is not linked to a table, so we cannot request a bill from here.");
+      return;
+    }
+    setActionError("");
     sendServiceRequest.mutate({
       tableId: effectiveTableId,
       type: "BILL",
-      notes: `Requested table bill via ${method} (Total: ${formatETB(order.total)})`,
+      notes: `Requested table bill (Total: ${formatETB(order.total)})`,
     });
     setBillRequested(true);
     setTimeout(() => setBillRequested(false), 12000);
@@ -164,16 +186,31 @@ export default function OrderTrackingPage() {
               className={`px-3 py-1 text-xs font-bold ${
                 order.paymentStatus === "PAID" 
                   ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" 
-                  : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                  : order.paymentStatus === "PENDING_VERIFICATION"
+                    ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                    : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20"
               }`}
             >
-              {order.paymentStatus === "PAID" ? "✓ Paid" : "⏳ Pay on Departure"}
+              {order.paymentStatus === "PAID"
+                ? "Paid"
+                : order.paymentStatus === "PENDING_VERIFICATION"
+                  ? "Payment pending verification"
+                  : order.paymentStatus === "REJECTED"
+                    ? "Payment rejected — talk to staff"
+                    : order.type === "DINE_IN"
+                      ? "Unpaid — settle with staff"
+                      : "Awaiting payment"}
             </Badge>
           </div>
         </div>
       </div>
 
       <div className="p-4 md:p-6 flex-1">
+        {actionError ? (
+          <div className="max-w-3xl mx-auto mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {actionError}
+          </div>
+        ) : null}
         <div className="max-w-3xl mx-auto space-y-6">
           
           {/* Order Hero Status Card */}
@@ -182,18 +219,19 @@ export default function OrderTrackingPage() {
               <div className="absolute top-0 right-0 transform translate-x-8 -translate-y-8 h-40 w-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
               
               <Badge className="bg-white/20 hover:bg-white/20 text-white font-bold backdrop-blur-md border border-white/25 px-4 py-1 text-xs mb-3">
-                {order.type === "DINE_IN" ? `Dine-In • Table ${order.tableId?.replace("t", "")}` :
-                 order.type === "TAKEAWAY" ? "Takeaway Pickup" : "Doorstep Delivery"}
+                {order.type === "DINE_IN"
+                  ? `Dine-in${effectiveTableId ? ` · ${dineInTableLabel}` : ""}`
+                  : orderTypeLabel(order.type)}
               </Badge>
 
               <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-2">
-                {isCompleted ? "Order Complete! 🎉" : 
-                 isCancelled ? "Order Cancelled" : 
-                 order.status === "READY" ? "Your Meal is Ready! 🍽️" : 
-                 order.status === "PREPARING" ? "Cooking with Passion 👨‍🍳" : "Ticket in Kitchen"}
+                {isCompleted ? "Order complete" : 
+                 isCancelled ? "Order cancelled" : 
+                 order.status === "READY" ? "Ready for you" : 
+                 order.status === "PREPARING" ? "Being prepared" : "Order received"}
               </h1>
 
-              {order.type === "DELIVERY" && order.deliveryAddress && (
+              {isDeliveryType(order.type) && order.deliveryAddress && (
                 <p className="text-sm text-primary-foreground/90 max-w-md mx-auto flex items-center justify-center gap-1.5 mt-1">
                   <MapPin className="h-4 w-4 shrink-0" />
                   <span className="truncate">{order.deliveryAddress}</span>
@@ -201,10 +239,18 @@ export default function OrderTrackingPage() {
               )}
 
               <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <div className="inline-flex items-center gap-2 bg-black/25 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
-                  <Clock className="h-4 w-4 text-amber-300 animate-pulse" />
-                  <span>Est. Prep: {formatCountdown(secondsRemaining)} remaining</span>
-                </div>
+                {!isCompleted && !isCancelled && (
+                  <div className="inline-flex items-center gap-2 bg-black/25 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
+                    <Clock className="h-4 w-4 text-amber-300" />
+                    <span>
+                      {order.status === "READY"
+                        ? "Ready for pickup or service"
+                        : order.status === "PREPARING"
+                          ? "Kitchen is preparing your order"
+                          : "Waiting for kitchen confirmation"}
+                    </span>
+                  </div>
+                )}
                 <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
                   <span>Total: {formatETB(order.total)}</span>
                 </div>
@@ -222,7 +268,9 @@ export default function OrderTrackingPage() {
                     <span>Table Assistance & Quick Actions</span>
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Signal your waiter, request your check, or add more gourmet items to your table.
+                    {canRequestAssistance
+                      ? "Signal your waiter, request your check, or add more items."
+                      : "Assistance buttons need a linked table. Ask staff if this ticket has no table."}
                   </p>
                 </div>
 
@@ -233,7 +281,7 @@ export default function OrderTrackingPage() {
                       waiterCalled ? "bg-emerald-600 text-white hover:bg-emerald-700" : "hover:border-primary"
                     }`}
                     onClick={() => handleCallWaiter()}
-                    disabled={waiterCalled}
+                    disabled={waiterCalled || !canRequestAssistance}
                   >
                     {waiterCalled ? (
                       <>
@@ -254,7 +302,7 @@ export default function OrderTrackingPage() {
                       billRequested ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
                     }`}
                     onClick={() => handleRequestBill()}
-                    disabled={billRequested}
+                    disabled={billRequested || !canRequestAssistance}
                   >
                     {billRequested ? (
                       <>
@@ -377,7 +425,7 @@ export default function OrderTrackingPage() {
           <Card className="rounded-3xl shadow-sm border-muted-foreground/15 bg-card/60 p-6 text-center space-y-3">
             <h4 className="font-bold text-base">How is your dining experience?</h4>
             <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Your instant feedback helps our chef and floor staff deliver five-star service.
+              Your feedback helps kitchen and floor staff improve service.
             </p>
 
             <div className="flex items-center justify-center gap-2 pt-1">
@@ -410,7 +458,7 @@ export default function OrderTrackingPage() {
 
             {feedbackSent && (
               <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 animate-in fade-in">
-                ✓ Thank you for rating Yadotena Milk & Foods {rating} stars!
+                ✓ Thank you for rating {BRAND_NAME} {rating} stars!
               </p>
             )}
           </Card>

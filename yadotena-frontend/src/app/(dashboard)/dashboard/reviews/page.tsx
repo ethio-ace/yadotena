@@ -1,33 +1,54 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import { api } from "@/services/api";
 import { formatDistanceToNow } from "date-fns";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 
 export default function ReviewsPage() {
-  const { data: reviews = [], isLoading } = useQuery({
+  const { data: reviews = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["reviews"],
     queryFn: api.reviews.getAll,
   });
 
+  const avgRating = useMemo(() => {
+    if (reviews.length === 0) return null;
+    const sum = reviews.reduce((acc, r) => acc + (r.rating || 0), 0);
+    return (sum / reviews.length).toFixed(1);
+  }, [reviews]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Customer Reviews</h2>
-        <p className="text-muted-foreground mt-1">Feedback submitted from order tracking.</p>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Customer Reviews</h2>
+          <p className="text-muted-foreground mt-1">Feedback submitted from order tracking.</p>
+        </div>
+        {avgRating && (
+          <p className="text-sm font-bold">
+            Avg {avgRating} / 5 · {reviews.length} review{reviews.length === 1 ? "" : "s"}
+          </p>
+        )}
       </div>
+
+      {isError && (
+        <ErrorState
+          title="Could not load reviews"
+          description="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
+      )}
 
       {isLoading ? (
         <div className="p-8 text-muted-foreground">Loading reviews…</div>
-      ) : reviews.length === 0 ? (
-        <Card className="rounded-3xl">
-          <CardContent className="py-16 flex flex-col items-center justify-center text-center gap-3 text-muted-foreground">
-            <MessageSquare className="h-10 w-10 opacity-40" />
-            <p className="font-medium">No reviews yet.</p>
-          </CardContent>
-        </Card>
+      ) : reviews.length === 0 && !isError ? (
+        <EmptyState
+          title="No reviews yet"
+          description="Guests can rate completed orders from the order tracking page."
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {reviews.map((review) => (

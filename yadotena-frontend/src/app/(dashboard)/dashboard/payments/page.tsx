@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { formatETB } from "@/lib/currency";
 import { useMemo, useState } from "react";
+import { useStaffRealtime, ssePollInterval } from "@/lib/realtime";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 
 function statusBadge(status: string) {
   switch (status) {
@@ -26,31 +28,47 @@ function statusBadge(status: string) {
 
 export default function PaymentsPage() {
   const [search, setSearch] = useState("");
+  const [actionError, setActionError] = useState("");
   const queryClient = useQueryClient();
+  const { connected } = useStaffRealtime();
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
+    refetchInterval: ssePollInterval(connected),
   });
 
   const { data: tables = [] } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
+    refetchInterval: ssePollInterval(connected),
   });
 
   const verify = useMutation({
     mutationFn: api.orders.verifyPayment,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+    onSuccess: () => {
+      setActionError("");
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: (err: Error) => setActionError(err.message || "Could not verify payment"),
   });
 
   const reject = useMutation({
     mutationFn: api.orders.rejectPayment,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+    onSuccess: () => {
+      setActionError("");
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: (err: Error) => setActionError(err.message || "Could not reject payment"),
   });
 
   const markCashPaid = useMutation({
     mutationFn: (id: string) => api.orders.updatePayment(id, "PAID", { method: "cash" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+    onSuccess: () => {
+      setActionError("");
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: (err: Error) => setActionError(err.message || "Could not mark cash paid"),
   });
 
   const paidOrders = orders.filter((o) => o.paymentStatus === "PAID");
@@ -75,6 +93,18 @@ export default function PaymentsPage() {
     return <div className="p-8 text-center animate-pulse">Loading payments...</div>;
   }
 
+  if (isError) {
+    return (
+      <div className="p-8 max-w-lg mx-auto">
+        <ErrorState
+          title="Could not load payments"
+          description="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
@@ -83,6 +113,12 @@ export default function PaymentsPage() {
           Collect cash, verify digital transfers, and review payment history.
         </p>
       </div>
+
+      {actionError ? (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {actionError}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <Card className="bg-emerald-500/5 border-emerald-500/20 rounded-3xl">
@@ -203,8 +239,12 @@ export default function PaymentsPage() {
                 })}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
-                      No payments found.
+                    <td colSpan={6} className="p-0">
+                      <EmptyState
+                        className="border-0 rounded-none"
+                        title="No payments found"
+                        description="Orders awaiting cash or digital verification will appear here."
+                      />
                     </td>
                   </tr>
                 )}

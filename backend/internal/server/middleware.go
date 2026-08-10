@@ -57,8 +57,15 @@ func bearerOrCookie(r *http.Request) string {
 	if strings.HasPrefix(strings.ToLower(h), "bearer ") {
 		return strings.TrimSpace(h[7:])
 	}
-	if c, err := r.Cookie("yadotena_token"); err == nil {
+	if c, err := r.Cookie("yadotena_token"); err == nil && c.Value != "" {
 		return c.Value
+	}
+	// EventSource cannot set Authorization; allow ?token= for staff SSE.
+	if t := strings.TrimSpace(r.URL.Query().Get("token")); t != "" {
+		return t
+	}
+	if t := strings.TrimSpace(r.URL.Query().Get("access_token")); t != "" {
+		return t
 	}
 	return ""
 }

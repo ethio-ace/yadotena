@@ -121,6 +121,8 @@ type Settings struct {
 	DigitalMethods       []string `json:"digital_methods"`
 	PublicBaseURL        string   `json:"public_base_url"`
 	ServiceChargePercent float64  `json:"service_charge_percent"`
+	TaxPercent           float64  `json:"tax_percent"`
+	DeliveryFeeETB       float64  `json:"delivery_fee_etb"`
 }
 
 type OrderItem struct {

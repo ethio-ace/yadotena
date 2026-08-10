@@ -15,28 +15,37 @@ import (
 	"yadotena/internal/storage"
 )
 
+func cafeNow() time.Time {
+	loc, err := time.LoadLocation("Africa/Addis_Ababa")
+	if err != nil {
+		return time.Now().UTC()
+	}
+	return time.Now().In(loc)
+}
+
 func (s *Server) analytics(w http.ResponseWriter, r *http.Request) {
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
 	if from == "" {
-		from = time.Now().Format("2006-01-02")
+		from = cafeNow().Format("2006-01-02")
 	}
 	if to == "" {
 		to = from
 	}
+	const cafeDay = `(created_at AT TIME ZONE 'Africa/Addis_Ababa')::date`
 	var orderCount int
 	var revenue float64
 	_ = s.Pool.QueryRow(r.Context(), `
 		SELECT COUNT(*), COALESCE(SUM(total_etb),0)::float8
 		FROM orders
 		WHERE payment_status='paid'
-		  AND created_at::date >= $1::date AND created_at::date <= $2::date`, from, to).
+		  AND `+cafeDay+` >= $1::date AND `+cafeDay+` <= $2::date`, from, to).
 		Scan(&orderCount, &revenue)
 
 	byType := map[string]int{}
 	rows, err := s.Pool.Query(r.Context(), `
 		SELECT order_type, COUNT(*) FROM orders
-		WHERE created_at::date >= $1::date AND created_at::date <= $2::date
+		WHERE `+cafeDay+` >= $1::date AND `+cafeDay+` <= $2::date
 		GROUP BY order_type`, from, to)
 	if err == nil {
 		defer rows.Close()
@@ -59,7 +68,8 @@ func (s *Server) analytics(w http.ResponseWriter, r *http.Request) {
 		FROM order_items oi
 		JOIN orders o ON o.id=oi.order_id
 		WHERE o.payment_status='paid'
-		  AND o.created_at::date >= $1::date AND o.created_at::date <= $2::date
+		  AND (o.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date >= $1::date
+		  AND (o.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date <= $2::date
 		GROUP BY oi.name_snapshot ORDER BY SUM(oi.qty) DESC LIMIT 10`, from, to)
 	if err == nil {
 		defer rows2.Close()
@@ -75,7 +85,8 @@ func (s *Server) analytics(w http.ResponseWriter, r *http.Request) {
 		SELECT p.method, COUNT(*) FROM payments p
 		JOIN orders o ON o.id=p.order_id
 		WHERE o.payment_status='paid'
-		  AND o.created_at::date >= $1::date AND o.created_at::date <= $2::date
+		  AND (o.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date >= $1::date
+		  AND (o.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date <= $2::date
 		GROUP BY p.method`, from, to)
 	if err == nil {
 		defer rows3.Close()
@@ -94,24 +105,26 @@ func (s *Server) analytics(w http.ResponseWriter, r *http.Request) {
 
 	dailyByDate := map[string]map[string]float64{}
 	rows4, err := s.Pool.Query(r.Context(), `
-		SELECT created_at::date AS d,
+		SELECT (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date AS d,
 		       COALESCE(SUM(total_etb) FILTER (WHERE order_type='dine_in'),0)::float8,
 		       COALESCE(SUM(total_etb) FILTER (WHERE order_type='pickup'),0)::float8,
 		       COALESCE(SUM(total_etb) FILTER (WHERE order_type='delivery'),0)::float8,
+		       COALESCE(SUM(total_etb) FILTER (WHERE order_type IN ('shop_pickup','shop_delivery')),0)::float8,
 		       COALESCE(SUM(total_etb),0)::float8
 		FROM orders
 		WHERE payment_status='paid'
-		  AND created_at::date >= $1::date AND created_at::date <= $2::date
+		  AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date >= $1::date
+		  AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date <= $2::date
 		GROUP BY 1 ORDER BY 1`, from, to)
 	if err == nil {
 		defer rows4.Close()
 		for rows4.Next() {
 			var d time.Time
-			var dineIn, takeaway, delivery, rev float64
-			if err := rows4.Scan(&d, &dineIn, &takeaway, &delivery, &rev); err == nil {
+			var dineIn, takeaway, delivery, shop, rev float64
+			if err := rows4.Scan(&d, &dineIn, &takeaway, &delivery, &shop, &rev); err == nil {
 				key := d.Format("2006-01-02")
 				dailyByDate[key] = map[string]float64{
-					"dineIn": dineIn, "takeaway": takeaway, "delivery": delivery, "revenue": rev,
+					"dineIn": dineIn, "takeaway": takeaway, "delivery": delivery, "shop": shop, "revenue": rev,
 				}
 			}
 		}
@@ -122,11 +135,12 @@ func (s *Server) analytics(w http.ResponseWriter, r *http.Request) {
 	if errFrom == nil && errTo == nil {
 		for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
 			key := d.Format("2006-01-02")
-			row := map[string]any{"date": key, "dineIn": 0.0, "takeaway": 0.0, "delivery": 0.0, "revenue": 0.0}
+			row := map[string]any{"date": key, "dineIn": 0.0, "takeaway": 0.0, "delivery": 0.0, "shop": 0.0, "revenue": 0.0}
 			if v, ok := dailyByDate[key]; ok {
 				row["dineIn"] = v["dineIn"]
 				row["takeaway"] = v["takeaway"]
 				row["delivery"] = v["delivery"]
+				row["shop"] = v["shop"]
 				row["revenue"] = v["revenue"]
 			}
 			daily = append(daily, row)

@@ -37,7 +37,17 @@ func (s *Server) Router() http.Handler {
 			writeErr(w, 503, "db unavailable")
 			return
 		}
-		writeJSON(w, 200, map[string]any{"ok": true, "db": true})
+		redisOK := false
+		if s.Redis != nil {
+			if err := s.Redis.Ping(ctx).Err(); err == nil {
+				redisOK = true
+			}
+		}
+		writeJSON(w, 200, map[string]any{
+			"ok":    true,
+			"db":    true,
+			"redis": redisOK,
+		})
 	})
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(s.Cfg.UploadsDir))))
 

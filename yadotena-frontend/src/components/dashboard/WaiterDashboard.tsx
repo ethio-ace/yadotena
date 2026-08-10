@@ -5,46 +5,77 @@ import { api } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BellRing, Check, Clock, Coffee, Utensils, Receipt, Sparkles } from "lucide-react";
+import { BellRing, Check, Coffee, Utensils } from "lucide-react";
 import { OrderStatus } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { soundAlerts } from "@/lib/audioAlerts";
+import { useStaffRealtime, ssePollInterval } from "@/lib/realtime";
+import { tableLabel } from "@/lib/table-label";
+import { ErrorState } from "@/components/ui/empty-state";
+import { useState } from "react";
 
 export default function WaiterDashboard() {
+  const { connected } = useStaffRealtime();
   const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState("");
 
-  const { data: orders, isLoading: loadingOrders } = useQuery({
+  const { data: orders, isLoading: loadingOrders, isError: ordersError, refetch: refetchOrders } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    refetchInterval: 3000,
+    refetchInterval: ssePollInterval(connected),
   });
 
-  const { data: serviceRequests = [], isLoading: loadingRequests } = useQuery({
+  const { data: serviceRequests = [], isLoading: loadingRequests, isError: requestsError, refetch: refetchRequests } = useQuery({
     queryKey: ["serviceRequests"],
     queryFn: api.serviceRequests.getAll,
-    refetchInterval: 3000,
+    refetchInterval: ssePollInterval(connected),
+  });
+
+  const { data: tables = [] } = useQuery({
+    queryKey: ["tables"],
+    queryFn: api.tables.getAll,
+    refetchInterval: ssePollInterval(connected),
   });
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: OrderStatus }) => 
       api.orders.updateStatus(id, status),
     onSuccess: () => {
+      setActionError("");
       soundAlerts.playActionPing();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
+    onError: (err: Error) => setActionError(err.message || "Could not update order status"),
   });
 
   const resolveRequest = useMutation({
     mutationFn: api.serviceRequests.resolve,
     onSuccess: () => {
+      setActionError("");
       soundAlerts.playActionPing();
       queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
     },
+    onError: (err: Error) => setActionError(err.message || "Could not resolve request"),
   });
 
   if (loadingOrders || loadingRequests) {
     return <div className="p-8 text-center animate-pulse text-muted-foreground font-medium">Loading Waiter Floor...</div>;
+  }
+
+  if (ordersError || requestsError) {
+    return (
+      <div className="p-8 max-w-lg mx-auto">
+        <ErrorState
+          title="Could not load floor console"
+          description="Check your connection and try again."
+          onRetry={() => {
+            refetchOrders();
+            refetchRequests();
+          }}
+        />
+      </div>
+    );
   }
 
   const readyOrders = orders?.filter(o => o.status === "READY" && o.type === "DINE_IN") || [];
@@ -62,6 +93,12 @@ export default function WaiterDashboard() {
         </div>
       </div>
 
+      {actionError ? (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {actionError}
+        </div>
+      ) : null}
+
       {/* Metric Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-primary/5 border-primary/20">
@@ -70,7 +107,7 @@ export default function WaiterDashboard() {
             <Utensils className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-primary">8</div>
+            <div className="text-2xl font-black text-primary">{tables.length}</div>
           </CardContent>
         </Card>
 
@@ -110,7 +147,7 @@ export default function WaiterDashboard() {
         <Card className="border-2 border-rose-500/40 shadow-lg shadow-rose-500/5 bg-card rounded-2xl overflow-hidden animate-in slide-in-from-top duration-300">
           <CardHeader className="bg-rose-500/10 border-b py-3 px-5 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-black text-rose-600 dark:text-rose-400 flex items-center gap-2">
-              <BellRing className="h-5 w-5 animate-bounce" />
+              <BellRing className="h-5 w-5 animate-pulse" />
               <span>Active Table Assistance Calls ({pendingRequests.length})</span>
             </CardTitle>
             <Badge className="bg-rose-600 text-white font-bold text-xs">
@@ -130,7 +167,7 @@ export default function WaiterDashboard() {
                           : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20"
                       }`}
                     >
-                      {req.type === "BILL" ? "🧾 Request Bill" : "🛎️ Call Waiter"}
+                      {req.type === "BILL" ? "Request bill" : "Call waiter"}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">{req.notes}</p>
@@ -173,7 +210,7 @@ export default function WaiterDashboard() {
                   <div key={order.id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-extrabold text-base">Table {order.tableId?.replace('t', '')}</span>
+                        <span className="font-extrabold text-base">{tableLabel(order.tableId, tables, order.tableName)}</span>
                         <span className="text-[11px] bg-muted px-2 py-0.5 rounded-full border font-mono">#{order.id.slice(-6).toUpperCase()}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -212,7 +249,7 @@ export default function WaiterDashboard() {
                   <div key={order.id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-extrabold text-base">Table {order.tableId?.replace('t', '')}</span>
+                        <span className="font-extrabold text-base">{tableLabel(order.tableId, tables, order.tableName)}</span>
                         <span className="text-[11px] bg-muted px-2 py-0.5 rounded-full border font-mono">#{order.id.slice(-6).toUpperCase()}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">

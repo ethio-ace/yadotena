@@ -118,11 +118,26 @@ func (s *Server) publicPlaceOrder(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 403, "not accepting orders")
 		return
 	}
+	if body.PaymentMethod == models.PayCash && !st.CashEnabled {
+		writeErr(w, 403, "cash payments are disabled")
+		return
+	}
+	if body.PaymentMethod == models.PayDigital && !st.DigitalEnabled {
+		writeErr(w, 403, "digital payments are disabled")
+		return
+	}
+	if !st.CashEnabled && !st.DigitalEnabled {
+		writeErr(w, 403, "no payment methods enabled")
+		return
+	}
 	order, err := s.createOrder(r.Context(), body, nil)
 	if err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
+	_ = s.Log.Write(r.Context(), nil, "guest", "create_order", "order", order.ID.String(), map[string]any{
+		"type": order.OrderType, "channel": "public",
+	})
 	s.Hub.BroadcastStaff("order.created", dto.OrderAPI(order))
 	writeJSON(w, 201, dto.OrderAPI(order))
 }
@@ -152,6 +167,15 @@ func (s *Server) staffPlaceOrder(w http.ResponseWriter, r *http.Request) {
 func (s *Server) createOrder(ctx context.Context, body placeBody, takenBy *uuid.UUID) (*models.Order, error) {
 	if body.CustomerName == "" || body.CustomerPhone == "" {
 		return nil, errMsg("customer_name and customer_phone required")
+	}
+	phoneDigits := 0
+	for _, c := range body.CustomerPhone {
+		if c >= '0' && c <= '9' {
+			phoneDigits++
+		}
+	}
+	if phoneDigits < 9 || body.CustomerPhone == "0000000000" {
+		return nil, errMsg("valid customer phone required")
 	}
 	if len(body.Items) == 0 {
 		return nil, errMsg("items required")
@@ -199,14 +223,8 @@ func (s *Server) createOrder(ctx context.Context, body placeBody, takenBy *uuid.
 		}
 		hasMenu := it.MenuItemID != uuid.Nil
 		hasProduct := it.ProductID != uuid.Nil
-		if hasMenu == hasProduct {
-			return nil, errMsg("each item needs exactly one of menuItemId or productId")
-		}
-		if isShop && !hasProduct {
-			return nil, errMsg("shop orders require productId on items")
-		}
-		if !isShop && !hasMenu {
-			return nil, errMsg("menu orders require menuItemId on items")
+		if err := orders.ValidateLineRefs(isShop, hasMenu, hasProduct); err != nil {
+			return nil, err
 		}
 		var name string
 		var price float64
@@ -234,17 +252,21 @@ func (s *Server) createOrder(ctx context.Context, body placeBody, takenBy *uuid.
 	payStatus := orders.InitialPaymentStatus(body.OrderType, body.PaymentMethod, body.MarkCashPaid)
 	orderStatus := models.OrderPlaced
 
-	var servicePct float64
-	_ = tx.QueryRow(ctx, `SELECT service_charge_percent::float8 FROM settings WHERE id=1`).Scan(&servicePct)
+	var servicePct, taxPct, deliveryFeeSetting float64
+	_ = tx.QueryRow(ctx, `
+		SELECT service_charge_percent::float8,
+		       COALESCE(tax_percent, 15)::float8,
+		       COALESCE(delivery_fee_etb, 100)::float8
+		FROM settings WHERE id=1`).Scan(&servicePct, &taxPct, &deliveryFeeSetting)
 
-	tax := subtotal * 0.15
+	tax := subtotal * (taxPct / 100)
 	serviceCharge := 0.0
 	if body.OrderType == models.OrderDineIn && servicePct > 0 {
 		serviceCharge = subtotal * (servicePct / 100)
 	}
 	deliveryFee := 0.0
 	if body.OrderType == models.OrderDelivery || body.OrderType == models.OrderShopDelivery {
-		deliveryFee = 100
+		deliveryFee = deliveryFeeSetting
 	}
 	total := subtotal + tax + serviceCharge + deliveryFee
 
@@ -630,13 +652,18 @@ func (s *Server) publicOrderStream(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
 	ch := s.Hub.SubscribeOrder(id)
 	defer s.Hub.UnsubscribeOrder(id, ch)
 	notify := r.Context().Done()
+	tick := time.NewTicker(15 * time.Second)
+	defer tick.Stop()
 	for {
 		select {
 		case <-notify:
 			return
+		case <-tick.C:
+			sse.WriteSSEComment(w, flusher, "ping")
 		case msg := <-ch:
 			sse.WriteSSE(w, flusher, msg)
 		}
@@ -651,13 +678,18 @@ func (s *Server) staffStream(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
 	ch := s.Hub.SubscribeStaff()
 	defer s.Hub.UnsubscribeStaff(ch)
 	notify := r.Context().Done()
+	tick := time.NewTicker(15 * time.Second)
+	defer tick.Stop()
 	for {
 		select {
 		case <-notify:
 			return
+		case <-tick.C:
+			sse.WriteSSEComment(w, flusher, "ping")
 		case msg := <-ch:
 			sse.WriteSSE(w, flusher, msg)
 		}

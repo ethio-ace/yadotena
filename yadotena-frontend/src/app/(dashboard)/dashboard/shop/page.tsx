@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import type { Order } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { formatETB } from "@/lib/currency";
+import { useStaffRealtime, ssePollInterval } from "@/lib/realtime";
+import { orderTypeLabel } from "@/lib/order-type-label";
 import Link from "next/link";
 
 function isShop(o: Order) {
@@ -13,17 +17,25 @@ function isShop(o: Order) {
 }
 
 export default function ShopQueuePage() {
+  const { connected } = useStaffRealtime();
   const qc = useQueryClient();
-  const { data: orders = [], isLoading } = useQuery({
+  const [actionError, setActionError] = useState("");
+  const { data: orders = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    refetchInterval: 5000,
+    refetchInterval: ssePollInterval(connected),
   });
 
   const patchStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: Order["status"] }) =>
       api.orders.updateStatus(id, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
+    onSuccess: () => {
+      setActionError("");
+      qc.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: (err: Error) => {
+      setActionError(err.message || "Could not update shop order");
+    },
   });
 
   const shopOrders = orders.filter(
@@ -46,12 +58,25 @@ export default function ShopQueuePage() {
         </p>
       </div>
 
+      {actionError ? (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {actionError}
+        </div>
+      ) : null}
+
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : isError ? (
+        <ErrorState
+          title="Could not load shop orders"
+          description="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
       ) : shopOrders.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-12 text-center">
-          No open shop orders.
-        </p>
+        <EmptyState
+          title="No open shop orders"
+          description="Guest retail pickups and deliveries will appear here."
+        />
       ) : (
         <ul className="space-y-3">
           {shopOrders.map((o) => (
@@ -62,7 +87,7 @@ export default function ShopQueuePage() {
                     #{o.id.slice(-6).toUpperCase()} · {o.customerName}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {o.type} · {o.customerPhone}
+                    {orderTypeLabel(o.type)} · {o.customerPhone}
                     {o.deliveryAddress ? ` · ${o.deliveryAddress}` : ""}
                   </div>
                 </div>

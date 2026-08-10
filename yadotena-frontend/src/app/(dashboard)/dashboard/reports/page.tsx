@@ -6,6 +6,7 @@ import { api } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/empty-state";
 import { formatETB } from "@/lib/currency";
 import {
   Area,
@@ -21,12 +22,21 @@ import {
 import { Download, Printer, Receipt, ShoppingBag, Utensils } from "lucide-react";
 
 export default function ReportsPage() {
-  const { data: analytics, isLoading } = useQuery({
+  const {
+    data: analytics,
+    isLoading,
+    isError: analyticsError,
+    refetch: refetchAnalytics,
+  } = useQuery({
     queryKey: ["analytics"],
     queryFn: () => api.analytics.getSummary(),
   });
 
-  const { data: expenses = [] } = useQuery({
+  const {
+    data: expenses = [],
+    isError: expensesError,
+    refetch: refetchExpenses,
+  } = useQuery({
     queryKey: ["expenses"],
     queryFn: api.expenses.getAll,
   });
@@ -36,28 +46,39 @@ export default function ReportsPage() {
       (analytics?.daily || []).map((d) => ({
         name: d.date.slice(5),
         dineIn: d.dineIn || 0,
-        delivery: (d.takeaway || 0) + (d.delivery || 0),
+        takeaway: d.takeaway || 0,
+        delivery: d.delivery || 0,
+        shop: d.shop || 0,
         total: d.revenue,
       })),
     [analytics?.daily],
   );
 
   const gross = analytics?.revenue_etb || 0;
-  const expenseTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const periodFrom = analytics?.from;
+  const periodTo = analytics?.to;
+  const expenseTotal = useMemo(() => {
+    return expenses
+      .filter((e) => {
+        if (!periodFrom || !periodTo) return false;
+        return e.date >= periodFrom && e.date <= periodTo;
+      })
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [expenses, periodFrom, periodTo]);
   const ordersCount = analytics?.paid_order_count || 0;
   const netProfit = gross - expenseTotal;
   const profitMargin = gross > 0 ? ((netProfit / gross) * 100).toFixed(1) : "0.0";
   const avgTicket = ordersCount > 0 ? gross / ordersCount : 0;
   const topItems = analytics?.top_items || [];
   const periodLabel =
-    analytics?.from && analytics?.to ? `${analytics.from} → ${analytics.to}` : "Current period";
+    periodFrom && periodTo ? `${periodFrom} → ${periodTo}` : "Current period";
 
   const handleExportCSV = () => {
-    const headers = "Date,DineIn_ETB,Takeaway_Delivery_ETB,Total_ETB\n";
+    const headers = "Date,DineIn_ETB,Takeaway_ETB,Delivery_ETB,Shop_ETB,Total_ETB\n";
     const rows = chartData
-      .map((d) => `${d.name},${d.dineIn},${d.delivery},${d.total}`)
+      .map((d) => `${d.name},${d.dineIn},${d.takeaway},${d.delivery},${d.shop},${d.total}`)
       .join("\n");
-    const summary = `\n\nSummary (${periodLabel})\nGross Revenue,${gross}\nExpenses,${expenseTotal}\nNet,${netProfit}\nPaid Orders,${ordersCount}`;
+    const summary = `\n\nSummary (${periodLabel})\nGross Revenue,${gross}\nExpenses (same period),${expenseTotal}\nNet,${netProfit}\nPaid Orders,${ordersCount}`;
     const blob = new Blob([headers + rows + summary], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -73,6 +94,21 @@ export default function ReportsPage() {
 
   if (isLoading) {
     return <div className="p-8 text-muted-foreground">Loading analytics…</div>;
+  }
+
+  if (analyticsError) {
+    return (
+      <div className="p-8 max-w-lg mx-auto">
+        <ErrorState
+          title="Could not load analytics"
+          description="Check your connection and try again."
+          onRetry={() => {
+            refetchAnalytics();
+            refetchExpenses();
+          }}
+        />
+      </div>
+    );
   }
 
   return (
@@ -100,18 +136,30 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {expensesError ? (
+        <ErrorState
+          title="Could not load expenses for this period"
+          description="Net profit is hidden until expenses load — revenue below is still accurate."
+          onRetry={() => refetchExpenses()}
+        />
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard title="Gross Revenue" value={formatETB(gross)} hint="Paid orders in period" />
+        <MetricCard title="Gross Revenue" value={formatETB(gross)} hint="Paid orders in period (Addis Ababa days)" />
         <MetricCard
           title="Operating Expenses"
-          value={formatETB(expenseTotal)}
-          hint="All recorded expenses"
+          value={expensesError ? "—" : formatETB(expenseTotal)}
+          hint={expensesError ? "Unavailable" : "Expenses dated in the same period"}
           icon={<Receipt className="h-4 w-4" />}
         />
         <MetricCard
           title="Net Operating Profit"
-          value={formatETB(netProfit)}
-          hint={`${profitMargin}% margin`}
+          value={expensesError ? "—" : formatETB(netProfit)}
+          hint={
+            expensesError
+              ? "Waiting on expenses"
+              : `${profitMargin}% margin (period revenue − period expenses)`
+          }
           highlight
         />
         <MetricCard
@@ -126,7 +174,7 @@ export default function ReportsPage() {
         <Card className="rounded-3xl shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-black">Revenue by Channel</CardTitle>
-            <CardDescription className="text-xs">Dine-in vs takeaway/delivery</CardDescription>
+            <CardDescription className="text-xs">Dine-in · takeaway · delivery · shop</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[280px] w-full pt-4">
@@ -141,11 +189,21 @@ export default function ReportsPage() {
                     <Tooltip
                       formatter={(value, name) => [
                         formatETB(Number(value ?? 0)),
-                        name === "dineIn" ? "Dine-In" : "Takeaway/Delivery",
+                        name === "dineIn"
+                          ? "Dine-in"
+                          : name === "takeaway"
+                            ? "Takeaway"
+                            : name === "delivery"
+                              ? "Delivery"
+                              : name === "shop"
+                                ? "Shop"
+                                : String(name),
                       ]}
                     />
-                    <Bar dataKey="dineIn" stackId="a" fill="var(--primary)" radius={[0, 0, 6, 6]} />
-                    <Bar dataKey="delivery" stackId="a" fill="#10b981" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="dineIn" stackId="a" fill="var(--primary)" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="takeaway" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="delivery" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="shop" stackId="a" fill="#6366f1" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}

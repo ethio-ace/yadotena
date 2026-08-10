@@ -20,7 +20,11 @@ const secondaryCtaClass = cn(
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8b84a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a2118]",
 );
 
-export function LandingHero() {
+export function LandingHero({
+  acceptingOrders = true,
+}: {
+  acceptingOrders?: boolean;
+}) {
   return (
     <section className="relative isolate min-h-[100svh] overflow-hidden bg-[#1a2118] text-[#f4efe4]">
       <Image
@@ -64,6 +68,11 @@ export function LandingHero() {
               Dairy and kitchen plates — order at your table, take away, shop
               retail, or have it delivered.
             </p>
+            {!acceptingOrders ? (
+              <p className="mt-3 text-sm font-semibold text-[#e8b84a]">
+                Online ordering is paused — you can still browse the menu and shop.
+              </p>
+            ) : null}
           </motion.div>
 
           <motion.div
@@ -73,9 +82,17 @@ export function LandingHero() {
             className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:flex-wrap"
           >
             <Link href="/menu" className={primaryCtaClass}>
-              View menu
+              {acceptingOrders ? "View menu" : "Browse menu"}
               <ArrowRight className="ml-2 size-4" aria-hidden="true" />
             </Link>
+            {acceptingOrders ? (
+              <Link
+                href="/menu?table=d0000000-0000-0000-0000-000000000004"
+                className={secondaryCtaClass}
+              >
+                Try Table 04
+              </Link>
+            ) : null}
             <Link href="/shop" className={secondaryCtaClass}>
               Retail shop
             </Link>

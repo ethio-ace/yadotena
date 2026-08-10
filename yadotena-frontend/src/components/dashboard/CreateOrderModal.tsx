@@ -10,11 +10,14 @@ import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
 import {
   computeOrderTotals,
+  parseDeliveryFeeEtb,
   parseServiceChargePercent,
+  parseTaxPercent,
 } from "@/lib/order-totals";
+import { isValidGuestPhone } from "@/lib/guest-validation";
 import { 
   X, Plus, Minus, Search, Utensils, ShoppingBag, Truck, 
-  CheckCircle2, ChefHat, Sparkles
+  CheckCircle2, ChefHat
 } from "lucide-react";
 
 interface CreateOrderModalProps {
@@ -42,6 +45,9 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
     staleTime: 60_000,
   });
   const serviceChargePercent = parseServiceChargePercent(settings);
+  const taxPercent = parseTaxPercent(settings);
+  const deliveryFeeEtb = parseDeliveryFeeEtb(settings);
+  const acceptingOrders = settings?.accepting_orders !== false;
 
   const [orderType, setOrderType] = useState<OrderType>("DINE_IN");
   const [tableId, setTableId] = useState<string>(initialTableId || "");
@@ -59,6 +65,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
     quantity: number;
     specialInstructions?: string;
   }>>([]);
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     if (initialTableId) {
@@ -74,6 +81,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
   const createOrder = useMutation({
     mutationFn: api.orders.create,
     onSuccess: () => {
+      setFormError("");
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
       onClose();
@@ -84,7 +92,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
       setDeliveryAddress("");
     },
     onError: (err: Error) => {
-      alert(err.message || "Failed to create order");
+      setFormError(err.message || "Failed to create order");
     },
   });
 
@@ -99,6 +107,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
   });
 
   const handleAddItem = (item: MenuItem) => {
+    setFormError("");
     setOrderItems(prev => {
       const exists = prev.find(i => i.menuItemId === item.id);
       if (exists) {
@@ -121,13 +130,32 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
     subtotal,
     orderType,
     serviceChargePercent,
+    taxPercent,
+    deliveryFeeEtb,
   });
 
   const handleSubmit = () => {
-    if (orderItems.length === 0) return alert("Please select at least one item.");
-    if (orderType === "DINE_IN" && !tableId) return alert("Please select a table.");
-    if (orderType === "TAKEAWAY" && (!customerName || !customerPhone)) return alert("Please enter customer name and phone.");
-    if (orderType === "DELIVERY" && (!customerName || !customerPhone || !deliveryAddress)) return alert("Please enter delivery details.");
+    if (orderItems.length === 0) {
+      setFormError("Please select at least one item.");
+      return;
+    }
+    if (orderType === "DINE_IN" && !tableId) {
+      setFormError("Please select a table.");
+      return;
+    }
+    if (!customerPhone.trim() || !isValidGuestPhone(customerPhone)) {
+      setFormError("Enter a real customer phone (at least 9 digits).");
+      return;
+    }
+    if (orderType !== "DINE_IN" && !customerName.trim()) {
+      setFormError("Please enter the customer name.");
+      return;
+    }
+    if (orderType === "DELIVERY" && !deliveryAddress.trim()) {
+      setFormError("Please enter a delivery address.");
+      return;
+    }
+    setFormError("");
 
     const selectedTable = tables?.find((t) => t.id === tableId);
 
@@ -141,13 +169,10 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
       tableId: orderType === "DINE_IN" ? tableId : undefined,
       customerName:
         orderType === "DINE_IN"
-          ? customerName || `Guest ${selectedTable?.name || "Table"}`
-          : customerName,
-      customerPhone:
-        orderType === "DINE_IN"
-          ? customerPhone || "0911000000"
-          : customerPhone,
-      deliveryAddress: orderType === "DELIVERY" ? deliveryAddress : undefined,
+          ? customerName.trim() || `Guest ${selectedTable?.name || "Table"}`
+          : customerName.trim(),
+      customerPhone: customerPhone.trim(),
+      deliveryAddress: orderType === "DELIVERY" ? deliveryAddress.trim() : undefined,
     });
   };
 
@@ -172,6 +197,12 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
             <X className="h-5 w-5" />
           </Button>
         </div>
+
+        {!acceptingOrders ? (
+          <div className="px-6 py-2 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/10 border-b border-amber-500/30">
+            Guest online ordering is paused. Staff can still place walk-in and phone orders here.
+          </div>
+        ) : null}
 
         {/* Content Layout */}
         <div className="grid grid-cols-1 md:grid-cols-12 flex-1 overflow-hidden">
@@ -233,40 +264,40 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
               </div>
             )}
 
-            {/* Takeaway / Delivery Fields */}
-            {(orderType === "TAKEAWAY" || orderType === "DELIVERY") && (
-              <div className="grid grid-cols-2 gap-3 bg-muted/20 p-3 rounded-2xl border">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Customer Name</label>
-                  <Input 
-                    value={customerName} 
-                    onChange={e => setCustomerName(e.target.value)} 
-                    placeholder="e.g. Michael" 
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Phone</label>
-                  <Input 
-                    value={customerPhone} 
-                    onChange={e => setCustomerPhone(e.target.value)} 
-                    placeholder="091 123 4567" 
-                    className="h-9 text-xs"
-                  />
-                </div>
-                {orderType === "DELIVERY" && (
-                  <div className="col-span-2 space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground">Delivery Address</label>
-                    <Input 
-                      value={deliveryAddress} 
-                      onChange={e => setDeliveryAddress(e.target.value)} 
-                      placeholder="Street, Building, Floor" 
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                )}
+            {/* Guest contact — required for all order types */}
+            <div className="grid grid-cols-2 gap-3 bg-muted/20 p-3 rounded-2xl border">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">
+                  Customer Name{orderType === "DINE_IN" ? " (optional)" : ""}
+                </label>
+                <Input 
+                  value={customerName} 
+                  onChange={e => setCustomerName(e.target.value)} 
+                  placeholder={orderType === "DINE_IN" ? "Guest name" : "e.g. Michael"} 
+                  className="h-9 text-xs"
+                />
               </div>
-            )}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Phone *</label>
+                <Input 
+                  value={customerPhone} 
+                  onChange={e => setCustomerPhone(e.target.value)} 
+                  placeholder="091 123 4567" 
+                  className="h-9 text-xs"
+                />
+              </div>
+              {orderType === "DELIVERY" && (
+                <div className="col-span-2 space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Delivery Address</label>
+                  <Input 
+                    value={deliveryAddress} 
+                    onChange={e => setDeliveryAddress(e.target.value)} 
+                    placeholder="Street, Building, Floor" 
+                    className="h-9 text-xs"
+                  />
+                </div>
+              )}
+            </div>
 
             {/* Search & Category Filter */}
             <div className="space-y-2 pt-2">
@@ -396,6 +427,12 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
                 )}
               </div>
 
+              {formError ? (
+                <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {formError}
+                </div>
+              ) : null}
+
               {/* Price Breakdown */}
               <div className="space-y-1.5 text-xs text-muted-foreground">
                 <div className="flex justify-between">
@@ -403,7 +440,7 @@ export function CreateOrderModal({ isOpen, onClose, initialTableId }: CreateOrde
                   <span>{formatETB(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Tax (15%)</span>
+                  <span>Tax ({taxPercent}%)</span>
                   <span>{formatETB(tax)}</span>
                 </div>
                 {orderType === "DINE_IN" && (

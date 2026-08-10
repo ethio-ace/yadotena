@@ -2,9 +2,11 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { api } from "@/services/api";
 import { soundAlerts } from "@/lib/audioAlerts";
 import { Order, ServiceRequest } from "@/types";
+import { useStaffRealtime, ssePollInterval } from "@/lib/realtime";
 
 interface SoundNotificationContextType {
   isMuted: boolean;
@@ -12,6 +14,7 @@ interface SoundNotificationContextType {
   toggleMute: () => void;
   setVolume: (val: number) => void;
   pendingOrders: Order[];
+  pendingPayments: Order[];
   pendingServiceRequests: ServiceRequest[];
   testOrderSound: () => void;
   testWaiterSound: () => void;
@@ -22,6 +25,10 @@ interface SoundNotificationContextType {
 const SoundNotificationContext = createContext<SoundNotificationContextType | undefined>(undefined);
 
 export function SoundNotificationProvider({ children }: { children: React.ReactNode }) {
+  const { connected } = useStaffRealtime();
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+  const alertPayments = role !== "KITCHEN";
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [volume, setVolumeState] = useState<number>(0.8);
   const [isAudioUnlocked, setIsAudioUnlocked] = useState<boolean>(false);
@@ -84,26 +91,28 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
     };
   }, [unlockAudio]);
 
-  // Query live orders every 3 seconds
+  // Query live orders (SSE invalidates; 15s safety poll)
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    refetchInterval: 3000,
+    refetchInterval: ssePollInterval(connected),
   });
 
-  // Query live service requests every 3 seconds
+  // Query live service requests (SSE invalidates; 15s safety poll)
   const { data: serviceRequests = [] } = useQuery({
     queryKey: ["serviceRequests"],
     queryFn: api.serviceRequests.getAll,
-    refetchInterval: 3000,
+    refetchInterval: ssePollInterval(connected),
   });
 
   // Filter for unacknowledged orders (PENDING status) and pending waiter/bill requests
   const pendingOrders = orders.filter((o) => o.status === "PENDING");
+  const pendingPayments = orders.filter((o) => o.paymentStatus === "PENDING_VERIFICATION");
   const pendingServiceRequests = serviceRequests.filter((r) => r.status === "PENDING");
 
   const lastOrderSoundRef = useRef<number>(0);
   const lastWaiterSoundRef = useRef<number>(0);
+  const lastPaymentSoundRef = useRef<number>(0);
 
   // Periodic recurring sound alert loop
   useEffect(() => {
@@ -123,17 +132,36 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
       // 2. Pending Waiter / Bill Alert: Recurring every 8 seconds as long as there is an unhandled service request
       if (pendingServiceRequests.length > 0) {
         if (now - lastWaiterSoundRef.current >= 8000) {
-          // Stagger by 2 seconds if both exist
+          // Stagger by 2.5 seconds if an order chime just played
           if (pendingOrders.length === 0 || now - lastOrderSoundRef.current >= 2500) {
             soundAlerts.playWaiterCallChime(volume);
             lastWaiterSoundRef.current = now;
           }
         }
       }
+
+      // 3. Payment verification — owner/manager (not kitchen/waiter floor noise)
+      if (alertPayments && pendingPayments.length > 0) {
+        if (now - lastPaymentSoundRef.current >= 10000) {
+          const clearOfOrder = now - lastOrderSoundRef.current >= 2500;
+          const clearOfWaiter = now - lastWaiterSoundRef.current >= 2500;
+          if (clearOfOrder && clearOfWaiter) {
+            soundAlerts.playActionPing(volume);
+            lastPaymentSoundRef.current = now;
+          }
+        }
+      }
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [isMuted, volume, pendingOrders.length, pendingServiceRequests.length]);
+  }, [
+    isMuted,
+    volume,
+    pendingOrders.length,
+    pendingServiceRequests.length,
+    pendingPayments.length,
+    alertPayments,
+  ]);
 
   const testOrderSound = useCallback(() => {
     unlockAudio();
@@ -153,6 +181,7 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
         toggleMute,
         setVolume,
         pendingOrders,
+        pendingPayments,
         pendingServiceRequests,
         testOrderSound,
         testWaiterSound,

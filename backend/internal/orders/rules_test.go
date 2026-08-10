@@ -83,3 +83,52 @@ func TestFloorConfirmAndServe(t *testing.T) {
 		t.Fatal("skip ready")
 	}
 }
+
+func TestFloorCannotLeaveTerminal(t *testing.T) {
+	if CanFloorTransition(models.OrderCancelled, models.OrderCompleted) {
+		t.Fatal("cancelled cannot complete")
+	}
+	if CanFloorTransition(models.OrderCompleted, models.OrderPreparing) {
+		t.Fatal("completed is terminal")
+	}
+}
+
+func TestShopNeverKitchenEvenWhenPaid(t *testing.T) {
+	st := InitialPaymentStatus(models.OrderShopPickup, models.PayCash, true)
+	if st != models.PayPaid {
+		t.Fatalf("expected paid got %s", st)
+	}
+	if KitchenVisible(models.OrderShopPickup, st, models.OrderPlaced) {
+		t.Fatal("shop must stay out of kitchen")
+	}
+}
+
+func TestValidateLineRefs(t *testing.T) {
+	if err := ValidateLineRefs(false, true, false); err != nil {
+		t.Fatalf("menu+menuItem ok: %v", err)
+	}
+	if err := ValidateLineRefs(true, false, true); err != nil {
+		t.Fatalf("shop+product ok: %v", err)
+	}
+	if err := ValidateLineRefs(false, true, true); err == nil {
+		t.Fatal("both ids should fail")
+	}
+	if err := ValidateLineRefs(false, false, false); err == nil {
+		t.Fatal("neither id should fail")
+	}
+	if err := ValidateLineRefs(true, true, false); err == nil {
+		t.Fatal("shop with menuItem should fail")
+	}
+	if err := ValidateLineRefs(false, false, true); err == nil {
+		t.Fatal("cafe order with product should fail")
+	}
+}
+
+func TestIsShopOrder(t *testing.T) {
+	if !IsShopOrder(models.OrderShopPickup) || !IsShopOrder(models.OrderShopDelivery) {
+		t.Fatal("shop types")
+	}
+	if IsShopOrder(models.OrderDineIn) || IsShopOrder(models.OrderPickup) {
+		t.Fatal("non-shop")
+	}
+}

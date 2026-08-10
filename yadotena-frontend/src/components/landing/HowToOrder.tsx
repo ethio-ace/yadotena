@@ -1,4 +1,4 @@
-import { Package, QrCode, ShoppingBag } from "lucide-react";
+import { Package, QrCode, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 
 const steps = [
@@ -6,13 +6,13 @@ const steps = [
     title: "At the cafe",
     body: "Scan a table QR to open the menu for that table and pay after you dine.",
     icon: QrCode,
-    href: "/menu",
-    linkLabel: "Open menu",
+    href: "/menu?table=d0000000-0000-0000-0000-000000000004",
+    linkLabel: "Try Table 04",
   },
   {
     title: "Browse anywhere",
     body: "Open the kitchen menu without a table. Pickup and delivery wait for payment; dine-in can pay later.",
-    icon: ShoppingBag,
+    icon: UtensilsCrossed,
     href: "/menu",
     linkLabel: "View menu",
   },
@@ -25,7 +25,7 @@ const steps = [
   },
 ] as const;
 
-export function HowToOrder() {
+export function HowToOrder({ acceptingOrders = true }: { acceptingOrders?: boolean }) {
   return (
     <section className="bg-[#f4efe4] px-6 py-20 text-[#1a2118] sm:px-10 sm:py-24 lg:px-16">
       <div className="mx-auto max-w-7xl">
@@ -34,8 +34,13 @@ export function HowToOrder() {
         </h2>
         <p className="mt-4 max-w-2xl text-base leading-7 text-[#1a2118]/75">
           Same live menu for guests at the table and guests ordering from
-          elsewhere — checkout adapts to dine-in, takeaway, or delivery.
+          elsewhere — kitchen menu and retail shop stay separate at checkout.
         </p>
+        {!acceptingOrders && (
+          <p className="mt-4 text-sm font-semibold text-[#7a5414]">
+            Ordering is paused right now. You can still browse the menu and shop.
+          </p>
+        )}
 
         <div className="mt-14 grid gap-12 md:grid-cols-3 md:gap-10">
           {steps.map(({ title, body, icon: Icon, href, linkLabel }) => (

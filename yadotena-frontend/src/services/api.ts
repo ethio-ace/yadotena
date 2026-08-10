@@ -16,16 +16,6 @@ import type {
   User,
 } from "@/types";
 
-const CATEGORY_ICONS: Record<string, string> = {
-  "Fresh Dairy & Milk": "🥛",
-  "Main Course": "🍔",
-  Pizza: "🍕",
-  Appetizers: "🍟",
-  Beverages: "☕",
-  Desserts: "🍰",
-  Traditional: "🍲",
-};
-
 type ApiCategory = {
   id: string;
   name: string;
@@ -47,6 +37,7 @@ type AnalyticsResponse = {
     dineIn?: number;
     takeaway?: number;
     delivery?: number;
+    shop?: number;
   }>;
   top_items?: Array<{ name: string; qty: number; revenue_etb: number }>;
   byOrderType?: Record<string, number>;
@@ -75,7 +66,7 @@ function mapCategory(c: ApiCategory): MenuCategory {
   return {
     id: c.id,
     name: c.name,
-    icon: CATEGORY_ICONS[c.name] || "🍽️",
+    icon: "",
     sortOrder: c.sort_order,
   };
 }
@@ -111,9 +102,9 @@ function buildPlaceBody(order: CreateOrderInput) {
   return {
     type: order.type,
     customer_name: order.customerName || "Guest",
-    customer_phone: order.customerPhone || "0000000000",
+    customer_phone: (order.customerPhone || "").trim(),
     customerName: order.customerName || "Guest",
-    customerPhone: order.customerPhone || "0000000000",
+    customerPhone: (order.customerPhone || "").trim(),
     table_id: order.tableId || undefined,
     tableId: order.tableId || undefined,
     delivery_address: order.deliveryAddress || undefined,
@@ -134,11 +125,11 @@ function buildPlaceBody(order: CreateOrderInput) {
   };
 }
 
+import { cafeDateDaysAgo, cafeDateISO } from "@/lib/cafe-time";
+
 function analyticsRangeQuery(from?: string, to?: string): string {
-  const end = to || new Date().toISOString().slice(0, 10);
-  const start =
-    from ||
-    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const end = to || cafeDateISO();
+  const start = from || cafeDateDaysAgo(30);
   return `?from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}`;
 }
 
@@ -157,12 +148,8 @@ export const api = {
       const session = typeof window !== "undefined" ? await getSession() : null;
       const token = (session as { accessToken?: string } | null)?.accessToken;
       if (token) {
-        try {
-          const cats = await apiFetch<ApiCategory[]>("/staff/categories");
-          return (cats || []).map(mapCategory);
-        } catch {
-          /* fall through to public */
-        }
+        const cats = await apiFetch<ApiCategory[]>("/staff/categories");
+        return (cats || []).map(mapCategory);
       }
       const data = await loadPublicMenu();
       return (data.categories || []).map(mapCategory);
@@ -175,7 +162,7 @@ export const api = {
       return {
         id: res.id,
         name: category.name,
-        icon: category.icon || CATEGORY_ICONS[category.name] || "🍽️",
+        icon: "",
         description: category.description,
         sortOrder: category.sortOrder,
       };
@@ -189,7 +176,7 @@ export const api = {
       return {
         id,
         name: updates.name || "",
-        icon: updates.icon || "🍽️",
+        icon: "",
         description: updates.description,
         sortOrder: updates.sortOrder,
       };
@@ -599,7 +586,10 @@ export const api = {
       status?: User["status"];
     }): Promise<User> {
       const pin = data.pin || data.password || "1234";
-      const phone = (data.phone || "").replace(/\s+/g, "") || `09${Date.now().toString().slice(-8)}`;
+      const phone = (data.phone || "").replace(/\s+/g, "");
+      if (!phone) {
+        throw new Error("Phone is required for staff login");
+      }
       const res = await apiFetch<{ id: string }>("/staff/staff", {
         body: {
           name: data.name,
@@ -667,6 +657,22 @@ export const api = {
       const f = typeof from === "string" ? from : undefined;
       const t = typeof to === "string" ? to : undefined;
       return apiFetch<AnalyticsResponse>(`/staff/analytics${analyticsRangeQuery(f, t)}`);
+    },
+  },
+
+  activity: {
+    async list(): Promise<
+      Array<{
+        id: string;
+        actor_name?: string | null;
+        action: string;
+        entity_type: string;
+        entity_id?: string | null;
+        metadata?: Record<string, unknown>;
+        created_at: string;
+      }>
+    > {
+      return apiFetch("/staff/activity");
     },
   },
 

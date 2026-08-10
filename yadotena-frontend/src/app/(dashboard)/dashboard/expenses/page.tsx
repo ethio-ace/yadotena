@@ -7,11 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Receipt } from "lucide-react";
+import { Plus } from "lucide-react";
 import { api } from "@/services/api";
 import { formatETB } from "@/lib/currency";
 import { format } from "date-fns";
 import { useState } from "react";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 
 const ExpenseSchema = Yup.object().shape({
   category: Yup.string().required("Required"),
@@ -24,7 +25,7 @@ export default function ExpensesPage() {
   const [showForm, setShowForm] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: expenses = [], isLoading } = useQuery({
+  const { data: expenses = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["expenses"],
     queryFn: api.expenses.getAll,
   });
@@ -45,14 +46,19 @@ export default function ExpensesPage() {
       paymentMethod: "Cash",
     },
     validationSchema: ExpenseSchema,
-    onSubmit: async (values, { resetForm }) => {
-      await createExpense.mutateAsync({
-        category: values.category,
-        description: values.description,
-        amount: Number(values.amount),
-        paymentMethod: values.paymentMethod,
-      });
-      resetForm();
+    onSubmit: async (values, { resetForm, setStatus }) => {
+      try {
+        await createExpense.mutateAsync({
+          category: values.category,
+          description: values.description,
+          amount: Number(values.amount),
+          paymentMethod: values.paymentMethod,
+        });
+        setStatus(undefined);
+        resetForm();
+      } catch (err) {
+        setStatus(err instanceof Error ? err.message : "Could not save expense");
+      }
     },
   });
 
@@ -67,6 +73,14 @@ export default function ExpensesPage() {
           <Plus className="mr-2 h-4 w-4" /> Record Expense
         </Button>
       </div>
+
+      {isError && (
+        <ErrorState
+          title="Could not load expenses"
+          description="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
+      )}
 
       {showForm && (
         <Card className="border-primary/20 bg-primary/5 rounded-3xl">
@@ -96,7 +110,10 @@ export default function ExpensesPage() {
                 {formik.errors.paymentMethod && formik.touched.paymentMethod && <p className="text-xs text-destructive">{formik.errors.paymentMethod}</p>}
               </div>
             </CardContent>
-            <CardFooter className="flex justify-end gap-2">
+            <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 items-stretch sm:items-center">
+              {formik.status ? (
+                <p className="text-sm text-destructive sm:mr-auto">{formik.status}</p>
+              ) : null}
               <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
               <Button type="submit" disabled={!formik.isValid || formik.isSubmitting || createExpense.isPending}>
                 {createExpense.isPending ? "Saving..." : "Save Expense"}
@@ -111,10 +128,11 @@ export default function ExpensesPage() {
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading expenses…</div>
           ) : expenses.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
-              <Receipt className="h-8 w-8 opacity-40" />
-              No expenses recorded yet.
-            </div>
+            <EmptyState
+              className="border-0 rounded-none"
+              title="No expenses recorded yet"
+              description="Use Record Expense to log operational costs in ETB."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">

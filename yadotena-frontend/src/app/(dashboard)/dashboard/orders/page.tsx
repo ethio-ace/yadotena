@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/services/api";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,15 +13,27 @@ import { Eye, Search, Plus, ChefHat } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { CreateOrderModal } from "@/components/dashboard/CreateOrderModal";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
+import { useStaffRealtime, ssePollInterval } from "@/lib/realtime";
+import { orderTypeLabel } from "@/lib/order-type-label";
+import { tableLabel } from "@/lib/table-label";
+import { paymentStatusLabel } from "@/lib/checkout-payment";
 
 export default function OrdersPage() {
+  const { connected } = useStaffRealtime();
+  const searchParams = useSearchParams();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const { data: orders, isLoading } = useQuery({
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q) setSearch(q);
+  }, [searchParams]);
+
+  const { data: orders, isLoading, isError, refetch } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    refetchInterval: 3000,
+    refetchInterval: ssePollInterval(connected),
   });
 
   const getStatusBadge = (status: OrderStatus) => {
@@ -62,6 +75,14 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {isError ? (
+        <ErrorState
+          title="Could not load orders"
+          description="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
+      ) : null}
+
       <Card className="rounded-3xl border-muted-foreground/15 shadow-sm overflow-hidden">
         <CardHeader className="py-4 px-6 border-b bg-card">
           <div className="flex items-center">
@@ -79,7 +100,7 @@ export default function OrdersPage() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground animate-pulse">Loading live orders...</div>
-          ) : (
+          ) : isError ? null : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
@@ -99,11 +120,11 @@ export default function OrdersPage() {
                     <tr key={order.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-6 py-4 font-mono font-bold text-xs">{order.id}</td>
                       <td className="px-6 py-4">
-                        <Badge variant="outline" className="capitalize">{order.type.replace("_", " ").toLowerCase()}</Badge>
+                        <Badge variant="outline">{orderTypeLabel(order.type)}</Badge>
                       </td>
                       <td className="px-6 py-4 font-semibold">
                         {order.type === "DINE_IN" ? (
-                          <span className="font-bold text-primary">Table {order.tableId?.replace("t", "")}</span>
+                          <span className="font-bold text-primary">{tableLabel(order.tableId, undefined, order.tableName)}</span>
                         ) : (
                           <span>{order.customerName || "Guest"}</span>
                         )}
@@ -113,7 +134,7 @@ export default function OrdersPage() {
                       <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
                       <td className="px-6 py-4">
                         <Badge variant={order.paymentStatus === "PAID" ? "success" : "secondary"}>
-                          {order.paymentStatus}
+                          {paymentStatusLabel(order.paymentStatus)}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-muted-foreground text-xs">
@@ -123,8 +144,12 @@ export default function OrdersPage() {
                   ))}
                   {filteredOrders?.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                        No orders match your criteria.
+                      <td colSpan={8} className="p-0">
+                        <EmptyState
+                          className="border-0 rounded-none"
+                          title="No orders match your criteria"
+                          description="Try clearing search or create a new order from the POS."
+                        />
                       </td>
                     </tr>
                   )}

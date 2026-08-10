@@ -23,11 +23,14 @@ export function buildGuestPlacePayload(input: {
   transactionReference: string;
 }): CreateOrderInput {
   const { orderType, paymentChoice, transactionReference } = input;
-  const isDineIn = orderType === "DINE_IN";
-  const isCash = paymentChoice === "cash" || isDineIn;
+  const isCash = paymentChoice === "cash";
 
   if (!isCash && !transactionReference.trim()) {
     throw new Error("Transaction reference is required for digital payment");
+  }
+  const phone = input.customerPhone.trim();
+  if (!phone || /^0+$/.test(phone.replace(/\D/g, "")) || phone.replace(/\D/g, "").length < 9) {
+    throw new Error("Valid customer phone is required");
   }
 
   return {
@@ -43,7 +46,7 @@ export function buildGuestPlacePayload(input: {
     total: input.total,
     tableId: orderType === "DINE_IN" ? input.tableId || undefined : undefined,
     customerName: input.customerName.trim() || "Guest",
-    customerPhone: input.customerPhone.trim() || "0000000000",
+    customerPhone: phone,
     deliveryAddress:
       orderType === "DELIVERY" || orderType === "SHOP_DELIVERY"
         ? input.deliveryAddress?.trim()
@@ -67,8 +70,34 @@ export function cashEnabled(settings?: Record<string, unknown> | null): boolean 
   return settings?.cash_enabled !== false;
 }
 
+/** True when guest can choose cash and/or at least one digital method. */
+export function hasGuestPaymentOptions(
+  settings?: Record<string, unknown> | null,
+): boolean {
+  return cashEnabled(settings) || parseDigitalMethods(settings).length > 0;
+}
+
 export function placeOrderCtaLabel(orderType: OrderType, isCash: boolean): string {
   if (orderType === "DINE_IN") return "Place dine-in order";
+  if (isCash && (orderType === "DELIVERY" || orderType === "SHOP_DELIVERY")) {
+    return "Place order — pay on delivery";
+  }
   if (isCash) return "Place order — pay at counter";
   return "Submit payment & place order";
+}
+
+export function paymentStatusLabel(status: string | undefined | null): string {
+  switch (status) {
+    case "PAID":
+      return "Paid";
+    case "PENDING_VERIFICATION":
+      return "Awaiting verify";
+    case "REJECTED":
+      return "Rejected";
+    case "REFUNDED":
+      return "Refunded";
+    case "PENDING":
+    default:
+      return "Unpaid";
+  }
 }

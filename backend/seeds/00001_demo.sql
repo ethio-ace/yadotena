@@ -4,10 +4,12 @@
 
 INSERT INTO settings (
   id, cafe_name, cafe_phone, cafe_address, accepting_orders,
-  cash_enabled, digital_enabled, digital_methods, public_base_url, service_charge_percent
+  cash_enabled, digital_enabled, digital_methods, public_base_url, service_charge_percent,
+  tax_percent, delivery_fee_etb
 ) VALUES (
-  1, 'Yadotena Cafe & Resto', '+251911234567', 'Bole Road, Addis Ababa',
-  true, true, true, '["Telebirr","CBE"]'::jsonb, 'http://localhost:3000', 10
+  1, 'Yadotena Milk & Foods', '+251911234567', 'Bole Road, Addis Ababa',
+  true, true, true, '["Telebirr","CBE"]'::jsonb, 'http://localhost:3000', 10,
+  15, 100
 )
 ON CONFLICT (id) DO UPDATE SET
   cafe_name = EXCLUDED.cafe_name,
@@ -18,10 +20,12 @@ ON CONFLICT (id) DO UPDATE SET
   digital_enabled = EXCLUDED.digital_enabled,
   digital_methods = EXCLUDED.digital_methods,
   service_charge_percent = EXCLUDED.service_charge_percent,
+  tax_percent = EXCLUDED.tax_percent,
+  delivery_fee_etb = EXCLUDED.delivery_fee_etb,
   updated_at = now();
 
 INSERT INTO staff (id, phone, pin_hash, name, email, role, is_active) VALUES
-('a0000000-0000-0000-0000-000000000001', '0900000001', '$2a$10$Qg47GaaX3Btfh7XS1R9ddOld8COuGXlHFpw.4humVEo7pBGL4hPXK', 'Alice Owner', 'owner@demo.com', 'owner', true),
+('a0000000-0000-0000-0000-000000000001', ''0900000001'', '$2a$10$Qg47GaaX3Btfh7XS1R9ddOld8COuGXlHFpw.4humVEo7pBGL4hPXK', 'Alice Owner', 'owner@demo.com', 'owner', true),
 ('a0000000-0000-0000-0000-000000000002', '0900000002', '$2a$10$nioP4trwNAOdKQwqhgj9Me7bFU8bIuQtaLAgi3KusH5/wuQNvCsRa', 'Bob Manager', 'manager@demo.com', 'manager', true),
 ('a0000000-0000-0000-0000-000000000003', '0900000003', '$2a$10$QCrtyrY6hlvFFKpKWb3UBee3.STW1azBZ1Q6IGHXzX4624HQatMty', 'Charlie Waiter', 'waiter@demo.com', 'waiter', true),
 ('a0000000-0000-0000-0000-000000000004', '0900000004', '$2a$10$IKzoBKoqElUDVymR9TBADOt/OE6/8.TZU8q8gGXvhAUmH79OsK9si', 'Dave Chef', 'kitchen@demo.com', 'chef', true),

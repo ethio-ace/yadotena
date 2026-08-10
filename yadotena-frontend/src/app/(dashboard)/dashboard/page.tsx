@@ -4,22 +4,27 @@ import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowUpRight, ShoppingBag, Users, Utensils } from "lucide-react";
+import { ShoppingBag, Users, Utensils } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatETB } from "@/lib/currency";
 import WaiterDashboard from "@/components/dashboard/WaiterDashboard";
+import { ErrorState } from "@/components/ui/empty-state";
 import { api } from "@/services/api";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
 
-  const { data: analytics } = useQuery({
+  const {
+    data: analytics,
+    isError: analyticsError,
+    refetch: refetchAnalytics,
+  } = useQuery({
     queryKey: ["analytics"],
     queryFn: () => api.analytics.getSummary(),
     enabled: session?.user?.role !== "WAITER" && session?.user?.role !== "KITCHEN",
   });
 
-  const { data: tables = [] } = useQuery({
+  const { data: tables = [], isError: tablesError, refetch: refetchTables } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
     enabled: session?.user?.role !== "WAITER",
@@ -58,33 +63,53 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {analyticsError ? (
+        <ErrorState
+          title="Could not load dashboard analytics"
+          description="KPIs below may be incomplete until this recovers."
+          onRetry={() => {
+            refetchAnalytics();
+            refetchTables();
+          }}
+        />
+      ) : null}
+      {tablesError ? (
+        <ErrorState
+          title="Could not load tables"
+          description="Active table occupancy may be wrong."
+          onRetry={() => refetchTables()}
+        />
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Period Revenue"
-          value={formatETB(analytics?.revenue_etb || 0)}
-          trend={analytics?.from && analytics?.to ? `${analytics.from} → ${analytics.to}` : "—"}
-          trendLabel="selected period"
+          value={analyticsError ? "—" : formatETB(analytics?.revenue_etb || 0)}
+          meta={analytics?.from && analytics?.to ? `${analytics.from} → ${analytics.to}` : "Current period"}
           icon={<div className="font-bold text-xs text-muted-foreground">ETB</div>}
         />
         <KpiCard
           title="Paid Orders"
-          value={String(analytics?.paid_order_count ?? 0)}
-          trend="live"
-          trendLabel="from analytics"
+          value={analyticsError ? "—" : String(analytics?.paid_order_count ?? 0)}
+          meta="From analytics"
           icon={<ShoppingBag className="h-4 w-4 text-muted-foreground" />}
         />
         <KpiCard
           title="Active Tables"
-          value={`${activeTables} / ${tables.length || 0}`}
-          trend={tables.length ? `${Math.round((activeTables / tables.length) * 100)}%` : "0%"}
-          trendLabel="occupancy"
+          value={tablesError ? "—" : `${activeTables} / ${tables.length || 0}`}
+          meta={
+            tablesError
+              ? "Unavailable"
+              : tables.length
+                ? `${Math.round((activeTables / tables.length) * 100)}% occupancy`
+                : "No tables"
+          }
           icon={<Utensils className="h-4 w-4 text-muted-foreground" />}
         />
         <KpiCard
           title="Customers"
           value={String(customers.length)}
-          trend="from orders"
-          trendLabel="unique phones"
+          meta="Unique phones from orders"
           icon={<Users className="h-4 w-4 text-muted-foreground" />}
         />
       </div>
@@ -175,14 +200,12 @@ export default function DashboardPage() {
 function KpiCard({
   title,
   value,
-  trend,
-  trendLabel,
+  meta,
   icon,
 }: {
   title: string;
   value: string;
-  trend: string;
-  trendLabel: string;
+  meta: string;
   icon: React.ReactNode;
 }) {
   return (
@@ -195,13 +218,7 @@ function KpiCard({
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-black">{value}</div>
-        <p className="text-xs text-muted-foreground mt-1 flex items-center">
-          <span className="text-emerald-500 font-bold flex items-center mr-1">
-            <ArrowUpRight className="h-3.5 w-3.5 mr-0.5" />
-            {trend}
-          </span>
-          {trendLabel}
-        </p>
+        <p className="text-xs text-muted-foreground mt-1">{meta}</p>
       </CardContent>
     </Card>
   );

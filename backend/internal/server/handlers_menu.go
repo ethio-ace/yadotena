@@ -485,6 +485,8 @@ func (s *Server) publicSettings(w http.ResponseWriter, r *http.Request) {
 		"digital_enabled":        st.DigitalEnabled,
 		"digital_methods":        st.DigitalMethods,
 		"service_charge_percent": st.ServiceChargePercent,
+		"tax_percent":            st.TaxPercent,
+		"delivery_fee_etb":       st.DeliveryFeeETB,
 	})
 }
 
@@ -514,6 +516,8 @@ func (s *Server) patchSettings(w http.ResponseWriter, r *http.Request) {
 		DigitalMethods       *[]string `json:"digital_methods"`
 		PublicBaseURL        *string   `json:"public_base_url"`
 		ServiceChargePercent *float64  `json:"service_charge_percent"`
+		TaxPercent           *float64  `json:"tax_percent"`
+		DeliveryFeeETB       *float64  `json:"delivery_fee_etb"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, 400, "invalid body")
@@ -546,15 +550,29 @@ func (s *Server) patchSettings(w http.ResponseWriter, r *http.Request) {
 	if body.ServiceChargePercent != nil {
 		current.ServiceChargePercent = *body.ServiceChargePercent
 	}
+	if body.TaxPercent != nil {
+		if *body.TaxPercent < 0 || *body.TaxPercent > 100 {
+			writeErr(w, 400, "tax_percent must be 0-100")
+			return
+		}
+		current.TaxPercent = *body.TaxPercent
+	}
+	if body.DeliveryFeeETB != nil {
+		if *body.DeliveryFeeETB < 0 {
+			writeErr(w, 400, "delivery_fee_etb must be >= 0")
+			return
+		}
+		current.DeliveryFeeETB = *body.DeliveryFeeETB
+	}
 	methods, _ := json.Marshal(current.DigitalMethods)
 	_, err = s.Pool.Exec(r.Context(), `
 		UPDATE settings SET cafe_name=$1, cafe_phone=$2, cafe_address=$3, accepting_orders=$4,
 		cash_enabled=$5, digital_enabled=$6, digital_methods=$7, public_base_url=$8,
-		service_charge_percent=$9, updated_at=now()
+		service_charge_percent=$9, tax_percent=$10, delivery_fee_etb=$11, updated_at=now()
 		WHERE id=1`,
 		current.CafeName, current.CafePhone, current.CafeAddress, current.AcceptingOrders,
 		current.CashEnabled, current.DigitalEnabled, methods, current.PublicBaseURL,
-		current.ServiceChargePercent)
+		current.ServiceChargePercent, current.TaxPercent, current.DeliveryFeeETB)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -568,11 +586,12 @@ func (s *Server) loadSettings(r *http.Request) (models.Settings, error) {
 	var methods []byte
 	err := s.Pool.QueryRow(r.Context(), `
 		SELECT cafe_name, cafe_phone, cafe_address, accepting_orders, cash_enabled,
-		       digital_enabled, digital_methods, public_base_url, service_charge_percent::float8
+		       digital_enabled, digital_methods, public_base_url, service_charge_percent::float8,
+		       COALESCE(tax_percent, 15)::float8, COALESCE(delivery_fee_etb, 100)::float8
 		FROM settings WHERE id=1`).Scan(
 		&st.CafeName, &st.CafePhone, &st.CafeAddress, &st.AcceptingOrders,
 		&st.CashEnabled, &st.DigitalEnabled, &methods, &st.PublicBaseURL,
-		&st.ServiceChargePercent)
+		&st.ServiceChargePercent, &st.TaxPercent, &st.DeliveryFeeETB)
 	if err != nil {
 		return st, err
 	}

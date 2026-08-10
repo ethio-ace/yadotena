@@ -33,8 +33,8 @@ export default function HomePage() {
 
   return (
     <>
-      <LandingHero />
-      <HowToOrder />
+      <LandingHero acceptingOrders={acceptingOrders} />
+      <HowToOrder acceptingOrders={acceptingOrders} />
       <MenuHighlights items={menu} />
       <OpsSignals
         acceptingOrders={acceptingOrders}

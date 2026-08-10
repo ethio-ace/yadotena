@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import AuthProvider from "@/lib/auth-provider";
 import QueryProvider from "@/lib/query-provider";
 import "./globals.css";
+import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/cafe-facts";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,8 +18,8 @@ const geistMono = Geist_Mono({
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "Yadotena Milk and Foods | Fresh Dairy & Artisanal Kitchen",
-  description: "Yadotena Milk and Foods — Pure farm-fresh dairy, artisan beverages, and delicious kitchen foods.",
+  title: `${BRAND_NAME} | ${BRAND_TAGLINE}`,
+  description: `${BRAND_NAME} — Pure farm-fresh dairy, artisan beverages, and delicious kitchen foods.`,
 };
 
 export default function RootLayout({

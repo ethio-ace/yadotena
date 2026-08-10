@@ -12,10 +12,9 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { soundAlerts } from "@/lib/audioAlerts";
+import { normalizeApiOrigin } from "@/lib/api-origin";
 
-const REMOTE_API = (
-  process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com"
-).replace(/\/$/, "");
+const REMOTE_API = normalizeApiOrigin(process.env.NEXT_PUBLIC_API_URL);
 
 type StreamMsg = { event?: string; data?: unknown };
 

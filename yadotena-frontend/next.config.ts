@@ -1,10 +1,7 @@
 import type { NextConfig } from "next";
+import { normalizeApiOrigin } from "./src/lib/api-origin";
 
-const API_ORIGIN =
-  (process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com").replace(
-    /\/$/,
-    "",
-  );
+const API_ORIGIN = normalizeApiOrigin(process.env.NEXT_PUBLIC_API_URL);
 
 function r2RemotePatterns(): NonNullable<
   NonNullable<NextConfig["images"]>["remotePatterns"]

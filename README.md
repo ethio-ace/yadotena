@@ -107,7 +107,12 @@ R2_PUBLIC_URL=...
 
 After deploy: health `https://yadotena.onrender.com/health` (use your real hostname).  
 Keep-alive: cron-job.org → that `/health` URL every 14 minutes.  
-Frontend: set `NEXT_PUBLIC_API_URL=https://yadotena.onrender.com` on Vercel.  
-Optional: `NEXT_PUBLIC_R2_PUBLIC_URL` (same public base as backend R2) so `next/image` allows uploaded assets.
+Frontend (Vercel):
+- **Root Directory** = `yadotena-frontend`
+- `NEXT_PUBLIC_API_URL=https://yadotena.onrender.com` (origin only — no `/api` suffix)
+- Browser calls go through same-origin `/api/backend/*` (App Router proxy → Render)
+- Production must deploy a branch that includes that proxy (empty `next.config` on older `main` will 404 `/api/backend/...`)
+- Optional: `NEXT_PUBLIC_R2_PUBLIC_URL` (same public base as backend R2) so `next/image` allows uploaded assets
+- For preview URLs / SSE: set Render `CORS_ALLOWED_ORIGINS` to include `*` or each Vercel origin (credentials-friendly allowlist)
 
 Migrations run on API boot.

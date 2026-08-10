@@ -1,10 +1,11 @@
-const REMOTE_API =
-  (typeof process !== "undefined" &&
-    process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "")) ||
-  "https://yadotena.onrender.com";
+import { normalizeApiOrigin } from "./api-origin";
+
+const REMOTE_API = normalizeApiOrigin(
+  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_API_URL : undefined,
+);
 
 /**
- * Browser: hit Next.js rewrite `/api/backend/*` (same origin → no CORS).
+ * Browser: same-origin `/api/backend/*` (Route Handler → Render; avoids CORS).
  * Server (NextAuth authorize, RSC): call Render directly.
  */
 export const API_BASE =

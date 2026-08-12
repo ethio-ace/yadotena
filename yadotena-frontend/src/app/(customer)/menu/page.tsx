@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useCartStore } from "@/stores/cartStore";
@@ -24,7 +25,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   "Salads": "🥗",
 };
 
-export default function MenuPage() {
+function MenuContent() {
   const { data: menu, isLoading: isMenuLoading } = useQuery({
     queryKey: ["menu"],
     queryFn: api.menu.getAll,
@@ -54,9 +55,17 @@ export default function MenuPage() {
     return (isMatchingTable || isMatchingOrderId) && isActiveStatus;
   });
   
+  const searchParams = useSearchParams();
+  const initialCategoryParam = searchParams.get("category");
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
+  const [activeCategory, setActiveCategory] = useState(initialCategoryParam || "All");
   const [selectedItemForModal, setSelectedItemForModal] = useState<MenuItem | null>(null);
+
+  useEffect(() => {
+    if (initialCategoryParam) {
+      setActiveCategory(initialCategoryParam);
+    }
+  }, [initialCategoryParam]);
 
   if (isMenuLoading) {
     return (
@@ -370,5 +379,13 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
         </div>
       </div>
     </Card>
+  );
+}
+
+export default function MenuPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground animate-pulse font-medium">Loading menu...</div>}>
+      <MenuContent />
+    </Suspense>
   );
 }

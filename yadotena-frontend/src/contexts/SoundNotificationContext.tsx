@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { api } from "@/services/api";
 import { soundAlerts } from "@/lib/audioAlerts";
 import { Order, ServiceRequest } from "@/types";
@@ -22,6 +23,7 @@ interface SoundNotificationContextType {
 const SoundNotificationContext = createContext<SoundNotificationContextType | undefined>(undefined);
 
 export function SoundNotificationProvider({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [volume, setVolumeState] = useState<number>(0.8);
   const [isAudioUnlocked, setIsAudioUnlocked] = useState<boolean>(false);
@@ -84,18 +86,16 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
     };
   }, [unlockAudio]);
 
-  // Query live orders every 3 seconds
+  // Query live orders
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    refetchInterval: 3000,
   });
 
-  // Query live service requests every 3 seconds
+  // Query live service requests
   const { data: serviceRequests = [] } = useQuery({
     queryKey: ["serviceRequests"],
     queryFn: api.serviceRequests.getAll,
-    refetchInterval: 3000,
   });
 
   // Filter for unacknowledged orders (PENDING status) and pending waiter/bill requests
@@ -111,9 +111,11 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
 
     const interval = setInterval(() => {
       const now = Date.now();
+      const isWaiter = session?.user?.role === "WAITER";
 
       // 1. Pending Order Alert: Recurring every 6 seconds as long as there is an unhandled PENDING order
-      if (pendingOrders.length > 0) {
+      // Waiters do not receive new order notifications
+      if (!isWaiter && pendingOrders.length > 0) {
         if (now - lastOrderSoundRef.current >= 6000) {
           soundAlerts.playNewOrderChime(volume);
           lastOrderSoundRef.current = now;

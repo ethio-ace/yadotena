@@ -19,40 +19,7 @@ interface MenuItemModalProps {
   itemToEdit?: MenuItem | null;
 }
 
-const PHOTO_PRESETS = [
-  {
-    label: "Prime Steak",
-    url: "https://images.unsplash.com/photo-1600891964092-4316c288032e?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    label: "Gourmet Burger",
-    url: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    label: "Artisanal Pizza",
-    url: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    label: "Ethiopian Platter",
-    url: "https://images.unsplash.com/photo-1541518763669-27fef04b14ea?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    label: "Truffle Fries",
-    url: "https://images.unsplash.com/photo-1576107232684-1279f390859f?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    label: "Specialty Coffee",
-    url: "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    label: "Lava Cake Dessert",
-    url: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    label: "Fresh Salad",
-    url: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80",
-  },
-];
+
 
 const DIETARY_TAG_OPTIONS = [
   "Chef's Special",
@@ -77,7 +44,8 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
   const [category, setCategory] = useState("Main Course");
   const [price, setPrice] = useState<number | "">("");
   const [prepTime, setPrepTime] = useState<number>(15);
-  const [image, setImage] = useState(PHOTO_PRESETS[0].url);
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>("");
   const [available, setAvailable] = useState(true);
   const [dietaryTags, setDietaryTags] = useState<string[]>([]);
   const [customAddons, setCustomAddons] = useState<MenuItemAddon[]>([]);
@@ -95,7 +63,8 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
       setCategory(itemToEdit.category);
       setPrice(itemToEdit.price);
       setPrepTime(itemToEdit.preparationTime || 15);
-      setImage(itemToEdit.image || PHOTO_PRESETS[0].url);
+      setImagePreview(itemToEdit.image || "");
+      setImage(null);
       setAvailable(itemToEdit.available);
       setDietaryTags(itemToEdit.dietaryTags || []);
       setCustomAddons(itemToEdit.customAddons || []);
@@ -105,7 +74,8 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
       setCategory(categories[0]?.name || "Main Course");
       setPrice("");
       setPrepTime(15);
-      setImage(PHOTO_PRESETS[0].url);
+      setImagePreview("");
+      setImage(null);
       setAvailable(true);
       setDietaryTags([]);
       setCustomAddons([]);
@@ -122,7 +92,7 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<MenuItem> }) => 
+    mutationFn: ({ id, data }: { id: string; data: FormData }) => 
       api.menu.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["menu"] });
@@ -154,28 +124,38 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
   const handleRemoveAddon = (id: string) => {
     setCustomAddons(prev => prev.filter(a => a.id !== id));
   };
+  
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImage(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError("Dish title is required");
     if (!price || Number(price) <= 0) return setError("Please specify a valid ETB price");
 
-    const payload = {
-      name: name.trim(),
-      description: description.trim() || "Artisanal specialty prepared with fresh local ingredients.",
-      category: category || "Main Course",
-      price: Number(price),
-      preparationTime: Number(prepTime) || 15,
-      image: image || PHOTO_PRESETS[0].url,
-      available,
-      dietaryTags,
-      customAddons,
-    };
+    const formData = new FormData();
+    formData.append("name", name.trim());
+    formData.append("description", description.trim() || "Artisanal specialty prepared with fresh local ingredients.");
+    formData.append("category", category || "Main Course");
+    formData.append("price", String(Number(price)));
+    formData.append("preparationTime", String(Number(prepTime) || 15));
+    formData.append("available", String(available));
+    formData.append("dietaryTags", JSON.stringify(dietaryTags));
+    formData.append("customAddons", JSON.stringify(customAddons));
+    
+    if (image) {
+      formData.append("image", image);
+    }
 
     if (itemToEdit) {
-      updateMutation.mutate({ id: itemToEdit.id, data: payload });
+      updateMutation.mutate({ id: itemToEdit.id, data: formData });
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate(formData);
     }
   };
 
@@ -294,41 +274,25 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
             <div className="space-y-2">
               <label className="text-xs font-bold text-foreground flex items-center justify-between">
                 <span>Select High-Res Dish Photo</span>
-                <span className="text-[11px] text-muted-foreground font-normal">Click a preset or enter URL</span>
+                <span className="text-[11px] text-muted-foreground font-normal">Upload or take a photo</span>
               </label>
 
-              {/* Presets Grid */}
-              <div className="grid grid-cols-4 gap-2">
-                {PHOTO_PRESETS.map((preset) => {
-                  const isSelected = image === preset.url;
-                  return (
-                    <div
-                      key={preset.label}
-                      onClick={() => setImage(preset.url)}
-                      className={`relative rounded-xl overflow-hidden cursor-pointer border-2 transition-all aspect-video group ${
-                        isSelected ? "border-primary ring-2 ring-primary/40 shadow-sm" : "border-transparent opacity-75 hover:opacity-100"
-                      }`}
-                    >
-                      <img src={preset.url} alt={preset.label} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 flex items-end p-1">
-                        <span className="text-[10px] font-bold text-white leading-tight truncate">{preset.label}</span>
-                      </div>
-                      {isSelected && (
-                        <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
-                          <Check className="h-2.5 w-2.5 stroke-[3]" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="flex items-center gap-4">
+                <label className="flex-1 cursor-pointer">
+                  <div className="border-2 border-dashed border-input rounded-xl p-6 flex flex-col items-center justify-center bg-muted/20 hover:bg-muted/40 transition-colors">
+                    <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
+                    <span className="text-sm font-bold text-foreground">Click to upload</span>
+                    <span className="text-[11px] text-muted-foreground mt-1 text-center">SVG, PNG, JPG or GIF (max. 5MB)</span>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                </label>
               </div>
-
-              <Input
-                placeholder="Or paste custom image URL: https://..."
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
-                className="rounded-xl text-xs bg-background mt-2"
-              />
             </div>
 
             {/* Dietary Tags Multi-Select */}
@@ -443,7 +407,7 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
               <div className="mt-4 rounded-3xl border bg-card shadow-lg overflow-hidden flex flex-col">
                 <div className="relative h-44 w-full bg-muted">
                   <img 
-                    src={image || PHOTO_PRESETS[0].url} 
+                    src={imagePreview || "https://images.unsplash.com/photo-1541518763669-27fef04b14ea?auto=format&fit=crop&w=800&q=80"} 
                     alt="Preview" 
                     className="w-full h-full object-cover" 
                   />

@@ -11,19 +11,23 @@ import {
   BellRing, Plus, Star, Sparkles, Check, ChevronRight, Phone, MessageSquare, Printer
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { useCartStore } from "@/stores/cartStore";
+import { AddExtraSelectionModal } from "@/components/dashboard/AddExtraSelectionModal";
 
 const statusSteps = [
   { id: "PENDING", label: "Order Received", desc: "Kitchen received ticket", icon: Receipt },
-  { id: "CONFIRMED", label: "Confirmed", desc: "Chef scheduled prep", icon: CheckCircle2 },
   { id: "PREPARING", label: "Preparing in Kitchen", desc: "Artisanal preparation in progress", icon: Utensils },
   { id: "READY", label: "Ready to Serve", desc: "Plated & ready for delivery/pickup", icon: Clock },
+  { id: "COMPLETED", label: "Completed", desc: "Enjoy your meal!", icon: CheckCircle2 },
 ];
 
 export default function OrderTrackingPage() {
-  const { id } = useParams();
-  
+  const params = useParams();
+  const router = useRouter();
+  const [showExtraSelection, setShowExtraSelection] = useState(false);
+  const id = params.id as string;
   const [waiterCalled, setWaiterCalled] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
   const [rating, setRating] = useState<number>(0);
@@ -50,7 +54,6 @@ export default function OrderTrackingPage() {
       const foundOrder = await api.orders.getById(id as string);
       return foundOrder || null;
     },
-    refetchInterval: 3000, 
   });
 
   const [tableId, setTableId] = useState<string | null>(null);
@@ -58,9 +61,9 @@ export default function OrderTrackingPage() {
   useEffect(() => {
     if (order?.tableId) {
       setTableId(order.tableId);
-    } else if (typeof window !== "undefined") {
-      const stored = sessionStorage.getItem("yadotena_table_id");
-      if (stored) setTableId(stored);
+    } else {
+      const storedTableId = useCartStore.getState().tableId;
+      if (storedTableId) setTableId(storedTableId);
     }
   }, [order]);
 
@@ -96,7 +99,7 @@ export default function OrderTrackingPage() {
   }
 
   const currentStepIndex = statusSteps.findIndex(s => s.id === order.status);
-  const isCompleted = order.status === "COMPLETED" || order.status === "SERVED";
+  const isCompleted = order.status === "COMPLETED";
   const isCancelled = order.status === "CANCELLED";
 
   const handleCallWaiter = (customNote?: string) => {
@@ -202,6 +205,19 @@ export default function OrderTrackingPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Add Extra to Order Button */}
+          {!isCompleted && !isCancelled && (
+            <div className="block mt-4 mb-2 animate-in fade-in">
+              <Button 
+                className="w-full rounded-2xl h-14 text-lg font-black bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:scale-[1.01] transition-transform"
+                onClick={() => setShowExtraSelection(true)}
+              >
+                <Plus className="mr-2 h-6 w-6" />
+                Add Extra
+              </Button>
+            </div>
+          )}
 
           {/* Dine-In Interactive Action Hub (Call Waiter / Bill) */}
           {order.type === "DINE_IN" && (
@@ -404,10 +420,8 @@ export default function OrderTrackingPage() {
                 <Button 
                   className="rounded-full px-6 font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
                   onClick={() => {
-                    sessionStorage.removeItem("yadotena_table_id");
-                    if (typeof window !== "undefined") {
-                      window.location.href = "/menu";
-                    }
+                    useCartStore.getState().resetSession();
+                    router.push("/menu");
                   }}
                 >
                   End Session & Start Fresh Order
@@ -421,6 +435,17 @@ export default function OrderTrackingPage() {
 
         </div>
       </div>
+
+      {showExtraSelection && (
+        <AddExtraSelectionModal
+          isOpen={showExtraSelection}
+          onClose={() => setShowExtraSelection(false)}
+          onSelectOption={(category) => {
+            useCartStore.getState().setActiveOrderId(order.id);
+            router.push(`/menu?category=${category}`);
+          }}
+        />
+      )}
     </div>
   );
 }

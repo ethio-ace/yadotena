@@ -12,7 +12,7 @@ import {
   CheckCircle2, AlertCircle, Clock, RefreshCw, X, Shield, Eye
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CreateOrderModal } from "@/components/dashboard/CreateOrderModal";
+import { FullPageMenuPOS } from "@/components/dashboard/FullPageMenuPOS";
 import { TableQRModal } from "@/components/dashboard/TableQRModal";
 import { Table, TableStatus } from "@/types";
 import { soundAlerts } from "@/lib/audioAlerts";
@@ -26,10 +26,22 @@ export default function TablesPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
+  if (selectedTableForOrder) {
+    return (
+      <div className="h-full w-full">
+        <FullPageMenuPOS 
+          orderType="DINE_IN"
+          tableId={selectedTableForOrder}
+          onCancel={() => setSelectedTableForOrder(null)}
+          onSuccess={() => setSelectedTableForOrder(null)}
+        />
+      </div>
+    );
+  }
+
   const { data: tables = [], isLoading, isRefetching } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
-    refetchInterval: 3000,
   });
 
   const updateStatusMutation = useMutation({
@@ -274,13 +286,6 @@ export default function TablesPage() {
           </div>
         </div>
       )}
-
-      {/* Staff POS Modal */}
-      <CreateOrderModal
-        isOpen={!!selectedTableForOrder}
-        onClose={() => setSelectedTableForOrder(null)}
-        initialTableId={selectedTableForOrder || "t1"}
-      />
 
       {/* Printable QR Stand Modal */}
       <TableQRModal

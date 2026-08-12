@@ -1,37 +1,24 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { PlaceOrderTab } from "@/components/dashboard/orders/PlaceOrderTab";
+import { ActiveOrdersTab } from "@/components/dashboard/orders/ActiveOrdersTab";
+import { ClipboardList, PlusCircle, BellRing, CheckCircle2, Clock } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BellRing, Check, Clock, Coffee, Utensils, Receipt, Sparkles } from "lucide-react";
-import { OrderStatus } from "@/types";
+import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { soundAlerts } from "@/lib/audioAlerts";
 
 export default function WaiterDashboard() {
+  const [activeTab, setActiveTab] = useState<"place_order" | "active_orders">("place_order");
   const queryClient = useQueryClient();
 
-  const { data: orders, isLoading: loadingOrders } = useQuery({
-    queryKey: ["orders"],
-    queryFn: api.orders.getAll,
-    refetchInterval: 3000,
-  });
-
-  const { data: serviceRequests = [], isLoading: loadingRequests } = useQuery({
+  const { data: serviceRequests = [] } = useQuery({
     queryKey: ["serviceRequests"],
     queryFn: api.serviceRequests.getAll,
-    refetchInterval: 3000,
-  });
-
-  const updateStatus = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: OrderStatus }) => 
-      api.orders.updateStatus(id, status),
-    onSuccess: () => {
-      soundAlerts.playActionPing();
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-    },
   });
 
   const resolveRequest = useMutation({
@@ -43,71 +30,38 @@ export default function WaiterDashboard() {
     },
   });
 
-  if (loadingOrders || loadingRequests) {
-    return <div className="p-8 text-center animate-pulse text-muted-foreground font-medium">Loading Waiter Floor...</div>;
-  }
-
-  const readyOrders = orders?.filter(o => o.status === "READY" && o.type === "DINE_IN") || [];
-  const newOrders = orders?.filter(o => o.status === "PENDING" && o.type === "DINE_IN") || [];
   const pendingRequests = serviceRequests.filter(r => r.status === "PENDING");
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-black tracking-tight">Waiter Floor Console</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Real-time table calls, service requests, and kitchen pickup coordination.
-          </p>
+          <h2 className="text-3xl font-bold tracking-tight">Waiter Floor Console</h2>
+          <p className="text-muted-foreground mt-1">Manage table sessions, place orders, and track live tickets.</p>
         </div>
       </div>
-
-      {/* Metric Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-primary/5 border-primary/20">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-primary">Floor Tables</CardTitle>
-            <Utensils className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-primary">8</div>
-          </CardContent>
-        </Card>
-
-        <Card className={`border-rose-500/30 ${pendingRequests.length > 0 ? "bg-rose-500/10 animate-pulse ring-1 ring-rose-500/30" : "bg-rose-500/5"}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-rose-600 dark:text-rose-400">Table Assistance</CardTitle>
-            <BellRing className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-rose-600 dark:text-rose-400">{pendingRequests.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-emerald-500/5 border-emerald-500/20">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Ready to Serve</CardTitle>
-            <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{readyOrders.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-amber-500/5 border-amber-500/20">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-amber-600 dark:text-amber-400">Pending Orders</CardTitle>
-            <Coffee className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-amber-600 dark:text-amber-400">{newOrders.length}</div>
-          </CardContent>
-        </Card>
+      
+      {/* Custom Tabs Navigation */}
+      <div className="flex bg-muted/60 p-1.5 rounded-2xl w-full sm:w-fit overflow-x-auto shadow-inner">
+        <button 
+          className={`flex items-center justify-center gap-2 flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === "place_order" ? "bg-background text-foreground shadow-sm scale-100" : "text-muted-foreground hover:text-foreground scale-95"}`}
+          onClick={() => setActiveTab("place_order")}
+        >
+          <PlusCircle className={`w-4 h-4 ${activeTab === "place_order" ? "text-primary" : ""}`} />
+          Place Order
+        </button>
+        <button 
+          className={`flex items-center justify-center gap-2 flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === "active_orders" ? "bg-background text-foreground shadow-sm scale-100" : "text-muted-foreground hover:text-foreground scale-95"}`}
+          onClick={() => setActiveTab("active_orders")}
+        >
+          <ClipboardList className={`w-4 h-4 ${activeTab === "active_orders" ? "text-blue-500" : ""}`} />
+          Active Orders
+        </button>
       </div>
 
       {/* Urgent Table Calls Section */}
       {pendingRequests.length > 0 && (
-        <Card className="border-2 border-rose-500/40 shadow-lg shadow-rose-500/5 bg-card rounded-2xl overflow-hidden animate-in slide-in-from-top duration-300">
+        <Card className="border-2 border-rose-500/40 shadow-lg shadow-rose-500/5 bg-card rounded-2xl overflow-hidden animate-in slide-in-from-top duration-300 mt-6">
           <CardHeader className="bg-rose-500/10 border-b py-3 px-5 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-black text-rose-600 dark:text-rose-400 flex items-center gap-2">
               <BellRing className="h-5 w-5 animate-bounce" />
@@ -130,22 +84,21 @@ export default function WaiterDashboard() {
                           : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20"
                       }`}
                     >
-                      {req.type === "BILL" ? "🧾 Request Bill" : "🛎️ Call Waiter"}
+                      {req.type === "BILL" ? "Bill Request" : "Waiter Assistance"}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">{req.notes}</p>
-                  <p className="text-[11px] text-muted-foreground font-mono">
-                    Called {formatDistanceToNow(new Date(req.createdAt))} ago
-                  </p>
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" />
+                    Requested {formatDistanceToNow(new Date(req.createdAt))} ago
+                  </div>
                 </div>
-
                 <Button 
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-10 px-5 shadow-sm text-xs gap-1.5"
                   onClick={() => resolveRequest.mutate(req.id)}
                   disabled={resolveRequest.isPending}
+                  className="rounded-xl h-10 px-5 font-bold bg-foreground text-background hover:bg-foreground/90 shadow-md w-full sm:w-auto"
                 >
-                  <Check className="h-4 w-4" />
-                  <span>Mark as Attended (Silence Chime)</span>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Mark as Resolved
                 </Button>
               </div>
             ))}
@@ -153,86 +106,9 @@ export default function WaiterDashboard() {
         </Card>
       )}
 
-      {/* Orders Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Ready to Serve */}
-        <Card className="border-emerald-500/20 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="bg-emerald-500/5 border-b py-3">
-            <CardTitle className="text-emerald-600 dark:text-emerald-400 font-black text-base flex items-center">
-              <Check className="mr-2 h-5 w-5" /> Ready for Table Service
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {readyOrders.length === 0 ? (
-              <div className="p-8 text-center text-xs text-muted-foreground">
-                No plated meals currently waiting for delivery.
-              </div>
-            ) : (
-              <div className="divide-y">
-                {readyOrders.map(order => (
-                  <div key={order.id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-extrabold text-base">Table {order.tableId?.replace('t', '')}</span>
-                        <span className="text-[11px] bg-muted px-2 py-0.5 rounded-full border font-mono">#{order.id.slice(-6).toUpperCase()}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {order.items.reduce((acc, curr) => acc + curr.quantity, 0)} items • Plated {formatDistanceToNow(new Date(order.updatedAt))} ago
-                      </p>
-                    </div>
-                    <Button 
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 font-bold text-xs rounded-xl h-9 px-4"
-                      onClick={() => updateStatus.mutate({ id: order.id, status: "SERVED" })}
-                      disabled={updateStatus.isPending}
-                    >
-                      ✓ Served to Table
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Incoming Dine-In Orders */}
-        <Card className="border-amber-500/20 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="bg-amber-500/5 border-b py-3">
-            <CardTitle className="text-amber-600 dark:text-amber-400 font-black text-base flex items-center">
-              <Coffee className="mr-2 h-5 w-5" /> Incoming Guest Orders
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {newOrders.length === 0 ? (
-              <div className="p-8 text-center text-xs text-muted-foreground">
-                No new unconfirmed orders at this moment.
-              </div>
-            ) : (
-              <div className="divide-y">
-                {newOrders.map(order => (
-                  <div key={order.id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-extrabold text-base">Table {order.tableId?.replace('t', '')}</span>
-                        <span className="text-[11px] bg-muted px-2 py-0.5 rounded-full border font-mono">#{order.id.slice(-6).toUpperCase()}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {order.items.map(i => `${i.quantity}x ${i.name}`).join(", ")}
-                      </p>
-                    </div>
-                    <Button 
-                      variant="outline"
-                      className="border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white shrink-0 font-bold text-xs rounded-xl h-9 px-4"
-                      onClick={() => updateStatus.mutate({ id: order.id, status: "CONFIRMED" })}
-                      disabled={updateStatus.isPending}
-                    >
-                      Acknowledge
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <div className="mt-6">
+        {activeTab === "place_order" && <PlaceOrderTab />}
+        {activeTab === "active_orders" && <ActiveOrdersTab />}
       </div>
     </div>
   );

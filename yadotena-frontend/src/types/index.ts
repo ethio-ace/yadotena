@@ -15,10 +15,8 @@ export interface User {
 
 export type OrderStatus =
   | "PENDING"
-  | "CONFIRMED"
   | "PREPARING"
   | "READY"
-  | "SERVED"
   | "COMPLETED"
   | "CANCELLED";
 
@@ -60,6 +58,8 @@ export interface OrderItem {
   price: number; // snapshot of price
   quantity: number;
   specialInstructions?: string;
+  selectedAddons?: { id: string; name: string; price: number }[];
+  roundNumber?: number;
 }
 
 export interface Order {
@@ -68,12 +68,17 @@ export interface Order {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   items: OrderItem[];
+  subtotal?: number;
+  tax?: number;
+  serviceCharge?: number;
+  deliveryFee?: number;
   total: number;
   createdAt: string;
   updatedAt: string;
   
   // Specific to Dine-in
   tableId?: string;
+  tableName?: string;
   
   // Specific to Takeaway/Delivery
   customerName?: string;
@@ -81,6 +86,18 @@ export interface Order {
   
   // Specific to Delivery
   deliveryAddress?: string;
+}
+
+export interface DiningSession {
+  id: string;
+  tableId: string;
+  tableName?: string;
+  sessionCode: string;
+  status: "ACTIVE" | "BILLED" | "CLOSED";
+  openOrderId?: string | null;
+  startedAt?: string;
+  closedAt?: string | null;
+  active?: boolean;
 }
 
 export type TableStatus =

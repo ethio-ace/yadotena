@@ -14,6 +14,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+import { AblySyncProvider } from "@/contexts/AblySyncProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
@@ -35,7 +36,11 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <AuthProvider>
-            <QueryProvider>{children}</QueryProvider>
+            <QueryProvider>
+              <AblySyncProvider>
+                {children}
+              </AblySyncProvider>
+            </QueryProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

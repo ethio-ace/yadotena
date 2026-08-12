@@ -16,6 +16,7 @@ import { useMutation } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useRouter } from "next/navigation";
 import { OrderType } from "@/types";
+import { toOrderItemPayload, estimateOrderTotals } from "@/lib/orderUtils";
 
 const PAYMENT_METHODS = [
   { id: "telebirr", name: "Telebirr / CBE Birr", icon: Smartphone },
@@ -25,7 +26,7 @@ const PAYMENT_METHODS = [
 ];
 
 export default function CheckoutPage() {
-  const { items, removeItem, updateQuantity, getTotal, clearCart, tableId: sessionTableId, orderType: sessionOrderType, setActiveOrderId } = useCartStore();
+  const { items, removeItem, updateQuantity, getTotal, clearCart, tableId: sessionTableId, orderType: sessionOrderType, setActiveOrderId, activeOrderId, getOrCreateIdempotencyKey, clearIdempotencyKey } = useCartStore();
   
   const [localOrderType, setLocalOrderType] = useState<OrderType>("TAKEAWAY");
   
@@ -49,11 +50,11 @@ export default function CheckoutPage() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const subtotal = getTotal();
-  const tax = subtotal * 0.15;
-  const serviceCharge = activeOrderType === "DINE_IN" ? subtotal * 0.10 : 0;
-  const deliveryFee = activeOrderType === "DELIVERY" ? 100.00 : 0;
-  
-  const finalTotal = subtotal + tax + serviceCharge + deliveryFee;
+  const { tax, serviceCharge, deliveryFee, total: finalTotal } = estimateOrderTotals(
+    items,
+    activeOrderType,
+    { includeDeliveryFee: !activeOrderId }
+  );
 
   const router = useRouter();
 
@@ -61,20 +62,26 @@ export default function CheckoutPage() {
     mutationFn: api.orders.create,
     onSuccess: (order) => {
       setActiveOrderId(order.id);
+      clearIdempotencyKey();
       clearCart();
       router.push(`/order/${order.id}`);
-    }
+    },
+    onError: (error: Error) => {
+      alert(error.message || "Failed to place order. Please try again.");
+    },
   });
 
-  const { activeOrderId } = useCartStore();
-
   const addItemsToOrder = useMutation({
-    mutationFn: ({ id, items, total }: { id: string, items: any[], total: number }) => 
-      api.orders.addItems(id, items, total),
+    mutationFn: ({ id, items: orderItems }: { id: string; items: ReturnType<typeof toOrderItemPayload> }) =>
+      api.orders.addItems(id, orderItems),
     onSuccess: (order) => {
+      setActiveOrderId(order.id);
       clearCart();
       router.push(`/order/${order.id}`);
-    }
+    },
+    onError: (error: Error) => {
+      alert(error.message || "Failed to add items to your order.");
+    },
   });
 
   const handleCheckout = async () => {
@@ -89,25 +96,27 @@ export default function CheckoutPage() {
       setIsProcessingPayment(false);
     }
 
+    const payloadItems = toOrderItemPayload(items);
+
     if (activeOrderId && activeOrderType === "DINE_IN") {
       addItemsToOrder.mutate({
         id: activeOrderId,
-        items: items,
-        total: finalTotal
+        items: payloadItems,
       });
-    } else {
-      createOrder.mutate({
-        type: activeOrderType,
-        status: "PENDING",
-        paymentStatus: requiresPaymentFirst ? "PAID" : "PENDING",
-        items: items,
-        total: finalTotal,
-        tableId: sessionTableId || undefined,
-        customerName: requiresPaymentFirst ? customerName : undefined,
-        customerPhone: requiresPaymentFirst ? customerPhone : undefined,
-        deliveryAddress: activeOrderType === "DELIVERY" ? deliveryAddress : undefined,
-      });
+      return;
     }
+
+    createOrder.mutate({
+      type: activeOrderType,
+      status: "PENDING",
+      paymentStatus: requiresPaymentFirst ? "PAID" : "PENDING",
+      items: payloadItems as any,
+      tableId: sessionTableId || undefined,
+      customerName: requiresPaymentFirst ? customerName : undefined,
+      customerPhone: requiresPaymentFirst ? customerPhone : undefined,
+      deliveryAddress: activeOrderType === "DELIVERY" ? deliveryAddress : undefined,
+      idempotencyKey: getOrCreateIdempotencyKey(),
+    });
   };
 
   if (items.length === 0) {

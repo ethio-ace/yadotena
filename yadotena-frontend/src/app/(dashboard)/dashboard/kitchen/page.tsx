@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -8,13 +9,19 @@ import { Order, OrderStatus } from "@/types";
 import { Clock, Flame, Check, UtensilsCrossed, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { soundAlerts } from "@/lib/audioAlerts";
+import { AddExtraSelectionModal } from "@/components/dashboard/AddExtraSelectionModal";
+import { KitchenOrderCard } from "@/components/dashboard/KitchenOrderCard";
+import { FullPageMenuPOS } from "@/components/dashboard/FullPageMenuPOS";
 
 export default function KitchenDashboard() {
+  const [selectedOrderToEdit, setSelectedOrderToEdit] = useState<Order | null>(null);
+  const [showExtraSelectionForOrder, setShowExtraSelectionForOrder] = useState<Order | null>(null);
+  const [initialCategory, setInitialCategory] = useState<string>("All");
+
   const queryClient = useQueryClient();
-  const { data: orders, isLoading } = useQuery({
+  const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    refetchInterval: 3000,
   });
 
   const updateStatus = useMutation({
@@ -26,11 +33,24 @@ export default function KitchenDashboard() {
     },
   });
 
+  if (selectedOrderToEdit) {
+    return (
+      <div className="h-full w-full">
+        <FullPageMenuPOS 
+          existingOrder={selectedOrderToEdit}
+          initialCategory={initialCategory}
+          onCancel={() => setSelectedOrderToEdit(null)}
+          onSuccess={() => setSelectedOrderToEdit(null)}
+        />
+      </div>
+    );
+  }
+
   if (isLoading) {
     return <div className="p-8 text-center text-muted-foreground animate-pulse font-medium">Loading kitchen orders...</div>;
   }
 
-  const newOrders = orders?.filter(o => o.status === "PENDING" || o.status === "CONFIRMED") || [];
+  const newOrders = orders?.filter(o => o.status === "PENDING") || [];
   const preparingOrders = orders?.filter(o => o.status === "PREPARING") || [];
   const readyOrders = orders?.filter(o => o.status === "READY") || [];
 
@@ -82,6 +102,7 @@ export default function KitchenDashboard() {
                   actionVariant="default"
                   onAction={() => updateStatus.mutate({ id: order.id, status: "PREPARING" })}
                   isLoading={updateStatus.isPending}
+                  onAddItems={() => setShowExtraSelectionForOrder(order as any)}
                 />
               ))
             )}
@@ -113,6 +134,7 @@ export default function KitchenDashboard() {
                   actionVariant="secondary"
                   onAction={() => updateStatus.mutate({ id: order.id, status: "READY" })}
                   isLoading={updateStatus.isPending}
+                  onAddItems={() => setShowExtraSelectionForOrder(order as any)}
                 />
               ))
             )}
@@ -140,88 +162,29 @@ export default function KitchenDashboard() {
                 <KitchenOrderCard 
                   key={order.id} 
                   order={order} 
-                  hideAction
+                  actionText="✓ Mark as Complete"
+                  actionVariant="outline"
+                  onAction={() => updateStatus.mutate({ id: order.id, status: "COMPLETED" })}
+                  isLoading={updateStatus.isPending}
+                  onAddItems={() => setShowExtraSelectionForOrder(order as any)}
                 />
               ))
             )}
           </div>
         </div>
       </div>
-    </div>
-  );
-}
 
-function KitchenOrderCard({ 
-  order, 
-  actionText, 
-  actionVariant = "secondary", 
-  onAction,
-  isLoading,
-  hideAction,
-  isUrgent
-}: any) {
-  return (
-    <Card className={`shadow-sm rounded-2xl transition-all ${
-      isUrgent 
-        ? "border-2 border-rose-500/60 shadow-lg shadow-rose-500/10 ring-2 ring-rose-500/10 animate-in fade-in" 
-        : "border"
-    }`}>
-      <CardHeader className={`p-4 pb-2 border-b rounded-t-2xl ${isUrgent ? "bg-rose-500/10" : "bg-muted/10"}`}>
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-base font-black flex items-center gap-1.5">
-              <span>#{order.id.slice(-6).toUpperCase()}</span>
-              {isUrgent && (
-                <span className="text-[10px] font-extrabold bg-rose-500 text-white px-2 py-0.5 rounded-full">
-                  NEW
-                </span>
-              )}
-            </CardTitle>
-            <p className="text-xs font-bold text-primary mt-0.5">
-              {order.type === "DINE_IN" ? `Table ${order.tableId?.replace('t', '')}` : "Takeaway / Delivery"}
-            </p>
-          </div>
-          <div className="flex items-center text-[11px] text-muted-foreground font-semibold bg-background px-2 py-0.5 rounded-full border">
-            <Clock className="h-3 w-3 mr-1 text-primary" />
-            {formatDistanceToNow(new Date(order.createdAt))} ago
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 space-y-2">
-        <ul className="space-y-2">
-          {order.items.map((item: any, i: number) => (
-            <li key={i} className="flex flex-col">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="font-black text-sm text-primary bg-primary/10 px-2 py-0.5 rounded-lg">
-                    {item.quantity}×
-                  </span>
-                  <span className="font-bold text-sm text-foreground">{item.name}</span>
-                </div>
-              </div>
-              {item.specialInstructions && (
-                <div className="ml-8 mt-1 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 px-2 py-1 rounded-lg font-medium">
-                  Note: "{item.specialInstructions}"
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-      {!hideAction && (
-        <CardFooter className="p-3 pt-0">
-          <Button 
-            className={`w-full text-xs font-black h-10 rounded-xl shadow-sm ${
-              isUrgent ? "bg-rose-600 hover:bg-rose-700 text-white" : ""
-            }`}
-            variant={actionVariant as any}
-            onClick={onAction}
-            disabled={isLoading}
-          >
-            {actionText}
-          </Button>
-        </CardFooter>
+      {showExtraSelectionForOrder && (
+        <AddExtraSelectionModal
+          isOpen={!!showExtraSelectionForOrder}
+          onClose={() => setShowExtraSelectionForOrder(null)}
+          onSelectOption={(category) => {
+            setInitialCategory(category);
+            setSelectedOrderToEdit(showExtraSelectionForOrder);
+            setShowExtraSelectionForOrder(null);
+          }}
+        />
       )}
-    </Card>
+    </div>
   );
 }

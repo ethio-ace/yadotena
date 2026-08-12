@@ -13,6 +13,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const pathname = usePathname();
   const cartItems = useCartStore((state) => state.items);
   const tableId = useCartStore((state) => state.tableId);
+  const sessionCode = useCartStore((state) => state.sessionCode);
   const activeOrderId = useCartStore((state) => state.activeOrderId);
   const cartItemCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const cartTotal = useCartStore((state) => state.getTotal());
@@ -36,7 +37,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                 Yadotena <span className="text-primary text-xs font-bold block sm:inline">Milk & Foods</span>
               </h1>
               <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">
-                {tableId ? `Table ${tableId.replace('t', '')} · Dining Session` : "Fresh Dairy & Artisanal Kitchen"}
+                {tableId
+                  ? `Table ${tableId.replace("t", "")}${sessionCode ? ` · ${sessionCode}` : ""} · Dining Session`
+                  : "Fresh Dairy & Artisanal Kitchen"}
               </p>
             </div>
           </Link>

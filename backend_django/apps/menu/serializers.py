@@ -37,6 +37,21 @@ class MenuItemSerializer(serializers.ModelSerializer):
             ret['category'] = instance.category.name
         return ret
 
+    def to_internal_value(self, data):
+        import json
+        data = data.copy()
+        if 'customAddons' in data and isinstance(data['customAddons'], str):
+            try:
+                data['customAddons'] = json.loads(data['customAddons'])
+            except:
+                pass
+        if 'dietaryTags' in data and isinstance(data['dietaryTags'], str):
+            try:
+                data['dietaryTags'] = json.loads(data['dietaryTags'])
+            except:
+                pass
+        return super().to_internal_value(data)
+
     def create(self, validated_data):
         addons_data = validated_data.pop('custom_addons', [])
         category_name_or_id = validated_data.pop('category', None)

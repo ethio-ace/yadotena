@@ -38,7 +38,7 @@ class MenuItem(models.Model):
         on_delete=models.CASCADE,
         related_name='items'
     )
-    image = models.URLField(max_length=500, blank=True, null=True)
+    image = models.ImageField(upload_to='menu_images/', blank=True, null=True)
     available = models.BooleanField(default=True)
     preparation_time = models.PositiveIntegerField(default=15, help_text="Preparation time in minutes")
     dietary_tags = models.JSONField(default=list, blank=True)
@@ -52,6 +52,50 @@ class MenuItem(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.price} ETB)"
+
+    def save(self, *args, **kwargs):
+        if self.image:
+            from PIL import Image
+            from io import BytesIO
+            from django.core.files.uploadedfile import InMemoryUploadedFile
+            import sys
+            import os
+
+            try:
+                # Open the image using Pillow
+                img = Image.open(self.image)
+                
+                # Check if we need to process it (e.g., if it's newly uploaded and not already webp)
+                if not self.image.name.endswith('.webp'):
+                    # Resize if larger than 800x800 while maintaining aspect ratio
+                    if img.width > 800 or img.height > 800:
+                        img.thumbnail((800, 800), Image.Resampling.LANCZOS)
+                    
+                    # Convert to RGB if necessary (e.g. RGBA pngs)
+                    if img.mode != 'RGB' and img.mode != 'RGBA':
+                        img = img.convert('RGB')
+                        
+                    output = BytesIO()
+                    img.save(output, format='WEBP', quality=85, optimize=True)
+                    output.seek(0)
+                    
+                    # Construct new filename
+                    filename = os.path.splitext(self.image.name)[0] + '.webp'
+                    
+                    # Replace the image field with the new webp version
+                    self.image = InMemoryUploadedFile(
+                        output,
+                        'ImageField',
+                        filename,
+                        'image/webp',
+                        sys.getsizeof(output),
+                        None
+                    )
+            except Exception as e:
+                print(f"Error optimizing image: {e}")
+                
+        super().save(*args, **kwargs)
+
 
 class MenuItemAddon(models.Model):
     id = models.CharField(max_length=50, primary_key=True, default=generate_addon_id)

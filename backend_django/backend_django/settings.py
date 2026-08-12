@@ -144,3 +144,6 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Ably Configuration
+ABLY_API_KEY = '-4Zlzg.WUpFWw:B9o8nl84Edt2OjNJLfN4OH551LydEfNgi4mLRqpl1ek'

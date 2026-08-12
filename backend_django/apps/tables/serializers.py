@@ -2,6 +2,7 @@ import uuid
 import re
 from rest_framework import serializers
 from .models import Table, DiningSession, generate_qr_token
+from apps.orders.services import get_open_order_for_table
 
 class TableSerializer(serializers.ModelSerializer):
     id = serializers.CharField(required=False, allow_blank=True)
@@ -36,7 +37,13 @@ class DiningSessionSerializer(serializers.ModelSerializer):
     sessionCode = serializers.CharField(source='session_code', read_only=True)
     startedAt = serializers.DateTimeField(source='started_at', read_only=True)
     closedAt = serializers.DateTimeField(source='closed_at', read_only=True)
+    tableId = serializers.CharField(source='table_id', read_only=True)
+    openOrderId = serializers.SerializerMethodField()
 
     class Meta:
         model = DiningSession
-        fields = ['id', 'table', 'tableName', 'sessionCode', 'status', 'startedAt', 'closedAt']
+        fields = ['id', 'table', 'tableId', 'tableName', 'sessionCode', 'status', 'startedAt', 'closedAt', 'openOrderId']
+
+    def get_openOrderId(self, obj):
+        open_order = get_open_order_for_table(obj.table)
+        return open_order.id if open_order else None

@@ -6,10 +6,8 @@ from apps.menu.models import MenuItem
 
 class OrderStatus(models.TextChoices):
     PENDING = 'PENDING', 'Pending'
-    CONFIRMED = 'CONFIRMED', 'Confirmed'
     PREPARING = 'PREPARING', 'Preparing'
     READY = 'READY', 'Ready'
-    SERVED = 'SERVED', 'Served'
     COMPLETED = 'COMPLETED', 'Completed'
     CANCELLED = 'CANCELLED', 'Cancelled'
 
@@ -49,6 +47,7 @@ class Order(models.Model):
     service_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    idempotency_key = models.CharField(max_length=64, unique=True, null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -70,6 +69,7 @@ class OrderItem(models.Model):
     quantity = models.PositiveIntegerField(default=1)
     special_instructions = models.TextField(blank=True, null=True)
     selected_addons = models.JSONField(default=list, blank=True)
+    round_number = models.PositiveIntegerField(default=1)
 
     class Meta:
         verbose_name = 'Order Item'

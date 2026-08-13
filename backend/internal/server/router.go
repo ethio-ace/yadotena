@@ -158,6 +158,15 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 		r.Get("/{id}", s.getPayment)
 	})
 
+	// --- Payment Methods ---
+	r.Route("/payment-methods", func(r chi.Router) {
+		r.Get("/", s.listPaymentMethods)
+		r.Post("/", s.createPaymentMethod)
+		r.Get("/{id}", s.getPaymentMethod)
+		r.Patch("/{id}", s.updatePaymentMethod)
+		r.Delete("/{id}", s.deletePaymentMethod)
+	})
+
 	// --- Restaurant Settings & Analytics ---
 	r.Get("/settings", s.getSettings)
 	r.Put("/settings", s.updateSettings)

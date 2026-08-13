@@ -302,7 +302,7 @@ export default function Header({ user = { name: "Guest Customer", role: "CUSTOME
 
       {/* Live Urgent Notification Bar for Pending Orders & Waiter Calls */}
       {totalUrgentCount > 0 && (
-        <div className="bg-gradient-to-r from-rose-600 via-amber-600 to-rose-600 text-white px-4 py-2 flex flex-wrap items-center justify-between gap-2 shadow-md animate-in slide-in-from-top duration-300">
+        <div className="bg-primary text-primary-foreground px-4 py-2 flex flex-wrap items-center justify-between gap-2 shadow-md animate-in slide-in-from-top duration-300">
           <div className="flex items-center gap-2 text-xs font-bold">
             <span className="flex h-2.5 w-2.5 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>

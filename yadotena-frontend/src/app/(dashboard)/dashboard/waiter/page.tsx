@@ -12,8 +12,7 @@ import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
 import { 
   Search, Plus, Trash2, Check, CreditCard, X, ShoppingBag, 
-  ArrowRight, ArrowLeft, Utensils, CheckCircle2, Sparkles, Clock, 
-  ChevronRight, Eye, Info, AlertTriangle, Users, Layers
+  ArrowLeft, Sparkles, ChevronRight, Users
 } from "lucide-react";
 import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
 import { Order, MenuItem, MenuItemAddon, Table } from "@/types";
@@ -45,7 +44,7 @@ export default function WaiterDashboardPage() {
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
 
-  // Table Details / Operations Modal State
+  // Table Details / Operations Modal State (Used for occupied tables)
   const [viewingTableDetails, setViewingTableDetails] = useState<Table | null>(null);
 
   // Menu Search & Category
@@ -125,7 +124,7 @@ export default function WaiterDashboardPage() {
     },
   });
 
-  // Select Table Handler
+  // Select Table Handler -> Directly enters Step 2 (Operations)
   const handleSelectTable = (table: Table) => {
     setSelectedTable(table);
     setCurrentStep(2);
@@ -237,21 +236,20 @@ export default function WaiterDashboardPage() {
   const service = subtotal * 0.10;
   const grandTotal = subtotal + tax + service;
 
-  // Food Ready & Active Orders
+  // Food Ready Orders
   const readyOrders = orders.filter((o) => o.status === "READY");
-  const activeOrders = orders.filter((o) => o.status !== "COMPLETED" && o.status !== "CANCELLED");
 
   return (
     <div className="space-y-4 animate-in fade-in duration-200 pb-20">
       
       {/* Ready Counter Notification Strip */}
       {readyOrders.length > 0 && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-2.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping" />
+        <div className="bg-primary/10 border border-primary/30 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5 text-xs font-bold text-primary">
+            <span className="h-2.5 w-2.5 rounded-full bg-primary animate-ping" />
             <span>{readyOrders.length} Order(s) Ready for Table Delivery:</span>
             {readyOrders.map((o) => (
-              <Badge key={o.id} className="bg-emerald-600 text-white text-[10px] font-mono px-2 py-0.5">
+              <Badge key={o.id} className="bg-primary text-primary-foreground text-[10px] font-mono px-2 py-0.5">
                 Table #{o.tableId?.replace("t", "") || o.id.slice(-4)}
               </Badge>
             ))}
@@ -262,7 +260,7 @@ export default function WaiterDashboardPage() {
                 key={o.id}
                 size="sm"
                 onClick={() => updateOrderStatusMutation.mutate({ id: o.id, status: "SERVED" })}
-                className="h-8 rounded-xl text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1 px-3"
+                className="h-8 rounded-xl text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-1 px-3"
               >
                 <Check className="h-3.5 w-3.5" /> Mark Table #{o.tableId?.replace("t", "")} Served
               </Button>
@@ -288,7 +286,7 @@ export default function WaiterDashboardPage() {
             <span className="h-5 w-5 rounded-full bg-background/20 flex items-center justify-center text-[10px] font-bold">
               1
             </span>
-            <span>Step 1: Click Floor Table</span>
+            <span>Step 1: Select Floor Table</span>
           </button>
 
           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -309,7 +307,7 @@ export default function WaiterDashboardPage() {
             <span className="h-5 w-5 rounded-full bg-background/20 flex items-center justify-center text-[10px] font-bold">
               2
             </span>
-            <span>Step 2: Pick Menus & Addons</span>
+            <span>Step 2: Menus & Operations</span>
           </button>
 
         </div>
@@ -322,11 +320,11 @@ export default function WaiterDashboardPage() {
               Table #{selectedTable.id.replace("t", "")}
             </span>
             {activeOrderForTable ? (
-              <Badge className="bg-amber-500 text-amber-950 text-[10px] font-black px-2 py-0.5">
+              <Badge className="bg-primary/20 text-primary border border-primary/30 text-[10px] font-black px-2 py-0.5">
                 Ongoing Session (Append Mode)
               </Badge>
             ) : (
-              <Badge className="bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5">
+              <Badge className="bg-primary text-primary-foreground text-[10px] font-black px-2 py-0.5">
                 Free Table (New Order)
               </Badge>
             )}
@@ -348,7 +346,7 @@ export default function WaiterDashboardPage() {
                 <div>
                   <h3 className="font-black text-base">Select Floor Table</h3>
                   <p className="text-xs text-muted-foreground">
-                    Click any table card directly to inspect session details, start an order, or append extra items.
+                    Click available tables to order directly, or occupied tables to view active session details.
                   </p>
                 </div>
 
@@ -357,7 +355,7 @@ export default function WaiterDashboardPage() {
                 </Badge>
               </div>
 
-              {/* Clean Clickable Table Grid */}
+              {/* Direct Click Table Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
                 {tables.map((table) => {
                   const isSelected = selectedTable?.id === table.id;
@@ -369,13 +367,19 @@ export default function WaiterDashboardPage() {
                   return (
                     <div
                       key={table.id}
-                      onClick={() => setViewingTableDetails(table)}
+                      onClick={() => {
+                        if (isOccupied) {
+                          setViewingTableDetails(table);
+                        } else {
+                          handleSelectTable(table);
+                        }
+                      }}
                       className={`p-4 rounded-2xl border-2 transition-all cursor-pointer space-y-3 relative flex flex-col justify-between hover:scale-[1.02] shadow-sm ${
                         isSelected
                           ? "bg-primary/10 border-primary shadow-md ring-2 ring-primary/30"
                           : isOccupied
-                          ? "bg-amber-500/10 border-amber-500/40 hover:border-amber-500"
-                          : "bg-card border-border hover:border-emerald-500/50 hover:bg-emerald-500/5"
+                          ? "bg-primary/10 border-primary/40 hover:border-primary"
+                          : "bg-card border-border hover:border-primary/50 hover:bg-primary/5"
                       }`}
                     >
                       {/* Top Table Info */}
@@ -392,8 +396,8 @@ export default function WaiterDashboardPage() {
                         <Badge
                           className={`text-[9px] font-black uppercase px-2 py-0.5 ${
                             isOccupied
-                              ? "bg-amber-500 text-amber-950"
-                              : "bg-emerald-500 text-white"
+                              ? "bg-primary/20 text-primary border border-primary/30"
+                              : "bg-muted text-muted-foreground border"
                           }`}
                         >
                           {isOccupied ? "Occupied" : "Free"}
@@ -407,11 +411,11 @@ export default function WaiterDashboardPage() {
                         </span>
 
                         {ongoingOrder ? (
-                          <span className="text-amber-700 dark:text-amber-300 font-black">
+                          <span className="text-primary font-black">
                             {formatETB(ongoingOrder.total)}
                           </span>
                         ) : (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                          <span className="text-muted-foreground font-bold">
                             Available
                           </span>
                         )}
@@ -538,7 +542,7 @@ export default function WaiterDashboardPage() {
                               {formatETB(item.price)}
                             </span>
                             {hasAddons && (
-                              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block">
+                              <span className="text-[10px] font-bold text-primary/80 block">
                                 ✨ {item.customAddons?.length} Options Available
                               </span>
                             )}
@@ -608,11 +612,11 @@ export default function WaiterDashboardPage() {
                   <div className="flex items-center justify-between font-bold">
                     <span>Table #{selectedTable.id.replace("t", "")}</span>
                     {activeOrderForTable ? (
-                      <Badge className="bg-amber-500 text-amber-950 text-[9px] font-bold">
+                      <Badge className="bg-primary/20 text-primary border border-primary/30 text-[9px] font-bold">
                         Appending to Order #{activeOrderForTable.id.slice(-5).toUpperCase()}
                       </Badge>
                     ) : (
-                      <Badge className="bg-emerald-500 text-white text-[9px] font-bold">
+                      <Badge className="bg-primary text-primary-foreground text-[9px] font-bold">
                         New Order Mode
                       </Badge>
                     )}
@@ -650,7 +654,7 @@ export default function WaiterDashboardPage() {
                         )}
 
                         {ci.specialInstructions && (
-                          <div className="text-[10px] text-amber-600 dark:text-amber-400 italic">
+                          <div className="text-[10px] text-primary/90 italic">
                             "{ci.specialInstructions}"
                           </div>
                         )}
@@ -666,7 +670,7 @@ export default function WaiterDashboardPage() {
                             </button>
                           </div>
 
-                          <button onClick={() => removeCartItem(ci.cartItemId)} className="text-rose-500 hover:text-rose-600 p-1">
+                          <button onClick={() => removeCartItem(ci.cartItemId)} className="text-destructive hover:opacity-80 p-1">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -712,7 +716,7 @@ export default function WaiterDashboardPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => setSelectedOrderForPayment(activeOrderForTable)}
-                  className="w-full rounded-xl text-xs font-bold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 gap-1.5"
+                  className="w-full rounded-xl text-xs font-bold border-primary/40 text-primary hover:bg-primary/10 gap-1.5"
                 >
                   <CreditCard className="h-3.5 w-3.5" /> Settle Table #{selectedTable?.id.replace("t", "")} Bill ({formatETB(activeOrderForTable.total)})
                 </Button>
@@ -725,8 +729,8 @@ export default function WaiterDashboardPage() {
 
       </div>
 
-      {/* TABLE DETAILS / OPERATIONS MODAL */}
-      {viewingTableDetails && (
+      {/* TABLE DETAILS / OPERATIONS MODAL (For Occupied Sessions) */}
+      {viewingTableDetails && activeOrderForViewingTable && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-card border rounded-2xl shadow-xl max-w-lg w-full p-5 space-y-4 relative max-h-[85vh] overflow-y-auto">
             
@@ -737,7 +741,7 @@ export default function WaiterDashboardPage() {
                   <span>Table #{(viewingTableDetails as any).number || viewingTableDetails.id.replace("t", "")} Operations</span>
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Capacity: {viewingTableDetails.capacity || 4} Seats • Location: Main Dining Hall
+                  Capacity: {viewingTableDetails.capacity || 4} Seats • Ongoing Session Details
                 </p>
               </div>
               <button onClick={() => setViewingTableDetails(null)} className="p-1 text-muted-foreground hover:text-foreground">
@@ -745,109 +749,88 @@ export default function WaiterDashboardPage() {
               </button>
             </div>
 
-            {/* Table Operations Content */}
-            {activeOrderForViewingTable ? (
-              <div className="space-y-3">
-                
-                {/* Active Session Summary */}
-                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="font-black text-amber-800 dark:text-amber-300 text-sm">
-                      Ongoing Ticket #{activeOrderForViewingTable.id.slice(-6).toUpperCase()}
-                    </span>
-                    <Badge className="bg-amber-500 text-amber-950 font-bold uppercase text-[10px] px-2 py-0.5">
-                      {activeOrderForViewingTable.status}
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-muted-foreground text-[11px] pt-1.5 border-t border-amber-500/20">
-                    <div>Type: DINE-IN</div>
-                    <div>Payment: {activeOrderForViewingTable.paymentStatus}</div>
-                    <div>Created: {new Date(activeOrderForViewingTable.createdAt).toLocaleTimeString()}</div>
-                    <div className="font-bold text-foreground">
-                      Running Total: {formatETB(activeOrderForViewingTable.total)}
-                    </div>
-                  </div>
+            {/* Active Session Summary */}
+            <div className="space-y-3">
+              <div className="p-3.5 bg-primary/10 border border-primary/30 rounded-xl space-y-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="font-black text-primary text-sm">
+                    Ongoing Ticket #{activeOrderForViewingTable.id.slice(-6).toUpperCase()}
+                  </span>
+                  <Badge className="bg-primary text-primary-foreground font-bold uppercase text-[10px] px-2 py-0.5">
+                    {activeOrderForViewingTable.status}
+                  </Badge>
                 </div>
 
-                {/* Ordered Items Breakdown */}
-                <div className="space-y-2">
-                  <h4 className="font-black text-xs uppercase text-muted-foreground">Ordered Dishes & Addons</h4>
-                  
-                  <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
-                    {activeOrderForViewingTable.items?.map((item: any, idx: number) => (
-                      <div key={item.id || idx} className="p-2.5 rounded-xl bg-muted/40 border text-xs space-y-1">
-                        <div className="flex justify-between font-bold">
-                          <span>{item.quantity}x {item.name}</span>
-                          <span className="text-primary">{formatETB(item.price * item.quantity)}</span>
-                        </div>
-
-                        {item.selectedAddons && item.selectedAddons.length > 0 && (
-                          <div className="text-[10px] text-muted-foreground flex flex-wrap gap-1">
-                            <span>Addons:</span>
-                            {item.selectedAddons.map((a: any, aIdx: number) => (
-                              <Badge key={aIdx} variant="outline" className="text-[9px] px-1 py-0">
-                                {typeof a === "string" ? a : a.name}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-
-                        {item.specialInstructions && (
-                          <div className="text-[10px] text-amber-600 dark:text-amber-400 italic">
-                            "{item.specialInstructions}"
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                <div className="grid grid-cols-2 gap-2 text-muted-foreground text-[11px] pt-1.5 border-t border-primary/20">
+                  <div>Type: DINE-IN</div>
+                  <div>Payment: {activeOrderForViewingTable.paymentStatus}</div>
+                  <div>Created: {new Date(activeOrderForViewingTable.createdAt).toLocaleTimeString()}</div>
+                  <div className="font-bold text-foreground">
+                    Running Total: {formatETB(activeOrderForViewingTable.total)}
                   </div>
                 </div>
-
-                {/* Modal Quick Actions */}
-                <div className="grid grid-cols-2 gap-2 pt-3 border-t">
-                  <Button
-                    onClick={() => {
-                      const t = viewingTableDetails;
-                      setViewingTableDetails(null);
-                      handleSelectTable(t);
-                    }}
-                    className="h-11 rounded-xl font-black text-xs bg-amber-600 hover:bg-amber-700 text-white"
-                  >
-                    + Add Items / Addons
-                  </Button>
-
-                  <Button
-                    onClick={() => {
-                      const ord = activeOrderForViewingTable;
-                      setViewingTableDetails(null);
-                      setSelectedOrderForPayment(ord);
-                    }}
-                    className="h-11 rounded-xl font-black text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-                  >
-                    <CreditCard className="h-4 w-4" /> Settle Bill ({formatETB(activeOrderForViewingTable.total)})
-                  </Button>
-                </div>
-
               </div>
-            ) : (
-              <div className="space-y-4 py-3 text-center">
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-700 dark:text-emerald-300 text-xs space-y-1">
-                  <p className="font-bold text-sm">Table is Clean & Available</p>
-                  <p className="opacity-80">This table currently has no ongoing active ticket. Ready for new guests.</p>
-                </div>
 
+              {/* Ordered Items Breakdown */}
+              <div className="space-y-2">
+                <h4 className="font-black text-xs uppercase text-muted-foreground">Ordered Dishes & Addons</h4>
+                
+                <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                  {activeOrderForViewingTable.items?.map((item: any, idx: number) => (
+                    <div key={item.id || idx} className="p-2.5 rounded-xl bg-muted/40 border text-xs space-y-1">
+                      <div className="flex justify-between font-bold">
+                        <span>{item.quantity}x {item.name}</span>
+                        <span className="text-primary">{formatETB(item.price * item.quantity)}</span>
+                      </div>
+
+                      {item.selectedAddons && item.selectedAddons.length > 0 && (
+                        <div className="text-[10px] text-muted-foreground flex flex-wrap gap-1">
+                          <span>Addons:</span>
+                          {item.selectedAddons.map((a: any, aIdx: number) => (
+                            <Badge key={aIdx} variant="outline" className="text-[9px] px-1 py-0">
+                              {typeof a === "string" ? a : a.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      {item.specialInstructions && (
+                        <div className="text-[10px] text-primary/90 italic">
+                          "{item.specialInstructions}"
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Modal Quick Actions */}
+              <div className="grid grid-cols-2 gap-2 pt-3 border-t">
                 <Button
                   onClick={() => {
                     const t = viewingTableDetails;
                     setViewingTableDetails(null);
                     handleSelectTable(t);
                   }}
-                  className="w-full h-11 rounded-xl font-black text-xs bg-primary text-primary-foreground shadow-md"
+                  className="h-11 rounded-xl font-black text-xs bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                  🚀 Select Table & Start New Order
+                  + Add Items / Addons
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const ord = activeOrderForViewingTable;
+                    setViewingTableDetails(null);
+                    setSelectedOrderForPayment(ord);
+                  }}
+                  className="h-11 rounded-xl font-black text-xs border-primary/40 text-primary hover:bg-primary/10 gap-1"
+                >
+                  <CreditCard className="h-4 w-4" /> Settle Bill ({formatETB(activeOrderForViewingTable.total)})
                 </Button>
               </div>
-            )}
+
+            </div>
 
           </div>
         </div>
@@ -886,7 +869,7 @@ export default function WaiterDashboardPage() {
                           }
                         }}
                         className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer text-xs transition-all ${
-                          selected ? "bg-primary/10 border-primary font-bold" : "bg-muted/30 border-transparent hover:bg-muted"
+                          selected ? "bg-primary/10 border-primary font-bold text-primary" : "bg-muted/30 border-transparent hover:bg-muted"
                         }`}
                       >
                         <span>{addon.name}</span>

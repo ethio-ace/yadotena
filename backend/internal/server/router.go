@@ -20,6 +20,7 @@ func (s *Server) Router() http.Handler {
 		MaxAge:           300,
 	}))
 
+	// Health and Ready endpoints available at root and under /api/v1
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, 200, map[string]any{"ok": true})
 	})
@@ -33,203 +34,176 @@ func (s *Server) Router() http.Handler {
 	})
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(s.Cfg.UploadsDir))))
 
+	// Single strict API v1 namespace - NO dual mounting at root
 	r.Route("/api/v1", func(r chi.Router) {
-		// --- Auth & User Profile ---
-		r.Post("/login", s.authLogin)
-		r.Post("/login/", s.authLogin)
-		r.Post("/logout", s.authLogout)
-		r.Post("/logout/", s.authLogout)
-		r.Get("/me", s.authMe)
-		r.Get("/me/", s.authMe)
-
-		r.Route("/auth", func(r chi.Router) {
-			r.Post("/login", s.authLogin)
-			r.Post("/login/", s.authLogin)
-			r.Post("/logout", s.authLogout)
-			r.Post("/logout/", s.authLogout)
-			r.Get("/me", s.authMe)
-			r.Get("/me/", s.authMe)
-			r.Get("/ably-token", s.ablyToken)
-			r.Get("/ably-token/", s.ablyToken)
+		r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, 200, map[string]any{"ok": true})
 		})
-
-		// --- Users Management ---
-		r.Route("/users", func(r chi.Router) {
-			r.Get("/", s.listUsers)
-			r.Post("/", s.createUser)
-			r.Get("/{id}", s.getUser)
-			r.Get("/{id}/", s.getUser)
-			r.Patch("/{id}", s.updateUser)
-			r.Patch("/{id}/", s.updateUser)
-			r.Post("/{id}/toggle-status", s.toggleUserStatus)
-			r.Post("/{id}/toggle-status/", s.toggleUserStatus)
-			r.Delete("/{id}", s.deleteUser)
-			r.Delete("/{id}/", s.deleteUser)
+		r.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			if err := s.Pool.Ping(ctx); err != nil {
+				writeErr(w, 503, "db unavailable")
+				return
+			}
+			writeJSON(w, 200, map[string]any{"ok": true, "db": true})
 		})
-
-		// --- Menu Categories ---
-		r.Route("/categories", func(r chi.Router) {
-			r.Get("/", s.listCategories)
-			r.Post("/", s.createCategory)
-			r.Get("/{id}", s.getCategory)
-			r.Get("/{id}/", s.getCategory)
-			r.Patch("/{id}", s.updateCategory)
-			r.Patch("/{id}/", s.updateCategory)
-			r.Put("/{id}", s.updateCategory)
-			r.Put("/{id}/", s.updateCategory)
-			r.Delete("/{id}", s.deleteCategory)
-			r.Delete("/{id}/", s.deleteCategory)
-		})
-
-		// --- Menu Items ---
-		r.Route("/menu", func(r chi.Router) {
-			r.Get("/", s.listMenuItems)
-			r.Post("/", s.createMenuItem)
-			r.Get("/{id}", s.getMenuItem)
-			r.Get("/{id}/", s.getMenuItem)
-			r.Patch("/{id}", s.updateMenuItem)
-			r.Patch("/{id}/", s.updateMenuItem)
-			r.Put("/{id}", s.updateMenuItem)
-			r.Put("/{id}/", s.updateMenuItem)
-			r.Post("/{id}/toggle-availability", s.toggleMenuItemAvailability)
-			r.Post("/{id}/toggle-availability/", s.toggleMenuItemAvailability)
-			r.Delete("/{id}", s.deleteMenuItem)
-			r.Delete("/{id}/", s.deleteMenuItem)
-		})
-
-		// --- Tables ---
-		r.Route("/tables", func(r chi.Router) {
-			r.Get("/", s.listTables)
-			r.Post("/", s.createTable)
-			r.Get("/{id}", s.getTable)
-			r.Get("/{id}/", s.getTable)
-			r.Patch("/{id}", s.updateTable)
-			r.Patch("/{id}/", s.updateTable)
-			r.Post("/{id}/status", s.updateTableStatus)
-			r.Post("/{id}/status/", s.updateTableStatus)
-			r.Post("/{id}/start-session", s.startSession)
-			r.Post("/{id}/start-session/", s.startSession)
-			r.Delete("/{id}", s.deleteTable)
-			r.Delete("/{id}/", s.deleteTable)
-		})
-
-		// --- Dining Sessions ---
-		r.Route("/sessions", func(r chi.Router) {
-			r.Get("/active", s.getActiveSession)
-			r.Get("/active/", s.getActiveSession)
-		})
-
-		// --- Orders ---
-		r.Route("/orders", func(r chi.Router) {
-			r.Get("/", s.listOrders)
-			r.Post("/", s.createOrderEndpoint)
-			r.Get("/{id}", s.getOrder)
-			r.Get("/{id}/", s.getOrder)
-			r.Post("/{id}/status", s.updateOrderStatusEndpoint)
-			r.Post("/{id}/status/", s.updateOrderStatusEndpoint)
-			r.Patch("/{id}/status", s.updateOrderStatusEndpoint)
-			r.Patch("/{id}/status/", s.updateOrderStatusEndpoint)
-			r.Patch("/{id}", s.updateOrderStatusEndpoint)
-			r.Patch("/{id}/", s.updateOrderStatusEndpoint)
-			r.Post("/{id}/add-items", s.addOrderItemsEndpoint)
-			r.Post("/{id}/add-items/", s.addOrderItemsEndpoint)
-		})
-
-		// --- Service Requests ---
-		r.Route("/service-requests", func(r chi.Router) {
-			r.Get("/", s.listServiceRequests)
-			r.Post("/", s.createServiceRequest)
-			r.Post("/{id}/resolve", s.resolveServiceRequest)
-			r.Post("/{id}/resolve/", s.resolveServiceRequest)
-		})
-
-		// --- Expenses ---
-		r.Route("/expenses", func(r chi.Router) {
-			r.Get("/", s.listExpenses)
-			r.Post("/", s.createExpense)
-			r.Get("/{id}", s.getExpense)
-			r.Get("/{id}/", s.getExpense)
-			r.Patch("/{id}", s.updateExpense)
-			r.Patch("/{id}/", s.updateExpense)
-			r.Delete("/{id}", s.deleteExpense)
-			r.Delete("/{id}/", s.deleteExpense)
-		})
-
-		// --- Customers ---
-		r.Route("/customers", func(r chi.Router) {
-			r.Get("/", s.listCustomers)
-			r.Post("/", s.createCustomer)
-			r.Get("/{id}", s.getCustomer)
-			r.Get("/{id}/", s.getCustomer)
-			r.Patch("/{id}", s.updateCustomer)
-			r.Patch("/{id}/", s.updateCustomer)
-		})
-
-		// --- Reviews ---
-		r.Route("/reviews", func(r chi.Router) {
-			r.Get("/", s.listReviews)
-			r.Post("/", s.createReview)
-			r.Get("/{id}", s.getReview)
-			r.Get("/{id}/", s.getReview)
-		})
-
-		// --- Payments ---
-		r.Route("/payments", func(r chi.Router) {
-			r.Get("/", s.listPayments)
-			r.Post("/", s.createPayment)
-			r.Get("/{id}", s.getPayment)
-			r.Get("/{id}/", s.getPayment)
-		})
-
-		// --- Restaurant Settings & Analytics ---
-		r.Get("/settings", s.getSettings)
-		r.Get("/settings/", s.getSettings)
-		r.Put("/settings", s.updateSettings)
-		r.Put("/settings/", s.updateSettings)
-		r.Patch("/settings", s.updateSettings)
-		r.Patch("/settings/", s.updateSettings)
-		r.Get("/reports/summary", s.getReportsSummary)
-		r.Get("/reports/summary/", s.getReportsSummary)
-
-		// --- Media Uploads & Presigned URLs ---
-		r.Post("/media/presign", s.presignMediaUpload)
-		r.Post("/media/upload", s.directMediaUpload)
-		r.Post("/media/upload-link", s.uploadMediaFromLink)
-		r.Post("/uploads/presign", s.presignMediaUpload)
-		r.Post("/uploads/", s.directMediaUpload)
-		r.Post("/uploads", s.directMediaUpload)
-
-		// --- Legacy / Public / Staff Compatibility Routes ---
-		r.Route("/public", func(r chi.Router) {
-			r.Get("/menu", s.publicMenu)
-			r.Get("/tables", s.publicTables)
-			r.Get("/settings", s.publicSettings)
-			r.Post("/orders", s.publicPlaceOrder)
-			r.Get("/orders/track", s.publicTrackOrder)
-			r.Get("/orders/{id}/stream", s.publicOrderStream)
-		})
-
-		r.Post("/staff/auth/login", s.staffLogin)
-
-		r.Group(func(r chi.Router) {
-			r.Use(s.withAuth)
-			r.Get("/staff/me", s.staffMe)
-			r.Patch("/staff/me", s.staffPatchMe)
-			r.Get("/staff/stream", s.staffStream)
-
-			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter, models.RoleChef)).Get("/staff/orders", s.staffListOrders)
-			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter, models.RoleChef)).Get("/staff/orders/{id}", s.staffGetOrder)
-			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders", s.staffPlaceOrder)
-			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter, models.RoleChef)).Patch("/staff/orders/{id}/status", s.staffPatchOrderStatus)
-			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment", s.staffSubmitPayment)
-			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment/verify", s.staffVerifyPayment)
-			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment/reject", s.staffRejectPayment)
-			r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Get("/staff/customers", s.listCustomers)
-			r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Get("/staff/analytics", s.analytics)
-			r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Get("/staff/activity", s.listActivity)
-		})
+		s.mountCoreRoutes(r)
 	})
+
 	return r
+}
+
+func (s *Server) mountCoreRoutes(r chi.Router) {
+	// --- Auth & User Profile ---
+	r.Post("/login", s.authLogin)
+	r.Post("/logout", s.authLogout)
+	r.Get("/me", s.authMe)
+
+	r.Route("/auth", func(r chi.Router) {
+		r.Post("/login", s.authLogin)
+		r.Post("/logout", s.authLogout)
+		r.Get("/me", s.authMe)
+		r.Get("/ably-token", s.ablyToken)
+	})
+
+	// --- Users Management ---
+	r.Route("/users", func(r chi.Router) {
+		r.Get("/", s.listUsers)
+		r.Post("/", s.createUser)
+		r.Get("/{id}", s.getUser)
+		r.Patch("/{id}", s.updateUser)
+		r.Post("/{id}/toggle-status", s.toggleUserStatus)
+		r.Delete("/{id}", s.deleteUser)
+	})
+
+	// --- Menu Categories ---
+	r.Route("/categories", func(r chi.Router) {
+		r.Get("/", s.listCategories)
+		r.Post("/", s.createCategory)
+		r.Get("/{id}", s.getCategory)
+		r.Patch("/{id}", s.updateCategory)
+		r.Put("/{id}", s.updateCategory)
+		r.Delete("/{id}", s.deleteCategory)
+	})
+
+	// --- Menu Items ---
+	r.Route("/menu", func(r chi.Router) {
+		r.Get("/", s.listMenuItems)
+		r.Post("/", s.createMenuItem)
+		r.Get("/{id}", s.getMenuItem)
+		r.Patch("/{id}", s.updateMenuItem)
+		r.Put("/{id}", s.updateMenuItem)
+		r.Post("/{id}/toggle-availability", s.toggleMenuItemAvailability)
+		r.Delete("/{id}", s.deleteMenuItem)
+	})
+
+	// --- Tables ---
+	r.Route("/tables", func(r chi.Router) {
+		r.Get("/", s.listTables)
+		r.Post("/", s.createTable)
+		r.Get("/{id}", s.getTable)
+		r.Patch("/{id}", s.updateTable)
+		r.Post("/{id}/status", s.updateTableStatus)
+		r.Post("/{id}/start-session", s.startSession)
+		r.Delete("/{id}", s.deleteTable)
+	})
+
+	// --- Dining Sessions ---
+	r.Route("/sessions", func(r chi.Router) {
+		r.Get("/active", s.getActiveSession)
+	})
+
+	// --- Orders ---
+	r.Route("/orders", func(r chi.Router) {
+		r.Get("/", s.listOrders)
+		r.Post("/", s.createOrderEndpoint)
+		r.Get("/{id}", s.getOrder)
+		r.Post("/{id}/status", s.updateOrderStatusEndpoint)
+		r.Patch("/{id}/status", s.updateOrderStatusEndpoint)
+		r.Patch("/{id}", s.updateOrderStatusEndpoint)
+		r.Post("/{id}/add-items", s.addOrderItemsEndpoint)
+	})
+
+	// --- Service Requests ---
+	r.Route("/service-requests", func(r chi.Router) {
+		r.Get("/", s.listServiceRequests)
+		r.Post("/", s.createServiceRequest)
+		r.Post("/{id}/resolve", s.resolveServiceRequest)
+	})
+
+	// --- Expenses ---
+	r.Route("/expenses", func(r chi.Router) {
+		r.Get("/", s.listExpenses)
+		r.Post("/", s.createExpense)
+		r.Get("/{id}", s.getExpense)
+		r.Patch("/{id}", s.updateExpense)
+		r.Delete("/{id}", s.deleteExpense)
+	})
+
+	// --- Customers ---
+	r.Route("/customers", func(r chi.Router) {
+		r.Get("/", s.listCustomers)
+		r.Post("/", s.createCustomer)
+		r.Get("/{id}", s.getCustomer)
+		r.Patch("/{id}", s.updateCustomer)
+	})
+
+	// --- Reviews ---
+	r.Route("/reviews", func(r chi.Router) {
+		r.Get("/", s.listReviews)
+		r.Post("/", s.createReview)
+		r.Get("/{id}", s.getReview)
+	})
+
+	// --- Payments ---
+	r.Route("/payments", func(r chi.Router) {
+		r.Get("/", s.listPayments)
+		r.Post("/", s.createPayment)
+		r.Get("/{id}", s.getPayment)
+	})
+
+	// --- Restaurant Settings & Analytics ---
+	r.Get("/settings", s.getSettings)
+	r.Put("/settings", s.updateSettings)
+	r.Patch("/settings", s.updateSettings)
+	r.Get("/reports/summary", s.getReportsSummary)
+
+	// --- Media Uploads & Presigned URLs ---
+	r.Post("/media/presign", s.presignMediaUpload)
+	r.Post("/media/upload", s.directMediaUpload)
+	r.Post("/media/upload-link", s.uploadMediaFromLink)
+	r.Post("/uploads/presign", s.presignMediaUpload)
+	r.Post("/uploads", s.directMediaUpload)
+
+	// --- Legacy / Public / Staff Compatibility Routes ---
+	r.Route("/public", func(r chi.Router) {
+		r.Get("/menu", s.publicMenu)
+		r.Get("/tables", s.publicTables)
+		r.Get("/settings", s.publicSettings)
+		r.Post("/orders", s.publicPlaceOrder)
+		r.Get("/orders/track", s.publicTrackOrder)
+		r.Get("/orders/{id}/stream", s.publicOrderStream)
+	})
+
+	r.Post("/staff/auth/login", s.staffLogin)
+
+	r.Group(func(r chi.Router) {
+		r.Use(s.withAuth)
+		r.Get("/staff/me", s.staffMe)
+		r.Patch("/staff/me", s.staffPatchMe)
+		r.Get("/staff/stream", s.staffStream)
+
+		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter, models.RoleChef)).Get("/staff/orders", s.staffListOrders)
+		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter, models.RoleChef)).Get("/staff/orders/{id}", s.staffGetOrder)
+		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders", s.staffPlaceOrder)
+		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter, models.RoleChef)).Patch("/staff/orders/{id}/status", s.staffPatchOrderStatus)
+		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment", s.staffSubmitPayment)
+		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment/verify", s.staffVerifyPayment)
+		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment/reject", s.staffRejectPayment)
+		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Get("/staff/customers", s.listCustomers)
+		r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Get("/staff/analytics", s.analytics)
+		r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Get("/staff/activity", s.listActivity)
+	})
 }
 
 func splitOrigins(s string) []string {

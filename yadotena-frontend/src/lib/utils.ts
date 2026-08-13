@@ -6,32 +6,44 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getImageUrl(url?: string): string {
-  if (!url) return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=70";
+  if (!url || url.trim() === "") {
+    return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80";
+  }
 
   const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8085").replace(/\/+$/, "");
   const host = apiBase.replace(/\/api\/v1\/?$/, "");
 
-  // Transform Tigris S3 direct URLs (which return 403 Forbidden without S3 headers) to backend proxy / uploads endpoint
-  if (url.includes("storage.dev") || url.includes("storage.tigris.dev")) {
-    const mediaIdx = url.indexOf("/media/");
-    if (mediaIdx !== -1) {
-      const relPath = url.substring(mediaIdx);
-      return `${host}/uploads${relPath}`;
-    }
+  // Normalize local & storage URLs to use active API host uploads route
+  if (
+    url.includes("localhost:") ||
+    url.includes("127.0.0.1:") ||
+    url.includes("storage.dev") ||
+    url.includes("storage.tigris.dev") ||
+    url.includes("onrender.com")
+  ) {
     const uploadsIdx = url.indexOf("/uploads/");
     if (uploadsIdx !== -1) {
-      const relPath = url.substring(uploadsIdx);
-      return `${host}${relPath}`;
+      return `${host}${url.substring(uploadsIdx)}`;
+    }
+    const mediaIdx = url.indexOf("/media/");
+    if (mediaIdx !== -1) {
+      return `${host}/uploads${url.substring(mediaIdx)}`;
     }
   }
 
-  // Transform legacy onrender domain links to backend server uploads endpoint
-  if (url.includes("yadotena.onrender.com/uploads/")) {
-    const relPath = url.split("yadotena.onrender.com/uploads")[1];
-    return `${host}/uploads${relPath}`;
+  if (url.startsWith("/uploads/")) {
+    return `${host}${url}`;
   }
 
+  if (url.startsWith("/media/")) {
+    return `${host}/uploads${url}`;
+  }
+
+  // Handle standard HTTP/HTTPS or data URLs
   if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+    if (typeof window !== "undefined" && window.location.protocol === "https:" && url.startsWith("http://") && !url.includes("localhost")) {
+      return url.replace("http://", "https://");
+    }
     return url;
   }
 

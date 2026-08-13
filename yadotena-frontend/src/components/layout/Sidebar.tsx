@@ -41,6 +41,7 @@ export const navItems: NavItem[] = [
   { name: "Menu", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER"] },
   { name: "Customers", href: "/dashboard/customers", icon: Users, roles: ["OWNER", "MANAGER", "WAITER"] },
   { name: "Payments", href: "/dashboard/payments", icon: CreditCard, roles: ["OWNER", "MANAGER", "CASHIER"] },
+  { name: "Payment Methods", href: "/dashboard/payment-methods", icon: Wallet, roles: ["OWNER", "MANAGER", "CASHIER"] },
   { name: "Expenses", href: "/dashboard/expenses", icon: Receipt, roles: ["OWNER", "MANAGER"] },
   { name: "Employees", href: "/dashboard/employees", icon: UserSquare2, roles: ["OWNER", "MANAGER"] },
   { name: "Reports", href: "/dashboard/reports", icon: BarChart3, roles: ["OWNER", "MANAGER"] },

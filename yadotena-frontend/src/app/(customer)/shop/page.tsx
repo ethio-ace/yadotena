@@ -102,6 +102,7 @@ export default function ShopPage() {
 
   const dbShopItems = dbMenu.filter(
     (item) =>
+      item.categoryId === "cat-shop" ||
       item.category?.toLowerCase().includes("shop") ||
       item.category?.toLowerCase().includes("dairy") ||
       item.category?.toLowerCase().includes("grocer")

@@ -125,7 +125,10 @@ export interface Expense {
   category: string;
   description: string;
   date: string;
-  recordedBy: string; // User ID
+  recordedBy?: string; // User ID
+  paymentMethod?: string;
+  payment_method?: string;
+  reference?: string;
 }
 
 export interface ServiceRequest {

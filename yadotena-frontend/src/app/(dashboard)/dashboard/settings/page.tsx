@@ -106,7 +106,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>General Establishment Details</CardTitle>
             <CardDescription>
-              Basic information displayed on receipts, orders, and customer app headers.
+              Basic information displayed on receipts, waiter tickets, and invoices.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

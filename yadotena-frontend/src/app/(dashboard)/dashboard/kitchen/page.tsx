@@ -65,7 +65,7 @@ export default function KitchenDashboard() {
         <div className="flex items-center gap-2">
           {newOrders.length > 0 && (
             <Badge className="bg-primary text-primary-foreground font-black text-xs px-3 py-1 animate-pulse">
-              🔥 {newOrders.length} New Order(s)
+              {newOrders.length} New Order(s)
             </Badge>
           )}
 
@@ -162,7 +162,7 @@ export default function KitchenDashboard() {
                   key={order.id} 
                   order={order} 
                   isUrgent
-                  actionText="🔥 Start Preparing Order"
+                  actionText="Start Preparing Order"
                   onAction={() => {
                     updateStatus.mutate({ id: order.id, status: "PREPARING" });
                   }}
@@ -215,7 +215,7 @@ export default function KitchenDashboard() {
                 <KitchenOrderCard 
                   key={order.id} 
                   order={order} 
-                  actionText="🍽️ Mark as Ready to Serve"
+                  actionText="Mark as Ready to Serve"
                   onAction={() => {
                     updateStatus.mutate({ id: order.id, status: "READY" });
                   }}

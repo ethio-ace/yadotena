@@ -416,12 +416,12 @@ function TableCard({
             onChange={(e) => onStatusChange(e.target.value as TableStatus)}
             className="w-full h-8 px-2.5 rounded-xl border bg-background/90 text-xs font-bold text-foreground focus:outline-none shadow-sm cursor-pointer"
           >
-            <option value="AVAILABLE">🟢 Available (Ready)</option>
-            <option value="OCCUPIED">🔵 Occupied (Seated)</option>
-            <option value="PREPARING">🟡 Preparing Food</option>
-            <option value="WAITING_FOR_SERVICE">🔴 Waiting For Service</option>
-            <option value="WAITING_FOR_PAYMENT">🟣 Waiting For Payment</option>
-            <option value="CLEANING">⚪ Cleaning Required</option>
+            <option value="AVAILABLE">Available (Ready)</option>
+            <option value="OCCUPIED">Occupied (Seated)</option>
+            <option value="PREPARING">Preparing Food</option>
+            <option value="WAITING_FOR_SERVICE">Waiting For Service</option>
+            <option value="WAITING_FOR_PAYMENT">Waiting For Payment</option>
+            <option value="CLEANING">Cleaning Required</option>
           </select>
         </div>
         

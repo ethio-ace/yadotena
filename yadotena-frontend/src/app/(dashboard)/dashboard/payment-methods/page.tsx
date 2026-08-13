@@ -443,7 +443,7 @@ export default function PaymentMethodsPage() {
                     className="flex-1 rounded-xl text-xs font-bold"
                     onClick={() => setFormData({ ...formData, type: "DIGITAL" })}
                   >
-                    📱 DIGITAL WALLET / BANK
+                    DIGITAL WALLET / BANK
                   </Button>
                   <Button
                     type="button"
@@ -451,7 +451,7 @@ export default function PaymentMethodsPage() {
                     className="flex-1 rounded-xl text-xs font-bold"
                     onClick={() => setFormData({ ...formData, type: "CASH" })}
                   >
-                    💵 CASH REGISTER
+                    CASH REGISTER
                   </Button>
                 </div>
               </div>

@@ -945,6 +945,47 @@ export default function WaiterDashboardPage() {
         }}
       />
 
+      {/* FLOATING STICKY ACTION BAR FOR MOBILE & QUICK TICKET SUBMISSION */}
+      {cartItems.length > 0 && currentStep === 2 && (
+        <div className="fixed bottom-4 left-3 right-3 sm:left-auto sm:right-6 sm:w-96 z-50 bg-card border-2 border-primary/60 shadow-2xl p-3.5 rounded-2xl animate-in slide-in-from-bottom-5 duration-200 backdrop-blur-md space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-black text-foreground flex items-center gap-1.5">
+              <ShoppingBag className="h-4 w-4 text-primary" />
+              <span>{cartItems.reduce((acc, i) => acc + i.quantity, 0)} Items Selected</span>
+            </span>
+            <span className="font-black text-primary text-sm">{formatETB(grandTotal)}</span>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              onClick={handleConfirmOrder}
+              disabled={
+                !selectedTable ||
+                createOrderMutation.isPending ||
+                appendItemsMutation.isPending
+              }
+              className="flex-1 h-11 rounded-xl font-black text-xs bg-primary text-primary-foreground shadow-md gap-1"
+            >
+              {createOrderMutation.isPending || appendItemsMutation.isPending
+                ? "Submitting Ticket..."
+                : activeOrderForTable
+                ? `Append to Table #${selectedTable?.id.replace("t", "")}`
+                : `Submit Table #${selectedTable?.id.replace("t", "")} Ticket`}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCartItems([])}
+              className="h-11 w-11 rounded-xl text-destructive hover:bg-destructive/10 shrink-0"
+              title="Clear Order"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

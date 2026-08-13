@@ -41,7 +41,6 @@ export const navSections: NavSection[] = [
       { name: "Shift Operations", href: "/dashboard/manager", icon: Briefcase, roles: ["OWNER", "MANAGER"] },
       { name: "Waiter Floor POS", href: "/dashboard/waiter", icon: Utensils, roles: ["OWNER", "MANAGER"] },
       { name: "Kitchen Display (KDS)", href: "/dashboard/kitchen", icon: ChefHat, roles: ["OWNER", "MANAGER"] },
-      { name: "Cashier POS", href: "/dashboard/cashier", icon: Wallet, roles: ["OWNER", "MANAGER"] },
     ]
   },
   {
@@ -49,7 +48,6 @@ export const navSections: NavSection[] = [
     items: [
       { name: "Overview Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER", "MANAGER"] },
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER"] },
-      { name: "Orders Ledger", href: "/dashboard/orders", icon: ShoppingCart, roles: ["OWNER", "MANAGER"] },
       { name: "Menu & Catalog", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER"] },
       { name: "Activity Logs", href: "/dashboard/logs", icon: Activity, roles: ["OWNER", "MANAGER"] },
     ]

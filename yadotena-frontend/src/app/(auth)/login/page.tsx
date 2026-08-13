@@ -42,8 +42,6 @@ export default function LoginPage() {
           router.push("/dashboard/waiter");
         } else if (role === "CHEF" || role === "KITCHEN") {
           router.push("/dashboard/kitchen");
-        } else if (role === "CASHIER") {
-          router.push("/dashboard/cashier");
         } else if (role === "MANAGER") {
           router.push("/dashboard/manager");
         } else {

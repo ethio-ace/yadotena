@@ -27,7 +27,7 @@ export default function LogsPage() {
       <ActivityLogsViewer
         title="Manager Activity Audit Stream"
         description="Detailed diff inspection for all store transactions, table status updates, and staff actions."
-        allowedRoles={["WAITER", "KITCHEN", "CASHIER", "MANAGER", "OWNER"]}
+        allowedRoles={["WAITER", "KITCHEN", "MANAGER", "OWNER"]}
         isOwnerView={true}
       />
     </div>

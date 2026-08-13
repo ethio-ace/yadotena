@@ -15,8 +15,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (status === "unauthenticated") {
       router.replace("/login");
-    } else if (status === "authenticated" && session?.user?.role === "CUSTOMER") {
-      router.replace("/");
     } else if (status === "authenticated" && session?.user?.role === "WAITER" && pathname !== "/dashboard/waiter" && pathname !== "/dashboard") {
       router.replace("/dashboard/waiter");
     } else if (status === "authenticated" && session?.user?.role === "KITCHEN" && pathname !== "/dashboard/kitchen" && pathname !== "/dashboard") {
@@ -32,13 +30,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  if (status === "unauthenticated" || !session || session.user?.role === "CUSTOMER") {
+  if (status === "unauthenticated" || !session) {
     return null; 
   }
 
   // Admin/Manager users retain the sidebar everywhere (including KDS & Waiter POS).
-  // Pure staff roles (WAITER, KITCHEN, CASHIER) get full-screen terminal view.
-  const isPureStaffRole = session.user.role === "WAITER" || session.user.role === "KITCHEN" || session.user.role === "CASHIER";
+  // Pure staff roles (WAITER, KITCHEN) get full-screen terminal view.
+  const isPureStaffRole = session.user.role === "WAITER" || session.user.role === "KITCHEN";
   const showSidebar = !isPureStaffRole;
 
   return (

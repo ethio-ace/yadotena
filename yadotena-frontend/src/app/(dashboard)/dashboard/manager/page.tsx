@@ -76,7 +76,7 @@ export default function ManagerDashboardPage() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Badge className="bg-primary text-primary-foreground font-black text-[10px] uppercase tracking-wider px-2.5 py-0.5">
-              💼 Store Operations
+              Store Operations
             </Badge>
             <span className="text-xs text-muted-foreground font-bold">Manager Shift Command</span>
           </div>
@@ -113,7 +113,7 @@ export default function ManagerDashboardPage() {
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            📊 Operations Overview
+            Operations Overview
           </button>
 
           <button
@@ -124,7 +124,7 @@ export default function ManagerDashboardPage() {
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            🛎️ Service Calls ({pendingRequests.length})
+            Service Calls ({pendingRequests.length})
           </button>
 
           <button
@@ -135,7 +135,7 @@ export default function ManagerDashboardPage() {
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            📦 Inventory & Stock
+            Inventory & Stock
           </button>
 
           <button
@@ -146,7 +146,7 @@ export default function ManagerDashboardPage() {
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            📑 Staff Audit Logs
+            Staff Audit Logs
           </button>
         </div>
 
@@ -158,9 +158,9 @@ export default function ManagerDashboardPage() {
             </Button>
           </Link>
 
-          <Link href="/dashboard/orders">
+          <Link href="/dashboard/waiter">
             <Button size="sm" variant="outline" className="h-8 text-[11px] font-bold rounded-xl gap-1">
-              <ShoppingCart className="h-3.5 w-3.5 text-primary" /> Orders
+              <ShoppingCart className="h-3.5 w-3.5 text-primary" /> Waiter POS
             </Button>
           </Link>
 
@@ -391,7 +391,7 @@ export default function ManagerDashboardPage() {
         <ActivityLogsViewer
           title="Staff Shift Audit Feed"
           description="Comprehensive log of all waiter order entries, kitchen food preparation status updates, cashier settlements, and table changes."
-          allowedRoles={["WAITER", "KITCHEN", "CASHIER", "MANAGER", "OWNER"]}
+          allowedRoles={["WAITER", "KITCHEN", "MANAGER", "OWNER"]}
         />
       )}
 

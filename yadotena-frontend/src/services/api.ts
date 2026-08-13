@@ -417,4 +417,11 @@ export const api = {
       return requestApiStrict<any>("/reports/summary", { method: "GET" });
     },
   },
+
+  analytics: {
+    getSummary: async (params?: { range?: string; from?: string; to?: string }) => {
+      const q = params?.range ? `?from=${params.from || ""}&to=${params.to || ""}` : "";
+      return requestApiStrict<any>(`/staff/analytics${q}`, { method: "GET" });
+    },
+  },
 };

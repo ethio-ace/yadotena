@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { 
   Plus, Search, UserSquare2, Shield, ChefHat, Utensils, 
   KeyRound, Trash2, Edit3, CheckCircle2, XCircle, Phone, 
-  Mail, Calendar, Filter, MoreVertical, X, Lock, RefreshCw
+  Mail, Calendar, Filter, MoreVertical, X, Lock, RefreshCw, ShieldCheck
 } from "lucide-react";
 import { soundAlerts } from "@/lib/audioAlerts";
 
@@ -243,7 +243,7 @@ export default function EmployeesPage() {
                               <div className="font-extrabold text-sm text-foreground flex items-center gap-1.5">
                                 {user.name || "Unnamed User"}
                                 {user.role === "OWNER" && (
-                                  <span title="Administrator / Owner" className="text-amber-500 text-xs">👑</span>
+                                  <span title="Administrator / Owner"><ShieldCheck className="h-3.5 w-3.5 text-amber-500" /></span>
                                 )}
                               </div>
                               <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -435,10 +435,9 @@ function getRoleBadge(role: Role) {
         badgeClass: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20",
         avatarBg: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30",
       };
-    case "CASHIER":
     default:
       return {
-        label: "Cashier POS",
+        label: "Staff Member",
         icon: <UserSquare2 className="h-3 w-3 text-emerald-500" />,
         badgeClass: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
         avatarBg: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",

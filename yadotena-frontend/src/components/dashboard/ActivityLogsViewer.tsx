@@ -18,7 +18,7 @@ export interface ActivityLogItem {
   id: string;
   userId: string;
   userName: string;
-  userRole: "WAITER" | "KITCHEN" | "CASHIER" | "MANAGER" | "OWNER" | string;
+  userRole: "WAITER" | "KITCHEN" | "MANAGER" | "OWNER" | string;
   action: string;
   entityType: string;
   entityId: string;
@@ -73,8 +73,6 @@ export function ActivityLogsViewer({
         return <User className="h-4 w-4 text-amber-500" />;
       case "KITCHEN":
         return <ChefHat className="h-4 w-4 text-orange-500" />;
-      case "CASHIER":
-        return <Wallet className="h-4 w-4 text-emerald-500" />;
       case "MANAGER":
         return <Shield className="h-4 w-4 text-purple-500" />;
       case "OWNER":
@@ -90,8 +88,6 @@ export function ActivityLogsViewer({
         return "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30";
       case "KITCHEN":
         return "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30";
-      case "CASHIER":
-        return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
       case "MANAGER":
         return "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30";
       case "OWNER":
@@ -264,16 +260,6 @@ export function ActivityLogsViewer({
             }`}
           >
             Chefs
-          </button>
-          <button
-            onClick={() => setSelectedRoleFilter("CASHIER")}
-            className={`px-3 py-2 rounded-2xl border transition-all ${
-              selectedRoleFilter === "CASHIER"
-                ? "bg-emerald-500 text-white border-emerald-500"
-                : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            Cashiers
           </button>
           {isOwnerView && (
             <button

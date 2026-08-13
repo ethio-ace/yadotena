@@ -184,7 +184,7 @@ export default function PaymentsPage() {
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            💳 Transactions Ledger ({paidOrders.length})
+            Transactions Ledger ({paidOrders.length})
           </Button>
 
           <Button
@@ -195,7 +195,7 @@ export default function PaymentsPage() {
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            ⚙️ Payment Gateways ({methods.length})
+            Payment Gateways ({methods.length})
           </Button>
         </div>
       </div>
@@ -425,7 +425,7 @@ export default function PaymentsPage() {
                     className="flex-1 h-9 rounded-xl text-xs font-bold"
                     onClick={() => setFormData({ ...formData, type: "DIGITAL" })}
                   >
-                    📱 Digital Wallet
+                    Digital Wallet
                   </Button>
                   <Button
                     type="button"
@@ -433,7 +433,7 @@ export default function PaymentsPage() {
                     className="flex-1 h-9 rounded-xl text-xs font-bold"
                     onClick={() => setFormData({ ...formData, type: "CASH" })}
                   >
-                    💵 Cash Register
+                    Cash Register
                   </Button>
                 </div>
               </div>

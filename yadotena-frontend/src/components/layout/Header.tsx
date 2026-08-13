@@ -18,7 +18,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navItems } from "@/components/layout/Sidebar";
 
-export default function Header({ user = { name: "Guest Customer", role: "CUSTOMER" } }: { user?: any }) {
+export default function Header({ user = { name: "Staff Member", role: "WAITER" } }: { user?: any }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAudioControls, setShowAudioControls] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -45,7 +45,7 @@ export default function Header({ user = { name: "Guest Customer", role: "CUSTOME
     },
   });
 
-  const userRole = user?.role || "CUSTOMER";
+  const userRole = user?.role || "WAITER";
   const showPendingOrders = pendingOrders.length > 0 && userRole !== "WAITER";
   const totalUrgentCount = (showPendingOrders ? pendingOrders.length : 0) + pendingServiceRequests.length;
   const allowedItems = navItems.filter((item) => item.roles.includes(userRole));

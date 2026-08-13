@@ -16,10 +16,13 @@ export default function ExpensesPage() {
   const [showForm, setShowForm] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("ALL");
 
-  const [category, setCategory] = useState("Dairy Supplies");
+  const [category, setCategory] = useState("Dairy Supplies (Raw Milk, Butter, Honey)");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("Telebirr Merchant");
+  const [paymentMethod, setPaymentMethod] = useState("CBE Bank Transfer");
+  const [reference, setReference] = useState("");
+
+  const isDigitalPayment = paymentMethod !== "Register Cash Drawer";
 
   const { data: apiExpenses = [] } = useQuery({
     queryKey: ["expenses"],
@@ -33,22 +36,23 @@ export default function ExpensesPage() {
       setShowForm(false);
       setDescription("");
       setAmount("");
+      setReference("");
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
     },
   });
 
   const fallbackExpenses = [
-    { id: "exp1", date: new Date().toISOString(), category: "Dairy Supplies", description: "300 Liters Raw Milk Purchase from Farm", amount: 14500, paymentMethod: "Telebirr", recordedBy: "Store Manager" },
-    { id: "exp2", date: new Date().toISOString(), category: "Utilities", description: "Electricity & Cold Room Generator Fuel", amount: 6200, paymentMethod: "CBE Bank", recordedBy: "Store Manager" },
-    { id: "exp3", date: new Date().toISOString(), category: "Kitchen Hardware", description: "Stainless Steel Cheese Mold Press", amount: 8400, paymentMethod: "Cash", recordedBy: "Owner" },
-    { id: "exp4", date: new Date().toISOString(), category: "Staff Salaries", description: "Weekly Waiter & Kitchen Staff Payroll", amount: 32000, paymentMethod: "Bank Transfer", recordedBy: "Owner" },
+    { id: "exp1", date: new Date().toISOString(), category: "Dairy Supplies", description: "300 Liters Raw Milk Purchase from Farm", amount: 14500, paymentMethod: "Telebirr Merchant", reference: "TXN-88492019", recordedBy: "Store Manager" },
+    { id: "exp2", date: new Date().toISOString(), category: "Utilities", description: "Electricity & Cold Room Generator Fuel", amount: 6200, paymentMethod: "CBE Bank Transfer", reference: "FT2408139820", recordedBy: "Store Manager" },
+    { id: "exp3", date: new Date().toISOString(), category: "Kitchen Hardware", description: "Stainless Steel Cheese Mold Press", amount: 8400, paymentMethod: "Register Cash Drawer", recordedBy: "Owner" },
+    { id: "exp4", date: new Date().toISOString(), category: "Staff Salaries", description: "Weekly Waiter & Kitchen Staff Payroll", amount: 32000, paymentMethod: "CBE Bank Transfer", reference: "FT2408110042", recordedBy: "Owner" },
   ];
 
   const expenses = apiExpenses.length > 0 ? apiExpenses : fallbackExpenses;
 
   const filteredExpenses = expenses.filter((e: any) => {
     if (categoryFilter === "ALL") return true;
-    return e.category === categoryFilter;
+    return e.category === categoryFilter || e.category.includes(categoryFilter);
   });
 
   const totalExpenseSum = expenses.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
@@ -61,6 +65,7 @@ export default function ExpensesPage() {
       description,
       amount: Number(amount),
       paymentMethod,
+      reference: isDigitalPayment && reference.trim() ? reference.trim() : undefined,
       date: new Date().toISOString(),
     });
   };
@@ -134,11 +139,12 @@ export default function ExpensesPage() {
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full h-10 px-3 rounded-xl border bg-card text-xs font-semibold focus:outline-none"
               >
-                <option value="Dairy Supplies">Dairy Supplies (Raw Milk, Butter, Honey)</option>
-                <option value="Utilities">Utilities (Electricity, Water, Fuel)</option>
-                <option value="Kitchen Hardware">Kitchen Hardware & Equipment</option>
-                <option value="Staff Salaries">Staff Salaries & Wages</option>
-                <option value="Marketing">Marketing & Packaging</option>
+                <option value="Dairy Supplies (Raw Milk, Butter, Honey)">Dairy Supplies (Raw Milk, Butter, Honey)</option>
+                <option value="Utilities (Electricity, Water, Fuel)">Utilities (Electricity, Water, Fuel)</option>
+                <option value="Kitchen Hardware & Equipment">Kitchen Hardware & Equipment</option>
+                <option value="Staff Salaries & Wages">Staff Salaries & Wages</option>
+                <option value="Marketing & Packaging">Marketing & Packaging</option>
+                <option value="Logistics & Transport">Logistics & Transport</option>
               </select>
             </div>
 
@@ -172,11 +178,28 @@ export default function ExpensesPage() {
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 className="w-full h-10 px-3 rounded-xl border bg-card text-xs font-semibold focus:outline-none"
               >
-                <option value="Telebirr Merchant">Telebirr Merchant</option>
                 <option value="CBE Bank Transfer">CBE Bank Transfer</option>
+                <option value="Telebirr Merchant">Telebirr Merchant</option>
+                <option value="Awash Birr / Bank">Awash Birr / Bank</option>
+                <option value="BOA Bank Transfer">BOA Bank Transfer</option>
                 <option value="Register Cash Drawer">Register Cash Drawer</option>
               </select>
             </div>
+
+            {isDigitalPayment && (
+              <div className="space-y-1 animate-in fade-in duration-200">
+                <label className="text-xs font-bold text-foreground flex items-center justify-between">
+                  <span>Digital Transaction Reference</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">Optional</span>
+                </label>
+                <Input
+                  placeholder="e.g. FT2408139820 or TXN-88492"
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  className="rounded-xl h-10 text-xs font-mono"
+                />
+              </div>
+            )}
 
             <div className="flex items-end justify-end gap-2 md:col-span-2 pt-2 border-t">
               <Button type="button" variant="outline" className="rounded-xl text-xs font-bold" onClick={() => setShowForm(false)}>
@@ -216,7 +239,7 @@ export default function ExpensesPage() {
                   <th className="px-5 py-3.5">Date & Time</th>
                   <th className="px-5 py-3.5">Category</th>
                   <th className="px-5 py-3.5">Description</th>
-                  <th className="px-5 py-3.5">Payment Method</th>
+                  <th className="px-5 py-3.5">Payment Method & Ref</th>
                   <th className="px-5 py-3.5">Recorded By</th>
                   <th className="px-5 py-3.5 text-right">Amount (ETB)</th>
                 </tr>
@@ -233,8 +256,15 @@ export default function ExpensesPage() {
                       </Badge>
                     </td>
                     <td className="px-5 py-4 font-extrabold text-foreground">{expense.description}</td>
-                    <td className="px-5 py-4 text-muted-foreground font-medium">{expense.paymentMethod}</td>
-                    <td className="px-5 py-4 text-muted-foreground font-semibold">{expense.recordedBy}</td>
+                    <td className="px-5 py-4 text-muted-foreground font-medium">
+                      <div>{expense.paymentMethod}</div>
+                      {expense.reference && (
+                        <div className="text-[10px] font-mono text-primary font-bold mt-0.5">
+                          Ref: {expense.reference}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-muted-foreground font-semibold">{expense.recordedBy || "Store Manager"}</td>
                     <td className="px-5 py-4 text-right font-black text-rose-600 dark:text-rose-400 text-sm">
                       -{formatETB(expense.amount)}
                     </td>

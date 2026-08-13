@@ -16,7 +16,6 @@ import {
 import OwnerDashboardPage from "./owner/page";
 import ManagerDashboardPage from "./manager/page";
 import WaiterDashboardPage from "./waiter/page";
-import CashierDashboardPage from "./cashier/page";
 import KitchenPage from "./kitchen/page";
 
 export default function DashboardPage() {
@@ -25,7 +24,6 @@ export default function DashboardPage() {
 
   if (role === "WAITER") return <WaiterDashboardPage />;
   if (role === "KITCHEN") return <KitchenPage />;
-  if ((role as string) === "CASHIER") return <CashierDashboardPage />;
   if (role === "MANAGER") return <ManagerDashboardPage />;
 
   return <OwnerDashboardPage />;

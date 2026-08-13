@@ -61,7 +61,7 @@ export default function OwnerDashboardPage() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 font-black text-[10px] uppercase tracking-wider px-3 py-1">
-              👑 Executive Owner Suite
+              Executive Owner Suite
             </Badge>
             <span className="text-xs text-slate-400 font-medium">Yadotena Enterprise</span>
           </div>

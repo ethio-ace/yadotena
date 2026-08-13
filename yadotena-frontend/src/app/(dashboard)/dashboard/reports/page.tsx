@@ -14,7 +14,7 @@ import {
 import { 
   Download, Printer, TrendingUp, DollarSign, Receipt, ShoppingBag, 
   ArrowUpRight, Sparkles, Calendar, Utensils, CheckCircle2, ChevronRight,
-  Maximize2, X, Filter, Users, Clock, ShieldCheck, Flame, Layers, Eye, BarChart3
+  Maximize2, X, Filter, Users, Clock, ShieldCheck, Flame, Layers, Eye, BarChart3, CreditCard
 } from "lucide-react";
 
 // Parameterized sales datasets
@@ -91,7 +91,7 @@ const staffLeaderboard = [
   { name: "Tigist Haile", role: "WAITER", tablesServed: 84, revenueGenerated: 68400, avgFulfillment: "11 mins", rating: "4.9 ★" },
   { name: "Dawit Worku", role: "WAITER", tablesServed: 76, revenueGenerated: 59200, avgFulfillment: "12 mins", rating: "4.8 ★" },
   { name: "Chef Solomon", role: "KITCHEN", ordersCooked: 194, avgPrepSpeed: "7.5 mins", errorRate: "0.2%", rating: "5.0 ★" },
-  { name: "Helen Assefa", role: "CASHIER", settlements: 142, volumeSettled: 124500, cashReconciliation: "100% Match", rating: "5.0 ★" },
+  { name: "Helen Assefa", role: "WAITER", tablesServed: 68, revenueGenerated: 54500, avgFulfillment: "10 mins", rating: "5.0 ★" },
 ];
 
 export default function ReportsPage() {
@@ -186,57 +186,62 @@ export default function ReportsPage() {
         <div className="flex items-center gap-2 overflow-x-auto text-xs pb-0.5 scrollbar-none">
           <button
             onClick={() => setActiveTab("OVERVIEW")}
-            className={`px-3.5 py-2 rounded-xl font-black transition-all border ${
+            className={`px-3.5 py-2 rounded-xl font-black transition-all border flex items-center gap-2 ${
               activeTab === "OVERVIEW"
                 ? "bg-primary text-primary-foreground border-primary shadow-sm"
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            📊 Executive Overview
+            <BarChart3 className="h-4 w-4" />
+            <span>Executive Overview</span>
           </button>
 
           <button
             onClick={() => setActiveTab("CHANNELS")}
-            className={`px-3.5 py-2 rounded-xl font-black transition-all border ${
+            className={`px-3.5 py-2 rounded-xl font-black transition-all border flex items-center gap-2 ${
               activeTab === "CHANNELS"
                 ? "bg-primary text-primary-foreground border-primary shadow-sm"
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            💳 Channels & Payments
+            <CreditCard className="h-4 w-4" />
+            <span>Channels & Payments</span>
           </button>
 
           <button
             onClick={() => setActiveTab("DISHES")}
-            className={`px-3.5 py-2 rounded-xl font-black transition-all border ${
+            className={`px-3.5 py-2 rounded-xl font-black transition-all border flex items-center gap-2 ${
               activeTab === "DISHES"
                 ? "bg-primary text-primary-foreground border-primary shadow-sm"
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            🍔 Dish & Menu Profitability
+            <Utensils className="h-4 w-4" />
+            <span>Dish & Menu Profitability</span>
           </button>
 
           <button
             onClick={() => setActiveTab("STAFF")}
-            className={`px-3.5 py-2 rounded-xl font-black transition-all border ${
+            className={`px-3.5 py-2 rounded-xl font-black transition-all border flex items-center gap-2 ${
               activeTab === "STAFF"
                 ? "bg-primary text-primary-foreground border-primary shadow-sm"
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            👥 Staff Performance
+            <Users className="h-4 w-4" />
+            <span>Staff Performance</span>
           </button>
 
           <button
             onClick={() => setActiveTab("EXPENSES")}
-            className={`px-3.5 py-2 rounded-xl font-black transition-all border ${
+            className={`px-3.5 py-2 rounded-xl font-black transition-all border flex items-center gap-2 ${
               activeTab === "EXPENSES"
                 ? "bg-primary text-primary-foreground border-primary shadow-sm"
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
             }`}
           >
-            💸 Expenses & Ledger Audit
+            <Receipt className="h-4 w-4" />
+            <span>Expenses & Ledger Audit</span>
           </button>
         </div>
       </div>
@@ -487,13 +492,13 @@ export default function ReportsPage() {
                     <Badge variant="outline" className="font-mono text-[9px] uppercase">{staff.role}</Badge>
                   </div>
                   <p className="text-muted-foreground font-medium">
-                    {staff.tablesServed ? `${staff.tablesServed} Tables Served` : staff.ordersCooked ? `${staff.ordersCooked} Dishes Prepared` : `${staff.settlements} Cashier Settlements`}
+                    {staff.tablesServed ? `${staff.tablesServed} Tables Served` : `${staff.ordersCooked || 0} Dishes Prepared`}
                   </p>
                 </div>
 
                 <div className="text-right space-y-0.5">
                   <span className="font-black text-primary text-sm block">
-                    {staff.revenueGenerated ? formatETB(staff.revenueGenerated) : staff.volumeSettled ? formatETB(staff.volumeSettled) : staff.avgPrepSpeed}
+                    {staff.revenueGenerated ? formatETB(staff.revenueGenerated) : staff.avgPrepSpeed}
                   </span>
                   <span className="text-[10px] font-bold text-muted-foreground block">{staff.rating}</span>
                 </div>

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -111,6 +112,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 
 	s.Ably.Publish(r.Context(), "yadotena-realtime", "order.updated", map[string]any{"id": p.OrderID, "status": "COMPLETED", "paymentStatus": p.Status})
 	s.NATS.Publish("yadotena.payments.created", p)
+	s.LogActivity(r.Context(), "cashier-pos", "Cashier Staff", "CASHIER", "SETTLE_PAYMENT", "PAYMENT", p.ID, fmt.Sprintf("Settled payment of ETB %.2f via %s for Order #%s", p.Amount, p.Method, p.OrderID), nil, p, r.RemoteAddr)
 
 	writeJSON(w, 201, p)
 }

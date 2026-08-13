@@ -19,6 +19,7 @@ import {
   TrendingUp,
   UserCheck
 } from "lucide-react";
+import { ActivityLogsViewer } from "@/components/dashboard/ActivityLogsViewer";
 
 export default function ManagerDashboardPage() {
   const queryClient = useQueryClient();
@@ -229,6 +230,13 @@ export default function ManagerDashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* Staff Activity Audit Log Feed */}
+      <ActivityLogsViewer
+        title="Staff Shift Audit Feed"
+        description="Comprehensive log of all waiter order entries, kitchen food preparation status updates, cashier settlements, and table changes."
+        allowedRoles={["WAITER", "KITCHEN", "CASHIER"]}
+      />
     </div>
   );
 }

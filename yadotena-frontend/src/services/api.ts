@@ -339,6 +339,22 @@ export const api = {
     },
   },
 
+  activityLogs: {
+    getAll: async (params?: { role?: string; entityType?: string; action?: string; search?: string; limit?: number }): Promise<any[]> => {
+      const queryParts: string[] = [];
+      if (params?.role) queryParts.push(`role=${encodeURIComponent(params.role)}`);
+      if (params?.entityType) queryParts.push(`entityType=${encodeURIComponent(params.entityType)}`);
+      if (params?.action) queryParts.push(`action=${encodeURIComponent(params.action)}`);
+      if (params?.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
+      if (params?.limit) queryParts.push(`limit=${params.limit}`);
+      const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+      return requestApiStrict<any[]>(`/activity-logs${queryString}`, { method: "GET" });
+    },
+    getById: async (id: string): Promise<any> => {
+      return requestApiStrict<any>(`/activity-logs/${id}`, { method: "GET" });
+    },
+  },
+
   settings: {
     get: async (): Promise<any> => {
       return requestApiStrict<any>("/settings", { method: "GET" });

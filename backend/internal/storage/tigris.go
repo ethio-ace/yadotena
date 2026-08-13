@@ -182,15 +182,24 @@ func (t *TigrisStorage) UploadAndOptimizeImage(ctx context.Context, r io.Reader,
 	// Also upload to Tigris S3 asynchronously
 	key := fmt.Sprintf("media/%s/%s", dateSubdir, uniqueName)
 	go func(b []byte, k, ct string) {
-		_, _ = t.client.PutObject(context.Background(), &s3.PutObjectInput{
+		_, errPut := t.client.PutObject(context.Background(), &s3.PutObjectInput{
 			Bucket:      aws.String(t.bucket),
 			Key:         aws.String(k),
 			Body:        bytes.NewReader(b),
 			ContentType: aws.String(ct),
 		})
+		if errPut != nil {
+			log.Printf("tigris upload async notice: %v", errPut)
+		} else {
+			log.Printf("tigris upload success: %s", k)
+		}
 	}(finalBytes, key, contentType)
 
-	publicURL := fmt.Sprintf("/uploads/%s", localRelPath)
+	baseURL := strings.TrimRight(t.publicBaseURL, "/")
+	if baseURL == "" || baseURL == "http://localhost:3000" {
+		baseURL = "https://yadotena.onrender.com"
+	}
+	publicURL := fmt.Sprintf("%s/uploads/%s", baseURL, localRelPath)
 	return publicURL, nil
 }
 

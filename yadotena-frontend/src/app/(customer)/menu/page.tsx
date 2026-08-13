@@ -13,6 +13,7 @@ import { Plus, Minus, Search, Star, Clock, Sparkles, UtensilsCrossed, ArrowRight
 import { Input } from "@/components/ui/input";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
 import { formatETB } from "@/lib/currency";
+import { getImageUrl } from "@/lib/utils";
 import Link from "next/link";
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -295,7 +296,7 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
       {/* Dish Cover Image */}
       <div className="relative h-48 w-full overflow-hidden bg-muted">
         <img 
-          src={item.image} 
+          src={getImageUrl(item.image)} 
           alt={item.name} 
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
         />

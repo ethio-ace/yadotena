@@ -59,7 +59,13 @@ func Load() Config {
 	}
 
 	tigrisAccess := firstEnv("TIGRIS_STORAGE_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID")
+	if tigrisAccess == "" {
+		tigrisAccess = "tid_ekEybroErJspsnfHIvLUMYOJzFkEyXvaDpyoNaqkRehShEedSi"
+	}
 	tigrisSecret := firstEnv("TIGRIS_STORAGE_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY")
+	if tigrisSecret == "" {
+		tigrisSecret = "tsec_qPg20YLSquDAayXF2Q+HiBQSeuGfmV-_vUw4gT_MdGTIR_7OorNdyfXUllYZSQ1A3sQ06m"
+	}
 	tigrisEndpoint := firstEnv("TIGRIS_STORAGE_ENDPOINT", "AWS_ENDPOINT_URL_S3")
 	if tigrisEndpoint == "" {
 		tigrisEndpoint = "https://t3.storage.dev"
@@ -69,27 +75,43 @@ func Load() Config {
 		tigrisBucket = "yadotena-media"
 	}
 
+	ablyKey := getenv("ABLY_API_KEY", "-4Zlzg.IeXFIQ:WVUQULrxNq5--goH4SzbHOnTZ9OoXB-JcKMx5Wd2XQE")
+	ablyApp := getenv("ABLY_APP_ID", "-4Zlzg")
+
+	natsURL := getenv("NATS_URL", "tls://connect.ngs.global:4222")
+	natsJWT := getenv("NATS_USER_JWT", "eyJ0eXAiOiJKV1QiLCJhbGciOiJlZDI1NTE5LW5rZXkifQ.eyJqdGkiOiJHTUZKNVpKVkhOTUFXUFFJNFhWSUlYWERVU0FQVFFLT1BLS0EzM0NZQzJCQ0k0Tlo2Q0RBIiwiaWF0IjoxNzg2NTc0NjY5LCJpc3MiOiJBQjdWSFZLQVJORjdMS1BDVVNLN0xNNENWNEdPQVM2WlJYMzQyTEFYTlNKTU5QWldFRUxMSE1SQyIsIm5hbWUiOiJDTEkiLCJzdWIiOiJVQkJCQ05FSTRENUdRSklGUEZLREdHTUtETUZFVUpONkNNMkVJVkZXU0U2TlVUTk9UUDZQVkQzUSIsIm5hdHMiOnsicHViIjp7fSwic3ViIjp7fSwic3VicyI6LTEsImRhdGEiOi0xLCJwYXlsb2FkIjotMSwiaXNzdWVyX2FjY291bnQiOiJBQjZSV1NBV1FUSEVZNkw1VjI0RTNWNUlFQ1hIQU42VkVOTjRINERNM1k3VVpMVEhWMzZYRUpNUyIsInR5cGUiOiJ1c2VyIiwidmVyc2lvbiI6Mn19.YZMK7lf5oPcmyPHaXxcBtqdq4PGM6Ym5m119oQ_TkokAQkLTvJyWYnMDmyhS_jcsX18HLvmxVeG6FbxAHfwBDg")
+	natsSeed := getenv("NATS_NKEY_SEED", "SUABJKHLVB733KNVI5UAJZ4EKTDJTHU2HNYDFOAPH7HS254SMGC2AAES6E")
+
+	pubBaseURL := getenv("PUBLIC_BASE_URL", "")
+	if pubBaseURL == "" || pubBaseURL == "http://localhost:3000" {
+		if getenv("APP_ENV", "development") == "production" || os.Getenv("RENDER") != "" {
+			pubBaseURL = "https://yadotena.onrender.com"
+		} else {
+			pubBaseURL = "http://localhost:8085"
+		}
+	}
+
 	return Config{
 		AppEnv:         getenv("APP_ENV", "development"),
 		AppPort:        port,
-		DatabaseURL:    getenv("DATABASE_URL", "postgres://yadotena:yadotena@localhost:5432/yadotena?sslmode=disable"),
-		RedisURL:       getenv("REDIS_URL", ""),
+		DatabaseURL:    getenv("DATABASE_URL", "postgresql://neondb_owner:npg_dSkyzT5DV1vn@ep-shiny-silence-aywzao76-pooler.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"),
+		RedisURL:       getenv("REDIS_URL", "rediss://default:AeQeAAIncDEzOTYxZGRiMWFhYjY0MTE0OGI0YjZkNWVjNWE2ZTZhMHAxNTgzOTg@working-adder-58398.upstash.io:6379"),
 		JWTSecret:      getenv("JWT_SECRET", "dev-yadotena-secret-change-me"),
 		JWTExpiry:      exp,
 		MigrationsDir:  getenv("MIGRATIONS_DIR", "migrations"),
 		SeedsDir:       getenv("SEEDS_DIR", "seeds"),
 		RunSeeds:       getenv("RUN_SEEDS", "false") == "true",
 		UploadsDir:     getenv("UPLOADS_DIR", "uploads"),
-		PublicBaseURL:  getenv("PUBLIC_BASE_URL", "http://localhost:3000"),
+		PublicBaseURL:  pubBaseURL,
 		CORSOrigins:    getenv("CORS_ALLOWED_ORIGINS", "*"),
 		UploadMaxBytes: maxBytes,
 
-		AblyAPIKey: os.Getenv("ABLY_API_KEY"),
-		AblyAppID:  os.Getenv("ABLY_APP_ID"),
+		AblyAPIKey: ablyKey,
+		AblyAppID:  ablyApp,
 
-		NATSURL:      getenv("NATS_URL", "tls://connect.ngs.global:4222"),
-		NATSUserJWT:  os.Getenv("NATS_USER_JWT"),
-		NATSNkeySeed: os.Getenv("NATS_NKEY_SEED"),
+		NATSURL:      natsURL,
+		NATSUserJWT:  natsJWT,
+		NATSNkeySeed: natsSeed,
 
 		TigrisAccessKeyID:     tigrisAccess,
 		TigrisSecretAccessKey: tigrisSecret,

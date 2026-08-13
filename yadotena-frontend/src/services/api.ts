@@ -292,10 +292,72 @@ export const api = {
     getAll: async () => {
       return requestApiStrict<any[]>("/payments", { method: "GET" });
     },
-    create: async (data: { orderId: string; amount: number; paymentMethod: string }) => {
+    create: async (data: {
+      orderId: string;
+      amount: number;
+      method: string;
+      transactionRef?: string;
+      receiptUrl?: string;
+      status?: string;
+    }) => {
       return requestApiStrict<any>("/payments", {
         method: "POST",
+        body: JSON.stringify({
+          orderId: data.orderId,
+          amount: data.amount,
+          method: data.method,
+          transactionRef: data.transactionRef,
+          receiptUrl: data.receiptUrl,
+          status: data.status || "PAID",
+        }),
+      });
+    },
+  },
+
+  paymentMethods: {
+    getAll: async (showAll?: boolean): Promise<any[]> => {
+      const query = showAll ? "?all=true" : "";
+      return requestApiStrict<any[]>(`/payment-methods${query}`, { method: "GET" });
+    },
+    getById: async (id: string): Promise<any> => {
+      return requestApiStrict<any>(`/payment-methods/${id}`, { method: "GET" });
+    },
+    create: async (data: any): Promise<any> => {
+      return requestApiStrict<any>("/payment-methods", {
+        method: "POST",
         body: JSON.stringify(data),
+      });
+    },
+    update: async (id: string, updates: any): Promise<any> => {
+      return requestApiStrict<any>(`/payment-methods/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+      });
+    },
+    delete: async (id: string): Promise<void> => {
+      return requestApiStrict<void>(`/payment-methods/${id}`, { method: "DELETE" });
+    },
+  },
+
+  settings: {
+    get: async (): Promise<any> => {
+      return requestApiStrict<any>("/settings", { method: "GET" });
+    },
+    update: async (data: any): Promise<any> => {
+      return requestApiStrict<any>("/settings", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+    },
+  },
+
+  media: {
+    upload: async (file: File): Promise<{ url: string; publicUrl: string }> => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return requestApiStrict<{ url: string; publicUrl: string }>("/media/upload", {
+        method: "POST",
+        body: formData,
       });
     },
   },

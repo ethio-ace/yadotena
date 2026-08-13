@@ -15,6 +15,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useCartStore } from "@/stores/cartStore";
 import { AddExtraSelectionModal } from "@/components/dashboard/AddExtraSelectionModal";
+import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
 
 const statusSteps = [
   { id: "PENDING", label: "Order Received", desc: "Kitchen received ticket", icon: Receipt },
@@ -27,6 +28,7 @@ export default function OrderTrackingPage() {
   const params = useParams();
   const router = useRouter();
   const [showExtraSelection, setShowExtraSelection] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const id = params.id as string;
   const [waiterCalled, setWaiterCalled] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
@@ -260,20 +262,10 @@ export default function OrderTrackingPage() {
                     className={`rounded-2xl font-bold flex-1 sm:flex-none h-11 text-xs transition-all ${
                       billRequested ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
                     }`}
-                    onClick={() => handleRequestBill()}
-                    disabled={billRequested}
+                    onClick={() => setShowPaymentModal(true)}
                   >
-                    {billRequested ? (
-                      <>
-                        <Check className="h-4 w-4 mr-1.5" />
-                        <span>Bill Requested!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Receipt className="h-4 w-4 mr-1.5" />
-                        <span>Request Bill</span>
-                      </>
-                    )}
+                    <Receipt className="h-4 w-4 mr-1.5" />
+                    <span>Settle Bill Now</span>
                   </Button>
 
                   <Link href="/menu">
@@ -412,6 +404,16 @@ export default function OrderTrackingPage() {
           }}
         />
       )}
+
+      <PaymentSettlementModal
+        order={order}
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={() => {
+          setShowPaymentModal(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

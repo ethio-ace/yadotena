@@ -1,31 +1,17 @@
 "use client";
 
-import { useCartStore } from "@/stores/cartStore";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SessionManager } from "@/components/SessionManager";
-import { formatETB } from "@/lib/currency";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, Clock, Utensils } from "lucide-react";
+import { ShieldCheck, BookOpen } from "lucide-react";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const cartItems = useCartStore((state) => state.items);
-  const tableId = useCartStore((state) => state.tableId);
-  const sessionCode = useCartStore((state) => state.sessionCode);
-  const activeOrderId = useCartStore((state) => state.activeOrderId);
-  const cartItemCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-  const cartTotal = useCartStore((state) => state.getTotal());
-
-  // Only show the floating View Order button on the /menu page
-  const showFloatingOrderButton = cartItemCount > 0 && pathname === "/menu";
 
   return (
     <div className="min-h-screen bg-muted/20 relative shadow-2xl overflow-hidden flex flex-col">
-      <SessionManager />
-      
-      {/* Customer Header */}
+      {/* Public Digital Menu Header */}
       <header className="sticky top-0 z-50 bg-background/85 backdrop-blur-md border-b px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <Link href="/menu" className="flex items-center gap-2 group">
@@ -37,7 +23,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                 Yadotena <span className="text-primary text-xs font-bold block sm:inline">Milk & Foods</span>
               </h1>
               <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">
-                Fresh Farm Dairy & Artisanal Kitchen
+                Digital Menu Showcase • Artisanal Kitchen
               </p>
             </div>
           </Link>
@@ -46,67 +32,39 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         <div className="flex items-center gap-2">
           <Link href="/menu">
             <Button 
-              variant={pathname === "/menu" ? "default" : "ghost"} 
+              variant="default" 
               size="sm" 
-              className={`rounded-full text-xs font-bold h-8 px-3 transition-all ${
-                pathname === "/menu" ? "shadow-md shadow-primary/20" : "text-muted-foreground hover:text-foreground"
-              }`}
+              className="rounded-full text-xs font-extrabold h-8 px-3.5 shadow-md shadow-primary/20 gap-1.5"
             >
-              🍽️ <span className="hidden sm:inline">Restaurant</span> Menu
-            </Button>
-          </Link>
-          <Link href="/shop">
-            <Button 
-              variant={pathname === "/shop" ? "default" : "ghost"} 
-              size="sm" 
-              className={`rounded-full text-xs font-bold h-8 px-3 transition-all ${
-                pathname === "/shop" ? "shadow-md shadow-primary/20" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              🛒 <span className="hidden sm:inline">Grocery</span> Shop
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>Digital Menu</span>
             </Button>
           </Link>
 
-          {activeOrderId && pathname !== `/order/${activeOrderId}` && (
-            <Link href={`/order/${activeOrderId}`}>
-              <Button size="sm" variant="outline" className="rounded-full text-xs font-bold border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 flex items-center gap-1.5 h-8 px-3">
-                <Clock className="h-3 w-3 animate-spin text-primary" />
-                <span>Ticket</span>
-              </Button>
-            </Link>
-          )}
+          <Link href="/login">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="rounded-full text-xs font-extrabold h-8 px-3.5 gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>Staff Login</span>
+            </Button>
+          </Link>
+
           <ThemeToggle />
         </div>
       </header>
 
-      {/* Main Content Scrollable Area */}
+      {/* Notice Banner */}
+      <div className="bg-primary/10 border-b border-primary/20 px-4 py-1.5 text-center text-xs font-bold text-primary flex items-center justify-center gap-2">
+        <span>📜 Welcome to Yadotena! Browse our gourmet menu below — your floor waiter will take your order & settle your bill.</span>
+      </div>
+
+      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto pb-16">
         {children}
       </main>
-
-      {/* Floating Checkout Button (Only visible on Menu) */}
-      {showFloatingOrderButton && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/90 to-transparent z-50 animate-in slide-in-from-bottom-10 duration-300">
-          <div className="max-w-3xl mx-auto">
-            <Link href="/checkout">
-              <Button 
-                className="w-full text-lg h-16 rounded-full font-black shadow-2xl shadow-primary/30 flex items-center justify-between px-6 hover:scale-[1.01] transition-transform"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary-foreground/20 text-primary-foreground rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
-                    {cartItemCount}
-                  </div>
-                  <span>View Current Order</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>{formatETB(cartTotal)}</span>
-                  <ChevronRight className="h-5 w-5 stroke-[2.5]" />
-                </div>
-              </Button>
-            </Link>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

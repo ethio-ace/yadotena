@@ -2,28 +2,25 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
 import { 
   BellRing, 
-  CheckCircle2, 
-  Grid, 
   Plus, 
-  Receipt, 
-  Clock, 
-  QrCode, 
   Utensils, 
-  Sparkles,
-  Check
+  Check,
+  CreditCard
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
+import { Order } from "@/types";
 
 export default function WaiterDashboardPage() {
   const queryClient = useQueryClient();
-  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<Order | null>(null);
 
   const { data: tables = [] } = useQuery({
     queryKey: ["tables"],
@@ -54,6 +51,12 @@ export default function WaiterDashboardPage() {
     },
   });
 
+  const handlePaymentSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    queryClient.invalidateQueries({ queryKey: ["payments"] });
+    queryClient.invalidateQueries({ queryKey: ["tables"] });
+  };
+
   const pendingRequests = serviceRequests.filter((r) => r.status === "PENDING");
   const activeOrders = orders.filter((o) => o.status !== "COMPLETED" && o.status !== "CANCELLED");
 
@@ -72,14 +75,14 @@ export default function WaiterDashboardPage() {
             Floor Waiter Station
           </h1>
           <p className="text-sm text-amber-200 max-w-xl">
-            Open new table sessions, resolve guest service calls, track food preparation status, and request table bills.
+            Select table, place menu orders, respond to guest service calls, track kitchen preparation, and settle payments via Cash/Digital transfers.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <Link href="/menu">
             <Button size="lg" className="rounded-2xl font-black text-xs bg-amber-500 hover:bg-amber-400 text-amber-950 gap-2 shadow-lg shadow-amber-500/20">
-              <Plus className="h-4 w-4" /> Create New Order
+              <Plus className="h-4 w-4" /> Create New Table Order
             </Button>
           </Link>
         </div>
@@ -135,7 +138,7 @@ export default function WaiterDashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-black tracking-tight">Floor Tables Status</h2>
-            <p className="text-xs text-muted-foreground font-medium">Tap any table to manage session status</p>
+            <p className="text-xs text-muted-foreground font-medium">Tap any table to start order or release session</p>
           </div>
           <Badge variant="outline" className="font-bold text-xs">
             {tables.filter((t) => t.status === "OCCUPIED").length} Occupied / {tables.length} Total
@@ -186,13 +189,14 @@ export default function WaiterDashboardPage() {
                       Clear & Release
                     </Button>
                   ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => updateTableStatusMutation.mutate({ id: table.id, status: "OCCUPIED" })}
-                      className="w-full rounded-xl text-[11px] font-bold h-8 bg-primary hover:bg-primary/90 text-primary-foreground"
-                    >
-                      Open Session
-                    </Button>
+                    <Link href={`/menu?table=${table.id}`}>
+                      <Button
+                        size="sm"
+                        className="w-full rounded-xl text-[11px] font-bold h-8 bg-primary hover:bg-primary/90 text-primary-foreground"
+                      >
+                        Start Order
+                      </Button>
+                    </Link>
                   )}
                 </div>
               </Card>
@@ -207,9 +211,9 @@ export default function WaiterDashboardPage() {
           <div>
             <h3 className="font-black text-lg flex items-center gap-2">
               <Utensils className="h-5 w-5 text-primary" />
-              <span>Active Kitchen Tickets (Ready to Serve)</span>
+              <span>Active Kitchen Tickets & Bill Settlement</span>
             </h3>
-            <p className="text-xs text-muted-foreground">Track order preparation to deliver hot food to tables promptly</p>
+            <p className="text-xs text-muted-foreground">Track order preparation and settle bill once served</p>
           </div>
           <Badge variant="outline" className="font-bold text-xs">
             {activeOrders.length} Active Tickets
@@ -218,46 +222,66 @@ export default function WaiterDashboardPage() {
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {activeOrders.map((order: any) => (
-            <div key={order.id} className="p-4 rounded-2xl bg-muted/40 border space-y-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <Badge className="bg-primary/20 text-primary font-black text-[10px] uppercase">
-                    {order.tableId ? `Table ${order.tableId.replace("t", "")}` : order.type}
-                  </Badge>
-                  <h4 className="font-black text-sm mt-1">Ticket #{order.id.slice(-6).toUpperCase()}</h4>
-                </div>
-                <Badge
-                  className={`font-black text-[10px] uppercase ${
-                    order.status === "READY"
-                      ? "bg-emerald-500 text-white animate-pulse"
-                      : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                  }`}
-                >
-                  {order.status}
-                </Badge>
-              </div>
-
-              <div className="text-xs space-y-1 text-muted-foreground font-medium">
-                {order.items?.map((item: any) => (
-                  <div key={item.id} className="flex justify-between">
-                    <span>{item.quantity}x {item.name}</span>
-                    <span className="font-bold">{formatETB(item.price * item.quantity)}</span>
+            <div key={order.id} className="p-4 rounded-2xl bg-muted/40 border space-y-3 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <Badge className="bg-primary/20 text-primary font-black text-[10px] uppercase">
+                      {order.tableId ? `Table ${order.tableId.replace("t", "")}` : order.type}
+                    </Badge>
+                    <h4 className="font-black text-sm mt-1">Ticket #{order.id.slice(-6).toUpperCase()}</h4>
                   </div>
-                ))}
+                  <Badge
+                    className={`font-black text-[10px] uppercase ${
+                      order.status === "SERVED" || order.status === "READY"
+                        ? "bg-emerald-500 text-white animate-pulse"
+                        : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                    }`}
+                  >
+                    {order.status}
+                  </Badge>
+                </div>
+
+                <div className="text-xs space-y-1 text-muted-foreground font-medium">
+                  {order.items?.map((item: any) => (
+                    <div key={item.id} className="flex justify-between">
+                      <span>{item.quantity}x {item.name}</span>
+                      <span className="font-bold">{formatETB(item.price * item.quantity)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="pt-2 border-t flex justify-between items-center text-xs font-black">
-                <span>Total: {formatETB(order.total)}</span>
-                <Link href={`/order/${order.id}`}>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs font-bold text-primary">
-                    View Tracker →
+              <div className="pt-3 border-t space-y-2">
+                <div className="flex justify-between items-center text-xs font-black">
+                  <span>Total: {formatETB(order.total)}</span>
+                  <Badge variant="outline" className="text-[10px] font-bold">
+                    {order.paymentStatus}
+                  </Badge>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => setSelectedOrderForPayment(order)}
+                    className="w-full rounded-xl text-xs font-black h-9 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                  >
+                    <CreditCard className="h-3.5 w-3.5" /> Settle Payment
                   </Button>
-                </Link>
+                </div>
               </div>
             </div>
           ))}
         </div>
       </Card>
+
+      {/* Payment Settlement Modal */}
+      <PaymentSettlementModal
+        order={selectedOrderForPayment}
+        isOpen={!!selectedOrderForPayment}
+        onClose={() => setSelectedOrderForPayment(null)}
+        onSuccess={handlePaymentSuccess}
+      />
     </div>
   );
 }

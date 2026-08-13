@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 from datetime import timedelta
+from apps.core.ably_utils import publish_event
 from .models import Product, ProductSale, ProductPurchase
 from .serializers import ProductSerializer, ProductSaleSerializer, ProductPurchaseSerializer
 from apps.expenses.models import Expense, ExpenseCategory
@@ -13,6 +14,18 @@ from decimal import Decimal
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+
+    def perform_create(self, serializer):
+        serializer.save()
+        publish_event('yadotena-realtime', 'product.changed', {})
+
+    def perform_update(self, serializer):
+        serializer.save()
+        publish_event('yadotena-realtime', 'product.changed', {})
+
+    def perform_destroy(self, instance):
+        instance.delete()
+        publish_event('yadotena-realtime', 'product.changed', {})
 
     @action(detail=False, methods=['get'])
     def analytics(self, request):
@@ -74,6 +87,7 @@ class ProductSaleViewSet(viewsets.ModelViewSet):
             )
 
         serializer = self.get_serializer(sale)
+        publish_event('yadotena-realtime', 'product.changed', {})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class ProductPurchaseViewSet(viewsets.ModelViewSet):
@@ -115,4 +129,5 @@ class ProductPurchaseViewSet(viewsets.ModelViewSet):
             )
 
         serializer = self.get_serializer(purchase)
+        publish_event('yadotena-realtime', 'product.changed', {})
         return Response(serializer.data, status=status.HTTP_201_CREATED)

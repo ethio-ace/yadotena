@@ -32,7 +32,8 @@ func (s *Server) Router() http.Handler {
 		}
 		writeJSON(w, 200, map[string]any{"ok": true, "db": true})
 	})
-	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(s.Cfg.UploadsDir))))
+	r.Get("/uploads/*", s.serveUploads)
+	r.Get("/media-proxy", s.mediaProxy)
 
 	// Single strict API v1 namespace - NO dual mounting at root
 	r.Route("/api/v1", func(r chi.Router) {
@@ -170,7 +171,7 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 	r.Post("/media/upload-link", s.uploadMediaFromLink)
 	r.Post("/uploads/presign", s.presignMediaUpload)
 	r.Post("/uploads", s.directMediaUpload)
-	r.Handle("/uploads/*", http.StripPrefix("/api/v1/uploads/", http.FileServer(http.Dir(s.Cfg.UploadsDir))))
+	r.Get("/uploads/*", s.serveUploads)
 
 	// --- Legacy / Public / Staff Compatibility Routes ---
 	r.Route("/public", func(r chi.Router) {

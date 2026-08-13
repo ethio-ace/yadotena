@@ -3,6 +3,8 @@ package server
 import (
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -117,4 +119,45 @@ func (s *Server) mediaProxy(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
+}
+
+func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
+	relPath := strings.TrimPrefix(r.URL.Path, "/uploads/")
+	relPath = strings.TrimPrefix(relPath, "/")
+
+	if relPath == "" {
+		writeErr(w, 400, "invalid upload path")
+		return
+	}
+
+	localFullPath := filepath.Join(s.Cfg.UploadsDir, relPath)
+
+	// 1. If file exists on local disk, serve it immediately
+	if fi, err := os.Stat(localFullPath); err == nil && !fi.IsDir() {
+		w.Header().Set("Cache-Control", "public, max-age=31536000")
+		http.ServeFile(w, r, localFullPath)
+		return
+	}
+
+	// 2. Try fetching from Tigris S3 via GetObject
+	body, ct, err := s.Storage.GetObject(r.Context(), relPath)
+	if err == nil && body != nil {
+		defer body.Close()
+		buf, errRead := io.ReadAll(body)
+		if errRead == nil && len(buf) > 0 {
+			// Cache to disk for future requests
+			_ = os.MkdirAll(filepath.Dir(localFullPath), 0o755)
+			_ = os.WriteFile(localFullPath, buf, 0o644)
+
+			w.Header().Set("Content-Type", ct)
+			w.Header().Set("Cache-Control", "public, max-age=31536000")
+			w.WriteHeader(200)
+			_, _ = w.Write(buf)
+			return
+		}
+	}
+
+	// 3. Fallback: redirect to high-res placeholder image
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	http.Redirect(w, r, "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=70", http.StatusFound)
 }

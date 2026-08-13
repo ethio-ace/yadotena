@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/chai2010/webp"
 	"github.com/google/uuid"
 	_ "golang.org/x/image/bmp"
@@ -179,7 +180,7 @@ func (t *TigrisStorage) UploadAndOptimizeImage(ctx context.Context, r io.Reader,
 		log.Printf("local upload write notice: %v", errWrite)
 	}
 
-	// Also upload to Tigris S3 asynchronously
+	// Also upload to Tigris S3 asynchronously with public-read ACL
 	key := fmt.Sprintf("media/%s/%s", dateSubdir, uniqueName)
 	go func(b []byte, k, ct string) {
 		_, errPut := t.client.PutObject(context.Background(), &s3.PutObjectInput{
@@ -187,6 +188,7 @@ func (t *TigrisStorage) UploadAndOptimizeImage(ctx context.Context, r io.Reader,
 			Key:         aws.String(k),
 			Body:        bytes.NewReader(b),
 			ContentType: aws.String(ct),
+			ACL:         types.ObjectCannedACLPublicRead,
 		})
 		if errPut != nil {
 			log.Printf("tigris upload async notice: %v", errPut)
@@ -197,9 +199,9 @@ func (t *TigrisStorage) UploadAndOptimizeImage(ctx context.Context, r io.Reader,
 
 	baseURL := strings.TrimRight(t.publicBaseURL, "/")
 	if baseURL == "" || baseURL == "http://localhost:3000" || strings.Contains(baseURL, "onrender.com") {
-		baseURL = fmt.Sprintf("%s/%s", t.endpoint, t.bucket)
+		baseURL = "http://localhost:8085"
 	}
-	publicURL := fmt.Sprintf("%s/%s", baseURL, localRelPath)
+	publicURL := fmt.Sprintf("%s/uploads/%s", baseURL, localRelPath)
 	return publicURL, nil
 }
 
@@ -220,4 +222,20 @@ func (t *TigrisStorage) UploadFromLink(ctx context.Context, imageURL string) (st
 	}
 
 	return t.UploadAndOptimizeImage(ctx, resp.Body, path.Base(imageURL))
+}
+
+func (t *TigrisStorage) GetObject(ctx context.Context, key string) (io.ReadCloser, string, error) {
+	key = strings.TrimPrefix(key, "/")
+	out, err := t.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(t.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	ct := "image/webp"
+	if out.ContentType != nil && *out.ContentType != "" {
+		ct = *out.ContentType
+	}
+	return out.Body, ct, nil
 }

@@ -380,43 +380,9 @@ export default function OrderTrackingPage() {
             </CardContent>
           </Card>
 
-          {/* Customer Satisfaction Feedback (After Meal) */}
-          <Card className="rounded-3xl shadow-sm border-muted-foreground/15 bg-card/60 p-6 text-center space-y-3">
-            <h4 className="font-bold text-base">How is your dining experience?</h4>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Your instant feedback helps our chef and floor staff deliver five-star service.
-            </p>
-
-            <div className="flex items-center justify-center gap-2 pt-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => {
-                    setRating(star);
-                    setFeedbackSent(true);
-                  }}
-                  className="p-1.5 hover:scale-125 transition-transform"
-                >
-                  <Star 
-                    className={`h-7 w-7 ${
-                      rating >= star 
-                        ? "fill-amber-400 text-amber-400" 
-                        : "text-muted-foreground/30 hover:text-amber-400"
-                    } transition-colors`} 
-                  />
-                </button>
-              ))}
-            </div>
-
-            {feedbackSent && (
-              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 animate-in fade-in">
-                ✓ Thank you for rating Yadotena Milk & Foods {rating} stars!
-              </p>
-            )}
-
-            {(isCompleted || order.status === "READY") && order.type === "DINE_IN" && (
-              <div className="pt-4 mt-4 border-t border-muted-foreground/10 animate-in fade-in">
+          {(isCompleted || order.status === "READY") && order.type === "DINE_IN" && (
+            <Card className="rounded-3xl shadow-sm border-muted-foreground/15 bg-card/60 p-6 text-center space-y-3">
+              <div className="pt-2 animate-in fade-in">
                 <Button 
                   className="rounded-full px-6 font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
                   onClick={() => {
@@ -430,8 +396,8 @@ export default function OrderTrackingPage() {
                   Clicking this will close your current table session. You can scan the QR code to start again.
                 </p>
               </div>
-            )}
-          </Card>
+            </Card>
+          )}
 
         </div>
       </div>

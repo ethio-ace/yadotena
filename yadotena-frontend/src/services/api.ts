@@ -1,7 +1,8 @@
 import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession } from "../types";
 
 const rawBase = (process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com").replace(/\/+$/, "");
-const API_BASE = rawBase.endsWith("/api/v1") ? rawBase : `${rawBase}/api/v1`;
+export const API_BASE_URL = rawBase.endsWith("/api/v1") ? rawBase : `${rawBase}/api/v1`;
+const API_BASE = API_BASE_URL;
 
 // Strict requests for order-critical flows — never silently fall back to mocks
 async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -267,17 +268,35 @@ export const api = {
     getAll: async () => {
       return requestApiStrict<Expense[]>("/expenses", { method: "GET" });
     },
+    create: async (data: any) => {
+      return requestApiStrict<Expense>("/expenses", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
   },
 
   customers: {
     getAll: async () => {
       return requestApiStrict<any[]>("/customers", { method: "GET" });
     },
+    create: async (data: any) => {
+      return requestApiStrict<any>("/customers", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
   },
 
-  reviews: {
+  payments: {
     getAll: async () => {
-      return requestApiStrict<any[]>("/reviews", { method: "GET" });
+      return requestApiStrict<any[]>("/payments", { method: "GET" });
+    },
+    create: async (data: { orderId: string; amount: number; paymentMethod: string }) => {
+      return requestApiStrict<any>("/payments", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
     },
   },
 
@@ -302,6 +321,18 @@ export const api = {
     },
     delete: async (id: string): Promise<void> => {
       return requestApiStrict<void>(`/users/${id}`, { method: "DELETE" });
+    },
+  },
+
+  employees: {
+    getAll: async () => {
+      return requestApiStrict<any[]>("/users", { method: "GET" });
+    },
+  },
+
+  reports: {
+    getSummary: async () => {
+      return requestApiStrict<any>("/reports/summary", { method: "GET" });
     },
   },
 };

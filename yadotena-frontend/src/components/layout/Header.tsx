@@ -18,7 +18,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navItems } from "@/components/layout/Sidebar";
 
-export default function Header({ user }: { user: any }) {
+export default function Header({ user = { name: "Guest Customer", role: "CUSTOMER" } }: { user?: any }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAudioControls, setShowAudioControls] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -46,7 +46,8 @@ export default function Header({ user }: { user: any }) {
   });
 
   const totalUrgentCount = pendingOrders.length + pendingServiceRequests.length;
-  const allowedItems = navItems.filter((item) => item.roles.includes(user.role));
+  const userRole = user?.role || "CUSTOMER";
+  const allowedItems = navItems.filter((item) => item.roles.includes(userRole));
 
   return (
     <div className="flex flex-col shrink-0 z-30 relative">

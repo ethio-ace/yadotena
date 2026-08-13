@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -205,22 +206,54 @@ func (s *Server) deleteTable(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+func (s *Server) resolveTableID(ctx context.Context, rawInput *string) *string {
+	if rawInput == nil {
+		return nil
+	}
+	clean := strings.TrimSpace(*rawInput)
+	if clean == "" || clean == "null" || clean == "undefined" {
+		return nil
+	}
+
+	numStr := clean
+	numStr = strings.TrimPrefix(strings.ToLower(numStr), "table")
+	numStr = strings.TrimPrefix(strings.ToLower(numStr), "tbl-")
+	numStr = strings.TrimPrefix(strings.ToLower(numStr), "t")
+	numStr = strings.TrimSpace(numStr)
+
+	numStrWithZero := numStr
+	if len(numStr) == 1 && numStr[0] >= '1' && numStr[0] <= '9' {
+		numStrWithZero = "0" + numStr
+	}
+
+	var resolvedID string
+	err := s.Pool.QueryRow(ctx, `
+		SELECT id FROM tables
+		WHERE id = $1
+		   OR LOWER(id) = LOWER($1)
+		   OR LOWER(name) = LOWER($1)
+		   OR name ILIKE $2
+		   OR name ILIKE $3
+		   OR id ILIKE $4
+		   OR id ILIKE $5
+		LIMIT 1`, clean, "Table "+clean, "Table "+numStrWithZero, "%"+numStr, "%"+numStrWithZero).Scan(&resolvedID)
+
+	if err != nil || resolvedID == "" {
+		return nil
+	}
+	return &resolvedID
+}
+
 func (s *Server) startSession(w http.ResponseWriter, r *http.Request) {
 	rawTableId := chi.URLParam(r, "id")
 	ctx := r.Context()
 
-	var t Table
-	err := s.Pool.QueryRow(ctx, `
-		SELECT id, name, status FROM tables
-		WHERE id = $1 OR LOWER(id) = LOWER($1) OR LOWER(name) = LOWER($1)
-		   OR REPLACE(LOWER(id), 'tbl-', 't') = LOWER($1)
-		   OR REPLACE(LOWER(name), 'table ', 't') = LOWER($1)
-		LIMIT 1`, rawTableId).Scan(&t.ID, &t.Name, &t.Status)
-	if err != nil {
+	resolvedPtr := s.resolveTableID(ctx, &rawTableId)
+	if resolvedPtr == nil {
 		writeErr(w, 404, "Table not found")
 		return
 	}
-	tableId := t.ID
+	tableId := *resolvedPtr
 
 	var session DiningSession
 	var created bool = false
@@ -248,7 +281,9 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request) {
 			VALUES ($1, $2, $3, $4, $5)`,
 			session.ID, session.TableID, session.SessionCode, session.Status, session.StartedAt)
 
-		if t.Status == "AVAILABLE" {
+		var currStatus string
+		_ = s.Pool.QueryRow(ctx, `SELECT status FROM tables WHERE id = $1`, tableId).Scan(&currStatus)
+		if currStatus == "AVAILABLE" {
 			_, _ = s.Pool.Exec(ctx, `UPDATE tables SET status = 'OCCUPIED', updated_at = now() WHERE id = $1`, tableId)
 			s.Ably.Publish(ctx, "yadotena-realtime", "table.updated", map[string]any{"id": tableId, "status": "OCCUPIED"})
 			s.NATS.Publish("yadotena.tables.updated", map[string]any{"id": tableId, "status": "OCCUPIED"})

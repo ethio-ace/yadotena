@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -118,6 +119,80 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, 200, map[string]any{
+		"access":       tokenStr,
+		"token":        tokenStr,
+		"user":         u,
+		"refreshToken": tokenStr,
+	})
+}
+
+func (s *Server) authRegister(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Phone    string `json:"phone"`
+		Password string `json:"password"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, 400, "invalid request body")
+		return
+	}
+
+	name := strings.TrimSpace(body.Name)
+	email := strings.TrimSpace(strings.ToLower(body.Email))
+	phone := strings.TrimSpace(body.Phone)
+	pass := body.Password
+
+	if name == "" || (email == "" && phone == "") || pass == "" {
+		writeErr(w, 400, "Name, email/phone, and password are required")
+		return
+	}
+
+	if email == "" {
+		email = "customer_" + randomHex(4) + "@yadotena.com"
+	}
+
+	ctx := r.Context()
+
+	var exists bool
+	_ = s.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(email) = $1 OR (phone <> '' AND phone = $2))`, email, phone).Scan(&exists)
+	if exists {
+		writeErr(w, 400, "An account with this email or phone already exists")
+		return
+	}
+
+	hash, _ := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+	userID := uuid.New().String()
+
+	var u User
+	err := s.Pool.QueryRow(ctx, `
+		INSERT INTO users (id, email, password_hash, name, phone, role, status)
+		VALUES ($1, $2, $3, $4, $5, 'CUSTOMER', 'ACTIVE')
+		RETURNING id, email, name, phone, role, status, avatar_url, created_at, updated_at`,
+		userID, email, string(hash), name, phone,
+	).Scan(&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
+
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+
+	custID := fmt.Sprintf("cust-%s", uuid.New().String()[:8])
+	_, _ = s.Pool.Exec(ctx, `
+		INSERT INTO customers (id, name, phone, email, total_orders, total_spent)
+		VALUES ($1, $2, $3, $4, 0, 0)
+		ON CONFLICT (phone) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name`,
+		custID, name, phone, email)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":  u.ID,
+		"name": u.Name,
+		"role": u.Role,
+		"exp":  time.Now().Add(s.Cfg.JWTExpiry).Unix(),
+	})
+	tokenStr, _ := token.SignedString([]byte(s.Cfg.JWTSecret))
+
+	writeJSON(w, 201, map[string]any{
 		"access":       tokenStr,
 		"token":        tokenStr,
 		"user":         u,

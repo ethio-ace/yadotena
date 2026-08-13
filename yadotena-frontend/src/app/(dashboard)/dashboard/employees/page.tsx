@@ -435,12 +435,13 @@ function getRoleBadge(role: Role) {
         badgeClass: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20",
         avatarBg: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30",
       };
+    case "CASHIER":
     default:
       return {
-        label: "Customer",
-        icon: <UserSquare2 className="h-3 w-3 text-muted-foreground" />,
-        badgeClass: "bg-muted text-muted-foreground border-muted",
-        avatarBg: "bg-muted text-muted-foreground",
+        label: "Cashier POS",
+        icon: <UserSquare2 className="h-3 w-3 text-emerald-500" />,
+        badgeClass: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+        avatarBg: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
       };
   }
 }

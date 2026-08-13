@@ -14,7 +14,8 @@ import {
 import { 
   Download, Printer, TrendingUp, DollarSign, Receipt, ShoppingBag, 
   ArrowUpRight, Sparkles, Calendar, Utensils, CheckCircle2, ChevronRight,
-  Maximize2, X, Filter, Users, Clock, ShieldCheck, Flame, Layers, Eye, BarChart3, CreditCard
+  Maximize2, X, Filter, Users, Clock, ShieldCheck, Flame, Layers, Eye, BarChart3, CreditCard,
+  Building2, Wallet, Tag
 } from "lucide-react";
 
 // Parameterized sales datasets
@@ -80,18 +81,39 @@ const rangeDatasets: Record<string, { label: string; gross: number; expenses: nu
 };
 
 const topSellers = [
-  { id: "d1", name: "Pasteurized Whole Milk (1L)", category: "Fresh Dairy", price: 120, cost: 70, unitsSold: 420, revenue: 50400, profitMargin: "41.6%", prepTime: "1 min" },
-  { id: "d2", name: "Traditional Ergo Yogurt", category: "Fresh Dairy", price: 180, cost: 95, unitsSold: 310, revenue: 55800, profitMargin: "47.2%", prepTime: "2 mins" },
-  { id: "d3", name: "Clarified Niter Kibbeh (1kg)", category: "Dairy Butter", price: 850, cost: 480, unitsSold: 142, revenue: 120700, profitMargin: "43.5%", prepTime: "3 mins" },
-  { id: "d4", name: "Special Chechebsa with Honey", category: "Breakfast", price: 350, cost: 160, unitsSold: 210, revenue: 73500, profitMargin: "54.2%", prepTime: "8 mins" },
-  { id: "d5", name: "Raw Highland Honey (1kg Jar)", category: "Artisanal", price: 650, cost: 380, unitsSold: 115, revenue: 74750, profitMargin: "41.5%", prepTime: "1 min" },
+  { id: "d1", name: "Pasteurized Whole Milk (1L)", category: "Fresh Dairy", price: 120, cost: 70, unitProfit: 50, unitsSold: 420, revenue: 50400, totalCost: 29400, profitMargin: "41.6%", prepTime: "1 min" },
+  { id: "d2", name: "Traditional Ergo Yogurt", category: "Fresh Dairy", price: 180, cost: 95, unitProfit: 85, unitsSold: 310, revenue: 55800, totalCost: 29450, profitMargin: "47.2%", prepTime: "2 mins" },
+  { id: "d3", name: "Clarified Niter Kibbeh (1kg)", category: "Dairy Butter", price: 850, cost: 480, unitProfit: 370, unitsSold: 142, revenue: 120700, totalCost: 68160, profitMargin: "43.5%", prepTime: "3 mins" },
+  { id: "d4", name: "Special Chechebsa with Honey", category: "Breakfast", price: 350, cost: 160, unitProfit: 190, unitsSold: 210, revenue: 73500, totalCost: 33600, profitMargin: "54.2%", prepTime: "8 mins" },
+  { id: "d5", name: "Raw Highland Honey (1kg Jar)", category: "Artisanal", price: 650, cost: 380, unitProfit: 270, unitsSold: 115, revenue: 74750, totalCost: 43700, profitMargin: "41.5%", prepTime: "1 min" },
+];
+
+const channelBreakdownData = [
+  { channel: "Dine-In Tables", count: 248, revenue: 214800, share: "72.0%", avgTicket: 866.1 },
+  { channel: "Takeaway & Pick Up", count: 62, revenue: 52400, share: "17.6%", avgTicket: 845.1 },
+  { channel: "Express Delivery", count: 32, revenue: 31200, share: "10.4%", avgTicket: 975.0 },
+];
+
+const paymentMethodBreakdownData = [
+  { method: "CBE Bank Transfer", type: "Digital", count: 128, amount: 118400, share: "39.7%", avgTime: "< 1 min", verified: true },
+  { method: "Telebirr Merchant", type: "Digital", count: 114, amount: 96200, share: "32.2%", avgTime: "Instant", verified: true },
+  { method: "Register Cash Drawer", type: "Cash", count: 68, amount: 54800, share: "18.4%", avgTime: "Shift End", verified: true },
+  { method: "Awash Birr / Bank", type: "Digital", count: 22, amount: 18600, share: "6.2%", avgTime: "< 2 mins", verified: true },
+  { method: "BOA Bank Transfer", type: "Digital", count: 10, amount: 10400, share: "3.5%", avgTime: "< 2 mins", verified: true },
 ];
 
 const staffLeaderboard = [
-  { name: "Tigist Haile", role: "WAITER", tablesServed: 84, revenueGenerated: 68400, avgFulfillment: "11 mins", rating: "4.9 ★" },
-  { name: "Dawit Worku", role: "WAITER", tablesServed: 76, revenueGenerated: 59200, avgFulfillment: "12 mins", rating: "4.8 ★" },
-  { name: "Chef Solomon", role: "KITCHEN", ordersCooked: 194, avgPrepSpeed: "7.5 mins", errorRate: "0.2%", rating: "5.0 ★" },
-  { name: "Helen Assefa", role: "WAITER", tablesServed: 68, revenueGenerated: 54500, avgFulfillment: "10 mins", rating: "5.0 ★" },
+  { name: "Tigist Haile", role: "WAITER", status: "Active", tablesServed: 84, revenueGenerated: 68400, avgFulfillment: "11 mins", accuracy: "99.2%", rating: "4.9 / 5" },
+  { name: "Dawit Worku", role: "WAITER", status: "Active", tablesServed: 76, revenueGenerated: 59200, avgFulfillment: "12 mins", accuracy: "98.5%", rating: "4.8 / 5" },
+  { name: "Chef Solomon", role: "KITCHEN", status: "Active", ordersCooked: 194, avgPrepSpeed: "7.5 mins", accuracy: "99.8%", rating: "5.0 / 5" },
+  { name: "Helen Assefa", role: "WAITER", status: "Active", tablesServed: 68, revenueGenerated: 54500, avgFulfillment: "10 mins", accuracy: "99.0%", rating: "5.0 / 5" },
+];
+
+const expenseAuditList = [
+  { id: "EXP-8821", date: "2026-08-13", category: "Dairy Supplies", description: "300 Liters Raw Milk Delivery from Debre Birhan", amount: 14500, method: "Telebirr Merchant", ref: "TXN-88492019", status: "VERIFIED" },
+  { id: "EXP-8822", date: "2026-08-12", category: "Utilities & Power", description: "Electricity & Cold Room Generator Fuel", amount: 6200, method: "CBE Bank Transfer", ref: "FT2408139820", status: "VERIFIED" },
+  { id: "EXP-8823", date: "2026-08-11", category: "Kitchen Hardware", description: "Stainless Steel Cheese Mold Press", amount: 8400, method: "Register Cash Drawer", ref: "CASH-REC-041", status: "AUDITED" },
+  { id: "EXP-8824", date: "2026-08-10", category: "Staff Salaries", description: "Weekly Waiter & Kitchen Staff Payroll", amount: 32000, method: "CBE Bank Transfer", ref: "FT2408110042", status: "VERIFIED" },
 ];
 
 export default function ReportsPage() {
@@ -100,7 +122,6 @@ export default function ReportsPage() {
   const [activeDetailModal, setActiveDetailModal] = useState<string | null>(null);
 
   const currentSet = rangeDatasets[dateRange];
-
   const netProfit = currentSet.gross - currentSet.expenses;
   const profitMargin = ((netProfit / currentSet.gross) * 100).toFixed(1);
   const avgTicket = currentSet.gross / currentSet.ordersCount;
@@ -118,8 +139,6 @@ export default function ReportsPage() {
     link.href = url;
     link.setAttribute("download", `Yadotena_Financial_Report_${dateRange}_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   return (
@@ -138,7 +157,7 @@ export default function ReportsPage() {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Click any metric card to expand in-depth audit breakdowns, item margins, and shift performance.
+            Click any metric card to expand in-depth audit breakdowns, item margins, channel splits, and staff shift metrics.
           </p>
         </div>
 
@@ -265,7 +284,7 @@ export default function ReportsPage() {
               <h3 className="text-2xl font-black text-foreground">{formatETB(currentSet.gross)}</h3>
               <p className="text-[11px] text-primary font-bold flex items-center justify-between">
                 <span>+14.8% vs last period</span>
-                <span className="text-muted-foreground group-hover:text-primary underline">Tap to Expand ➔</span>
+                <span className="text-muted-foreground group-hover:text-primary underline">Tap to Expand</span>
               </p>
             </div>
           </CardContent>
@@ -287,7 +306,7 @@ export default function ReportsPage() {
               <h3 className="text-2xl font-black text-foreground">{formatETB(currentSet.expenses)}</h3>
               <p className="text-[11px] text-muted-foreground font-bold flex items-center justify-between">
                 <span>Ingredients & Overhead</span>
-                <span className="text-muted-foreground group-hover:text-primary underline">Breakdown ➔</span>
+                <span className="text-muted-foreground group-hover:text-primary underline">Breakdown</span>
               </p>
             </div>
           </CardContent>
@@ -309,7 +328,7 @@ export default function ReportsPage() {
               <h3 className="text-2xl font-black text-primary">{formatETB(netProfit)}</h3>
               <p className="text-[11px] text-muted-foreground font-bold flex items-center justify-between">
                 <span>Net Earnings</span>
-                <span className="text-muted-foreground group-hover:text-primary underline">Details ➔</span>
+                <span className="text-muted-foreground group-hover:text-primary underline">Details</span>
               </p>
             </div>
           </CardContent>
@@ -331,7 +350,7 @@ export default function ReportsPage() {
               <h3 className="text-2xl font-black text-foreground">{currentSet.ordersCount} Tickets</h3>
               <p className="text-[11px] text-muted-foreground font-bold flex items-center justify-between">
                 <span>Avg Ticket: {formatETB(avgTicket)}</span>
-                <span className="text-muted-foreground group-hover:text-primary underline">Expand ➔</span>
+                <span className="text-muted-foreground group-hover:text-primary underline">Expand</span>
               </p>
             </div>
           </CardContent>
@@ -416,6 +435,91 @@ export default function ReportsPage() {
         </div>
       )}
 
+      {/* CHANNELS & PAYMENTS DETAILED BREAKDOWN TAB */}
+      {activeTab === "CHANNELS" && (
+        <div className="space-y-6">
+          <Card className="rounded-2xl border bg-card p-5 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="font-black text-lg flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  <span>Order Channels & Sales Volume</span>
+                </h3>
+                <p className="text-xs text-muted-foreground">Transaction count, total ETB revenue, and average ticket per channel</p>
+              </div>
+              <Badge className="bg-primary text-primary-foreground font-black text-xs">
+                Channel Performance
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {channelBreakdownData.map((ch, idx) => (
+                <div key={idx} className="p-4 rounded-xl bg-muted/20 border space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-sm text-foreground">{ch.channel}</span>
+                    <Badge variant="outline" className="font-bold text-[10px]">{ch.share}</Badge>
+                  </div>
+                  <div className="text-2xl font-black text-primary">{formatETB(ch.revenue)}</div>
+                  <div className="flex justify-between text-[11px] text-muted-foreground pt-2 border-t font-semibold">
+                    <span>{ch.count} Transactions</span>
+                    <span>Avg: {formatETB(ch.avgTicket)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="rounded-2xl border bg-card p-5 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="font-black text-lg flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-primary" />
+                  <span>Payment Gateway & Settlement Mix</span>
+                </h3>
+                <p className="text-xs text-muted-foreground">Digital wallet transfers (CBE, Telebirr, Awash, BOA) vs Register Cash Drawer</p>
+              </div>
+              <Badge variant="outline" className="font-bold text-xs">Verified Gateway</Badge>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="w-full text-xs text-left">
+                <thead className="text-[11px] font-black text-muted-foreground uppercase bg-muted/50 border-b">
+                  <tr>
+                    <th className="px-4 py-3">Payment Method</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Transactions</th>
+                    <th className="px-4 py-3">Volume Share</th>
+                    <th className="px-4 py-3">Settlement Speed</th>
+                    <th className="px-4 py-3 text-right">Total ETB Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {paymentMethodBreakdownData.map((pm, idx) => (
+                    <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3 font-black text-foreground flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        <span>{pm.method}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant="outline" className="font-bold text-[10px] uppercase">
+                          {pm.type}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 font-bold">{pm.count} Payments</td>
+                      <td className="px-4 py-3 font-black">{pm.share}</td>
+                      <td className="px-4 py-3 text-muted-foreground font-mono">{pm.avgTime}</td>
+                      <td className="px-4 py-3 text-right font-black text-primary text-sm">
+                        {formatETB(pm.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* DISH PROFITABILITY & MARGINS TAB */}
       {(activeTab === "OVERVIEW" || activeTab === "DISHES") && (
         <Card className="rounded-2xl border bg-card p-5 space-y-4 shadow-sm">
@@ -425,7 +529,7 @@ export default function ReportsPage() {
                 <Utensils className="h-5 w-5 text-primary" />
                 <span>Dish Profitability & Sales Contribution</span>
               </h3>
-              <p className="text-xs text-muted-foreground">Item unit margins, reorder velocity, and preparation speed</p>
+              <p className="text-xs text-muted-foreground">Item unit margins, unit costs, reorder velocity, and preparation speed</p>
             </div>
             <Badge className="bg-primary text-primary-foreground font-black text-xs">
               Menu Financials
@@ -438,26 +542,28 @@ export default function ReportsPage() {
                 <tr>
                   <th className="px-4 py-3">Menu Item</th>
                   <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Price / Cost</th>
+                  <th className="px-4 py-3">Selling Price</th>
+                  <th className="px-4 py-3">Unit Cost</th>
+                  <th className="px-4 py-3">Unit Profit</th>
+                  <th className="px-4 py-3">Margin %</th>
                   <th className="px-4 py-3">Units Sold</th>
-                  <th className="px-4 py-3">Profit Margin</th>
-                  <th className="px-4 py-3 text-right">Total Revenue</th>
+                  <th className="px-4 py-3 text-right">Total Gross Revenue</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {topSellers.map((dish) => (
                   <tr key={dish.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-black text-foreground">{dish.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{dish.category}</td>
-                    <td className="px-4 py-3 font-bold">
-                      {formatETB(dish.price)} <span className="text-muted-foreground text-[10px] font-normal">(Cost: {formatETB(dish.cost)})</span>
-                    </td>
-                    <td className="px-4 py-3 font-black">{dish.unitsSold} orders</td>
+                    <td className="px-4 py-3 text-muted-foreground font-medium">{dish.category}</td>
+                    <td className="px-4 py-3 font-bold">{formatETB(dish.price)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{formatETB(dish.cost)}</td>
+                    <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">+{formatETB(dish.unitProfit)}</td>
                     <td className="px-4 py-3">
                       <Badge className="bg-primary/10 text-primary font-black border border-primary/20 text-[10px]">
                         {dish.profitMargin}
                       </Badge>
                     </td>
+                    <td className="px-4 py-3 font-black">{dish.unitsSold} orders</td>
                     <td className="px-4 py-3 text-right font-black text-primary text-sm">
                       {formatETB(dish.revenue)}
                     </td>
@@ -478,7 +584,7 @@ export default function ReportsPage() {
                 <Users className="h-5 w-5 text-primary" />
                 <span>Staff Shift Performance & Throughput</span>
               </h3>
-              <p className="text-xs text-muted-foreground">Order volume and fulfillment speed per employee</p>
+              <p className="text-xs text-muted-foreground">Order volume, fulfillment speed, and service accuracy per employee</p>
             </div>
             <Badge variant="outline" className="font-bold text-xs">Shift Roster</Badge>
           </div>
@@ -493,6 +599,7 @@ export default function ReportsPage() {
                   </div>
                   <p className="text-muted-foreground font-medium">
                     {staff.tablesServed ? `${staff.tablesServed} Tables Served` : `${staff.ordersCooked || 0} Dishes Prepared`}
+                    <span className="ml-2 text-emerald-600 dark:text-emerald-400 font-bold">• {staff.accuracy} Accuracy</span>
                   </p>
                 </div>
 
@@ -504,6 +611,67 @@ export default function ReportsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </Card>
+      )}
+
+      {/* EXPENSES & LEDGER AUDIT TAB */}
+      {(activeTab === "OVERVIEW" || activeTab === "EXPENSES") && (
+        <Card className="rounded-2xl border bg-card p-5 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between border-b pb-3">
+            <div>
+              <h3 className="font-black text-lg flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-primary" />
+                <span>Expenses & Ledger Audit Summary</span>
+              </h3>
+              <p className="text-xs text-muted-foreground">Digital non-cash payments vs cash register expense settlements with reference verification</p>
+            </div>
+            <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-black text-xs">
+              Audit Verified
+            </Badge>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border">
+            <table className="w-full text-xs text-left">
+              <thead className="text-[11px] font-black text-muted-foreground uppercase bg-muted/50 border-b">
+                <tr>
+                  <th className="px-4 py-3">Expense ID & Date</th>
+                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3">Description</th>
+                  <th className="px-4 py-3">Payment Method & Ref</th>
+                  <th className="px-4 py-3">Audit Status</th>
+                  <th className="px-4 py-3 text-right">Amount (ETB)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {expenseAuditList.map((exp) => (
+                  <tr key={exp.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3 font-mono font-bold text-foreground">
+                      <div>{exp.id}</div>
+                      <div className="text-[10px] text-muted-foreground">{exp.date}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="outline" className="font-bold text-[10px]">
+                        {exp.category}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-foreground">{exp.description}</td>
+                    <td className="px-4 py-3 font-medium text-muted-foreground">
+                      <div>{exp.method}</div>
+                      <div className="text-[10px] font-mono text-primary font-bold">Ref: {exp.ref}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black border border-emerald-500/20 text-[10px]">
+                        {exp.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-right font-black text-rose-600 dark:text-rose-400 text-sm">
+                      -{formatETB(exp.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
       )}

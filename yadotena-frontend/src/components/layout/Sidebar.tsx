@@ -39,16 +39,16 @@ export const navSections: NavSection[] = [
     title: "OPERATIONS & TERMINALS",
     items: [
       { name: "Shift Operations", href: "/dashboard/manager", icon: Briefcase, roles: ["OWNER", "MANAGER"] },
-      { name: "Waiter Floor POS", href: "/dashboard/waiter", icon: Utensils, roles: ["OWNER", "MANAGER"] },
-      { name: "Kitchen Display (KDS)", href: "/dashboard/kitchen", icon: ChefHat, roles: ["OWNER", "MANAGER"] },
+      { name: "Waiter Floor POS", href: "/dashboard/waiter", icon: Utensils, roles: ["OWNER", "MANAGER", "WAITER"] },
+      { name: "Kitchen Display (KDS)", href: "/dashboard/kitchen", icon: ChefHat, roles: ["OWNER", "MANAGER", "KITCHEN"] },
     ]
   },
   {
     title: "RESTAURANT MANAGEMENT",
     items: [
       { name: "Overview Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER", "MANAGER"] },
-      { name: "Floor Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER"] },
-      { name: "Menu & Catalog", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER"] },
+      { name: "Floor Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER", "WAITER"] },
+      { name: "Menu & Catalog", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER", "KITCHEN"] },
       { name: "Activity Logs", href: "/dashboard/logs", icon: Activity, roles: ["OWNER", "MANAGER"] },
     ]
   },
@@ -90,8 +90,8 @@ export default function Sidebar({ role }: Readonly<{ role: Role }>) {
     <aside className="w-64 bg-card border-r flex-shrink-0 hidden md:flex flex-col">
       {/* Brand Header */}
       <div className="h-16 flex items-center px-6 border-b gap-3">
-        <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-base shadow-sm">
-          🥛
+        <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-lg tracking-tighter shadow-sm">
+          Y
         </div>
         <div>
           <h1 className="text-lg font-black text-primary tracking-tight leading-none">Yadotena</h1>

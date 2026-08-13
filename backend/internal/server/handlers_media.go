@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io"
 	"net/http"
 	"strings"
 )
@@ -86,4 +87,34 @@ func (s *Server) uploadMediaFromLink(w http.ResponseWriter, r *http.Request) {
 		"url":       publicURL,
 		"publicUrl": publicURL,
 	})
+}
+
+func (s *Server) mediaProxy(w http.ResponseWriter, r *http.Request) {
+	rawURL := r.URL.Query().Get("url")
+	if rawURL == "" {
+		writeErr(w, 400, "url query parameter is required")
+		return
+	}
+
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, rawURL, nil)
+	if err != nil {
+		writeErr(w, 400, "invalid target URL")
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode >= 400 {
+		writeErr(w, 502, "failed to proxy image target")
+		return
+	}
+	defer resp.Body.Close()
+
+	for k, v := range resp.Header {
+		if strings.HasPrefix(strings.ToLower(k), "content-") {
+			w.Header()[k] = v
+		}
+	}
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
 }

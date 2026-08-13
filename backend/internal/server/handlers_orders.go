@@ -74,40 +74,57 @@ func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
 	searchFilter := r.URL.Query().Get("search")
 
 	q := `
-		SELECT id, type, status, payment_status, table_id, customer_name, customer_phone, delivery_address,
-		       subtotal::float8, tax::float8, service_charge::float8, delivery_fee::float8, total::float8,
-		       idempotency_key, created_at, updated_at
-		FROM orders WHERE 1=1`
+		SELECT 
+			o.id, o.type, o.status, o.payment_status, o.table_id, o.customer_name, o.customer_phone, o.delivery_address,
+			o.subtotal::float8, o.tax::float8, o.service_charge::float8, o.delivery_fee::float8, o.total::float8,
+			o.idempotency_key, o.created_at, o.updated_at,
+			COALESCE(
+				jsonb_agg(
+					jsonb_build_object(
+						'id', oi.id,
+						'menuItemId', COALESCE(oi.menu_item_id, ''),
+						'name', oi.name,
+						'price', oi.price::float8,
+						'quantity', oi.quantity,
+						'specialInstructions', COALESCE(oi.special_instructions, ''),
+						'selectedAddons', COALESCE(oi.selected_addons, '[]'::jsonb),
+						'roundNumber', oi.round_number
+					) ORDER BY oi.round_number, oi.id
+				) FILTER (WHERE oi.id IS NOT NULL), '[]'::jsonb
+			) AS items
+		FROM orders o
+		LEFT JOIN order_items oi ON oi.order_id = o.id
+		WHERE 1=1`
 	args := []any{}
 	n := 1
 
 	if typeFilter != "" {
-		q += fmt.Sprintf(" AND type = $%d", n)
+		q += fmt.Sprintf(" AND o.type = $%d", n)
 		args = append(args, strings.ToUpper(typeFilter))
 		n++
 	}
 	if statusFilter != "" {
-		q += fmt.Sprintf(" AND status = $%d", n)
+		q += fmt.Sprintf(" AND o.status = $%d", n)
 		args = append(args, strings.ToUpper(statusFilter))
 		n++
 	}
 	if paymentStatusFilter != "" {
-		q += fmt.Sprintf(" AND payment_status = $%d", n)
+		q += fmt.Sprintf(" AND o.payment_status = $%d", n)
 		args = append(args, strings.ToUpper(paymentStatusFilter))
 		n++
 	}
 	if tableFilter != "" {
-		q += fmt.Sprintf(" AND table_id = $%d", n)
+		q += fmt.Sprintf(" AND (o.table_id = $%d OR o.table_id ILIKE $%d)", n, n)
 		args = append(args, tableFilter)
 		n++
 	}
 	if searchFilter != "" {
-		q += fmt.Sprintf(" AND (id ILIKE $%d OR customer_name ILIKE $%d OR customer_phone ILIKE $%d)", n, n, n)
+		q += fmt.Sprintf(" AND (o.id ILIKE $%d OR o.customer_name ILIKE $%d OR o.customer_phone ILIKE $%d)", n, n, n)
 		args = append(args, "%"+searchFilter+"%")
 		n++
 	}
 
-	q += " ORDER BY created_at DESC LIMIT 100"
+	q += " GROUP BY o.id ORDER BY o.created_at DESC LIMIT 100"
 
 	rows, err := s.Pool.Query(r.Context(), q, args...)
 	if err != nil {
@@ -119,12 +136,18 @@ func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
 	ordersList := make([]APIOrder, 0)
 	for rows.Next() {
 		var o APIOrder
+		var itemsRaw []byte
 		if errScan := rows.Scan(
 			&o.ID, &o.Type, &o.Status, &o.PaymentStatus, &o.TableID, &o.CustomerName, &o.CustomerPhone, &o.DeliveryAddress,
 			&o.Subtotal, &o.Tax, &o.ServiceCharge, &o.DeliveryFee, &o.Total,
-			&o.IdempotencyKey, &o.CreatedAt, &o.UpdatedAt,
+			&o.IdempotencyKey, &o.CreatedAt, &o.UpdatedAt, &itemsRaw,
 		); errScan == nil {
-			o.Items = s.loadOrderItems(r.Context(), o.ID)
+			if len(itemsRaw) > 0 {
+				_ = json.Unmarshal(itemsRaw, &o.Items)
+			}
+			if o.Items == nil {
+				o.Items = []APIOrderItem{}
+			}
 			ordersList = append(ordersList, o)
 		}
 	}

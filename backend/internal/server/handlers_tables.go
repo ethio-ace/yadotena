@@ -59,7 +59,11 @@ func (s *Server) getTable(w http.ResponseWriter, r *http.Request) {
 	var t Table
 	err := s.Pool.QueryRow(r.Context(), `
 		SELECT id, name, capacity, status, qr_token, current_order_id, created_at, updated_at
-		FROM tables WHERE id = $1`, id).Scan(
+		FROM tables
+		WHERE id = $1 OR LOWER(id) = LOWER($1) OR LOWER(name) = LOWER($1)
+		   OR REPLACE(LOWER(id), 'tbl-', 't') = LOWER($1)
+		   OR REPLACE(LOWER(name), 'table ', 't') = LOWER($1)
+		LIMIT 1`, id).Scan(
 		&t.ID, &t.Name, &t.Capacity, &t.Status, &t.QRToken, &t.CurrentOrderId, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
@@ -202,15 +206,21 @@ func (s *Server) deleteTable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) startSession(w http.ResponseWriter, r *http.Request) {
-	tableId := chi.URLParam(r, "id")
+	rawTableId := chi.URLParam(r, "id")
 	ctx := r.Context()
 
 	var t Table
-	err := s.Pool.QueryRow(ctx, `SELECT id, name, status FROM tables WHERE id = $1`, tableId).Scan(&t.ID, &t.Name, &t.Status)
+	err := s.Pool.QueryRow(ctx, `
+		SELECT id, name, status FROM tables
+		WHERE id = $1 OR LOWER(id) = LOWER($1) OR LOWER(name) = LOWER($1)
+		   OR REPLACE(LOWER(id), 'tbl-', 't') = LOWER($1)
+		   OR REPLACE(LOWER(name), 'table ', 't') = LOWER($1)
+		LIMIT 1`, rawTableId).Scan(&t.ID, &t.Name, &t.Status)
 	if err != nil {
 		writeErr(w, 404, "Table not found")
 		return
 	}
+	tableId := t.ID
 
 	var session DiningSession
 	var created bool = false

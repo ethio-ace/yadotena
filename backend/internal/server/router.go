@@ -169,11 +169,13 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 	r.Get("/reports/summary", s.getReportsSummary)
 
 	// --- Media Uploads & Presigned URLs ---
+	r.Get("/media/proxy", s.mediaProxy)
 	r.Post("/media/presign", s.presignMediaUpload)
 	r.Post("/media/upload", s.directMediaUpload)
 	r.Post("/media/upload-link", s.uploadMediaFromLink)
 	r.Post("/uploads/presign", s.presignMediaUpload)
 	r.Post("/uploads", s.directMediaUpload)
+	r.Handle("/uploads/*", http.StripPrefix("/api/v1/uploads/", http.FileServer(http.Dir(s.Cfg.UploadsDir))))
 
 	// --- Legacy / Public / Staff Compatibility Routes ---
 	r.Route("/public", func(r chi.Router) {

@@ -12,7 +12,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,7 +23,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/chai2010/webp"
 	"github.com/google/uuid"
+	_ "golang.org/x/image/bmp"
 	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 	"yadotena/internal/config"
 )
 
@@ -31,6 +35,7 @@ type TigrisStorage struct {
 	bucket        string
 	endpoint      string
 	publicBaseURL string
+	uploadsDir    string
 	httpClient    *http.Client
 }
 
@@ -63,12 +68,19 @@ func NewTigrisStorage(cfg config.Config) *TigrisStorage {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
 	}
 
+	upDir := cfg.UploadsDir
+	if upDir == "" {
+		upDir = "uploads"
+	}
+	_ = os.MkdirAll(upDir, 0o755)
+
 	return &TigrisStorage{
 		client:        client,
 		presignClient: presignClient,
 		bucket:        cfg.TigrisBucket,
 		endpoint:      strings.TrimRight(cfg.TigrisEndpoint, "/"),
 		publicBaseURL: cfg.PublicBaseURL,
+		uploadsDir:    upDir,
 		httpClient: &http.Client{
 			Transport: httpTr,
 			Timeout:   15 * time.Second,
@@ -109,12 +121,18 @@ func (t *TigrisStorage) UploadAndOptimizeImage(ctx context.Context, r io.Reader,
 		return "", fmt.Errorf("read image error: %w", err)
 	}
 
+	contentType := "image/webp"
 	img, _, err := image.Decode(bytes.NewReader(buf))
-	var webpBytes []byte
+	var finalBytes []byte
+	ext := ".webp"
 
 	if err != nil {
 		log.Printf("tigris image decode notice (raw upload fallback): %v", err)
-		webpBytes = buf
+		finalBytes = buf
+		contentType = http.DetectContentType(buf)
+		if origExt := path.Ext(originalFilename); origExt != "" {
+			ext = origExt
+		}
 	} else {
 		bounds := img.Bounds()
 		width := bounds.Dx()
@@ -141,26 +159,38 @@ func (t *TigrisStorage) UploadAndOptimizeImage(ctx context.Context, r io.Reader,
 		outBuf := new(bytes.Buffer)
 		if err := webp.Encode(outBuf, img, &webp.Options{Lossless: false, Quality: 85}); err != nil {
 			log.Printf("webp encode failed, uploading raw: %v", err)
-			webpBytes = buf
+			finalBytes = buf
+			contentType = http.DetectContentType(buf)
+			if origExt := path.Ext(originalFilename); origExt != "" {
+				ext = origExt
+			}
 		} else {
-			webpBytes = outBuf.Bytes()
+			finalBytes = outBuf.Bytes()
 		}
 	}
 
-	key := fmt.Sprintf("media/%s/%s.webp", time.Now().Format("2006/01"), uuid.New().String())
+	uniqueName := fmt.Sprintf("%s%s", uuid.New().String(), ext)
+	dateSubdir := time.Now().Format("2006/01")
+	localRelPath := fmt.Sprintf("media/%s/%s", dateSubdir, uniqueName)
+	localFullPath := filepath.Join(t.uploadsDir, localRelPath)
 
-	_, err = t.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(t.bucket),
-		Key:         aws.String(key),
-		Body:        bytes.NewReader(webpBytes),
-		ContentType: aws.String("image/webp"),
-	})
-
-	if err != nil {
-		return "", fmt.Errorf("tigris put object error: %w", err)
+	_ = os.MkdirAll(filepath.Dir(localFullPath), 0o755)
+	if errWrite := os.WriteFile(localFullPath, finalBytes, 0o644); errWrite != nil {
+		log.Printf("local upload write notice: %v", errWrite)
 	}
 
-	publicURL := fmt.Sprintf("%s/%s/%s", t.endpoint, t.bucket, key)
+	// Also upload to Tigris S3 asynchronously
+	key := fmt.Sprintf("media/%s/%s", dateSubdir, uniqueName)
+	go func(b []byte, k, ct string) {
+		_, _ = t.client.PutObject(context.Background(), &s3.PutObjectInput{
+			Bucket:      aws.String(t.bucket),
+			Key:         aws.String(k),
+			Body:        bytes.NewReader(b),
+			ContentType: aws.String(ct),
+		})
+	}(finalBytes, key, contentType)
+
+	publicURL := fmt.Sprintf("/uploads/%s", localRelPath)
 	return publicURL, nil
 }
 

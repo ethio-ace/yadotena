@@ -262,6 +262,22 @@ export const api = {
     },
   },
 
+  payments: {
+    create: async (data: { orderId: string; amount: number; method: string; reference?: string; notes?: string }) => {
+      return requestApiStrict<any>("/payments", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+  },
+
+  paymentMethods: {
+    getAll: async (showAll?: boolean): Promise<any[]> => {
+      const query = showAll ? "?all=true" : "";
+      return requestApiStrict<any[]>(`/payment-methods${query}`, { method: "GET" });
+    },
+  },
+
   customers: {
     getAll: async () => {
       return requestApiStrict<any[]>("/customers/", { method: "GET" });

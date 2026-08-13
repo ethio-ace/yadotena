@@ -170,7 +170,18 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
 export function useSoundNotifications() {
   const context = useContext(SoundNotificationContext);
   if (!context) {
-    throw new Error("useSoundNotifications must be used within a SoundNotificationProvider");
+    return {
+      isMuted: true,
+      volume: 0.8,
+      toggleMute: () => {},
+      setVolume: () => {},
+      pendingOrders: [],
+      pendingServiceRequests: [],
+      testOrderSound: () => {},
+      testWaiterSound: () => {},
+      unlockAudio: () => {},
+      isAudioUnlocked: false,
+    };
   }
   return context;
 }

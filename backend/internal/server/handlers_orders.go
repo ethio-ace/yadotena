@@ -191,6 +191,13 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 		paymentStatus = "PENDING"
 	}
 
+	// Safe Table ID resolution to eliminate foreign key constraints
+	if orderType == "DINE_IN" {
+		input.TableID = s.resolveTableID(r.Context(), input.TableID)
+	} else {
+		input.TableID = nil
+	}
+
 	// 1. Idempotency Key check
 	if input.IdempotencyKey != nil && *input.IdempotencyKey != "" {
 		var existingID string

@@ -56,11 +56,13 @@ func (s *Server) Router() http.Handler {
 func (s *Server) mountCoreRoutes(r chi.Router) {
 	// --- Auth & User Profile ---
 	r.Post("/login", s.authLogin)
+	r.Post("/register", s.authRegister)
 	r.Post("/logout", s.authLogout)
 	r.Get("/me", s.authMe)
 
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/login", s.authLogin)
+		r.Post("/register", s.authRegister)
 		r.Post("/logout", s.authLogout)
 		r.Get("/me", s.authMe)
 		r.Get("/ably-token", s.ablyToken)
@@ -146,13 +148,6 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 		r.Post("/", s.createCustomer)
 		r.Get("/{id}", s.getCustomer)
 		r.Patch("/{id}", s.updateCustomer)
-	})
-
-	// --- Reviews ---
-	r.Route("/reviews", func(r chi.Router) {
-		r.Get("/", s.listReviews)
-		r.Post("/", s.createReview)
-		r.Get("/{id}", s.getReview)
 	})
 
 	// --- Payments ---

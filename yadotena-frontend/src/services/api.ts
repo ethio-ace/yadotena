@@ -276,22 +276,6 @@ export const api = {
     },
   },
 
-  payments: {
-    create: async (data: { orderId: string; amount: number; method: string; reference?: string; notes?: string }) => {
-      return requestApiStrict<any>("/payments", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
-    },
-  },
-
-  paymentMethods: {
-    getAll: async (showAll?: boolean): Promise<any[]> => {
-      const query = showAll ? "?all=true" : "";
-      return requestApiStrict<any[]>(`/payment-methods${query}`, { method: "GET" });
-    },
-  },
-
   customers: {
     getAll: async () => {
       return requestApiStrict<any[]>("/customers", { method: "GET" });
@@ -314,6 +298,8 @@ export const api = {
       method: string;
       transactionRef?: string;
       receiptUrl?: string;
+      reference?: string;
+      notes?: string;
       status?: string;
     }) => {
       return requestApiStrict<any>("/payments", {
@@ -322,8 +308,10 @@ export const api = {
           orderId: data.orderId,
           amount: data.amount,
           method: data.method,
-          transactionRef: data.transactionRef,
+          transactionRef: data.transactionRef || data.reference,
           receiptUrl: data.receiptUrl,
+          reference: data.reference || data.transactionRef,
+          notes: data.notes,
           status: data.status || "PAID",
         }),
       });

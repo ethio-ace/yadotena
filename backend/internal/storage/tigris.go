@@ -198,11 +198,10 @@ func (t *TigrisStorage) UploadAndOptimizeImage(ctx context.Context, r io.Reader,
 	}(finalBytes, key, contentType)
 
 	baseURL := strings.TrimRight(t.publicBaseURL, "/")
-	if baseURL == "" || baseURL == "http://localhost:3000" || strings.Contains(baseURL, "onrender.com") {
-		baseURL = "http://localhost:8085"
+	if baseURL != "" {
+		return fmt.Sprintf("%s/uploads/%s", baseURL, localRelPath), nil
 	}
-	publicURL := fmt.Sprintf("%s/uploads/%s", baseURL, localRelPath)
-	return publicURL, nil
+	return fmt.Sprintf("/uploads/%s", localRelPath), nil
 }
 
 func (t *TigrisStorage) UploadFromLink(ctx context.Context, imageURL string) (string, error) {

@@ -13,7 +13,7 @@ import { getImageUrl } from "@/lib/utils";
 import { 
   Search, Plus, Trash2, Check, CreditCard, X, ShoppingBag, 
   ArrowRight, ArrowLeft, Utensils, CheckCircle2, Sparkles, Clock, 
-  ChevronRight, Eye, Info, AlertTriangle, Users
+  ChevronRight, Eye, Info, AlertTriangle, Users, Layers
 } from "lucide-react";
 import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
 import { Order, MenuItem, MenuItemAddon, Table } from "@/types";
@@ -45,7 +45,7 @@ export default function WaiterDashboardPage() {
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
 
-  // Table Details Modal State
+  // Table Details / Operations Modal State
   const [viewingTableDetails, setViewingTableDetails] = useState<Table | null>(null);
 
   // Menu Search & Category
@@ -279,7 +279,7 @@ export default function WaiterDashboardPage() {
           
           <button
             onClick={() => setCurrentStep(1)}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 border ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 border ${
               currentStep === 1
                 ? "bg-primary text-primary-foreground border-primary shadow-sm"
                 : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
@@ -288,7 +288,7 @@ export default function WaiterDashboardPage() {
             <span className="h-5 w-5 rounded-full bg-background/20 flex items-center justify-center text-[10px] font-bold">
               1
             </span>
-            <span>Step 1: Floor Table Selection</span>
+            <span>Step 1: Click Floor Table</span>
           </button>
 
           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -298,7 +298,7 @@ export default function WaiterDashboardPage() {
               if (selectedTable) setCurrentStep(2);
             }}
             disabled={!selectedTable}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 border ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 border ${
               currentStep === 2
                 ? "bg-primary text-primary-foreground border-primary shadow-sm"
                 : selectedTable
@@ -309,24 +309,24 @@ export default function WaiterDashboardPage() {
             <span className="h-5 w-5 rounded-full bg-background/20 flex items-center justify-center text-[10px] font-bold">
               2
             </span>
-            <span>Step 2: Menus & Custom Addons</span>
+            <span>Step 2: Pick Menus & Addons</span>
           </button>
 
         </div>
 
         {/* Selected Table Active Badge */}
         {selectedTable && (
-          <div className="flex items-center gap-2 text-xs font-bold bg-muted/50 px-3 py-1.5 rounded-xl border">
-            <span className="text-muted-foreground">Selected:</span>
-            <span className="font-black text-foreground">
+          <div className="flex items-center gap-2 text-xs font-bold bg-muted/50 px-3.5 py-2 rounded-xl border">
+            <span className="text-muted-foreground">Active Table:</span>
+            <span className="font-black text-foreground text-sm">
               Table #{selectedTable.id.replace("t", "")}
             </span>
             {activeOrderForTable ? (
-              <Badge className="bg-amber-500 text-amber-950 text-[9px] font-black">
-                Ongoing Ticket (Append Mode)
+              <Badge className="bg-amber-500 text-amber-950 text-[10px] font-black px-2 py-0.5">
+                Ongoing Session (Append Mode)
               </Badge>
             ) : (
-              <Badge className="bg-emerald-500 text-white text-[9px] font-black">
+              <Badge className="bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5">
                 Free Table (New Order)
               </Badge>
             )}
@@ -341,24 +341,24 @@ export default function WaiterDashboardPage() {
         {/* Main Column (Step 1 or Step 2) */}
         <div className="lg:col-span-8 space-y-4">
           
-          {/* STEP 1: SELECT FLOOR TABLE */}
+          {/* STEP 1: CLICK FLOOR TABLE GRID */}
           {currentStep === 1 && (
-            <Card className="rounded-2xl border shadow-sm p-4 space-y-4 bg-card">
+            <Card className="rounded-2xl border shadow-sm p-5 space-y-4 bg-card">
               <div className="flex items-center justify-between border-b pb-3">
                 <div>
-                  <h3 className="font-black text-base">Floor Tables Grid</h3>
+                  <h3 className="font-black text-base">Select Floor Table</h3>
                   <p className="text-xs text-muted-foreground">
-                    Select a table to start a new order or append items to an ongoing session.
+                    Click any table card directly to inspect session details, start an order, or append extra items.
                   </p>
                 </div>
 
-                <Badge variant="outline" className="font-bold text-xs">
+                <Badge variant="outline" className="font-bold text-xs px-2.5 py-1">
                   {tables.filter((t) => t.status === "AVAILABLE").length} / {tables.length} Available
                 </Badge>
               </div>
 
-              {/* Floor Table Cards Redesign */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {/* Clean Clickable Table Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
                 {tables.map((table) => {
                   const isSelected = selectedTable?.id === table.id;
                   const ongoingOrder = orders.find(
@@ -369,90 +369,51 @@ export default function WaiterDashboardPage() {
                   return (
                     <div
                       key={table.id}
-                      className={`p-4 rounded-2xl border-2 transition-all space-y-3 relative flex flex-col justify-between ${
+                      onClick={() => setViewingTableDetails(table)}
+                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer space-y-3 relative flex flex-col justify-between hover:scale-[1.02] shadow-sm ${
                         isSelected
-                          ? "bg-primary/10 border-primary shadow-md ring-2 ring-primary/20"
+                          ? "bg-primary/10 border-primary shadow-md ring-2 ring-primary/30"
                           : isOccupied
-                          ? "bg-amber-500/5 border-amber-500/30"
-                          : "bg-card border-border hover:border-primary/40"
+                          ? "bg-amber-500/10 border-amber-500/40 hover:border-amber-500"
+                          : "bg-card border-border hover:border-emerald-500/50 hover:bg-emerald-500/5"
                       }`}
                     >
-                      {/* Top Header */}
+                      {/* Top Table Info */}
                       <div className="flex items-start justify-between">
                         <div>
-                          <span className="text-[10px] font-bold text-muted-foreground block uppercase">
-                            Table Number
+                          <span className="text-[10px] font-bold text-muted-foreground block uppercase tracking-wider">
+                            Table
                           </span>
                           <h4 className="text-2xl font-black text-foreground">
                             #{(table as any).number || table.id.replace("t", "")}
                           </h4>
                         </div>
 
-                        <div className="flex flex-col items-end gap-1">
-                          <Badge
-                            className={`text-[9px] font-black uppercase ${
-                              isOccupied
-                                ? "bg-amber-500 text-amber-950"
-                                : "bg-emerald-500 text-white"
-                            }`}
-                          >
-                            {isOccupied ? "Occupied" : "Free"}
-                          </Badge>
-                          {table.capacity && (
-                            <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
-                              <Users className="h-3 w-3" /> {table.capacity} Seats
-                            </span>
-                          )}
-                        </div>
+                        <Badge
+                          className={`text-[9px] font-black uppercase px-2 py-0.5 ${
+                            isOccupied
+                              ? "bg-amber-500 text-amber-950"
+                              : "bg-emerald-500 text-white"
+                          }`}
+                        >
+                          {isOccupied ? "Occupied" : "Free"}
+                        </Badge>
                       </div>
 
-                      {/* Middle Status Content */}
-                      {ongoingOrder ? (
-                        <div className="bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl text-xs space-y-1">
-                          <div className="flex justify-between font-bold text-amber-800 dark:text-amber-300">
-                            <span>Ticket #{ongoingOrder.id.slice(-5).toUpperCase()}</span>
-                            <span>{formatETB(ongoingOrder.total)}</span>
-                          </div>
-                          <div className="text-[10px] text-muted-foreground flex justify-between">
-                            <span>Items: {ongoingOrder.items?.length || 0}</span>
-                            <span className="font-semibold text-amber-600 dark:text-amber-400">
-                              Status: {ongoingOrder.status}
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                          Ready for Guest Order
-                        </div>
-                      )}
+                      {/* Seat Count & Session Status */}
+                      <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[11px] font-bold text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5 text-primary" /> {table.capacity || 4} Seats
+                        </span>
 
-                      {/* Action Buttons */}
-                      <div className="grid grid-cols-2 gap-2 pt-1 border-t">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setViewingTableDetails(table)}
-                          className="h-8 rounded-xl text-[11px] font-bold gap-1 text-muted-foreground hover:text-foreground"
-                        >
-                          <Eye className="h-3.5 w-3.5" /> Details
-                        </Button>
-
-                        {isOccupied ? (
-                          <Button
-                            size="sm"
-                            onClick={() => handleSelectTable(table)}
-                            className="h-8 rounded-xl text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white"
-                          >
-                            + Addons
-                          </Button>
+                        {ongoingOrder ? (
+                          <span className="text-amber-700 dark:text-amber-300 font-black">
+                            {formatETB(ongoingOrder.total)}
+                          </span>
                         ) : (
-                          <Button
-                            size="sm"
-                            onClick={() => handleSelectTable(table)}
-                            className="h-8 rounded-xl text-[11px] font-bold bg-primary text-primary-foreground"
-                          >
-                            Start Order
-                          </Button>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                            Available
+                          </span>
                         )}
                       </div>
 
@@ -463,56 +424,56 @@ export default function WaiterDashboardPage() {
             </Card>
           )}
 
-          {/* STEP 2: SELECT MENUS & ADDONS */}
+          {/* STEP 2: HIGH-VISIBILITY MENU CATALOG */}
           {currentStep === 2 && (
-            <Card className="rounded-2xl border shadow-sm p-4 space-y-4 bg-card">
+            <Card className="rounded-2xl border shadow-sm p-5 space-y-4 bg-card">
               
-              {/* Header & Controls */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3">
+              {/* Header & Search */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={() => setCurrentStep(1)}
-                    className="h-8 text-xs font-bold rounded-xl gap-1 text-muted-foreground hover:text-foreground"
+                    className="h-9 text-xs font-bold rounded-xl gap-1 text-muted-foreground hover:text-foreground border"
                   >
-                    <ArrowLeft className="h-3.5 w-3.5" /> Change Table
+                    <ArrowLeft className="h-4 w-4" /> Change Table
                   </Button>
                   <h3 className="font-black text-base">
-                    Menu Catalog {selectedTable && `(Table #${selectedTable.id.replace("t", "")})`}
+                    Menu Items {selectedTable && `(Table #${selectedTable.id.replace("t", "")})`}
                   </h3>
                 </div>
 
-                <div className="relative w-full sm:w-60">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search dishes..."
+                    placeholder="Search food & drinks..."
                     value={searchQuery}
                     onChange={(e: any) => setSearchQuery(e.target.value)}
-                    className="pl-8 text-xs h-8 rounded-xl bg-muted/30"
+                    className="pl-9 text-xs h-9 rounded-xl bg-muted/40 border"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Category Filter Pills */}
-              <div className="flex gap-1.5 overflow-x-auto text-xs pb-1 scrollbar-none">
+              {/* Large Touch Category Filter Tabs */}
+              <div className="flex gap-2 overflow-x-auto text-xs pb-1 scrollbar-none">
                 <button
                   onClick={() => setActiveCategory("All")}
-                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap border transition-all ${
+                  className={`px-4 py-2 rounded-xl font-black whitespace-nowrap border transition-all ${
                     activeCategory === "All"
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted"
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
                   }`}
                 >
-                  All ({menu.length})
+                  All Items ({menu.length})
                 </button>
                 {categories.map((c) => {
                   const catCount = menu.filter((m) => m.category === c.name).length;
@@ -520,10 +481,10 @@ export default function WaiterDashboardPage() {
                     <button
                       key={c.id}
                       onClick={() => setActiveCategory(c.name)}
-                      className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap border transition-all ${
+                      className={`px-4 py-2 rounded-xl font-black whitespace-nowrap border transition-all ${
                         activeCategory === c.name
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted"
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
                       }`}
                     >
                       {c.name} ({catCount})
@@ -532,8 +493,8 @@ export default function WaiterDashboardPage() {
                 })}
               </div>
 
-              {/* Menu Dishes Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[520px] overflow-y-auto pr-1">
+              {/* High-Visibility Larger Dish Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[580px] overflow-y-auto pr-1">
                 {menu
                   .filter((item) => {
                     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -551,51 +512,61 @@ export default function WaiterDashboardPage() {
                     return (
                       <div
                         key={item.id}
-                        className="p-3 rounded-2xl border bg-card hover:bg-muted/20 transition-all flex items-center justify-between space-x-2 relative"
+                        className="p-4 rounded-2xl border bg-card hover:border-primary/40 transition-all flex flex-col justify-between space-y-3 relative shadow-sm hover:shadow-md"
                       >
+                        {/* Top Badge: In Ticket Counter */}
                         {inCartCount > 0 && (
-                          <div className="absolute top-2 right-2 bg-primary text-primary-foreground font-black text-[9px] px-2 py-0.5 rounded-full shadow-sm">
-                            {inCartCount} in ticket
+                          <div className="absolute top-3 right-3 bg-primary text-primary-foreground font-black text-[10px] px-2.5 py-1 rounded-full shadow-md z-10 animate-pulse">
+                            {inCartCount} IN TICKET
                           </div>
                         )}
 
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex gap-3.5 items-start">
                           <img
                             src={getImageUrl(item.image)}
                             alt={item.name}
-                            className="h-12 w-12 rounded-xl object-cover border shrink-0"
+                            className="h-24 w-24 rounded-2xl object-cover border shrink-0 shadow-sm"
                           />
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-xs truncate">{item.name}</h4>
-                            <span className="font-black text-xs text-primary block mt-0.5">
+                          <div className="min-w-0 space-y-1">
+                            <Badge variant="outline" className="text-[9px] font-bold uppercase text-muted-foreground">
+                              {item.category || "Main"}
+                            </Badge>
+                            <h4 className="font-black text-sm text-foreground leading-snug line-clamp-2">
+                              {item.name}
+                            </h4>
+                            <span className="font-black text-base text-primary block">
                               {formatETB(item.price)}
                             </span>
                             {hasAddons && (
-                              <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 block mt-0.5">
-                                ✨ {item.customAddons?.length} Custom Addons
+                              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block">
+                                ✨ {item.customAddons?.length} Options Available
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {hasAddons ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openDishModal(item)}
-                            className="h-8 text-[11px] font-bold rounded-xl text-primary border-primary/30 hover:bg-primary/10 px-2.5"
-                          >
-                            + Option
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            onClick={() => quickAddItem(item)}
-                            className="h-8 text-[11px] font-bold rounded-xl px-3 bg-primary text-primary-foreground"
-                          >
-                            + Add
-                          </Button>
-                        )}
+                        {/* Large Touch Target Action Button */}
+                        <div className="pt-2 border-t">
+                          {hasAddons ? (
+                            <Button
+                              size="lg"
+                              variant="outline"
+                              onClick={() => openDishModal(item)}
+                              className="w-full h-10 text-xs font-black rounded-xl text-primary border-primary/40 hover:bg-primary/10 gap-1.5"
+                            >
+                              <Sparkles className="h-3.5 w-3.5" /> Customize Addons
+                            </Button>
+                          ) : (
+                            <Button
+                              size="lg"
+                              onClick={() => quickAddItem(item)}
+                              className="w-full h-10 text-xs font-black rounded-xl bg-primary text-primary-foreground gap-1.5 shadow-sm"
+                            >
+                              <Plus className="h-4 w-4" /> Add to Order Ticket
+                            </Button>
+                          )}
+                        </div>
+
                       </div>
                     );
                   })}
@@ -647,7 +618,7 @@ export default function WaiterDashboardPage() {
                     )}
                   </div>
                 ) : (
-                  <span className="text-muted-foreground italic font-medium">No table selected yet.</span>
+                  <span className="text-muted-foreground italic font-medium">No table selected yet. Click a table in Step 1.</span>
                 )}
               </div>
 
@@ -656,7 +627,7 @@ export default function WaiterDashboardPage() {
                 {cartItems.length === 0 ? (
                   <div className="py-10 text-center text-xs text-muted-foreground border border-dashed rounded-xl space-y-1">
                     <p className="font-bold">Order ticket is empty</p>
-                    <p className="text-[11px] opacity-70">Select dishes from the catalog to build ticket.</p>
+                    <p className="text-[11px] opacity-70">Pick dishes from the catalog to build ticket.</p>
                   </div>
                 ) : (
                   cartItems.map((ci) => {
@@ -754,7 +725,7 @@ export default function WaiterDashboardPage() {
 
       </div>
 
-      {/* TABLE DETAILS MODAL */}
+      {/* TABLE DETAILS / OPERATIONS MODAL */}
       {viewingTableDetails && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-card border rounded-2xl shadow-xl max-w-lg w-full p-5 space-y-4 relative max-h-[85vh] overflow-y-auto">
@@ -763,7 +734,7 @@ export default function WaiterDashboardPage() {
             <div className="flex items-start justify-between border-b pb-3">
               <div>
                 <h3 className="font-black text-lg flex items-center gap-2">
-                  <span>Table #{(viewingTableDetails as any).number || viewingTableDetails.id.replace("t", "")} Details</span>
+                  <span>Table #{(viewingTableDetails as any).number || viewingTableDetails.id.replace("t", "")} Operations</span>
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   Capacity: {viewingTableDetails.capacity || 4} Seats • Location: Main Dining Hall
@@ -774,34 +745,34 @@ export default function WaiterDashboardPage() {
               </button>
             </div>
 
-            {/* Table Details Content */}
+            {/* Table Operations Content */}
             {activeOrderForViewingTable ? (
               <div className="space-y-3">
                 
                 {/* Active Session Summary */}
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 text-xs">
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 text-xs">
                   <div className="flex justify-between items-center">
-                    <span className="font-black text-amber-800 dark:text-amber-300">
+                    <span className="font-black text-amber-800 dark:text-amber-300 text-sm">
                       Ongoing Ticket #{activeOrderForViewingTable.id.slice(-6).toUpperCase()}
                     </span>
-                    <Badge className="bg-amber-500 text-amber-950 font-bold uppercase text-[10px]">
+                    <Badge className="bg-amber-500 text-amber-950 font-bold uppercase text-[10px] px-2 py-0.5">
                       {activeOrderForViewingTable.status}
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-muted-foreground text-[11px] pt-1 border-t border-amber-500/20">
+                  <div className="grid grid-cols-2 gap-2 text-muted-foreground text-[11px] pt-1.5 border-t border-amber-500/20">
                     <div>Type: DINE-IN</div>
                     <div>Payment: {activeOrderForViewingTable.paymentStatus}</div>
                     <div>Created: {new Date(activeOrderForViewingTable.createdAt).toLocaleTimeString()}</div>
                     <div className="font-bold text-foreground">
-                      Total: {formatETB(activeOrderForViewingTable.total)}
+                      Running Total: {formatETB(activeOrderForViewingTable.total)}
                     </div>
                   </div>
                 </div>
 
                 {/* Ordered Items Breakdown */}
                 <div className="space-y-2">
-                  <h4 className="font-black text-xs uppercase text-muted-foreground">Ordered Items & Addons</h4>
+                  <h4 className="font-black text-xs uppercase text-muted-foreground">Ordered Dishes & Addons</h4>
                   
                   <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
                     {activeOrderForViewingTable.items?.map((item: any, idx: number) => (
@@ -840,7 +811,7 @@ export default function WaiterDashboardPage() {
                       setViewingTableDetails(null);
                       handleSelectTable(t);
                     }}
-                    className="h-10 rounded-xl font-black text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                    className="h-11 rounded-xl font-black text-xs bg-amber-600 hover:bg-amber-700 text-white"
                   >
                     + Add Items / Addons
                   </Button>
@@ -851,7 +822,7 @@ export default function WaiterDashboardPage() {
                       setViewingTableDetails(null);
                       setSelectedOrderForPayment(ord);
                     }}
-                    className="h-10 rounded-xl font-black text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                    className="h-11 rounded-xl font-black text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
                   >
                     <CreditCard className="h-4 w-4" /> Settle Bill ({formatETB(activeOrderForViewingTable.total)})
                   </Button>
@@ -861,7 +832,7 @@ export default function WaiterDashboardPage() {
             ) : (
               <div className="space-y-4 py-3 text-center">
                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-700 dark:text-emerald-300 text-xs space-y-1">
-                  <p className="font-bold text-sm">Table is Available</p>
+                  <p className="font-bold text-sm">Table is Clean & Available</p>
                   <p className="opacity-80">This table currently has no ongoing active ticket. Ready for new guests.</p>
                 </div>
 

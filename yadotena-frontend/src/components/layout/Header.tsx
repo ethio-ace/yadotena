@@ -45,8 +45,9 @@ export default function Header({ user = { name: "Guest Customer", role: "CUSTOME
     },
   });
 
-  const totalUrgentCount = pendingOrders.length + pendingServiceRequests.length;
   const userRole = user?.role || "CUSTOMER";
+  const showPendingOrders = pendingOrders.length > 0 && userRole !== "WAITER";
+  const totalUrgentCount = (showPendingOrders ? pendingOrders.length : 0) + pendingServiceRequests.length;
   const allowedItems = navItems.filter((item) => item.roles.includes(userRole));
 
   return (
@@ -336,7 +337,7 @@ export default function Header({ user = { name: "Guest Customer", role: "CUSTOME
               </Button>
             )}
 
-            {pendingOrders.length > 0 && (
+            {showPendingOrders && (
               <Link href="/dashboard/kitchen">
                 <Button
                   size="sm"

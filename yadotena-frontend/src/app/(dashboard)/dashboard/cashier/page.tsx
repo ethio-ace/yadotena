@@ -1,29 +1,27 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
 import { 
   CreditCard, 
   Receipt, 
-  DollarSign, 
   CheckCircle2, 
   Printer, 
-  Sparkles,
   Smartphone,
   Wallet,
-  Building2,
-  Clock,
-  ArrowRight
+  Clock
 } from "lucide-react";
 import { useState } from "react";
+import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
+import { Order } from "@/types";
 
 export default function CashierDashboardPage() {
   const queryClient = useQueryClient();
-  const [selectedMethod, setSelectedMethod] = useState<"CASH" | "TELEBIRR" | "CARD">("TELEBIRR");
+  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<Order | null>(null);
 
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
@@ -35,26 +33,15 @@ export default function CashierDashboardPage() {
     queryFn: api.payments.getAll,
   });
 
-  const createPaymentMutation = useMutation({
-    mutationFn: (data: { orderId: string; amount: number; paymentMethod: string }) =>
-      api.payments.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["payments"] });
-    },
-  });
-
-  const updateOrderStatusMutation = useMutation({
-    mutationFn: ({ id, status, paymentStatus }: { id: string; status: any; paymentStatus?: any }) =>
-      api.orders.updateStatus(id, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-    },
-  });
-
   // Filter unpaid orders
   const unpaidOrders = orders.filter((o) => o.paymentStatus !== "PAID" && o.status !== "CANCELLED");
   const paidTodaySum = payments.reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
+
+  const handlePaymentSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    queryClient.invalidateQueries({ queryKey: ["payments"] });
+    queryClient.invalidateQueries({ queryKey: ["tables"] });
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-16">
@@ -71,7 +58,7 @@ export default function CashierDashboardPage() {
             Register & Bill Clearance
           </h1>
           <p className="text-sm text-blue-200 max-w-xl">
-            Settle customer bills, process Telebirr / Cash transactions, print official tax receipts, and balance register shift totals.
+            Settle customer bills, process Telebirr / CBE / Cash transactions with transaction reference numbers, print official tax receipts, and release tables.
           </p>
         </div>
 
@@ -100,14 +87,14 @@ export default function CashierDashboardPage() {
 
         <Card className="rounded-3xl border shadow-sm p-6 bg-card">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Telebirr / Digital Payments</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Telebirr & Digital Banking</span>
             <div className="h-10 w-10 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
               <Smartphone className="h-5 w-5" />
             </div>
           </div>
           <div className="mt-4">
             <h2 className="text-3xl font-black text-foreground">{formatETB(paidTodaySum * 0.75)}</h2>
-            <p className="text-xs text-blue-600 font-bold mt-1">Direct Telebirr Merchant QR</p>
+            <p className="text-xs text-blue-600 font-bold mt-1">Telebirr / CBE / BOA Accounts</p>
           </div>
         </Card>
 
@@ -166,48 +153,19 @@ export default function CashierDashboardPage() {
                   <span className="text-2xl font-black text-primary">{formatETB(order.total)}</span>
                 </div>
 
-                {/* Payment Method Selector */}
-                <div className="grid grid-cols-3 gap-1.5 pt-1">
-                  {(["TELEBIRR", "CASH", "CARD"] as const).map((method) => (
-                    <button
-                      key={method}
-                      type="button"
-                      onClick={() => setSelectedMethod(method)}
-                      className={`py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
-                        selectedMethod === method
-                          ? "bg-primary text-primary-foreground shadow-md"
-                          : "bg-muted/40 text-muted-foreground hover:bg-muted"
-                      }`}
-                    >
-                      {method}
-                    </button>
-                  ))}
-                </div>
-
                 <div className="flex items-center gap-2 pt-2">
                   <Button
-                    onClick={() => {
-                      createPaymentMutation.mutate({
-                        orderId: order.id,
-                        amount: order.total,
-                        paymentMethod: selectedMethod,
-                      });
-                      updateOrderStatusMutation.mutate({
-                        id: order.id,
-                        status: "COMPLETED",
-                        paymentStatus: "PAID",
-                      });
-                    }}
-                    className="w-full rounded-2xl font-black text-xs h-11 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-lg shadow-emerald-600/20"
+                    onClick={() => setSelectedOrderForPayment(order)}
+                    className="w-full rounded-2xl font-extrabold text-xs h-12 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-lg shadow-emerald-600/20"
                   >
-                    <CheckCircle2 className="h-4 w-4" /> Settle Bill ({selectedMethod})
+                    <CreditCard className="h-4 w-4" /> Settle Payment & Free Table
                   </Button>
 
                   <Button
                     variant="outline"
                     size="icon"
                     onClick={() => window.print()}
-                    className="rounded-2xl h-11 w-11 shrink-0"
+                    className="rounded-2xl h-12 w-12 shrink-0"
                     title="Print Receipt"
                   >
                     <Printer className="h-4 w-4" />
@@ -228,6 +186,14 @@ export default function CashierDashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Payment Settlement Modal */}
+      <PaymentSettlementModal
+        order={selectedOrderForPayment}
+        isOpen={!!selectedOrderForPayment}
+        onClose={() => setSelectedOrderForPayment(null)}
+        onSuccess={handlePaymentSuccess}
+      />
     </div>
   );
 }

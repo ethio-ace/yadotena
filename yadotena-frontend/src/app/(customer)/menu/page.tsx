@@ -56,8 +56,11 @@ function MenuContent() {
     return (isMatchingTable || isMatchingOrderId) && isActiveStatus;
   });
   
+  const setTableId = useCartStore((state) => state.setTableId);
   const searchParams = useSearchParams();
   const initialCategoryParam = searchParams.get("category");
+  const tableParam = searchParams.get("table");
+
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState(initialCategoryParam || "All");
   const [selectedItemForModal, setSelectedItemForModal] = useState<MenuItem | null>(null);
@@ -67,6 +70,12 @@ function MenuContent() {
       setActiveCategory(initialCategoryParam);
     }
   }, [initialCategoryParam]);
+
+  useEffect(() => {
+    if (tableParam) {
+      setTableId(tableParam);
+    }
+  }, [tableParam, setTableId]);
 
   if (isMenuLoading) {
     return (
@@ -346,39 +355,14 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
             <span className="font-black text-xl text-primary">{formatETB(item.price)}</span>
           </div>
           
-          {cartItem ? (
-            <div 
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-2 bg-muted/70 rounded-full p-1 border border-primary/20 shadow-inner"
-            >
-              <Button 
-                size="icon" 
-                variant="ghost" 
-                className="h-8 w-8 rounded-full hover:bg-background shadow-sm text-foreground" 
-                onClick={handleDecrement}
-              >
-                <Minus className="h-3 w-3" />
-              </Button>
-              <span className="font-bold text-sm w-4 text-center">{cartItem.quantity}</span>
-              <Button 
-                size="icon" 
-                variant="default" 
-                className="h-8 w-8 rounded-full shadow-md" 
-                onClick={handleIncrement}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </div>
-          ) : (
-            <Button 
-              size="sm"
-              className="rounded-full shadow-md font-bold px-4 h-9 hover:scale-105 transition-transform flex items-center gap-1.5" 
-              onClick={handleQuickAdd}
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add</span>
-            </Button>
-          )}
+          <Button 
+            size="sm"
+            variant="secondary"
+            className="rounded-full shadow-sm font-bold px-3.5 h-8 text-xs hover:scale-105 transition-transform flex items-center gap-1" 
+            onClick={onOpenModal}
+          >
+            <span>View Details</span>
+          </Button>
         </div>
       </div>
     </Card>

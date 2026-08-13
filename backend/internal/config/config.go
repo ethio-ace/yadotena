@@ -23,12 +23,20 @@ type Config struct {
 	CORSOrigins    string
 	UploadMaxBytes int64
 
-	R2AccountID       string
-	R2AccessKeyID     string
-	R2SecretAccessKey string
-	R2Bucket          string
-	R2PublicBaseURL   string
-	R2Endpoint        string // optional override, e.g. https://ACCOUNT.r2.cloudflarestorage.com
+	// Ably Realtime
+	AblyAPIKey string
+	AblyAppID  string
+
+	// NATS Cloud (Synadia NGS)
+	NATSURL      string
+	NATSUserJWT  string
+	NATSNkeySeed string
+
+	// Tigris Storage (S3 Compatible)
+	TigrisAccessKeyID     string
+	TigrisSecretAccessKey string
+	TigrisEndpoint        string
+	TigrisBucket          string
 }
 
 func Load() Config {
@@ -39,7 +47,7 @@ func Load() Config {
 			exp = d
 		}
 	}
-	maxBytes := int64(5 << 20)
+	maxBytes := int64(10 << 20) // 10MB default
 	if v := os.Getenv("UPLOAD_MAX_BYTES"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			maxBytes = n
@@ -49,6 +57,18 @@ func Load() Config {
 	if port == "" {
 		port = getenv("APP_PORT", "8080")
 	}
+
+	tigrisAccess := firstEnv("TIGRIS_STORAGE_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID")
+	tigrisSecret := firstEnv("TIGRIS_STORAGE_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY")
+	tigrisEndpoint := firstEnv("TIGRIS_STORAGE_ENDPOINT", "AWS_ENDPOINT_URL_S3")
+	if tigrisEndpoint == "" {
+		tigrisEndpoint = "https://t3.storage.dev"
+	}
+	tigrisBucket := firstEnv("STORAGE_BUCKET_NAME", "TIGRIS_BUCKET_NAME", "AWS_BUCKET_NAME")
+	if tigrisBucket == "" {
+		tigrisBucket = "yadotena-media"
+	}
+
 	return Config{
 		AppEnv:         getenv("APP_ENV", "development"),
 		AppPort:        port,
@@ -58,18 +78,23 @@ func Load() Config {
 		JWTExpiry:      exp,
 		MigrationsDir:  getenv("MIGRATIONS_DIR", "migrations"),
 		SeedsDir:       getenv("SEEDS_DIR", "seeds"),
-		RunSeeds:       getenv("RUN_SEEDS", "true") == "true",
+		RunSeeds:       getenv("RUN_SEEDS", "false") == "true",
 		UploadsDir:     getenv("UPLOADS_DIR", "uploads"),
 		PublicBaseURL:  getenv("PUBLIC_BASE_URL", "http://localhost:3000"),
-		CORSOrigins:    getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
+		CORSOrigins:    getenv("CORS_ALLOWED_ORIGINS", "*"),
 		UploadMaxBytes: maxBytes,
 
-		R2AccountID:       os.Getenv("R2_ACCOUNT_ID"),
-		R2AccessKeyID:     os.Getenv("R2_ACCESS_KEY_ID"),
-		R2SecretAccessKey: os.Getenv("R2_SECRET_ACCESS_KEY"),
-		R2Bucket:          firstEnv("R2_BUCKET", "R2_BUCKET_NAME"),
-		R2PublicBaseURL:   firstEnv("R2_PUBLIC_BASE_URL", "R2_PUBLIC_URL"),
-		R2Endpoint:        os.Getenv("R2_ENDPOINT"),
+		AblyAPIKey: os.Getenv("ABLY_API_KEY"),
+		AblyAppID:  os.Getenv("ABLY_APP_ID"),
+
+		NATSURL:      getenv("NATS_URL", "tls://connect.ngs.global:4222"),
+		NATSUserJWT:  os.Getenv("NATS_USER_JWT"),
+		NATSNkeySeed: os.Getenv("NATS_NKEY_SEED"),
+
+		TigrisAccessKeyID:     tigrisAccess,
+		TigrisSecretAccessKey: tigrisSecret,
+		TigrisEndpoint:        tigrisEndpoint,
+		TigrisBucket:          tigrisBucket,
 	}
 }
 

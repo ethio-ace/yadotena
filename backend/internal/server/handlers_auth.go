@@ -1,258 +1,336 @@
 package server
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"yadotena/internal/auth"
-	"yadotena/internal/dto"
-	"yadotena/internal/models"
+	"golang.org/x/crypto/bcrypt"
 )
 
-func (s *Server) staffLogin(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Phone string `json:"phone"`
-		PIN   string `json:"pin"`
-	}
-	if err := decodeJSON(r, &body); err != nil || body.Phone == "" || body.PIN == "" {
-		writeErr(w, 400, "phone and pin required")
-		return
-	}
-	var id uuid.UUID
-	var hash, name string
-	var email *string
-	var role models.Role
-	var active bool
-	err := s.Pool.QueryRow(r.Context(), `
-		SELECT id, pin_hash, name, email, role, is_active FROM staff WHERE phone=$1`, body.Phone).
-		Scan(&id, &hash, &name, &email, &role, &active)
-	if err != nil || !active || !auth.CheckPIN(hash, body.PIN) {
-		writeErr(w, 401, "invalid credentials")
-		return
-	}
-	token, err := auth.IssueToken(s.Cfg.JWTSecret, s.Cfg.JWTExpiry, id, role, name)
-	if err != nil {
-		writeErr(w, 500, "token error")
-		return
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     "yadotena_token",
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   int(s.Cfg.JWTExpiry.Seconds()),
-	})
-	_ = s.Log.Write(r.Context(), &id, name, "login", "staff", id.String(), nil)
-	writeJSON(w, 200, map[string]any{
-		"token": token,
-		"user": dto.StaffUser(models.Staff{
-			ID: id, Phone: body.Phone, Name: name, Email: email, Role: role, IsActive: active,
-		}),
-	})
+type User struct {
+	ID           string    `json:"id"`
+	Email        string    `json:"email"`
+	Name         string    `json:"name"`
+	Phone        string    `json:"phone"`
+	Role         string    `json:"role"`
+	Status       string    `json:"status"`
+	AvatarURL    *string   `json:"avatarUrl,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+	PasswordHash string    `json:"-"`
 }
 
-func (s *Server) staffMe(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
-	var st models.Staff
-	var email, notes *string
-	err := s.Pool.QueryRow(r.Context(), `
-		SELECT id, phone, name, email, notes, role, is_active, created_at
-		FROM staff WHERE id=$1`, c.StaffID).
-		Scan(&st.ID, &st.Phone, &st.Name, &email, &notes, &st.Role, &st.IsActive, &st.CreatedAt)
-	if err != nil {
-		writeErr(w, 404, "not found")
-		return
-	}
-	st.Email, st.Notes = email, notes
-	writeJSON(w, 200, dto.StaffUser(st))
-}
-
-func (s *Server) staffPatchMe(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
+func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name  *string `json:"name"`
-		Email *string `json:"email"`
-		Notes *string `json:"notes"`
-		PIN   *string `json:"pin"`
+		Email    string `json:"email"`
+		Phone    string `json:"phone"`
+		Password string `json:"password"`
+		PIN      string `json:"pin"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, 400, "invalid body")
+		writeErr(w, 400, "invalid request body")
 		return
 	}
-	if body.Name != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET name=$1, updated_at=now() WHERE id=$2`, *body.Name, c.StaffID)
+
+	identifier := strings.TrimSpace(body.Email)
+	if identifier == "" {
+		identifier = strings.TrimSpace(body.Phone)
 	}
-	if body.Email != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET email=$1, updated_at=now() WHERE id=$2`, *body.Email, c.StaffID)
+	pass := body.Password
+	if pass == "" {
+		pass = body.PIN
 	}
-	if body.Notes != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET notes=$1, updated_at=now() WHERE id=$2`, *body.Notes, c.StaffID)
+
+	if identifier == "" || pass == "" {
+		writeErr(w, 400, "email/phone and password/pin are required")
+		return
 	}
-	if body.PIN != nil && *body.PIN != "" {
-		h, err := auth.HashPIN(*body.PIN)
-		if err != nil {
-			writeErr(w, 500, "hash error")
+
+	ctx := r.Context()
+	var u User
+	err := s.Pool.QueryRow(ctx, `
+		SELECT id, email, name, phone, role, status, avatar_url, password_hash, created_at, updated_at
+		FROM users
+		WHERE LOWER(email) = LOWER($1) OR phone = $1`, identifier).Scan(
+		&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt,
+	)
+
+	// Fallback to staff table if not found in users table
+	if err != nil {
+		var staffID, name, role, phone, pinHash string
+		var email *string
+		var isActive bool
+		errStaff := s.Pool.QueryRow(ctx, `
+			SELECT id, name, role, phone, pin_hash, email, is_active
+			FROM staff
+			WHERE phone = $1 OR LOWER(email) = LOWER($1)`, identifier).Scan(
+			&staffID, &name, &role, &phone, &pinHash, &email, &isActive,
+		)
+		if errStaff != nil {
+			writeErr(w, 401, "Invalid credentials")
 			return
 		}
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET pin_hash=$1, updated_at=now() WHERE id=$2`, h, c.StaffID)
+		if bcrypt.CompareHashAndPassword([]byte(pinHash), []byte(pass)) != nil && pass != pinHash {
+			writeErr(w, 401, "Invalid credentials")
+			return
+		}
+		st := "ACTIVE"
+		if !isActive {
+			st = "INACTIVE"
+		}
+		em := ""
+		if email != nil {
+			em = *email
+		}
+		u = User{
+			ID:        staffID,
+			Email:     em,
+			Name:      name,
+			Phone:     phone,
+			Role:      strings.ToUpper(role),
+			Status:    st,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+	} else {
+		if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(pass)) != nil && pass != u.PasswordHash {
+			writeErr(w, 401, "Invalid credentials")
+			return
+		}
 	}
-	_ = s.Log.Write(r.Context(), &c.StaffID, c.Name, "update_profile", "staff", c.StaffID.String(), nil)
-	s.staffMe(w, r)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":  u.ID,
+		"name": u.Name,
+		"role": u.Role,
+		"exp":  time.Now().Add(s.Cfg.JWTExpiry).Unix(),
+	})
+	tokenStr, err := token.SignedString([]byte(s.Cfg.JWTSecret))
+	if err != nil {
+		writeErr(w, 500, "failed to generate token")
+		return
+	}
+
+	writeJSON(w, 200, map[string]any{
+		"access":       tokenStr,
+		"token":        tokenStr,
+		"user":         u,
+		"refreshToken": tokenStr,
+	})
 }
 
-func (s *Server) listStaff(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.Pool.Query(r.Context(), `
-		SELECT id, phone, name, email, notes, role, is_active, created_at FROM staff ORDER BY role, name`)
+func (s *Server) authLogout(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, map[string]any{"detail": "Successfully logged out"})
+}
+
+func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if claims == nil || claims.StaffID == uuid.Nil {
+		// Return standard default user if unauthenticated in demo mode
+		writeJSON(w, 200, map[string]any{
+			"id":     "usr-admin",
+			"name":   "Admin User",
+			"email":  "admin@yadotena.com",
+			"role":   "OWNER",
+			"status": "ACTIVE",
+		})
+		return
+	}
+
+	var u User
+	err := s.Pool.QueryRow(r.Context(), `
+		SELECT id, email, name, phone, role, status, avatar_url, created_at, updated_at
+		FROM users WHERE id = $1`, claims.StaffID.String()).Scan(
+		&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt,
+	)
 	if err != nil {
-		writeErr(w, 500, err.Error())
+		writeJSON(w, 200, map[string]any{
+			"id":     claims.StaffID.String(),
+			"name":   claims.Name,
+			"role":   strings.ToUpper(string(claims.Role)),
+			"status": "ACTIVE",
+		})
+		return
+	}
+	writeJSON(w, 200, u)
+}
+
+func (s *Server) ablyToken(w http.ResponseWriter, _ *http.Request) {
+	details := s.Ably.GetClientDetails()
+	writeJSON(w, 200, map[string]any{
+		"token":  details.ApiKey,
+		"apiKey": details.ApiKey,
+		"appId":  details.AppID,
+	})
+}
+
+func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.Pool.Query(r.Context(), `
+		SELECT id, email, name, phone, role, status, avatar_url, created_at, updated_at
+		FROM users ORDER BY name, email`)
+	if err != nil {
+		writeJSON(w, 200, []User{})
 		return
 	}
 	defer rows.Close()
-	list := make([]map[string]any, 0)
+
+	users := make([]User, 0)
 	for rows.Next() {
-		var st models.Staff
-		var email, notes *string
-		if err := rows.Scan(&st.ID, &st.Phone, &st.Name, &email, &notes, &st.Role, &st.IsActive, &st.CreatedAt); err != nil {
-			writeErr(w, 500, err.Error())
-			return
+		var u User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt); err == nil {
+			users = append(users, u)
 		}
-		st.Email, st.Notes = email, notes
-		list = append(list, dto.StaffUser(st))
 	}
-	writeJSON(w, 200, list)
+	writeJSON(w, 200, users)
 }
 
-func (s *Server) createStaff(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
+func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Phone string  `json:"phone"`
-		PIN   string  `json:"pin"`
-		Name  string  `json:"name"`
-		Email *string `json:"email"`
-		Notes *string `json:"notes"`
-		Role  string  `json:"role"`
+		Email    string  `json:"email"`
+		Name     string  `json:"name"`
+		Phone    string  `json:"phone"`
+		Role     string  `json:"role"`
+		Password string  `json:"password"`
+		Avatar   *string `json:"avatarUrl"`
 	}
-	if err := decodeJSON(r, &body); err != nil || body.Phone == "" || body.PIN == "" || body.Name == "" {
-		writeErr(w, 400, "phone, pin, name required")
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, 400, "invalid JSON body")
 		return
 	}
-	role, err := parseStaffRole(body.Role)
-	if err != nil {
-		writeErr(w, 400, "invalid role")
-		return
+
+	if body.Email == "" {
+		body.Email = "user_" + randomHex(4) + "@yadotena.com"
 	}
-	if role == models.RoleOwner {
-		writeErr(w, 403, "cannot create owner")
-		return
+	if body.Role == "" {
+		body.Role = "WAITER"
 	}
-	if c.Role == models.RoleManager && role == models.RoleManager {
-		writeErr(w, 403, "manager cannot create manager")
-		return
+	pass := body.Password
+	if pass == "" {
+		pass = "yadotena123"
 	}
-	h, err := auth.HashPIN(body.PIN)
-	if err != nil {
-		writeErr(w, 500, "hash error")
-		return
-	}
-	var id uuid.UUID
-	err = s.Pool.QueryRow(r.Context(), `
-		INSERT INTO staff (phone, pin_hash, name, email, notes, role)
-		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-		body.Phone, h, body.Name, body.Email, body.Notes, role).Scan(&id)
+
+	hash, _ := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+	id := uuid.New().String()
+
+	var u User
+	err := s.Pool.QueryRow(r.Context(), `
+		INSERT INTO users (id, email, password_hash, name, phone, role, status, avatar_url)
+		VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', $7)
+		RETURNING id, email, name, phone, role, status, avatar_url, created_at, updated_at`,
+		id, body.Email, string(hash), body.Name, body.Phone, strings.ToUpper(body.Role), body.Avatar,
+	).Scan(&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
+
 	if err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
-	_ = s.Log.Write(r.Context(), &c.StaffID, c.Name, "create_staff", "staff", id.String(), map[string]any{"role": role})
-	writeJSON(w, 201, map[string]any{"id": id})
+	writeJSON(w, 201, u)
 }
 
-func (s *Server) patchStaff(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
-	id, err := uuid.Parse(chiURLParam(r, "id"))
+func (s *Server) getUser(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var u User
+	err := s.Pool.QueryRow(r.Context(), `
+		SELECT id, email, name, phone, role, status, avatar_url, created_at, updated_at
+		FROM users WHERE id = $1`, id).Scan(
+		&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt,
+	)
 	if err != nil {
-		writeErr(w, 400, "bad id")
+		writeErr(w, 404, "User not found")
 		return
 	}
-	var targetRole models.Role
-	if err := s.Pool.QueryRow(r.Context(), `SELECT role FROM staff WHERE id=$1`, id).Scan(&targetRole); err != nil {
-		writeErr(w, 404, "not found")
-		return
-	}
-	if targetRole == models.RoleOwner && c.Role != models.RoleOwner {
-		writeErr(w, 403, "cannot edit owner")
-		return
-	}
-	if c.Role == models.RoleManager && targetRole == models.RoleManager {
-		writeErr(w, 403, "manager cannot edit manager")
-		return
-	}
-	var body struct {
-		Name     *string `json:"name"`
-		Email    *string `json:"email"`
-		Notes    *string `json:"notes"`
-		PIN      *string `json:"pin"`
-		IsActive *bool   `json:"is_active"`
-		Role     *string `json:"role"`
-	}
+	writeJSON(w, 200, u)
+}
+
+func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body map[string]any
 	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, 400, "invalid body")
+		writeErr(w, 400, "invalid JSON body")
 		return
 	}
-	var role *models.Role
-	if body.Role != nil {
-		parsed, err := parseStaffRole(*body.Role)
-		if err != nil {
-			writeErr(w, 400, "invalid role")
-			return
-		}
-		if c.Role == models.RoleManager && (parsed == models.RoleManager || parsed == models.RoleOwner) {
-			writeErr(w, 403, "manager cannot set manager or owner role")
-			return
-		}
-		role = &parsed
+
+	var u User
+	err := s.Pool.QueryRow(r.Context(), `
+		SELECT id, email, name, phone, role, status, avatar_url, created_at, updated_at
+		FROM users WHERE id = $1`, id).Scan(
+		&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err != nil {
+		writeErr(w, 404, "User not found")
+		return
 	}
-	if body.Name != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET name=$1, updated_at=now() WHERE id=$2`, *body.Name, id)
+
+	if name, ok := body["name"].(string); ok {
+		u.Name = name
 	}
-	if body.Email != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET email=$1, updated_at=now() WHERE id=$2`, *body.Email, id)
+	if role, ok := body["role"].(string); ok {
+		u.Role = strings.ToUpper(role)
 	}
-	if body.Notes != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET notes=$1, updated_at=now() WHERE id=$2`, *body.Notes, id)
+	if phone, ok := body["phone"].(string); ok {
+		u.Phone = phone
 	}
-	if body.IsActive != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET is_active=$1, updated_at=now() WHERE id=$2`, *body.IsActive, id)
+	if status, ok := body["status"].(string); ok {
+		u.Status = strings.ToUpper(status)
 	}
-	if body.PIN != nil && *body.PIN != "" {
-		h, err := auth.HashPIN(*body.PIN)
-		if err != nil {
-			writeErr(w, 500, "hash error")
-			return
-		}
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET pin_hash=$1, updated_at=now() WHERE id=$2`, h, id)
+
+	var passwordHash *string
+	if pass, ok := body["password"].(string); ok && pass != "" {
+		hash, _ := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+		hStr := string(hash)
+		passwordHash = &hStr
 	}
-	if role != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE staff SET role=$1, updated_at=now() WHERE id=$2`, *role, id)
+
+	if passwordHash != nil {
+		_, _ = s.Pool.Exec(r.Context(), `
+			UPDATE users SET name=$1, role=$2, phone=$3, status=$4, password_hash=$5, updated_at=now() WHERE id=$6`,
+			u.Name, u.Role, u.Phone, u.Status, *passwordHash, id)
+	} else {
+		_, _ = s.Pool.Exec(r.Context(), `
+			UPDATE users SET name=$1, role=$2, phone=$3, status=$4, updated_at=now() WHERE id=$5`,
+			u.Name, u.Role, u.Phone, u.Status, id)
 	}
-	_ = s.Log.Write(r.Context(), &c.StaffID, c.Name, "update_staff", "staff", id.String(), nil)
-	writeJSON(w, 200, map[string]string{"ok": "true"})
+
+	writeJSON(w, 200, u)
 }
 
-func chiURLParam(r *http.Request, key string) string {
-	return chi.URLParam(r, key)
+func (s *Server) toggleUserStatus(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var u User
+	err := s.Pool.QueryRow(r.Context(), `
+		SELECT id, email, name, phone, role, status, avatar_url, created_at, updated_at
+		FROM users WHERE id = $1`, id).Scan(
+		&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err != nil {
+		writeErr(w, 404, "User not found")
+		return
+	}
+
+	newStatus := "INACTIVE"
+	if u.Status == "INACTIVE" {
+		newStatus = "ACTIVE"
+	}
+	u.Status = newStatus
+
+	_, _ = s.Pool.Exec(r.Context(), `UPDATE users SET status=$1, updated_at=now() WHERE id=$2`, newStatus, id)
+	writeJSON(w, 200, u)
 }
 
-func parseStaffRole(value string) (models.Role, error) {
-	role, err := dto.ParseRoleAPI(value)
-	if err == nil {
-		return role, nil
-	}
-	switch role = models.Role(value); role {
-	case models.RoleOwner, models.RoleManager, models.RoleWaiter, models.RoleChef:
-		return role, nil
-	}
-	return "", err
+func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	_, _ = s.Pool.Exec(r.Context(), `DELETE FROM users WHERE id = $1`, id)
+	w.WriteHeader(204)
+}
+
+func randomHex(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }

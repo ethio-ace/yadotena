@@ -2,519 +2,419 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"net/url"
+	"strconv"
+	"strings"
+	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"yadotena/internal/dto"
-	"yadotena/internal/models"
-	"yadotena/internal/orders"
 )
 
-func (s *Server) publicMenu(w http.ResponseWriter, r *http.Request) {
-	cats, err := s.fetchCategories(r, true)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-	items, err := s.fetchItems(r, true)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 200, map[string]any{"categories": cats, "items": items})
+type Addon struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Price float64 `json:"price"`
 }
 
-func (s *Server) listCategories(w http.ResponseWriter, r *http.Request) {
-	cats, err := s.fetchCategories(r, false)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 200, cats)
+type MenuItem struct {
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Description     string    `json:"description"`
+	Price           float64   `json:"price"`
+	Category        string    `json:"category"`
+	CategoryId      string    `json:"categoryId,omitempty"`
+	Image           string    `json:"image"`
+	Available       bool      `json:"available"`
+	PreparationTime int       `json:"preparationTime"`
+	DietaryTags     []string  `json:"dietaryTags"`
+	CustomAddons    []Addon   `json:"customAddons"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
-func (s *Server) fetchCategories(r *http.Request, activeOnly bool) ([]models.Category, error) {
-	q := `SELECT id, name, sort_order, is_active FROM categories`
-	if activeOnly {
-		q += ` WHERE is_active=true`
+func (s *Server) listMenuItems(w http.ResponseWriter, r *http.Request) {
+	categoryFilter := r.URL.Query().Get("category")
+	availableFilter := r.URL.Query().Get("available")
+	searchFilter := r.URL.Query().Get("search")
+
+	q := `
+		SELECT m.id, m.name, m.description, m.price::float8, COALESCE(c.name, ''), COALESCE(m.category_id, ''),
+		       COALESCE(m.image, ''), m.available, m.preparation_time, m.dietary_tags, m.created_at, m.updated_at
+		FROM menu_items m
+		LEFT JOIN menu_categories c ON c.id = m.category_id
+		WHERE 1=1`
+
+	args := []any{}
+	n := 1
+
+	if categoryFilter != "" {
+		if strings.HasPrefix(categoryFilter, "cat-") {
+			q += fmt.Sprintf(" AND m.category_id = $%d", n)
+			args = append(args, categoryFilter)
+			n++
+		} else {
+			q += fmt.Sprintf(" AND LOWER(c.name) = LOWER($%d)", n)
+			args = append(args, categoryFilter)
+			n++
+		}
 	}
-	q += ` ORDER BY sort_order, name`
-	rows, err := s.Pool.Query(r.Context(), q)
+
+	if availableFilter != "" {
+		avail := availableFilter == "true" || availableFilter == "1"
+		q += fmt.Sprintf(" AND m.available = $%d", n)
+		args = append(args, avail)
+		n++
+	}
+
+	if searchFilter != "" {
+		q += fmt.Sprintf(" AND (m.name ILIKE $%d OR m.description ILIKE $%d)", n, n)
+		args = append(args, "%"+searchFilter+"%")
+		n++
+	}
+
+	q += " ORDER BY c.sort_order, m.name"
+
+	rows, err := s.Pool.Query(r.Context(), q, args...)
 	if err != nil {
-		return nil, err
+		writeJSON(w, 200, []MenuItem{})
+		return
 	}
 	defer rows.Close()
-	list := []models.Category{}
+
+	items := make([]MenuItem, 0)
 	for rows.Next() {
-		var c models.Category
-		if err := rows.Scan(&c.ID, &c.Name, &c.SortOrder, &c.IsActive); err != nil {
-			return nil, err
+		var item MenuItem
+		var dietaryTagsRaw []byte
+		if err := rows.Scan(
+			&item.ID, &item.Name, &item.Description, &item.Price, &item.Category, &item.CategoryId,
+			&item.Image, &item.Available, &item.PreparationTime, &dietaryTagsRaw, &item.CreatedAt, &item.UpdatedAt,
+		); err == nil {
+			if len(dietaryTagsRaw) > 0 {
+				_ = json.Unmarshal(dietaryTagsRaw, &item.DietaryTags)
+			}
+			if item.DietaryTags == nil {
+				item.DietaryTags = []string{}
+			}
+
+			// Load custom addons
+			addonRows, errAdd := s.Pool.Query(r.Context(), `SELECT id, name, price::float8 FROM menu_item_addons WHERE menu_item_id = $1`, item.ID)
+			if errAdd == nil {
+				item.CustomAddons = make([]Addon, 0)
+				for addonRows.Next() {
+					var ad Addon
+					if errScan := addonRows.Scan(&ad.ID, &ad.Name, &ad.Price); errScan == nil {
+						item.CustomAddons = append(item.CustomAddons, ad)
+					}
+				}
+				addonRows.Close()
+			} else {
+				item.CustomAddons = []Addon{}
+			}
+
+			items = append(items, item)
 		}
-		list = append(list, c)
 	}
-	return list, nil
-}
 
-func (s *Server) createCategory(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
-	var body struct {
-		Name      string `json:"name"`
-		SortOrder int    `json:"sort_order"`
-	}
-	if err := decodeJSON(r, &body); err != nil || body.Name == "" {
-		writeErr(w, 400, "name required")
-		return
-	}
-	var id uuid.UUID
-	err := s.Pool.QueryRow(r.Context(), `
-		INSERT INTO categories (name, sort_order) VALUES ($1,$2) RETURNING id`, body.Name, body.SortOrder).Scan(&id)
-	if err != nil {
-		writeErr(w, 400, err.Error())
-		return
-	}
-	_ = s.Log.Write(r.Context(), &c.StaffID, c.Name, "create_category", "category", id.String(), nil)
-	writeJSON(w, 201, map[string]any{"id": id})
-}
-
-func (s *Server) patchCategory(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
-	id, err := uuid.Parse(chiURLParam(r, "id"))
-	if err != nil {
-		writeErr(w, 400, "bad id")
-		return
-	}
-	var body struct {
-		Name      *string `json:"name"`
-		SortOrder *int    `json:"sort_order"`
-		IsActive  *bool   `json:"is_active"`
-	}
-	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, 400, "invalid body")
-		return
-	}
-	if body.Name != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE categories SET name=$1, updated_at=now() WHERE id=$2`, *body.Name, id)
-	}
-	if body.SortOrder != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE categories SET sort_order=$1, updated_at=now() WHERE id=$2`, *body.SortOrder, id)
-	}
-	if body.IsActive != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE categories SET is_active=$1, updated_at=now() WHERE id=$2`, *body.IsActive, id)
-	}
-	_ = s.Log.Write(r.Context(), &c.StaffID, c.Name, "update_category", "category", id.String(), nil)
-	writeJSON(w, 200, map[string]string{"ok": "true"})
-}
-
-func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
-	items, err := s.fetchItems(r, false)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
 	writeJSON(w, 200, items)
 }
 
-func (s *Server) fetchItems(r *http.Request, availableOnly bool) ([]map[string]any, error) {
-	q := `
-		SELECT mi.id, mi.category_id, mi.name, mi.description, mi.price_etb::float8,
-		       mi.image_url, mi.is_available, mi.sort_order, mi.preparation_time_minutes,
-		       c.name
-		FROM menu_items mi
-		JOIN categories c ON c.id=mi.category_id`
-	if availableOnly {
-		q += ` WHERE mi.is_available=true AND c.is_active=true`
-	}
-	q += ` ORDER BY mi.sort_order, mi.name`
-	rows, err := s.Pool.Query(r.Context(), q)
+func (s *Server) getMenuItem(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var item MenuItem
+	var dietaryTagsRaw []byte
+
+	err := s.Pool.QueryRow(r.Context(), `
+		SELECT m.id, m.name, m.description, m.price::float8, COALESCE(c.name, ''), COALESCE(m.category_id, ''),
+		       COALESCE(m.image, ''), m.available, m.preparation_time, m.dietary_tags, m.created_at, m.updated_at
+		FROM menu_items m
+		LEFT JOIN menu_categories c ON c.id = m.category_id
+		WHERE m.id = $1`, id).Scan(
+		&item.ID, &item.Name, &item.Description, &item.Price, &item.Category, &item.CategoryId,
+		&item.Image, &item.Available, &item.PreparationTime, &dietaryTagsRaw, &item.CreatedAt, &item.UpdatedAt,
+	)
+
 	if err != nil {
-		return nil, err
+		writeErr(w, 404, "Menu item not found")
+		return
 	}
-	defer rows.Close()
-	list := []map[string]any{}
-	for rows.Next() {
-		var it models.MenuItem
-		var categoryName string
-		if err := rows.Scan(
-			&it.ID, &it.CategoryID, &it.Name, &it.Description, &it.PriceETB,
-			&it.ImageURL, &it.IsAvailable, &it.SortOrder, &it.PreparationTimeMinutes,
-			&categoryName,
-		); err != nil {
-			return nil, err
+
+	if len(dietaryTagsRaw) > 0 {
+		_ = json.Unmarshal(dietaryTagsRaw, &item.DietaryTags)
+	}
+	if item.DietaryTags == nil {
+		item.DietaryTags = []string{}
+	}
+
+	// Load custom addons
+	addonRows, errAdd := s.Pool.Query(r.Context(), `SELECT id, name, price::float8 FROM menu_item_addons WHERE menu_item_id = $1`, item.ID)
+	if errAdd == nil {
+		item.CustomAddons = make([]Addon, 0)
+		for addonRows.Next() {
+			var ad Addon
+			if errScan := addonRows.Scan(&ad.ID, &ad.Name, &ad.Price); errScan == nil {
+				item.CustomAddons = append(item.CustomAddons, ad)
+			}
 		}
-		list = append(list, dto.MenuItemAPI(it, categoryName))
+		addonRows.Close()
+	} else {
+		item.CustomAddons = []Addon{}
 	}
-	return list, nil
+
+	writeJSON(w, 200, item)
 }
 
-func (s *Server) createItem(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
-	var body struct {
-		CategoryID            uuid.UUID `json:"categoryId"`
-		LegacyCategoryID      uuid.UUID `json:"category_id"`
-		Name                  string    `json:"name"`
-		Description           string    `json:"description"`
-		Price                 *float64  `json:"price"`
-		LegacyPriceETB        *float64  `json:"price_etb"`
-		Image                 *string   `json:"image"`
-		LegacyImageURL        *string   `json:"image_url"`
-		Available             *bool     `json:"available"`
-		LegacyIsAvailable     *bool     `json:"is_available"`
-		PreparationTime       *int      `json:"preparationTime"`
-		LegacyPreparationTime *int      `json:"preparation_time_minutes"`
-		SortOrder             int       `json:"sort_order"`
-	}
-	if err := decodeJSON(r, &body); err != nil || body.Name == "" {
-		writeErr(w, 400, "invalid item")
-		return
-	}
-	categoryID := body.CategoryID
-	if categoryID == uuid.Nil {
-		categoryID = body.LegacyCategoryID
-	}
-	if categoryID == uuid.Nil {
-		writeErr(w, 400, "categoryId required")
-		return
-	}
-	price := body.Price
-	if price == nil {
-		price = body.LegacyPriceETB
-	}
-	if price == nil {
-		writeErr(w, 400, "price required")
-		return
-	}
-	imageURL := body.Image
-	if imageURL == nil {
-		imageURL = body.LegacyImageURL
-	}
-	if imageURL != nil && *imageURL != "" {
-		if err := validateImageURL(*imageURL); err != nil {
-			writeErr(w, 400, err.Error())
+func (s *Server) createMenuItem(w http.ResponseWriter, r *http.Request) {
+	contentType := r.Header.Get("Content-Type")
+
+	var name, description, category, imageURL string
+	var price float64
+	var prepTime int = 15
+	var available bool = true
+	var dietaryTags []string
+	var customAddons []Addon
+
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		err := r.ParseMultipartForm(s.Cfg.UploadMaxBytes)
+		if err != nil {
+			writeErr(w, 400, "error parsing multipart form")
 			return
 		}
+		name = r.FormValue("name")
+		description = r.FormValue("description")
+		category = r.FormValue("category")
+		imageURL = r.FormValue("imageUrl")
+		if imageURL == "" {
+			imageURL = r.FormValue("image")
+		}
+
+		if pStr := r.FormValue("price"); pStr != "" {
+			price, _ = strconv.ParseFloat(pStr, 64)
+		}
+		if ptStr := r.FormValue("preparationTime"); ptStr != "" {
+			prepTime, _ = strconv.Atoi(ptStr)
+		}
+		if avStr := r.FormValue("available"); avStr != "" {
+			available = avStr == "true" || avStr == "1"
+		}
+
+		if dtStr := r.FormValue("dietaryTags"); dtStr != "" {
+			_ = json.Unmarshal([]byte(dtStr), &dietaryTags)
+		}
+		if caStr := r.FormValue("customAddons"); caStr != "" {
+			_ = json.Unmarshal([]byte(caStr), &customAddons)
+		}
+
+		// Handle file upload if present
+		file, header, errFile := r.FormFile("image")
+		if errFile == nil && file != nil {
+			defer file.Close()
+			uploadedURL, errUp := s.Storage.UploadAndOptimizeImage(r.Context(), file, header.Filename)
+			if errUp == nil && uploadedURL != "" {
+				imageURL = uploadedURL
+			}
+		}
+	} else {
+		var body struct {
+			Name            string   `json:"name"`
+			Description     string   `json:"description"`
+			Price           float64  `json:"price"`
+			Category        string   `json:"category"`
+			Image           string   `json:"image"`
+			ImageUrl        string   `json:"imageUrl"`
+			Available       *bool    `json:"available"`
+			PreparationTime int      `json:"preparationTime"`
+			DietaryTags     []string `json:"dietaryTags"`
+			CustomAddons    []Addon  `json:"customAddons"`
+		}
+		if err := decodeJSON(r, &body); err != nil {
+			writeErr(w, 400, "invalid JSON body")
+			return
+		}
+		name = body.Name
+		description = body.Description
+		price = body.Price
+		category = body.Category
+		imageURL = body.Image
+		if imageURL == "" {
+			imageURL = body.ImageUrl
+		}
+		if body.Available != nil {
+			available = *body.Available
+		}
+		if body.PreparationTime > 0 {
+			prepTime = body.PreparationTime
+		}
+		dietaryTags = body.DietaryTags
+		customAddons = body.CustomAddons
 	}
-	isAvailable := true
-	if body.Available != nil {
-		isAvailable = *body.Available
-	} else if body.LegacyIsAvailable != nil {
-		isAvailable = *body.LegacyIsAvailable
+
+	if name == "" {
+		writeErr(w, 400, "name is required")
+		return
 	}
-	preparationTime := 0
-	if body.PreparationTime != nil {
-		preparationTime = *body.PreparationTime
-	} else if body.LegacyPreparationTime != nil {
-		preparationTime = *body.LegacyPreparationTime
+
+	// Handle external link import if image URL is provided and not already on Tigris S3
+	if imageURL != "" && strings.HasPrefix(imageURL, "http") && !strings.Contains(imageURL, s.Cfg.TigrisBucket) {
+		if optimizedURL, errLink := s.Storage.UploadFromLink(r.Context(), imageURL); errLink == nil && optimizedURL != "" {
+			imageURL = optimizedURL
+		}
 	}
-	var id uuid.UUID
+
+	// Find or resolve category ID
+	var catID string
+	if category != "" {
+		if strings.HasPrefix(category, "cat-") {
+			catID = category
+		} else {
+			_ = s.Pool.QueryRow(r.Context(), `SELECT id FROM menu_categories WHERE LOWER(name) = LOWER($1)`, category).Scan(&catID)
+		}
+	}
+
+	if catID == "" {
+		// Use first category or create default
+		_ = s.Pool.QueryRow(r.Context(), `SELECT id FROM menu_categories ORDER BY sort_order LIMIT 1`).Scan(&catID)
+		if catID == "" {
+			catID = fmt.Sprintf("cat-%s", uuid.New().String()[:8])
+			_, _ = s.Pool.Exec(r.Context(), `INSERT INTO menu_categories (id, name) VALUES ($1, 'General')`, catID)
+		}
+	}
+
+	id := fmt.Sprintf("m-%s", uuid.New().String()[:8])
+	dtBytes, _ := json.Marshal(dietaryTags)
+
+	var item MenuItem
 	err := s.Pool.QueryRow(r.Context(), `
-		INSERT INTO menu_items (
-			category_id, name, description, price_etb, image_url, is_available,
-			preparation_time_minutes, sort_order
-		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-		categoryID, body.Name, body.Description, *price, imageURL, isAvailable,
-		preparationTime, body.SortOrder).Scan(&id)
+		INSERT INTO menu_items (id, name, description, price, category_id, image, available, preparation_time, dietary_tags)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, name, description, price::float8, category_id, COALESCE(image, ''), available, preparation_time, created_at, updated_at`,
+		id, name, description, price, catID, imageURL, available, prepTime, dtBytes,
+	).Scan(&item.ID, &item.Name, &item.Description, &item.Price, &item.CategoryId, &item.Image, &item.Available, &item.PreparationTime, &item.CreatedAt, &item.UpdatedAt)
+
 	if err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
-	_ = s.Log.Write(r.Context(), &c.StaffID, c.Name, "create_item", "menu_item", id.String(), nil)
-	writeJSON(w, 201, map[string]any{"id": id})
-}
 
-func (s *Server) patchItem(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
-	id, err := uuid.Parse(chiURLParam(r, "id"))
-	if err != nil {
-		writeErr(w, 400, "bad id")
-		return
+	item.Category = category
+	item.DietaryTags = dietaryTags
+	if item.DietaryTags == nil {
+		item.DietaryTags = []string{}
 	}
-	var body struct {
-		CategoryID            *uuid.UUID `json:"categoryId"`
-		LegacyCategoryID      *uuid.UUID `json:"category_id"`
-		Name                  *string    `json:"name"`
-		Description           *string    `json:"description"`
-		Price                 *float64   `json:"price"`
-		LegacyPriceETB        *float64   `json:"price_etb"`
-		Image                 *string    `json:"image"`
-		LegacyImageURL        *string    `json:"image_url"`
-		Available             *bool      `json:"available"`
-		LegacyIsAvailable     *bool      `json:"is_available"`
-		PreparationTime       *int       `json:"preparationTime"`
-		LegacyPreparationTime *int       `json:"preparation_time_minutes"`
-		SortOrder             *int       `json:"sort_order"`
-	}
-	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, 400, "invalid body")
-		return
-	}
-	categoryID := body.CategoryID
-	if categoryID == nil {
-		categoryID = body.LegacyCategoryID
-	}
-	price := body.Price
-	if price == nil {
-		price = body.LegacyPriceETB
-	}
-	imageURL := body.Image
-	if imageURL == nil {
-		imageURL = body.LegacyImageURL
-	}
-	isAvailable := body.Available
-	if isAvailable == nil {
-		isAvailable = body.LegacyIsAvailable
-	}
-	preparationTime := body.PreparationTime
-	if preparationTime == nil {
-		preparationTime = body.LegacyPreparationTime
-	}
-	if imageURL != nil && *imageURL != "" {
-		if err := validateImageURL(*imageURL); err != nil {
-			writeErr(w, 400, err.Error())
-			return
+
+	// Save custom addons
+	item.CustomAddons = make([]Addon, 0)
+	for _, ad := range customAddons {
+		adID := fmt.Sprintf("add-%s", uuid.New().String()[:8])
+		_, errAdd := s.Pool.Exec(r.Context(), `INSERT INTO menu_item_addons (id, menu_item_id, name, price) VALUES ($1, $2, $3, $4)`, adID, item.ID, ad.Name, ad.Price)
+		if errAdd == nil {
+			ad.ID = adID
+			item.CustomAddons = append(item.CustomAddons, ad)
 		}
 	}
-	if categoryID != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE menu_items SET category_id=$1, updated_at=now() WHERE id=$2`, *categoryID, id)
-	}
-	if body.Name != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE menu_items SET name=$1, updated_at=now() WHERE id=$2`, *body.Name, id)
-	}
-	if body.Description != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE menu_items SET description=$1, updated_at=now() WHERE id=$2`, *body.Description, id)
-	}
-	if price != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE menu_items SET price_etb=$1, updated_at=now() WHERE id=$2`, *price, id)
-	}
-	if imageURL != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE menu_items SET image_url=$1, updated_at=now() WHERE id=$2`, *imageURL, id)
-	}
-	if isAvailable != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE menu_items SET is_available=$1, updated_at=now() WHERE id=$2`, *isAvailable, id)
-	}
-	if preparationTime != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE menu_items SET preparation_time_minutes=$1, updated_at=now() WHERE id=$2`, *preparationTime, id)
-	}
-	if body.SortOrder != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE menu_items SET sort_order=$1, updated_at=now() WHERE id=$2`, *body.SortOrder, id)
-	}
-	_ = s.Log.Write(r.Context(), &c.StaffID, c.Name, "update_item", "menu_item", id.String(), nil)
-	writeJSON(w, 200, map[string]string{"ok": "true"})
+
+	writeJSON(w, 201, item)
 }
 
-func validateImageURL(raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
-		return errInvalidImageURL
-	}
-	return nil
-}
+func (s *Server) updateMenuItem(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	contentType := r.Header.Get("Content-Type")
 
-var errInvalidImageURL = &simpleError{"image_url must be http(s)"}
-
-type simpleError struct{ s string }
-
-func (e *simpleError) Error() string { return e.s }
-
-func (s *Server) publicTables(w http.ResponseWriter, r *http.Request) {
-	tables, err := s.fetchTables(r, true)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 200, tables)
-}
-
-func (s *Server) listTables(w http.ResponseWriter, r *http.Request) {
-	tables, err := s.fetchTables(r, false)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 200, tables)
-}
-
-func (s *Server) fetchTables(r *http.Request, activeOnly bool) ([]map[string]any, error) {
-	q := `
-		SELECT t.id, t.label, t.seats, t.assigned_waiter_id, t.is_active,
-		       o.id, o.order_status, o.payment_status
-		FROM cafe_tables t
-		LEFT JOIN LATERAL (
-			SELECT id, order_status, payment_status
-			FROM orders
-			WHERE table_id=t.id AND order_type='dine_in'
-			  AND order_status NOT IN ('completed','cancelled')
-			ORDER BY created_at DESC
-			LIMIT 1
-		) o ON true`
-	if activeOnly {
-		q += ` WHERE t.is_active=true`
-	}
-	q += ` ORDER BY t.label`
-	rows, err := s.Pool.Query(r.Context(), q)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	list := []map[string]any{}
-	for rows.Next() {
-		var t models.CafeTable
-		var orderID *uuid.UUID
-		var orderStatus *models.OrderStatus
-		var paymentStatus *models.PaymentStatus
-		if err := rows.Scan(
-			&t.ID, &t.Label, &t.Seats, &t.AssignedWaiterID, &t.IsActive,
-			&orderID, &orderStatus, &paymentStatus,
-		); err != nil {
-			return nil, err
-		}
-		var status models.OrderStatus
-		var payment models.PaymentStatus
-		if orderStatus != nil {
-			status = *orderStatus
-		}
-		if paymentStatus != nil {
-			payment = *paymentStatus
-		}
-		list = append(list, dto.TableAPI(
-			t.ID.String(), t.Label, t.Seats,
-			orders.DeriveTableStatus(status, payment, orderID != nil),
-			orderID,
-		))
-	}
-	return list, nil
-}
-
-func (s *Server) createTable(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
-	var body struct {
-		Label            string     `json:"label"`
-		Seats            int        `json:"seats"`
-		AssignedWaiterID *uuid.UUID `json:"assigned_waiter_id"`
-	}
-	if err := decodeJSON(r, &body); err != nil || body.Label == "" {
-		writeErr(w, 400, "label required")
-		return
-	}
-	if body.Seats <= 0 {
-		body.Seats = 2
-	}
-	var id uuid.UUID
+	var item MenuItem
+	var dietaryTagsRaw []byte
 	err := s.Pool.QueryRow(r.Context(), `
-		INSERT INTO cafe_tables (label, seats, assigned_waiter_id) VALUES ($1,$2,$3) RETURNING id`,
-		body.Label, body.Seats, body.AssignedWaiterID).Scan(&id)
+		SELECT m.id, m.name, m.description, m.price::float8, COALESCE(c.name, ''), COALESCE(m.category_id, ''),
+		       COALESCE(m.image, ''), m.available, m.preparation_time, m.dietary_tags, m.created_at, m.updated_at
+		FROM menu_items m
+		LEFT JOIN menu_categories c ON c.id = m.category_id
+		WHERE m.id = $1`, id).Scan(
+		&item.ID, &item.Name, &item.Description, &item.Price, &item.Category, &item.CategoryId,
+		&item.Image, &item.Available, &item.PreparationTime, &dietaryTagsRaw, &item.CreatedAt, &item.UpdatedAt,
+	)
+
 	if err != nil {
-		writeErr(w, 400, err.Error())
+		writeErr(w, 404, "Menu item not found")
 		return
 	}
-	_ = s.Log.Write(r.Context(), &c.StaffID, c.Name, "create_table", "table", id.String(), nil)
-	writeJSON(w, 201, map[string]any{"id": id})
+
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		_ = r.ParseMultipartForm(s.Cfg.UploadMaxBytes)
+		if name := r.FormValue("name"); name != "" {
+			item.Name = name
+		}
+		if desc := r.FormValue("description"); desc != "" {
+			item.Description = desc
+		}
+		if pStr := r.FormValue("price"); pStr != "" {
+			item.Price, _ = strconv.ParseFloat(pStr, 64)
+		}
+		if ptStr := r.FormValue("preparationTime"); ptStr != "" {
+			item.PreparationTime, _ = strconv.Atoi(ptStr)
+		}
+		if avStr := r.FormValue("available"); avStr != "" {
+			item.Available = avStr == "true" || avStr == "1"
+		}
+		if img := r.FormValue("image"); img != "" {
+			item.Image = img
+		}
+
+		file, header, errFile := r.FormFile("image")
+		if errFile == nil && file != nil {
+			defer file.Close()
+			uploadedURL, errUp := s.Storage.UploadAndOptimizeImage(r.Context(), file, header.Filename)
+			if errUp == nil && uploadedURL != "" {
+				item.Image = uploadedURL
+			}
+		}
+	} else {
+		var body map[string]any
+		if err := decodeJSON(r, &body); err == nil {
+			if name, ok := body["name"].(string); ok {
+				item.Name = name
+			}
+			if desc, ok := body["description"].(string); ok {
+				item.Description = desc
+			}
+			if price, ok := body["price"].(float64); ok {
+				item.Price = price
+			}
+			if prep, ok := body["preparationTime"].(float64); ok {
+				item.PreparationTime = int(prep)
+			}
+			if avail, ok := body["available"].(bool); ok {
+				item.Available = avail
+			}
+			if img, ok := body["image"].(string); ok {
+				item.Image = img
+			}
+		}
+	}
+
+	_, _ = s.Pool.Exec(r.Context(), `
+		UPDATE menu_items SET name=$1, description=$2, price=$3, image=$4, available=$5, preparation_time=$6, updated_at=now() WHERE id=$7`,
+		item.Name, item.Description, item.Price, item.Image, item.Available, item.PreparationTime, id)
+
+	writeJSON(w, 200, item)
 }
 
-func (s *Server) patchTable(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
-	id, err := uuid.Parse(chiURLParam(r, "id"))
-	if err != nil {
-		writeErr(w, 400, "bad id")
-		return
-	}
-	var body struct {
-		Label            *string    `json:"label"`
-		Seats            *int       `json:"seats"`
-		AssignedWaiterID *uuid.UUID `json:"assigned_waiter_id"`
-		ClearWaiter      bool       `json:"clear_waiter"`
-		IsActive         *bool      `json:"is_active"`
-	}
-	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, 400, "invalid body")
-		return
-	}
-	if body.Label != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE cafe_tables SET label=$1, updated_at=now() WHERE id=$2`, *body.Label, id)
-	}
-	if body.Seats != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE cafe_tables SET seats=$1, updated_at=now() WHERE id=$2`, *body.Seats, id)
-	}
-	if body.ClearWaiter {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE cafe_tables SET assigned_waiter_id=NULL, updated_at=now() WHERE id=$1`, id)
-	} else if body.AssignedWaiterID != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE cafe_tables SET assigned_waiter_id=$1, updated_at=now() WHERE id=$2`, *body.AssignedWaiterID, id)
-	}
-	if body.IsActive != nil {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE cafe_tables SET is_active=$1, updated_at=now() WHERE id=$2`, *body.IsActive, id)
-	}
-	_ = s.Log.Write(r.Context(), &c.StaffID, c.Name, "update_table", "table", id.String(), nil)
-	writeJSON(w, 200, map[string]string{"ok": "true"})
-}
-
-func (s *Server) publicSettings(w http.ResponseWriter, r *http.Request) {
-	st, err := s.loadSettings(r)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 200, map[string]any{
-		"cafe_name":              st.CafeName,
-		"cafe_phone":             st.CafePhone,
-		"cafe_address":           st.CafeAddress,
-		"accepting_orders":       st.AcceptingOrders,
-		"cash_enabled":           st.CashEnabled,
-		"digital_enabled":        st.DigitalEnabled,
-		"digital_methods":        st.DigitalMethods,
-		"service_charge_percent": st.ServiceChargePercent,
-	})
-}
-
-func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
-	st, err := s.loadSettings(r)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 200, st)
-}
-
-func (s *Server) patchSettings(w http.ResponseWriter, r *http.Request) {
-	c := claimsFrom(r)
-	var body models.Settings
-	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, 400, "invalid body")
-		return
-	}
-	methods, _ := json.Marshal(body.DigitalMethods)
-	_, err := s.Pool.Exec(r.Context(), `
-		UPDATE settings SET cafe_name=$1, cafe_phone=$2, cafe_address=$3, accepting_orders=$4,
-		cash_enabled=$5, digital_enabled=$6, digital_methods=$7, public_base_url=$8,
-		service_charge_percent=$9, updated_at=now()
-		WHERE id=1`,
-		body.CafeName, body.CafePhone, body.CafeAddress, body.AcceptingOrders,
-		body.CashEnabled, body.DigitalEnabled, methods, body.PublicBaseURL,
-		body.ServiceChargePercent)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-	_ = s.Log.Write(r.Context(), &c.StaffID, c.Name, "update_settings", "settings", "1", nil)
-	s.getSettings(w, r)
-}
-
-func (s *Server) loadSettings(r *http.Request) (models.Settings, error) {
-	var st models.Settings
-	var methods []byte
+func (s *Server) toggleMenuItemAvailability(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var item MenuItem
 	err := s.Pool.QueryRow(r.Context(), `
-		SELECT cafe_name, cafe_phone, cafe_address, accepting_orders, cash_enabled,
-		       digital_enabled, digital_methods, public_base_url, service_charge_percent::float8
-		FROM settings WHERE id=1`).Scan(
-		&st.CafeName, &st.CafePhone, &st.CafeAddress, &st.AcceptingOrders,
-		&st.CashEnabled, &st.DigitalEnabled, &methods, &st.PublicBaseURL,
-		&st.ServiceChargePercent)
+		SELECT id, name, available FROM menu_items WHERE id = $1`, id).Scan(&item.ID, &item.Name, &item.Available)
 	if err != nil {
-		return st, err
+		writeErr(w, 404, "Menu item not found")
+		return
 	}
-	_ = json.Unmarshal(methods, &st.DigitalMethods)
-	if st.PublicBaseURL == "" {
-		st.PublicBaseURL = s.Cfg.PublicBaseURL
-	}
-	return st, nil
+
+	item.Available = !item.Available
+	_, _ = s.Pool.Exec(r.Context(), `UPDATE menu_items SET available=$1, updated_at=now() WHERE id=$2`, item.Available, id)
+	writeJSON(w, 200, item)
+}
+
+func (s *Server) deleteMenuItem(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	_, _ = s.Pool.Exec(r.Context(), `DELETE FROM menu_items WHERE id = $1`, id)
+	w.WriteHeader(204)
 }

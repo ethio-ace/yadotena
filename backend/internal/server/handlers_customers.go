@@ -1,59 +1,120 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
-	"yadotena/internal/customers"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
-type customerResponse struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Phone       string    `json:"phone"`
-	TotalOrders int       `json:"totalOrders"`
-	TotalSpent  float64   `json:"totalSpent"`
-	LastOrder   time.Time `json:"lastOrder"`
-	Type        string    `json:"type"`
+type Customer struct {
+	ID            string     `json:"id"`
+	Name          string     `json:"name"`
+	Phone         string     `json:"phone"`
+	Email         *string    `json:"email,omitempty"`
+	TotalOrders   int        `json:"totalOrders"`
+	TotalSpent    float64    `json:"totalSpent"`
+	LastOrderDate *time.Time `json:"lastOrderDate,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
 }
 
 func (s *Server) listCustomers(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.Pool.Query(r.Context(), `
-		SELECT customer_phone,
-		       (ARRAY_AGG(customer_name ORDER BY created_at DESC))[1] AS name,
-		       COUNT(*)::int AS total_orders,
-		       COALESCE(SUM(total_etb) FILTER (WHERE payment_status='paid'), 0)::float8 AS total_spent,
-		       MAX(created_at) AS last_order
-		FROM orders
-		GROUP BY customer_phone
-		ORDER BY last_order DESC`)
+		SELECT id, name, phone, email, total_orders, total_spent::float8, last_order_date, created_at
+		FROM customers ORDER BY total_spent DESC, created_at DESC`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err.Error())
+		writeJSON(w, 200, []Customer{})
 		return
 	}
 	defer rows.Close()
 
-	list := make([]customerResponse, 0)
+	custs := make([]Customer, 0)
 	for rows.Next() {
-		var customer customerResponse
-		if err := rows.Scan(
-			&customer.Phone,
-			&customer.Name,
-			&customer.TotalOrders,
-			&customer.TotalSpent,
-			&customer.LastOrder,
-		); err != nil {
-			writeErr(w, http.StatusInternalServerError, err.Error())
-			return
+		var c Customer
+		if err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.TotalOrders, &c.TotalSpent, &c.LastOrderDate, &c.CreatedAt); err == nil {
+			custs = append(custs, c)
 		}
-		customer.ID = customer.Phone
-		customer.Type = customers.Classify(customer.TotalOrders, customer.TotalSpent)
-		list = append(list, customer)
 	}
-	if err := rows.Err(); err != nil {
-		writeErr(w, http.StatusInternalServerError, err.Error())
+	writeJSON(w, 200, custs)
+}
+
+func (s *Server) getCustomer(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var c Customer
+	err := s.Pool.QueryRow(r.Context(), `
+		SELECT id, name, phone, email, total_orders, total_spent::float8, last_order_date, created_at
+		FROM customers WHERE id = $1`, id).Scan(
+		&c.ID, &c.Name, &c.Phone, &c.Email, &c.TotalOrders, &c.TotalSpent, &c.LastOrderDate, &c.CreatedAt,
+	)
+	if err != nil {
+		writeErr(w, 404, "Customer not found")
+		return
+	}
+	writeJSON(w, 200, c)
+}
+
+func (s *Server) createCustomer(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name  string  `json:"name"`
+		Phone string  `json:"phone"`
+		Email *string `json:"email"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, 400, "invalid JSON body")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, list)
+	if body.Name == "" || body.Phone == "" {
+		writeErr(w, 400, "name and phone are required")
+		return
+	}
+
+	id := fmt.Sprintf("c-%s", uuid.New().String()[:8])
+	var c Customer
+
+	err := s.Pool.QueryRow(r.Context(), `
+		INSERT INTO customers (id, name, phone, email)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email
+		RETURNING id, name, phone, email, total_orders, total_spent::float8, last_order_date, created_at`,
+		id, body.Name, body.Phone, body.Email,
+	).Scan(&c.ID, &c.Name, &c.Phone, &c.Email, &c.TotalOrders, &c.TotalSpent, &c.LastOrderDate, &c.CreatedAt)
+
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, 201, c)
+}
+
+func (s *Server) updateCustomer(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body map[string]any
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, 400, "invalid JSON body")
+		return
+	}
+
+	var c Customer
+	err := s.Pool.QueryRow(r.Context(), `
+		SELECT id, name, phone, email, total_orders, total_spent::float8, last_order_date, created_at
+		FROM customers WHERE id = $1`, id).Scan(
+		&c.ID, &c.Name, &c.Phone, &c.Email, &c.TotalOrders, &c.TotalSpent, &c.LastOrderDate, &c.CreatedAt,
+	)
+	if err != nil {
+		writeErr(w, 404, "Customer not found")
+		return
+	}
+
+	if name, ok := body["name"].(string); ok {
+		c.Name = name
+	}
+	if phone, ok := body["phone"].(string); ok {
+		c.Phone = phone
+	}
+
+	_, _ = s.Pool.Exec(r.Context(), `UPDATE customers SET name=$1, phone=$2 WHERE id=$3`, c.Name, c.Phone, id)
+	writeJSON(w, 200, c)
 }

@@ -35,10 +35,11 @@ func (c R2Config) endpointURL() string {
 }
 
 type PresignResult struct {
-	UploadURL string
-	PublicURL string
-	Headers   map[string]string
-	ExpiresIn int
+	UploadURL string            `json:"uploadUrl"`
+	Key       string            `json:"key,omitempty"`
+	PublicURL string            `json:"publicUrl"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	ExpiresIn int               `json:"expiresIn,omitempty"`
 }
 
 func PresignPut(ctx context.Context, cfg R2Config, contentType, filename string, maxBytes int64) (*PresignResult, error) {
@@ -71,13 +72,14 @@ func PresignPut(ctx context.Context, cfg R2Config, contentType, filename string,
 		Bucket:      aws.String(cfg.Bucket),
 		Key:         aws.String(key),
 		ContentType: aws.String(ct),
-	}, s3.WithPresignExpires(5 * time.Minute))
+	}, s3.WithPresignExpires(5*time.Minute))
 	if err != nil {
 		return nil, err
 	}
 	public := strings.TrimRight(cfg.PublicBaseURL, "/") + "/" + path.Clean(key)
 	return &PresignResult{
 		UploadURL: out.URL,
+		Key:       key,
 		PublicURL: public,
 		Headers:   map[string]string{"Content-Type": ct},
 		ExpiresIn: 300,

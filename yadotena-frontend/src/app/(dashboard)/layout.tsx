@@ -17,15 +17,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.replace("/login");
     } else if (status === "authenticated" && session?.user?.role === "CUSTOMER") {
       router.replace("/");
-    } else if (status === "authenticated" && session?.user?.role === "WAITER" && pathname !== "/dashboard") {
-      router.replace("/dashboard");
+    } else if (status === "authenticated" && session?.user?.role === "WAITER" && pathname !== "/dashboard/waiter" && pathname !== "/dashboard") {
+      router.replace("/dashboard/waiter");
+    } else if (status === "authenticated" && session?.user?.role === "KITCHEN" && pathname !== "/dashboard/kitchen" && pathname !== "/dashboard") {
+      router.replace("/dashboard/kitchen");
     }
   }, [status, session, router, pathname]);
 
   if (status === "loading") {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -34,13 +36,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return null; 
   }
 
+  // Hide empty/unnecessary sidebar for operational staff roles & full-width terminals
+  const isStaffRole = session.user.role === "WAITER" || session.user.role === "KITCHEN" || session.user.role === "CASHIER";
+  const isTerminalPage = pathname.startsWith("/dashboard/waiter") || pathname.startsWith("/dashboard/kitchen") || pathname.startsWith("/dashboard/cashier");
+  const showSidebar = !isStaffRole && !isTerminalPage;
+
   return (
     <SoundNotificationProvider>
       <div className="flex h-screen bg-muted/20 overflow-hidden">
-        {session.user.role !== "WAITER" && <Sidebar role={session.user.role} />}
+        {showSidebar && <Sidebar role={session.user.role} />}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Header user={session.user} />
-          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
             {children}
           </main>
         </div>

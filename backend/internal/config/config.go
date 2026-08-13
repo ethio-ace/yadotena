@@ -60,11 +60,11 @@ func Load() Config {
 
 	tigrisAccess := firstEnv("TIGRIS_STORAGE_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID")
 	if tigrisAccess == "" {
-		tigrisAccess = "tid_ekEybroErJspsnfHIvLUMYOJzFkEyXvaDpyoNaqkRehShEedSi"
+		tigrisAccess = "tid_ceTEvXARfEcL_wchrUqeiimBTxyXqTApG_IByTDjZMUKOXuZwd"
 	}
 	tigrisSecret := firstEnv("TIGRIS_STORAGE_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY")
 	if tigrisSecret == "" {
-		tigrisSecret = "tsec_qPg20YLSquDAayXF2Q+HiBQSeuGfmV-_vUw4gT_MdGTIR_7OorNdyfXUllYZSQ1A3sQ06m"
+		tigrisSecret = "tsec_zDAQtifbJiYk7_TZt-4wRhukkrYwxkscb_8yGlt_HgKBN1VLwOlGitrb1UTuohFa0DHuoa"
 	}
 	tigrisEndpoint := firstEnv("TIGRIS_STORAGE_ENDPOINT", "AWS_ENDPOINT_URL_S3")
 	if tigrisEndpoint == "" {
@@ -72,7 +72,7 @@ func Load() Config {
 	}
 	tigrisBucket := firstEnv("STORAGE_BUCKET_NAME", "TIGRIS_BUCKET_NAME", "AWS_BUCKET_NAME")
 	if tigrisBucket == "" {
-		tigrisBucket = "yadotena-media"
+		tigrisBucket = "yadotena"
 	}
 
 	ablyKey := getenv("ABLY_API_KEY", "-4Zlzg.IeXFIQ:WVUQULrxNq5--goH4SzbHOnTZ9OoXB-JcKMx5Wd2XQE")

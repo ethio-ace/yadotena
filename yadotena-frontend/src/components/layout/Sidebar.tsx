@@ -18,7 +18,6 @@ import {
   Settings,
   ShieldCheck,
   Briefcase,
-  UserCheck,
   Wallet
 } from "lucide-react";
 
@@ -33,7 +32,7 @@ export const navItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN", "CASHIER"] },
   { name: "Owner Console", href: "/dashboard/owner", icon: ShieldCheck, roles: ["OWNER"] },
   { name: "Manager Operations", href: "/dashboard/manager", icon: Briefcase, roles: ["OWNER", "MANAGER"] },
-  { name: "Waiter Station", href: "/dashboard/waiter", icon: UserCheck, roles: ["OWNER", "MANAGER", "WAITER"] },
+  { name: "Chef Operations", href: "/dashboard/waiter", icon: ChefHat, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN"] },
   { name: "Kitchen KDS", href: "/dashboard/kitchen", icon: ChefHat, roles: ["OWNER", "MANAGER", "KITCHEN"] },
   { name: "Cashier POS", href: "/dashboard/cashier", icon: Wallet, roles: ["OWNER", "MANAGER", "CASHIER"] },
   { name: "Orders", href: "/dashboard/orders", icon: ShoppingCart, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN", "CASHIER"] },
@@ -48,7 +47,7 @@ export const navItems: NavItem[] = [
   { name: "Settings", href: "/dashboard/settings", icon: Settings, roles: ["OWNER"] },
 ];
 
-export default function Sidebar({ role }: { role: Role }) {
+export default function Sidebar({ role }: Readonly<{ role: Role }>) {
   const pathname = usePathname();
   const allowedItems = navItems.filter((item) => item.roles.includes(role));
 

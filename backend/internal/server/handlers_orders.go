@@ -372,10 +372,10 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Update table status to PREPARING / ORDERING if dine-in
+	// Update table status to OCCUPIED if dine-in
 	if orderType == "DINE_IN" && input.TableID != nil && *input.TableID != "" {
-		_, _ = tx.Exec(ctx, `UPDATE tables SET status = 'PREPARING', current_order_id = $1, updated_at = now() WHERE id = $2`, orderID, *input.TableID)
-		s.Ably.Publish(ctx, "yadotena-realtime", "table.updated", map[string]any{"id": *input.TableID, "status": "PREPARING"})
+		_, _ = tx.Exec(ctx, `UPDATE tables SET status = 'OCCUPIED', current_order_id = $1, updated_at = now() WHERE id = $2`, orderID, *input.TableID)
+		s.Ably.Publish(ctx, "yadotena-realtime", "table.updated", map[string]any{"id": *input.TableID, "status": "OCCUPIED"})
 	}
 
 	if errCommit := tx.Commit(ctx); errCommit != nil {
@@ -457,6 +457,11 @@ func (s *Server) addOrderItemsEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if order.Status == "COMPLETED" || order.Status == "CANCELLED" {
+		writeErr(w, 400, fmt.Sprintf("Cannot add items to a %s order", strings.ToLower(order.Status)))
+		return
+	}
+
 	tx, errTx := s.Pool.Begin(ctx)
 	if errTx != nil {
 		writeErr(w, 500, errTx.Error())
@@ -514,6 +519,7 @@ func (s *Server) addOrderItemsEndpoint(w http.ResponseWriter, r *http.Request) {
 	updatedOrder, _ := s.fetchOrderFull(ctx, id)
 	s.Ably.Publish(ctx, "yadotena-realtime", "order.updated", updatedOrder)
 	s.NATS.Publish("yadotena.orders.updated", updatedOrder)
+	s.LogActivity(ctx, "waiter-station", "Floor Waiter", "WAITER", "APPEND_ORDER_ITEMS", "ORDER", id, fmt.Sprintf("Appended %d items/addons to Order #%s (New Total: ETB %.2f)", len(input.Items), id, updatedOrder.Total), order, updatedOrder, r.RemoteAddr)
 
 	writeJSON(w, 200, updatedOrder)
 }

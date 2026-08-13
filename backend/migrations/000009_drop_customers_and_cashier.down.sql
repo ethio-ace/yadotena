@@ -1,0 +1,2 @@
+-- Migration 000009 Down
+-- No-op for customers and cashier removal

@@ -3,7 +3,6 @@ package server
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -167,7 +166,7 @@ func (s *Server) authRegister(w http.ResponseWriter, r *http.Request) {
 	var u User
 	err := s.Pool.QueryRow(ctx, `
 		INSERT INTO users (id, email, password_hash, name, phone, role, status)
-		VALUES ($1, $2, $3, $4, $5, 'CUSTOMER', 'ACTIVE')
+		VALUES ($1, $2, $3, $4, $5, 'WAITER', 'ACTIVE')
 		RETURNING id, email, name, phone, role, status, avatar_url, created_at, updated_at`,
 		userID, email, string(hash), name, phone,
 	).Scan(&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
@@ -176,13 +175,6 @@ func (s *Server) authRegister(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err.Error())
 		return
 	}
-
-	custID := fmt.Sprintf("cust-%s", uuid.New().String()[:8])
-	_, _ = s.Pool.Exec(ctx, `
-		INSERT INTO customers (id, name, phone, email, total_orders, total_spent)
-		VALUES ($1, $2, $3, $4, 0, 0)
-		ON CONFLICT (phone) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name`,
-		custID, name, phone, email)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":  u.ID,

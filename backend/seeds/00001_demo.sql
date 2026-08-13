@@ -159,25 +159,7 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = now();
 
 -- ============================================================================
--- 6. CUSTOMER PROFILES
--- ============================================================================
-INSERT INTO customers (id, name, phone, email, total_orders, total_spent, last_order_date, created_at) VALUES
-('cust-001', 'Abebe Kebede', '0911234567', 'customer1@yadotena.com', 24, 14250.00, now() - interval '2 hours', now() - interval '90 days'),
-('cust-002', 'Sara Tefera', '0912345678', 'customer2@yadotena.com', 18, 11800.00, now() - interval '1 day', now() - interval '85 days'),
-('cust-003', 'Dawit Haile', '0913456789', 'dawit.h@gmail.com', 32, 28900.00, now() - interval '4 hours', now() - interval '88 days'),
-('cust-004', 'Tigist Assefa', '0914567890', 'tigist.a@yahoo.com', 12, 7400.00, now() - interval '3 days', now() - interval '70 days'),
-('cust-005', 'Yonas Girma', '0915678901', 'yonas.g@outlook.com', 15, 9600.00, now() - interval '2 days', now() - interval '65 days'),
-('cust-006', 'Hellen Workneh', '0916789012', 'hellen.w@gmail.com', 8, 4800.00, now() - interval '5 days', now() - interval '50 days')
-ON CONFLICT (id) DO UPDATE SET
-  name = EXCLUDED.name,
-  phone = EXCLUDED.phone,
-  email = EXCLUDED.email,
-  total_orders = EXCLUDED.total_orders,
-  total_spent = EXCLUDED.total_spent,
-  last_order_date = EXCLUDED.last_order_date;
-
--- ============================================================================
--- 7. 90-DAY HISTORICAL ORDERS & PAYMENTS (Simulates 3 Months of Operation)
+-- 6. 90-DAY HISTORICAL ORDERS & PAYMENTS (Simulates 3 Months of Operation)
 -- ============================================================================
 DELETE FROM order_items WHERE order_id LIKE 'ord-hist-%' OR order_id LIKE 'ord-live-%';
 DELETE FROM payments WHERE order_id LIKE 'ord-hist-%' OR order_id LIKE 'ord-live-%';

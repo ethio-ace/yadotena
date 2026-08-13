@@ -18,12 +18,13 @@ type Expense struct {
 	RecordedById  *string   `json:"recordedById,omitempty"`
 	PaymentMethod string    `json:"paymentMethod"`
 	ReceiptURL    *string   `json:"receiptUrl,omitempty"`
+	Reference     *string   `json:"reference,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 }
 
 func (s *Server) listExpenses(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.Pool.Query(r.Context(), `
-		SELECT id, amount::float8, category, description, date::text, COALESCE(recorded_by_id::text, ''), payment_method, receipt_url, created_at
+		SELECT id, amount::float8, category, description, date::text, COALESCE(recorded_by_id::text, ''), payment_method, receipt_url, COALESCE(reference, ''), created_at
 		FROM expenses ORDER BY date DESC, created_at DESC`)
 	if err != nil {
 		writeJSON(w, 200, []Expense{})
@@ -34,10 +35,13 @@ func (s *Server) listExpenses(w http.ResponseWriter, r *http.Request) {
 	expenses := make([]Expense, 0)
 	for rows.Next() {
 		var ex Expense
-		var recBy string
-		if err := rows.Scan(&ex.ID, &ex.Amount, &ex.Category, &ex.Description, &ex.Date, &recBy, &ex.PaymentMethod, &ex.ReceiptURL, &ex.CreatedAt); err == nil {
+		var recBy, ref string
+		if err := rows.Scan(&ex.ID, &ex.Amount, &ex.Category, &ex.Description, &ex.Date, &recBy, &ex.PaymentMethod, &ex.ReceiptURL, &ref, &ex.CreatedAt); err == nil {
 			if recBy != "" {
 				ex.RecordedById = &recBy
+			}
+			if ref != "" {
+				ex.Reference = &ref
 			}
 			expenses = append(expenses, ex)
 		}
@@ -48,11 +52,11 @@ func (s *Server) listExpenses(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getExpense(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var ex Expense
-	var recBy string
+	var recBy, ref string
 	err := s.Pool.QueryRow(r.Context(), `
-		SELECT id, amount::float8, category, description, date::text, COALESCE(recorded_by_id::text, ''), payment_method, receipt_url, created_at
+		SELECT id, amount::float8, category, description, date::text, COALESCE(recorded_by_id::text, ''), payment_method, receipt_url, COALESCE(reference, ''), created_at
 		FROM expenses WHERE id = $1`, id).Scan(
-		&ex.ID, &ex.Amount, &ex.Category, &ex.Description, &ex.Date, &recBy, &ex.PaymentMethod, &ex.ReceiptURL, &ex.CreatedAt,
+		&ex.ID, &ex.Amount, &ex.Category, &ex.Description, &ex.Date, &recBy, &ex.PaymentMethod, &ex.ReceiptURL, &ref, &ex.CreatedAt,
 	)
 	if err != nil {
 		writeErr(w, 404, "Expense not found")
@@ -60,6 +64,9 @@ func (s *Server) getExpense(w http.ResponseWriter, r *http.Request) {
 	}
 	if recBy != "" {
 		ex.RecordedById = &recBy
+	}
+	if ref != "" {
+		ex.Reference = &ref
 	}
 	writeJSON(w, 200, ex)
 }
@@ -72,6 +79,7 @@ func (s *Server) createExpense(w http.ResponseWriter, r *http.Request) {
 		Date          string  `json:"date"`
 		PaymentMethod string  `json:"paymentMethod"`
 		ReceiptURL    *string `json:"receiptUrl"`
+		Reference     *string `json:"reference"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, 400, "invalid JSON body")
@@ -94,14 +102,14 @@ func (s *Server) createExpense(w http.ResponseWriter, r *http.Request) {
 
 	id := fmt.Sprintf("exp-%s", uuid.New().String()[:8])
 	var ex Expense
-	var recBy string
+	var recBy, ref string
 
 	err := s.Pool.QueryRow(r.Context(), `
-		INSERT INTO expenses (id, amount, category, description, date, payment_method, receipt_url)
-		VALUES ($1, $2, $3, $4, $5::date, $6, $7)
-		RETURNING id, amount::float8, category, description, date::text, COALESCE(recorded_by_id::text, ''), payment_method, receipt_url, created_at`,
-		id, body.Amount, body.Category, body.Description, body.Date, body.PaymentMethod, body.ReceiptURL,
-	).Scan(&ex.ID, &ex.Amount, &ex.Category, &ex.Description, &ex.Date, &recBy, &ex.PaymentMethod, &ex.ReceiptURL, &ex.CreatedAt)
+		INSERT INTO expenses (id, amount, category, description, date, payment_method, receipt_url, reference)
+		VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8)
+		RETURNING id, amount::float8, category, description, date::text, COALESCE(recorded_by_id::text, ''), payment_method, receipt_url, COALESCE(reference, ''), created_at`,
+		id, body.Amount, body.Category, body.Description, body.Date, body.PaymentMethod, body.ReceiptURL, body.Reference,
+	).Scan(&ex.ID, &ex.Amount, &ex.Category, &ex.Description, &ex.Date, &recBy, &ex.PaymentMethod, &ex.ReceiptURL, &ref, &ex.CreatedAt)
 
 	if err != nil {
 		writeErr(w, 400, err.Error())
@@ -110,6 +118,9 @@ func (s *Server) createExpense(w http.ResponseWriter, r *http.Request) {
 
 	if recBy != "" {
 		ex.RecordedById = &recBy
+	}
+	if ref != "" {
+		ex.Reference = &ref
 	}
 	writeJSON(w, 201, ex)
 }
@@ -123,11 +134,11 @@ func (s *Server) updateExpense(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var ex Expense
-	var recBy string
+	var recBy, ref string
 	err := s.Pool.QueryRow(r.Context(), `
-		SELECT id, amount::float8, category, description, date::text, COALESCE(recorded_by_id::text, ''), payment_method, receipt_url, created_at
+		SELECT id, amount::float8, category, description, date::text, COALESCE(recorded_by_id::text, ''), payment_method, receipt_url, COALESCE(reference, ''), created_at
 		FROM expenses WHERE id = $1`, id).Scan(
-		&ex.ID, &ex.Amount, &ex.Category, &ex.Description, &ex.Date, &recBy, &ex.PaymentMethod, &ex.ReceiptURL, &ex.CreatedAt,
+		&ex.ID, &ex.Amount, &ex.Category, &ex.Description, &ex.Date, &recBy, &ex.PaymentMethod, &ex.ReceiptURL, &ref, &ex.CreatedAt,
 	)
 	if err != nil {
 		writeErr(w, 404, "Expense not found")
@@ -149,10 +160,13 @@ func (s *Server) updateExpense(w http.ResponseWriter, r *http.Request) {
 	if pm, ok := body["paymentMethod"].(string); ok {
 		ex.PaymentMethod = pm
 	}
+	if r, ok := body["reference"].(string); ok {
+		ex.Reference = &r
+	}
 
 	_, _ = s.Pool.Exec(r.Context(), `
-		UPDATE expenses SET amount=$1, category=$2, description=$3, date=$4::date, payment_method=$5 WHERE id=$6`,
-		ex.Amount, ex.Category, ex.Description, ex.Date, ex.PaymentMethod, id)
+		UPDATE expenses SET amount=$1, category=$2, description=$3, date=$4::date, payment_method=$5, reference=$6 WHERE id=$7`,
+		ex.Amount, ex.Category, ex.Description, ex.Date, ex.PaymentMethod, ex.Reference, id)
 
 	if recBy != "" {
 		ex.RecordedById = &recBy

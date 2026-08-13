@@ -51,7 +51,6 @@ func main() {
 		"menu_categories",
 		"menu_items",
 		"tables",
-		"customers",
 		"orders",
 		"order_items",
 		"service_requests",

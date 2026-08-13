@@ -143,13 +143,7 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 		r.Delete("/{id}", s.deleteExpense)
 	})
 
-	// --- Customers ---
-	r.Route("/customers", func(r chi.Router) {
-		r.Get("/", s.listCustomers)
-		r.Post("/", s.createCustomer)
-		r.Get("/{id}", s.getCustomer)
-		r.Patch("/{id}", s.updateCustomer)
-	})
+
 
 	// --- Payments ---
 	r.Route("/payments", func(r chi.Router) {
@@ -213,7 +207,7 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment", s.staffSubmitPayment)
 		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment/verify", s.staffVerifyPayment)
 		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Post("/staff/orders/{id}/payment/reject", s.staffRejectPayment)
-		r.With(s.requireRoles(models.RoleOwner, models.RoleManager, models.RoleWaiter)).Get("/staff/customers", s.listCustomers)
+
 		r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Get("/staff/analytics", s.analytics)
 		r.With(s.requireRoles(models.RoleOwner, models.RoleManager)).Get("/staff/activity", s.listActivity)
 	})

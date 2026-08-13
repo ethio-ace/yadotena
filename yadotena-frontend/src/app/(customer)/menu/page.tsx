@@ -13,6 +13,7 @@ import { Plus, Minus, Search, Star, Clock, Sparkles, UtensilsCrossed, ArrowRight
 import { Input } from "@/components/ui/input";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
 import { formatETB } from "@/lib/currency";
+import { getImageUrl } from "@/lib/utils";
 import Link from "next/link";
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -55,8 +56,11 @@ function MenuContent() {
     return (isMatchingTable || isMatchingOrderId) && isActiveStatus;
   });
   
+  const setTableId = useCartStore((state) => state.setTableId);
   const searchParams = useSearchParams();
   const initialCategoryParam = searchParams.get("category");
+  const tableParam = searchParams.get("table");
+
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState(initialCategoryParam || "All");
   const [selectedItemForModal, setSelectedItemForModal] = useState<MenuItem | null>(null);
@@ -66,6 +70,12 @@ function MenuContent() {
       setActiveCategory(initialCategoryParam);
     }
   }, [initialCategoryParam]);
+
+  useEffect(() => {
+    if (tableParam) {
+      setTableId(tableParam);
+    }
+  }, [tableParam, setTableId]);
 
   if (isMenuLoading) {
     return (
@@ -160,12 +170,14 @@ function MenuContent() {
               </p>
             </div>
 
-            {tableId && (
-              <div className="flex items-center gap-2 bg-primary/15 border border-primary/30 px-4 py-2 rounded-2xl self-start md:self-auto backdrop-blur-md shadow-sm">
-                <UtensilsCrossed className="h-4 w-4 text-primary" />
-                <span className="text-sm font-bold text-primary">Table {tableId.replace("t", "")} · Dine-In</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <Link href="/shop">
+                <Button size="sm" className="rounded-2xl font-bold bg-amber-500 hover:bg-amber-400 text-amber-950 gap-2 shadow-md shadow-amber-500/20">
+                  <span>🛒 Browse Shop Store</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -295,7 +307,7 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
       {/* Dish Cover Image */}
       <div className="relative h-48 w-full overflow-hidden bg-muted">
         <img 
-          src={item.image} 
+          src={getImageUrl(item.image)} 
           alt={item.name} 
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
         />
@@ -343,39 +355,14 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
             <span className="font-black text-xl text-primary">{formatETB(item.price)}</span>
           </div>
           
-          {cartItem ? (
-            <div 
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-2 bg-muted/70 rounded-full p-1 border border-primary/20 shadow-inner"
-            >
-              <Button 
-                size="icon" 
-                variant="ghost" 
-                className="h-8 w-8 rounded-full hover:bg-background shadow-sm text-foreground" 
-                onClick={handleDecrement}
-              >
-                <Minus className="h-3 w-3" />
-              </Button>
-              <span className="font-bold text-sm w-4 text-center">{cartItem.quantity}</span>
-              <Button 
-                size="icon" 
-                variant="default" 
-                className="h-8 w-8 rounded-full shadow-md" 
-                onClick={handleIncrement}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </div>
-          ) : (
-            <Button 
-              size="sm"
-              className="rounded-full shadow-md font-bold px-4 h-9 hover:scale-105 transition-transform flex items-center gap-1.5" 
-              onClick={handleQuickAdd}
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add</span>
-            </Button>
-          )}
+          <Button 
+            size="sm"
+            variant="secondary"
+            className="rounded-full shadow-sm font-bold px-3.5 h-8 text-xs hover:scale-105 transition-transform flex items-center gap-1" 
+            onClick={onOpenModal}
+          >
+            <span>View Details</span>
+          </Button>
         </div>
       </div>
     </Card>

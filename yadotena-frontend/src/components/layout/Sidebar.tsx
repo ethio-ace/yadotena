@@ -15,9 +15,10 @@ import {
   Receipt, 
   UserSquare2, 
   BarChart3, 
-  MessageSquare, 
   Settings,
-  Bell
+  ShieldCheck,
+  Briefcase,
+  Wallet
 } from "lucide-react";
 
 interface NavItem {
@@ -28,21 +29,25 @@ interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER", "MANAGER", "WAITER"] },
-  { name: "Orders", href: "/dashboard/orders", icon: ShoppingCart, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN"] },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN", "CASHIER"] },
+  { name: "Owner Console", href: "/dashboard/owner", icon: ShieldCheck, roles: ["OWNER"] },
+  { name: "Manager Operations", href: "/dashboard/manager", icon: Briefcase, roles: ["OWNER", "MANAGER"] },
+  { name: "Chef Operations", href: "/dashboard/waiter", icon: ChefHat, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN"] },
+  { name: "Kitchen KDS", href: "/dashboard/kitchen", icon: ChefHat, roles: ["OWNER", "MANAGER", "KITCHEN"] },
+  { name: "Cashier POS", href: "/dashboard/cashier", icon: Wallet, roles: ["OWNER", "MANAGER", "CASHIER"] },
+  { name: "Orders", href: "/dashboard/orders", icon: ShoppingCart, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN", "CASHIER"] },
   { name: "Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER", "WAITER"] },
-  { name: "Kitchen", href: "/dashboard/kitchen", icon: ChefHat, roles: ["OWNER", "MANAGER", "KITCHEN"] },
   { name: "Menu", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER"] },
   { name: "Customers", href: "/dashboard/customers", icon: Users, roles: ["OWNER", "MANAGER", "WAITER"] },
-  { name: "Payments", href: "/dashboard/payments", icon: CreditCard, roles: ["OWNER", "MANAGER"] },
+  { name: "Payments", href: "/dashboard/payments", icon: CreditCard, roles: ["OWNER", "MANAGER", "CASHIER"] },
+  { name: "Payment Methods", href: "/dashboard/payment-methods", icon: Wallet, roles: ["OWNER", "MANAGER", "CASHIER"] },
   { name: "Expenses", href: "/dashboard/expenses", icon: Receipt, roles: ["OWNER", "MANAGER"] },
   { name: "Employees", href: "/dashboard/employees", icon: UserSquare2, roles: ["OWNER", "MANAGER"] },
   { name: "Reports", href: "/dashboard/reports", icon: BarChart3, roles: ["OWNER", "MANAGER"] },
-  { name: "Reviews", href: "/dashboard/reviews", icon: MessageSquare, roles: ["OWNER", "MANAGER"] },
   { name: "Settings", href: "/dashboard/settings", icon: Settings, roles: ["OWNER"] },
 ];
 
-export default function Sidebar({ role }: { role: Role }) {
+export default function Sidebar({ role }: Readonly<{ role: Role }>) {
   const pathname = usePathname();
   const allowedItems = navItems.filter((item) => item.roles.includes(role));
 

@@ -15,6 +15,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useCartStore } from "@/stores/cartStore";
 import { AddExtraSelectionModal } from "@/components/dashboard/AddExtraSelectionModal";
+import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
 
 const statusSteps = [
   { id: "PENDING", label: "Order Received", desc: "Kitchen received ticket", icon: Receipt },
@@ -27,6 +28,7 @@ export default function OrderTrackingPage() {
   const params = useParams();
   const router = useRouter();
   const [showExtraSelection, setShowExtraSelection] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const id = params.id as string;
   const [waiterCalled, setWaiterCalled] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
@@ -260,20 +262,10 @@ export default function OrderTrackingPage() {
                     className={`rounded-2xl font-bold flex-1 sm:flex-none h-11 text-xs transition-all ${
                       billRequested ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
                     }`}
-                    onClick={() => handleRequestBill()}
-                    disabled={billRequested}
+                    onClick={() => setShowPaymentModal(true)}
                   >
-                    {billRequested ? (
-                      <>
-                        <Check className="h-4 w-4 mr-1.5" />
-                        <span>Bill Requested!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Receipt className="h-4 w-4 mr-1.5" />
-                        <span>Request Bill</span>
-                      </>
-                    )}
+                    <Receipt className="h-4 w-4 mr-1.5" />
+                    <span>Settle Bill Now</span>
                   </Button>
 
                   <Link href="/menu">
@@ -380,43 +372,9 @@ export default function OrderTrackingPage() {
             </CardContent>
           </Card>
 
-          {/* Customer Satisfaction Feedback (After Meal) */}
-          <Card className="rounded-3xl shadow-sm border-muted-foreground/15 bg-card/60 p-6 text-center space-y-3">
-            <h4 className="font-bold text-base">How is your dining experience?</h4>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Your instant feedback helps our chef and floor staff deliver five-star service.
-            </p>
-
-            <div className="flex items-center justify-center gap-2 pt-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => {
-                    setRating(star);
-                    setFeedbackSent(true);
-                  }}
-                  className="p-1.5 hover:scale-125 transition-transform"
-                >
-                  <Star 
-                    className={`h-7 w-7 ${
-                      rating >= star 
-                        ? "fill-amber-400 text-amber-400" 
-                        : "text-muted-foreground/30 hover:text-amber-400"
-                    } transition-colors`} 
-                  />
-                </button>
-              ))}
-            </div>
-
-            {feedbackSent && (
-              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 animate-in fade-in">
-                ✓ Thank you for rating Yadotena Milk & Foods {rating} stars!
-              </p>
-            )}
-
-            {(isCompleted || order.status === "READY") && order.type === "DINE_IN" && (
-              <div className="pt-4 mt-4 border-t border-muted-foreground/10 animate-in fade-in">
+          {(isCompleted || order.status === "READY") && order.type === "DINE_IN" && (
+            <Card className="rounded-3xl shadow-sm border-muted-foreground/15 bg-card/60 p-6 text-center space-y-3">
+              <div className="pt-2 animate-in fade-in">
                 <Button 
                   className="rounded-full px-6 font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
                   onClick={() => {
@@ -430,8 +388,8 @@ export default function OrderTrackingPage() {
                   Clicking this will close your current table session. You can scan the QR code to start again.
                 </p>
               </div>
-            )}
-          </Card>
+            </Card>
+          )}
 
         </div>
       </div>
@@ -446,6 +404,16 @@ export default function OrderTrackingPage() {
           }}
         />
       )}
+
+      <PaymentSettlementModal
+        order={order}
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={() => {
+          setShowPaymentModal(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

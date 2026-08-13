@@ -1,6 +1,8 @@
 import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession } from "../types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://semu.ethioace.com/api/v1";
+const rawBase = (process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com").replace(/\/+$/, "");
+export const API_BASE_URL = rawBase.endsWith("/api/v1") ? rawBase : `${rawBase}/api/v1`;
+const API_BASE = API_BASE_URL;
 
 // Strict requests for order-critical flows — never silently fall back to mocks
 async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -18,7 +20,13 @@ async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}):
     headers.set("Accept", "application/json");
   }
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+  // Ensure endpoint starts with / and has NO trailing slash for clean REST requests
+  let cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  if (cleanEndpoint.length > 1 && cleanEndpoint.endsWith("/")) {
+    cleanEndpoint = cleanEndpoint.replace(/\/+$/, "");
+  }
+
+  const res = await fetch(`${API_BASE}${cleanEndpoint}`, {
     ...options,
     headers,
     signal: controller.signal,
@@ -66,41 +74,41 @@ function serializeOrderItems(items: Array<{
 export const api = {
   categories: {
     getAll: async (): Promise<MenuCategory[]> => {
-      return requestApiStrict<MenuCategory[]>("/categories/", { method: "GET" });
+      return requestApiStrict<MenuCategory[]>("/categories", { method: "GET" });
     },
     create: async (category: Omit<MenuCategory, "id">): Promise<MenuCategory> => {
-      return requestApiStrict<MenuCategory>("/categories/", {
+      return requestApiStrict<MenuCategory>("/categories", {
         method: "POST",
         body: JSON.stringify(category),
       });
     },
     update: async (id: string, updates: Partial<MenuCategory>): Promise<MenuCategory> => {
-      return requestApiStrict<MenuCategory>(`/categories/${id}/`, {
+      return requestApiStrict<MenuCategory>(`/categories/${id}`, {
         method: "PATCH",
         body: JSON.stringify(updates),
       });
     },
     delete: async (id: string): Promise<void> => {
-      return requestApiStrict<void>(`/categories/${id}/`, { method: "DELETE" });
+      return requestApiStrict<void>(`/categories/${id}`, { method: "DELETE" });
     },
   },
 
   menu: {
     getAll: async (): Promise<MenuItem[]> => {
-      return requestApiStrict<MenuItem[]>("/menu/", { method: "GET" });
+      return requestApiStrict<MenuItem[]>("/menu", { method: "GET" });
     },
     getById: async (id: string): Promise<MenuItem | undefined> => {
-      return requestApiStrict<MenuItem>(`/menu/${id}/`, { method: "GET" });
+      return requestApiStrict<MenuItem>(`/menu/${id}`, { method: "GET" });
     },
     create: async (item: FormData | any): Promise<MenuItem> => {
       // Allow passing FormData directly for file uploads
       if (item instanceof FormData) {
-        return requestApiStrict<MenuItem>("/menu/", {
+        return requestApiStrict<MenuItem>("/menu", {
           method: "POST",
           body: item,
         });
       }
-      return requestApiStrict<MenuItem>("/menu/", {
+      return requestApiStrict<MenuItem>("/menu", {
         method: "POST",
         body: JSON.stringify({
           ...item,
@@ -113,12 +121,12 @@ export const api = {
     update: async (id: string, updates: FormData | any): Promise<MenuItem> => {
       // Allow passing FormData directly for file uploads
       if (updates instanceof FormData) {
-        return requestApiStrict<MenuItem>(`/menu/${id}/`, {
+        return requestApiStrict<MenuItem>(`/menu/${id}`, {
           method: "PATCH",
           body: updates,
         });
       }
-      return requestApiStrict<MenuItem>(`/menu/${id}/`, {
+      return requestApiStrict<MenuItem>(`/menu/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
           ...updates,
@@ -129,43 +137,43 @@ export const api = {
       });
     },
     toggleAvailability: async (id: string): Promise<MenuItem> => {
-      return requestApiStrict<MenuItem>(`/menu/${id}/toggle-availability/`, { method: "POST" });
+      return requestApiStrict<MenuItem>(`/menu/${id}/toggle-availability`, { method: "POST" });
     },
     delete: async (id: string): Promise<void> => {
-      return requestApiStrict<void>(`/menu/${id}/`, { method: "DELETE" });
+      return requestApiStrict<void>(`/menu/${id}`, { method: "DELETE" });
     },
   },
 
   tables: {
     getAll: async (): Promise<Table[]> => {
-      return requestApiStrict<Table[]>("/tables/", { method: "GET" });
+      return requestApiStrict<Table[]>("/tables", { method: "GET" });
     },
     getById: async (id: string): Promise<Table | undefined> => {
-      return requestApiStrict<Table>(`/tables/${id}/`, { method: "GET" });
+      return requestApiStrict<Table>(`/tables/${id}`, { method: "GET" });
     },
     create: async (tableData: { name: string; capacity: number; id?: string; status?: Table["status"] }): Promise<Table> => {
-      return requestApiStrict<Table>("/tables/", {
+      return requestApiStrict<Table>("/tables", {
         method: "POST",
         body: JSON.stringify(tableData),
       });
     },
     update: async (id: string, updates: Partial<Table>): Promise<Table> => {
-      return requestApiStrict<Table>(`/tables/${id}/`, {
+      return requestApiStrict<Table>(`/tables/${id}`, {
         method: "PATCH",
         body: JSON.stringify(updates),
       });
     },
     updateStatus: async (id: string, status: Table["status"]): Promise<Table> => {
-      return requestApiStrict<Table>(`/tables/${id}/status/`, {
+      return requestApiStrict<Table>(`/tables/${id}/status`, {
         method: "POST",
         body: JSON.stringify({ status }),
       });
     },
     delete: async (id: string): Promise<void> => {
-      await requestApiStrict<void>(`/tables/${id}/`, { method: "DELETE" });
+      await requestApiStrict<void>(`/tables/${id}`, { method: "DELETE" });
     },
     startSession: async (tableId: string): Promise<DiningSession> => {
-      return requestApiStrict<DiningSession>(`/tables/${tableId}/start-session/`, {
+      return requestApiStrict<DiningSession>(`/tables/${tableId}/start-session`, {
         method: "POST",
       });
     },
@@ -173,7 +181,7 @@ export const api = {
 
   sessions: {
     getActiveForTable: async (tableId: string): Promise<DiningSession> => {
-      return requestApiStrict<DiningSession>(`/sessions/active/?table=${encodeURIComponent(tableId)}`, {
+      return requestApiStrict<DiningSession>(`/sessions/active?table=${encodeURIComponent(tableId)}`, {
         method: "GET",
       });
     },
@@ -181,10 +189,10 @@ export const api = {
 
   orders: {
     getAll: async (): Promise<Order[]> => {
-      return requestApiStrict<Order[]>("/orders/", { method: "GET" });
+      return requestApiStrict<Order[]>("/orders", { method: "GET" });
     },
     getById: async (id: string): Promise<Order | undefined> => {
-      return requestApiStrict<Order>(`/orders/${id}/`, { method: "GET" });
+      return requestApiStrict<Order>(`/orders/${id}`, { method: "GET" });
     },
     create: async (
       order: Omit<Order, "id" | "createdAt" | "updatedAt" | "total"> & {
@@ -197,7 +205,7 @@ export const api = {
         idempotencyKey?: string;
       }
     ): Promise<Order> => {
-      return requestApiStrict<Order>("/orders/", {
+      return requestApiStrict<Order>("/orders", {
         method: "POST",
         body: JSON.stringify({
           type: order.type,
@@ -212,7 +220,7 @@ export const api = {
       });
     },
     updateStatus: async (id: string, status: Order["status"]): Promise<Order> => {
-      return requestApiStrict<Order>(`/orders/${id}/status/`, {
+      return requestApiStrict<Order>(`/orders/${id}/status`, {
         method: "POST",
         body: JSON.stringify({ status }),
       });
@@ -226,7 +234,7 @@ export const api = {
         selectedAddons?: string[];
       }>
     ): Promise<Order> => {
-      return requestApiStrict<Order>(`/orders/${id}/add-items/`, {
+      return requestApiStrict<Order>(`/orders/${id}/add-items`, {
         method: "POST",
         body: JSON.stringify({ items: serializeOrderItems(newItems) }),
       });
@@ -235,14 +243,14 @@ export const api = {
 
   serviceRequests: {
     getAll: async (): Promise<ServiceRequest[]> => {
-      return requestApiStrict<ServiceRequest[]>("/service-requests/", { method: "GET" });
+      return requestApiStrict<ServiceRequest[]>("/service-requests", { method: "GET" });
     },
     create: async (req: {
       tableId: string;
       type: "WAITER" | "BILL" | "ASSISTANCE";
       notes?: string;
     }): Promise<ServiceRequest> => {
-      return requestApiStrict<ServiceRequest>("/service-requests/", {
+      return requestApiStrict<ServiceRequest>("/service-requests", {
         method: "POST",
         body: JSON.stringify({
           tableId: req.tableId,
@@ -252,13 +260,19 @@ export const api = {
       });
     },
     resolve: async (id: string): Promise<void> => {
-      return requestApiStrict<void>(`/service-requests/${id}/resolve/`, { method: "POST" });
+      return requestApiStrict<void>(`/service-requests/${id}/resolve`, { method: "POST" });
     },
   },
 
   expenses: {
     getAll: async () => {
-      return requestApiStrict<Expense[]>("/expenses/", { method: "GET" });
+      return requestApiStrict<Expense[]>("/expenses", { method: "GET" });
+    },
+    create: async (data: any) => {
+      return requestApiStrict<Expense>("/expenses", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
     },
   },
 
@@ -280,37 +294,139 @@ export const api = {
 
   customers: {
     getAll: async () => {
-      return requestApiStrict<any[]>("/customers/", { method: "GET" });
+      return requestApiStrict<any[]>("/customers", { method: "GET" });
+    },
+    create: async (data: any) => {
+      return requestApiStrict<any>("/customers", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
     },
   },
 
-  reviews: {
+  payments: {
     getAll: async () => {
-      return requestApiStrict<any[]>("/reviews/", { method: "GET" });
+      return requestApiStrict<any[]>("/payments", { method: "GET" });
+    },
+    create: async (data: {
+      orderId: string;
+      amount: number;
+      method: string;
+      transactionRef?: string;
+      receiptUrl?: string;
+      status?: string;
+    }) => {
+      return requestApiStrict<any>("/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          orderId: data.orderId,
+          amount: data.amount,
+          method: data.method,
+          transactionRef: data.transactionRef,
+          receiptUrl: data.receiptUrl,
+          status: data.status || "PAID",
+        }),
+      });
+    },
+  },
+
+  paymentMethods: {
+    getAll: async (showAll?: boolean): Promise<any[]> => {
+      const query = showAll ? "?all=true" : "";
+      return requestApiStrict<any[]>(`/payment-methods${query}`, { method: "GET" });
+    },
+    getById: async (id: string): Promise<any> => {
+      return requestApiStrict<any>(`/payment-methods/${id}`, { method: "GET" });
+    },
+    create: async (data: any): Promise<any> => {
+      return requestApiStrict<any>("/payment-methods", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    update: async (id: string, updates: any): Promise<any> => {
+      return requestApiStrict<any>(`/payment-methods/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+      });
+    },
+    delete: async (id: string): Promise<void> => {
+      return requestApiStrict<void>(`/payment-methods/${id}`, { method: "DELETE" });
+    },
+  },
+
+  activityLogs: {
+    getAll: async (params?: { role?: string; entityType?: string; action?: string; search?: string; limit?: number }): Promise<any[]> => {
+      const queryParts: string[] = [];
+      if (params?.role) queryParts.push(`role=${encodeURIComponent(params.role)}`);
+      if (params?.entityType) queryParts.push(`entityType=${encodeURIComponent(params.entityType)}`);
+      if (params?.action) queryParts.push(`action=${encodeURIComponent(params.action)}`);
+      if (params?.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
+      if (params?.limit) queryParts.push(`limit=${params.limit}`);
+      const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+      return requestApiStrict<any[]>(`/activity-logs${queryString}`, { method: "GET" });
+    },
+    getById: async (id: string): Promise<any> => {
+      return requestApiStrict<any>(`/activity-logs/${id}`, { method: "GET" });
+    },
+  },
+
+  settings: {
+    get: async (): Promise<any> => {
+      return requestApiStrict<any>("/settings", { method: "GET" });
+    },
+    update: async (data: any): Promise<any> => {
+      return requestApiStrict<any>("/settings", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+    },
+  },
+
+  media: {
+    upload: async (file: File): Promise<{ url: string; publicUrl: string }> => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return requestApiStrict<{ url: string; publicUrl: string }>("/media/upload", {
+        method: "POST",
+        body: formData,
+      });
     },
   },
 
   users: {
     getAll: async (): Promise<User[]> => {
-      return requestApiStrict<User[]>("/users/", { method: "GET" });
+      return requestApiStrict<User[]>("/users", { method: "GET" });
     },
     create: async (userData: Partial<User> & { password?: string }): Promise<User> => {
-      return requestApiStrict<User>("/users/", {
+      return requestApiStrict<User>("/users", {
         method: "POST",
         body: JSON.stringify(userData),
       });
     },
     update: async (id: string, updates: Partial<User> & { password?: string }): Promise<User> => {
-      return requestApiStrict<User>(`/users/${id}/`, {
+      return requestApiStrict<User>(`/users/${id}`, {
         method: "PATCH",
         body: JSON.stringify(updates),
       });
     },
     toggleStatus: async (id: string): Promise<User> => {
-      return requestApiStrict<User>(`/users/${id}/toggle-status/`, { method: "POST" });
+      return requestApiStrict<User>(`/users/${id}/toggle-status`, { method: "POST" });
     },
     delete: async (id: string): Promise<void> => {
-      return requestApiStrict<void>(`/users/${id}/`, { method: "DELETE" });
+      return requestApiStrict<void>(`/users/${id}`, { method: "DELETE" });
+    },
+  },
+
+  employees: {
+    getAll: async () => {
+      return requestApiStrict<any[]>("/users", { method: "GET" });
+    },
+  },
+
+  reports: {
+    getSummary: async () => {
+      return requestApiStrict<any>("/reports/summary", { method: "GET" });
     },
   },
 };

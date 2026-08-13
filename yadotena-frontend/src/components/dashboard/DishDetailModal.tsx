@@ -4,6 +4,7 @@ import { MenuItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
+import { getImageUrl } from "@/lib/utils";
 import { 
   X, Clock, Edit, Trash2, CheckCircle2, AlertCircle, 
   Sparkles, Flame, Layers, Utensils
@@ -53,7 +54,7 @@ export function DishDetailModal({ item, isOpen, onClose, onEdit }: DishDetailMod
         {/* Cover Photo */}
         <div className="relative h-60 w-full bg-muted flex-shrink-0">
           <img 
-            src={item.image} 
+            src={getImageUrl(item.image)} 
             alt={item.name} 
             className="w-full h-full object-cover" 
           />

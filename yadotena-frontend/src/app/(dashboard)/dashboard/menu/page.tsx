@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatETB } from "@/lib/currency";
+import { getImageUrl } from "@/lib/utils";
 import { 
   Plus, Edit, Trash2, Search, Layers, LayoutGrid, List, 
   Clock, Eye, Sparkles, CheckCircle2, AlertCircle, Utensils
@@ -309,7 +310,7 @@ export default function MenuManagementPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3.5">
                           <img 
-                            src={item.image} 
+                            src={getImageUrl(item.image)} 
                             alt={item.name} 
                             className="h-12 w-12 rounded-2xl object-cover shadow-sm group-hover:scale-105 transition-transform" 
                           />
@@ -424,7 +425,7 @@ export default function MenuManagementPage() {
             >
               <div className="relative h-44 w-full bg-muted overflow-hidden">
                 <img 
-                  src={item.image} 
+                  src={getImageUrl(item.image)} 
                   alt={item.name} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                 />

@@ -1,4 +1,5 @@
 from decimal import Decimal, ROUND_HALF_UP
+from typing import Optional
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 from apps.core.ably_utils import publish_event
@@ -175,7 +176,7 @@ def _sync_table_for_order(order: Order, *, creating: bool = False):
 
 
 @transaction.atomic
-def create_order(validated_data: dict, items_data: list, *, idempotency_key: str | None = None):
+def create_order(validated_data: dict, items_data: list, *, idempotency_key: Optional[str] = None):
     if idempotency_key:
         existing = Order.objects.filter(idempotency_key=idempotency_key).first()
         if existing:

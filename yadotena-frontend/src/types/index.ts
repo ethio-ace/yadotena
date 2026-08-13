@@ -1,4 +1,4 @@
-export type Role = "CUSTOMER" | "WAITER" | "KITCHEN" | "MANAGER" | "OWNER";
+export type Role = "CUSTOMER" | "WAITER" | "KITCHEN" | "MANAGER" | "OWNER" | "CASHIER";
 
 export interface User {
   id: string;
@@ -17,6 +17,7 @@ export type OrderStatus =
   | "PENDING"
   | "PREPARING"
   | "READY"
+  | "SERVED"
   | "COMPLETED"
   | "CANCELLED";
 
@@ -43,6 +44,7 @@ export interface MenuItem {
   description: string;
   price: number;
   category: string;
+  categoryId?: string;
   image: string;
   available: boolean;
   preparationTime: number; // in minutes

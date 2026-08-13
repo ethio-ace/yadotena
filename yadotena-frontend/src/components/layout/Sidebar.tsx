@@ -18,7 +18,8 @@ import {
   Briefcase,
   Wallet,
   Utensils,
-  CreditCard
+  CreditCard,
+  Activity
 } from "lucide-react";
 
 interface NavItem {
@@ -50,6 +51,7 @@ export const navSections: NavSection[] = [
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER"] },
       { name: "Orders Ledger", href: "/dashboard/orders", icon: ShoppingCart, roles: ["OWNER", "MANAGER"] },
       { name: "Menu & Catalog", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER"] },
+      { name: "Activity Logs", href: "/dashboard/logs", icon: Activity, roles: ["OWNER", "MANAGER"] },
     ]
   },
   {

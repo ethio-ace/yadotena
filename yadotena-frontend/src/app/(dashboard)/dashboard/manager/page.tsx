@@ -23,7 +23,8 @@ import {
   Receipt,
   BarChart3,
   ShieldCheck,
-  Check
+  Check,
+  Activity
 } from "lucide-react";
 import Link from "next/link";
 import { ActivityLogsViewer } from "@/components/dashboard/ActivityLogsViewer";
@@ -178,6 +179,12 @@ export default function ManagerDashboardPage() {
           <Link href="/dashboard/expenses">
             <Button size="sm" variant="outline" className="h-8 text-[11px] font-bold rounded-xl gap-1">
               <Receipt className="h-3.5 w-3.5 text-primary" /> Expenses
+            </Button>
+          </Link>
+
+          <Link href="/dashboard/logs">
+            <Button size="sm" variant="outline" className="h-8 text-[11px] font-bold rounded-xl gap-1">
+              <Activity className="h-3.5 w-3.5 text-primary" /> Activity Logs
             </Button>
           </Link>
         </div>

@@ -37,11 +37,7 @@ INSERT INTO users (id, email, password_hash, name, phone, role, status, avatar_u
 ('10000000-0000-0000-0000-000000000007', 'chef@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Dawit Chef', '0911000007', 'CHEF', 'ACTIVE', 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=150', now() - interval '90 days'),
 ('10000000-0000-0000-0000-000000000008', 'chef2@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Hanna Zewde', '0911000008', 'CHEF', 'ACTIVE', 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=150', now() - interval '90 days'),
 
--- CUSTOMER (2 Users)
-('10000000-0000-0000-0000-000000000009', 'customer1@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Abebe Kebede', '0911234567', 'CUSTOMER', 'ACTIVE', 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150', now() - interval '85 days'),
-('10000000-0000-0000-0000-000000000010', 'customer2@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Sara Tefera', '0912345678', 'CUSTOMER', 'ACTIVE', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', now() - interval '85 days'),
-
--- Legacy demo alias accounts
+-- Staff Demo Alias Accounts
 ('10000000-0000-0000-0000-000000000011', 'owner@demo.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Alice Owner', '0900000001', 'OWNER', 'ACTIVE', NULL, now() - interval '100 days'),
 ('10000000-0000-0000-0000-000000000012', 'manager@demo.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Bob Manager', '0900000002', 'MANAGER', 'ACTIVE', NULL, now() - interval '100 days'),
 ('10000000-0000-0000-0000-000000000013', 'waiter@demo.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Charlie Waiter', '0900000003', 'WAITER', 'ACTIVE', NULL, now() - interval '100 days'),

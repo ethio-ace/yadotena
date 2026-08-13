@@ -36,10 +36,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return null; 
   }
 
-  // Hide empty/unnecessary sidebar for operational staff roles & full-width terminals
-  const isStaffRole = session.user.role === "WAITER" || session.user.role === "KITCHEN" || session.user.role === "CASHIER";
-  const isTerminalPage = pathname.startsWith("/dashboard/waiter") || pathname.startsWith("/dashboard/kitchen") || pathname.startsWith("/dashboard/cashier");
-  const showSidebar = !isStaffRole && !isTerminalPage;
+  // Admin/Manager users retain the sidebar everywhere (including KDS & Waiter POS).
+  // Pure staff roles (WAITER, KITCHEN, CASHIER) get full-screen terminal view.
+  const isPureStaffRole = session.user.role === "WAITER" || session.user.role === "KITCHEN" || session.user.role === "CASHIER";
+  const showSidebar = !isPureStaffRole;
 
   return (
     <SoundNotificationProvider>

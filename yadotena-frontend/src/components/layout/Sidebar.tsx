@@ -10,7 +10,6 @@ import {
   Grid, 
   MenuSquare, 
   ChefHat, 
-  Users, 
   Receipt, 
   UserSquare2, 
   BarChart3, 
@@ -51,7 +50,6 @@ export const navSections: NavSection[] = [
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER"] },
       { name: "Orders Ledger", href: "/dashboard/orders", icon: ShoppingCart, roles: ["OWNER", "MANAGER"] },
       { name: "Menu & Catalog", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER"] },
-      { name: "Customers CRM", href: "/dashboard/customers", icon: Users, roles: ["OWNER", "MANAGER"] },
     ]
   },
   {

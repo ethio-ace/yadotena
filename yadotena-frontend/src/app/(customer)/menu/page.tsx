@@ -45,7 +45,6 @@ function MenuContent() {
   const { data: allOrders } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    refetchInterval: 3000,
   });
 
   // Find active table session order if one is currently being prepared

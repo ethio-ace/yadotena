@@ -65,13 +65,11 @@ export default function WaiterDashboardPage() {
   const { data: tables = [] } = useQuery<Table[]>({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
-    refetchInterval: 3000,
   });
 
   const { data: orders = [] } = useQuery<Order[]>({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    refetchInterval: 3000,
   });
 
   const { data: menu = [] } = useQuery<MenuItem[]>({

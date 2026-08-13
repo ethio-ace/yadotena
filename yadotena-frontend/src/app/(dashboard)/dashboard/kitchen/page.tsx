@@ -20,7 +20,6 @@ export default function KitchenDashboard() {
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    refetchInterval: 3000,
   });
 
   const updateStatus = useMutation({

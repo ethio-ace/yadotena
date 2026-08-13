@@ -54,9 +54,7 @@ export function ActivityLogsViewer({
       role: selectedRoleFilter !== "ALL" ? selectedRoleFilter : undefined,
       entityType: selectedEntityTypeFilter !== "ALL" ? selectedEntityTypeFilter : undefined,
       search: search.trim() || undefined,
-      limit: 100,
     }),
-    refetchInterval: 5000,
   });
 
   // Filter logs if role-restricted

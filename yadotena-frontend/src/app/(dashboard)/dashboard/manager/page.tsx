@@ -36,19 +36,16 @@ export default function ManagerDashboardPage() {
   const { data: tables = [] } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
-    refetchInterval: 3000,
   });
 
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    refetchInterval: 3000,
   });
 
   const { data: serviceRequests = [] } = useQuery({
     queryKey: ["serviceRequests"],
     queryFn: api.serviceRequests.getAll,
-    refetchInterval: 3000,
   });
 
   const { data: employees = [] } = useQuery({

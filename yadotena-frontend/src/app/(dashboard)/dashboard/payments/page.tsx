@@ -221,7 +221,7 @@ export default function PaymentsPage() {
           <div className="text-2xl font-black text-foreground mt-2">
             {methods.filter((m) => m.isActive).length} / {methods.length} Active
           </div>
-          <span className="text-[11px] text-muted-foreground font-bold">Enabled for Cashier POS</span>
+          <span className="text-[11px] text-muted-foreground font-bold">Enabled for Waiter POS & Terminal</span>
         </Card>
 
         <Card className="bg-card border rounded-2xl shadow-sm p-4">
@@ -230,7 +230,7 @@ export default function PaymentsPage() {
             <CheckCircle2 className="h-4 w-4 text-primary" />
           </div>
           <div className="text-2xl font-black text-foreground mt-2">100% Reconciled</div>
-          <span className="text-[11px] text-muted-foreground font-bold">Realtime Cashier Audit</span>
+          <span className="text-[11px] text-muted-foreground font-bold">Realtime POS Audit</span>
         </Card>
       </div>
 

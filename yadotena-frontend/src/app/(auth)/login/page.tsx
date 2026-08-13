@@ -71,7 +71,7 @@ export default function LoginPage() {
             Yadotena Staff & Operations Console
           </CardTitle>
           <CardDescription className="text-xs font-semibold text-slate-400">
-            Authorized Personnel Portal for Waiters, Chefs, Cashiers, Managers & Owners
+            Authorized Personnel Portal for Waiters, Chefs, Managers & Owners
           </CardDescription>
         </CardHeader>
 

@@ -19,7 +19,7 @@ export default function LogsPage() {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Realtime audit log tracking waiter orders, kitchen preparation status changes, cashier settlements, and manager actions.
+            Realtime audit log tracking waiter orders, kitchen preparation status changes, payment settlements, and manager actions.
           </p>
         </div>
       </div>

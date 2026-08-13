@@ -390,7 +390,7 @@ export default function ManagerDashboardPage() {
       {(activeTab === "OVERVIEW" || activeTab === "LOGS") && (
         <ActivityLogsViewer
           title="Staff Shift Audit Feed"
-          description="Comprehensive log of all waiter order entries, kitchen food preparation status updates, cashier settlements, and table changes."
+          description="Comprehensive log of all waiter order entries, kitchen food preparation status updates, payment settlements, and table changes."
           allowedRoles={["WAITER", "KITCHEN", "MANAGER", "OWNER"]}
         />
       )}

@@ -191,7 +191,7 @@ export default function PaymentMethodsPage() {
           <div className="flex items-center gap-2">
             <h2 className="text-3xl font-black tracking-tight">Payment Methods</h2>
             <Badge variant="outline" className="rounded-full px-3 py-0.5 font-bold border-primary/30 text-primary">
-              Staff & Cashier Sync
+              Staff & POS Sync
             </Badge>
           </div>
           <p className="text-muted-foreground mt-1">
@@ -481,7 +481,7 @@ export default function PaymentMethodsPage() {
               )}
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground uppercase">Cashier & Staff Instructions</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Staff Instructions</label>
                 <Input
                   placeholder="e.g. Verify 12-digit SMS transaction reference code before settling."
                   value={formData.instructions}
@@ -491,7 +491,7 @@ export default function PaymentMethodsPage() {
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-2xl border bg-muted/30">
-                <span className="text-xs font-bold">Enable this Payment Method for Cashiers</span>
+                <span className="text-xs font-bold">Enable this Payment Method for Staff</span>
                 <input
                   type="checkbox"
                   checked={formData.isActive}

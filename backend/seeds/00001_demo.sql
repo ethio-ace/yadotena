@@ -65,7 +65,9 @@ INSERT INTO menu_categories (id, name, icon, description, sort_order, is_active)
 ('cat-pizza', 'Artisanal Wood-Fired Pizza', '🍕', 'Hand-stretched sourdough pizzas baked in stone oven', 5, true),
 ('cat-beverages', 'Specialty Coffees & Juices', '☕', 'Ethiopian Yirgacheffe coffee, espresso, layered smoothies & fresh juices', 6, true),
 ('cat-appetizers', 'Appetizers & Starters', '🍟', 'Crispy truffle fries, sambusa, chicken wings & garlic bread', 7, true),
-('cat-desserts', 'Pastries & Desserts', '🍰', 'Decadent lava cake, baklava, tiramisu & artisanal gelato', 8, true)
+('cat-desserts', 'Pastries & Desserts', '🍰', 'Decadent lava cake, baklava, tiramisu & artisanal gelato', 8, true),
+('cat-shop', 'Shop & Farm Groceries', '🛒', 'Fresh farm dairy packs, pure honey, butter, ayib & specialty roasts', 9, true),
+('cat-825f2906', 'yene', '🥚', 'Custom traditional favorites and artisanal extras', 10, true)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -78,6 +80,10 @@ ON CONFLICT (id) DO UPDATE SET
 -- 4. MENU ITEMS
 -- ============================================================================
 INSERT INTO menu_items (id, name, description, price, category_id, image, available, preparation_time, dietary_tags) VALUES
+-- User Requested Specials
+('m-b1d731ff', 'Special Macchiato', 'Rich espresso with steamed milk foam', 80.00, 'cat-beverages', 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=800&q=80', true, 15, '[]'::jsonb),
+('m-12b3a693', 'egg', 'hjklm', 1000.00, 'cat-825f2906', 'https://t3.storage.dev/yadotena/media/2026/08/4dd495f3-ecd6-4caf-87ce-a39a76418a47.webp', true, 15, '["Spicy","Popular"]'::jsonb),
+
 -- Dairy
 ('item-milk-01', 'Pure Farm-Fresh Cow Milk (Warm / Chilled)', '100% organic, pasteurized rich whole milk served fresh from local dairy farms.', 120.00, 'cat-dairy', 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=800&q=80', true, 5, '["Organic","Dairy"]'::jsonb),
 ('item-milk-02', 'Artisanal Spiced Ergo (Organic Yogurt)', 'Traditional fermented creamy yogurt topped with mild organic spices and freshly churned butter.', 180.00, 'cat-dairy', 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=800&q=80', true, 5, '["Organic","Vegetarian"]'::jsonb),
@@ -107,7 +113,16 @@ INSERT INTO menu_items (id, name, description, price, category_id, image, availa
 
 -- Appetizers & Desserts
 ('item-app-01', 'Truffle Parmesan Fries', 'Hand-cut potato fries tossed in white truffle oil, sea salt, and aged parmesan.', 250.00, 'cat-appetizers', 'https://images.unsplash.com/photo-1576107232684-1279f390859f?auto=format&fit=crop&w=800&q=80', true, 8, '["Crispy"]'::jsonb),
-('item-des-01', 'Molten Chocolate Lava Cake', 'Warm dark chocolate cake with a molten chocolate core, served with vanilla gelato.', 320.00, 'cat-desserts', 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=800&q=80', true, 12, '["Dessert"]'::jsonb)
+('item-des-01', 'Molten Chocolate Lava Cake', 'Warm dark chocolate cake with a molten chocolate core, served with vanilla gelato.', 320.00, 'cat-desserts', 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=800&q=80', true, 12, '["Dessert"]'::jsonb),
+
+-- Shop & Groceries Items
+('shop-milk-1l', 'Fresh Whole Milk (1 Liter)', 'Daily farm-fresh, pasteurized whole cow milk in eco-glass bottle.', 60.00, 'cat-shop', 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=800&q=80', true, 5, '["Fresh","Organic"]'::jsonb),
+('shop-ergo-500g', 'Artisanal Spiced Ergo (500g)', 'Traditional fermented Ethiopian yogurt infused with cardamom & black seed.', 90.00, 'cat-shop', 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=800&q=80', true, 5, '["Organic"]'::jsonb),
+('shop-honey-1kg', 'Ethiopian Wild Organic Honey (1kg)', '100% pure raw forest honey harvested from Lalibela highlands.', 450.00, 'cat-shop', 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&w=800&q=80', true, 5, '["Pure"]'::jsonb),
+('shop-cheese-250g', 'Pasteurized Cottage Cheese / Ayib (250g)', 'Creamy homemade Ayib cheese, perfect with mitmita and spinach.', 180.00, 'cat-shop', 'https://images.unsplash.com/photo-1552767059-ce182ead8c1b?auto=format&fit=crop&w=800&q=80', true, 5, '["Dairy"]'::jsonb),
+('shop-butter-500g', 'Fresh Farm Butter / Kibbeh (500g)', 'Churned fresh cow butter from Debre Zeit dairy co-op.', 320.00, 'cat-shop', 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?auto=format&fit=crop&w=800&q=80', true, 5, '["Farm Fresh"]'::jsonb),
+('shop-ghee-1kg', 'Spiced Clarified Butter / Niter Kibbeh (1kg)', 'Traditional clarified butter slow-infused with korarima, koseret & garlic.', 650.00, 'cat-shop', 'https://images.unsplash.com/photo-1627483262268-9c2b5b2834b5?auto=format&fit=crop&w=800&q=80', true, 5, '["Traditional"]'::jsonb),
+('shop-coffee-500g', 'Yirgacheffe Roast Coffee Beans (500g)', 'Single-origin floral & citrus notes, freshly roasted in house.', 350.00, 'cat-shop', 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=800&q=80', true, 5, '["Coffee"]'::jsonb)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
@@ -118,6 +133,13 @@ ON CONFLICT (id) DO UPDATE SET
   preparation_time = EXCLUDED.preparation_time,
   dietary_tags = EXCLUDED.dietary_tags,
   updated_at = now();
+
+-- Custom Addons
+INSERT INTO menu_item_addons (id, menu_item_id, name, price) VALUES
+('add-6f162163', 'm-12b3a693', 'enjera', 50.00)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  price = EXCLUDED.price;
 
 -- ============================================================================
 -- 5. TABLES

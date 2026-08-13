@@ -37,20 +37,41 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                 Yadotena <span className="text-primary text-xs font-bold block sm:inline">Milk & Foods</span>
               </h1>
               <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">
-                {tableId
-                  ? `Table ${tableId.replace("t", "")}${sessionCode ? ` · ${sessionCode}` : ""} · Dining Session`
-                  : "Fresh Dairy & Artisanal Kitchen"}
+                Fresh Farm Dairy & Artisanal Kitchen
               </p>
             </div>
           </Link>
         </div>
 
         <div className="flex items-center gap-2">
+          <Link href="/menu">
+            <Button 
+              variant={pathname === "/menu" ? "default" : "ghost"} 
+              size="sm" 
+              className={`rounded-full text-xs font-bold h-8 px-3 transition-all ${
+                pathname === "/menu" ? "shadow-md shadow-primary/20" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              🍽️ <span className="hidden sm:inline">Restaurant</span> Menu
+            </Button>
+          </Link>
+          <Link href="/shop">
+            <Button 
+              variant={pathname === "/shop" ? "default" : "ghost"} 
+              size="sm" 
+              className={`rounded-full text-xs font-bold h-8 px-3 transition-all ${
+                pathname === "/shop" ? "shadow-md shadow-primary/20" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              🛒 <span className="hidden sm:inline">Grocery</span> Shop
+            </Button>
+          </Link>
+
           {activeOrderId && pathname !== `/order/${activeOrderId}` && (
             <Link href={`/order/${activeOrderId}`}>
               <Button size="sm" variant="outline" className="rounded-full text-xs font-bold border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 flex items-center gap-1.5 h-8 px-3">
                 <Clock className="h-3 w-3 animate-spin text-primary" />
-                <span>Live Ticket</span>
+                <span>Ticket</span>
               </Button>
             </Link>
           )}

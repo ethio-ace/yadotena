@@ -43,6 +43,7 @@ export interface MenuItem {
   description: string;
   price: number;
   category: string;
+  categoryId?: string;
   image: string;
   available: boolean;
   preparationTime: number; // in minutes

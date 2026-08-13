@@ -161,12 +161,14 @@ function MenuContent() {
               </p>
             </div>
 
-            {tableId && (
-              <div className="flex items-center gap-2 bg-primary/15 border border-primary/30 px-4 py-2 rounded-2xl self-start md:self-auto backdrop-blur-md shadow-sm">
-                <UtensilsCrossed className="h-4 w-4 text-primary" />
-                <span className="text-sm font-bold text-primary">Table {tableId.replace("t", "")} · Dine-In</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <Link href="/shop">
+                <Button size="sm" className="rounded-2xl font-bold bg-amber-500 hover:bg-amber-400 text-amber-950 gap-2 shadow-md shadow-amber-500/20">
+                  <span>🛒 Browse Shop Store</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

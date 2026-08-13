@@ -22,6 +22,7 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import { useState } from "react";
+import { ActivityLogsViewer } from "@/components/dashboard/ActivityLogsViewer";
 
 export default function OwnerDashboardPage() {
   const [timeRange, setTimeRange] = useState<"today" | "week" | "month">("month");
@@ -224,6 +225,13 @@ export default function OwnerDashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* Enterprise System & Staff Audit Trail */}
+      <ActivityLogsViewer
+        title="Enterprise System & Staff Audit Trail"
+        description="Full-spectrum audit log across all staff members, chefs, cashiers, managers, and owner settings with previous vs. current data diff inspection."
+        isOwnerView={true}
+      />
     </div>
   );
 }

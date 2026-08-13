@@ -158,6 +158,12 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 		r.Get("/{id}", s.getPayment)
 	})
 
+	// --- Activity Logs Audit Trail ---
+	r.Route("/activity-logs", func(r chi.Router) {
+		r.Get("/", s.listActivityLogs)
+		r.Get("/{id}", s.getActivityLog)
+	})
+
 	// --- Payment Methods ---
 	r.Route("/payment-methods", func(r chi.Router) {
 		r.Get("/", s.listPaymentMethods)

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -116,6 +117,8 @@ func (s *Server) createPaymentMethod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.LogActivity(r.Context(), "owner-admin", "Owner Manager", "OWNER", "CREATE_PAYMENT_METHOD", "PAYMENT_METHOD", pm.ID, fmt.Sprintf("Created payment method %s (%s)", pm.Name, pm.Code), nil, pm, r.RemoteAddr)
+
 	writeJSON(w, 201, pm)
 }
 
@@ -138,6 +141,8 @@ func (s *Server) updatePaymentMethod(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, "Payment method not found")
 		return
 	}
+
+	prevState := pm
 
 	if val, ok := body["name"].(string); ok && val != "" {
 		pm.Name = val
@@ -178,6 +183,8 @@ func (s *Server) updatePaymentMethod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.LogActivity(r.Context(), "owner-admin", "Owner Manager", "OWNER", "UPDATE_PAYMENT_METHOD", "PAYMENT_METHOD", pm.ID, fmt.Sprintf("Updated payment method %s (%s)", pm.Name, pm.Code), prevState, pm, r.RemoteAddr)
+
 	writeJSON(w, 200, pm)
 }
 
@@ -188,5 +195,8 @@ func (s *Server) deletePaymentMethod(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err.Error())
 		return
 	}
+
+	s.LogActivity(r.Context(), "owner-admin", "Owner Manager", "OWNER", "DELETE_PAYMENT_METHOD", "PAYMENT_METHOD", id, fmt.Sprintf("Deleted payment method #%s", id), nil, nil, r.RemoteAddr)
+
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }

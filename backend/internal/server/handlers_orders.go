@@ -386,6 +386,7 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 	newOrder, _ := s.fetchOrderFull(ctx, orderID)
 	s.Ably.Publish(ctx, "yadotena-realtime", "order.created", newOrder)
 	s.NATS.Publish("yadotena.orders.created", newOrder)
+	s.LogActivity(ctx, "waiter-station", "Floor Waiter", "WAITER", "CREATE_ORDER", "ORDER", orderID, fmt.Sprintf("Placed new %s order #%s (Total: ETB %.2f)", orderType, orderID, total), nil, newOrder, r.RemoteAddr)
 
 	writeJSON(w, 201, newOrder)
 }
@@ -402,6 +403,9 @@ func (s *Server) updateOrderStatusEndpoint(w http.ResponseWriter, r *http.Reques
 
 	newStatus := strings.ToUpper(body.Status)
 	ctx := r.Context()
+
+	var oldStatus string
+	_ = s.Pool.QueryRow(ctx, `SELECT status FROM orders WHERE id = $1`, id).Scan(&oldStatus)
 
 	var tableID *string
 	err := s.Pool.QueryRow(ctx, `UPDATE orders SET status = $1, updated_at = now() WHERE id = $2 RETURNING table_id`, newStatus, id).Scan(&tableID)
@@ -424,6 +428,14 @@ func (s *Server) updateOrderStatusEndpoint(w http.ResponseWriter, r *http.Reques
 	updatedOrder, _ := s.fetchOrderFull(ctx, id)
 	s.Ably.Publish(ctx, "yadotena-realtime", "order.updated", updatedOrder)
 	s.NATS.Publish("yadotena.orders.updated", updatedOrder)
+
+	role := "STAFF"
+	if newStatus == "PREPARING" || newStatus == "READY" {
+		role = "KITCHEN"
+	} else if newStatus == "SERVED" {
+		role = "WAITER"
+	}
+	s.LogActivity(ctx, strings.ToLower(role), fmt.Sprintf("%s Staff", role), role, "UPDATE_ORDER_STATUS", "ORDER", id, fmt.Sprintf("Updated Order #%s status from %s to %s", id, oldStatus, newStatus), map[string]string{"status": oldStatus}, map[string]string{"status": newStatus}, r.RemoteAddr)
 
 	writeJSON(w, 200, updatedOrder)
 }

@@ -1,10 +1,28 @@
 import { OrderItem, MenuItem, AddonItem, MenuItemAddon } from "@/types";
 
+export function isShopProductItem(item: MenuItem | null | undefined): boolean {
+  if (!item) return false;
+  const cat = (item.category || "").toLowerCase();
+  const catId = item.categoryId || "";
+  return (
+    item.id.startsWith("shop-") ||
+    catId.startsWith("cat-shop") ||
+    cat.includes("shop") ||
+    cat.includes("tomoca") ||
+    cat.includes("retail")
+  );
+}
+
 export function getApplicableAddonsForItem(
   item: MenuItem | null | undefined,
   allAddons: AddonItem[] = []
 ): MenuItemAddon[] {
   if (!item) return [];
+
+  // Retail shop items (packaged products) NEVER have add-ons!
+  if (isShopProductItem(item)) {
+    return [];
+  }
 
   const result: MenuItemAddon[] = [];
   const seenIds = new Set<string>();

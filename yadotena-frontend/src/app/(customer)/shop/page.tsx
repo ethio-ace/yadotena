@@ -7,10 +7,28 @@ import { MenuItem, MenuCategory } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, ShoppingBag, PackageCheck } from "lucide-react";
 import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
+
+// Helper function to check if item is a packaged retail product
+export const isRetailProduct = (item: MenuItem): boolean => {
+  const cat = (item.category || "").toLowerCase();
+  const catId = item.categoryId || "";
+  return (
+    item.id.startsWith("shop-") ||
+    catId.startsWith("cat-shop") ||
+    cat.includes("shop") ||
+    cat.includes("tomoca") ||
+    cat.includes("pack") ||
+    cat.includes("butter") ||
+    cat.includes("honey") ||
+    cat.includes("spice") ||
+    cat.includes("powder") ||
+    cat.includes("retail")
+  );
+};
 
 export default function ShopPage() {
   const [search, setSearch] = useState("");
@@ -27,28 +45,28 @@ export default function ShopPage() {
     queryFn: api.categories.getAll,
   });
 
-  // Filter database categories relevant to the retail shop store
+  // Filter database categories relevant to over-the-counter packaged retail products
   const shopDbCategories = dbCategories.filter((cat) => {
     const isShopId = cat.id.startsWith("cat-shop");
     const isShopName =
       cat.name.toLowerCase().includes("shop") ||
-      cat.name.toLowerCase().includes("dairy") ||
-      cat.name.toLowerCase().includes("butter") ||
-      cat.name.toLowerCase().includes("honey") ||
+      cat.name.toLowerCase().includes("tomoca") ||
       cat.name.toLowerCase().includes("coffee") ||
+      cat.name.toLowerCase().includes("butter") ||
+      cat.name.toLowerCase().includes("dairy") ||
+      cat.name.toLowerCase().includes("honey") ||
       cat.name.toLowerCase().includes("spice");
 
-    // Also include category if any shop menu item belongs to it
     const hasShopItems = menu.some(
-      (item) => item.categoryId === cat.id && item.id.startsWith("shop-")
+      (item) => item.categoryId === cat.id && isRetailProduct(item)
     );
 
     return isShopId || isShopName || hasShopItems;
   });
 
-  // Dynamically constructed category list from database
+  // Dynamic category list from database
   const categoryFilterList = [
-    { id: "All", name: "All Products", icon: "✨" },
+    { id: "All", name: "All Packaged Products", icon: "📦" },
     ...shopDbCategories.map((cat) => ({
       id: cat.id,
       name: cat.name,
@@ -56,22 +74,14 @@ export default function ShopPage() {
     })),
   ];
 
-  // Filter shop products dynamically from database menu catalog
+  // Filter shop products (only over-the-counter packaged goods)
   const shopProducts = menu.filter((item) => {
     const isAvailable = item.available !== false;
     const matchesSearch =
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       (item.description || "").toLowerCase().includes(search.toLowerCase());
 
-    const isShopItem =
-      item.id.startsWith("shop-") ||
-      item.categoryId?.startsWith("cat-shop") ||
-      (item.category || "").toLowerCase().includes("shop") ||
-      (item.category || "").toLowerCase().includes("dairy") ||
-      (item.category || "").toLowerCase().includes("butter") ||
-      (item.category || "").toLowerCase().includes("honey") ||
-      (item.category || "").toLowerCase().includes("coffee") ||
-      (item.category || "").toLowerCase().includes("spice");
+    const isRetail = isRetailProduct(item);
 
     let matchesCategory = activeCategory === "All";
     if (!matchesCategory) {
@@ -79,30 +89,32 @@ export default function ShopPage() {
         item.categoryId === activeCategory || item.category === activeCategory;
     }
 
-    return isAvailable && isShopItem && matchesSearch && matchesCategory;
+    return isAvailable && isRetail && matchesSearch && matchesCategory;
   });
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-300">
+      
       {/* Storefront Hero Banner */}
-      <div className="relative rounded-3xl overflow-hidden border border-muted-foreground/15 shadow-xl bg-gradient-to-br from-amber-600/15 via-primary/10 to-background p-6 md:p-10 flex flex-col justify-end min-h-[180px]">
+      <div className="relative rounded-3xl overflow-hidden border border-muted-foreground/15 shadow-xl bg-gradient-to-br from-amber-600/15 via-primary/10 to-background p-6 md:p-10 flex flex-col justify-end min-h-[190px]">
         <div className="relative z-10 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-extrabold px-3 py-1 text-xs">
               <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block mr-1.5 animate-pulse" />
-              Direct From Organic Farm
+              Over-The-Counter Packaged Goods
             </Badge>
             <Badge variant="secondary" className="bg-background/80 backdrop-blur-md font-bold px-3 py-1 text-xs">
-              🥛 Pure & Fresh Guarantee
+              ☕ Tomoca Ground Coffee & Sealed Jars
             </Badge>
           </div>
 
           <div>
-            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-foreground">
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-foreground flex items-center gap-2">
+              <ShoppingBag className="h-8 w-8 text-primary" />
               Yadotena Retail Storefront
             </h1>
             <p className="text-muted-foreground text-sm md:text-base mt-1 font-medium max-w-2xl">
-              Farm-fresh organic dairy, pasteurized milk, artisanal Ethiopian butter (Niter Kibbeh), Ayib cheese, Yirgacheffe coffee beans & honey.
+              Authentic packaged sellable products to take home: Tomoca ground coffee packs, roasted coffee beans, sealed Niter Kibbeh butter jars, Ayib cheese tubs, wild honey jars & Berbere spice pouches.
             </p>
           </div>
         </div>
@@ -113,7 +125,7 @@ export default function ShopPage() {
         <div className="relative max-w-2xl">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
-            placeholder="Search farm fresh milk, butter, cheese, coffee..."
+            placeholder="Search Tomoca ground coffee, roasted beans, butter jars, honey..."
             className="pl-12 h-12 rounded-2xl bg-card border-muted-foreground/20 text-sm shadow-sm focus-visible:ring-primary"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -173,8 +185,9 @@ export default function ShopPage() {
                   alt={product.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
-                <Badge className="absolute top-3 left-3 bg-background/90 backdrop-blur-md text-foreground font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-sm">
-                  {product.category || "Store Product"}
+                <Badge className="absolute top-3 left-3 bg-background/90 backdrop-blur-md text-foreground font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                  <PackageCheck className="h-3 w-3 text-emerald-500" />
+                  <span>Packaged Goods</span>
                 </Badge>
 
                 <Badge className="absolute bottom-3 right-3 bg-emerald-500 text-white font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm">
@@ -189,13 +202,13 @@ export default function ShopPage() {
                     {product.name}
                   </h3>
                   <p className="text-xs text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
-                    {product.description || "Farm fresh artisanal quality food product."}
+                    {product.description || "Authentic over-the-counter packaged product."}
                   </p>
                 </div>
 
                 <div className="pt-3 border-t border-muted/50 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase block">Unit Price</span>
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase block">Retail Unit Price</span>
                     <span className="font-black text-lg text-primary">{formatETB(product.price)}</span>
                   </div>
                 </div>
@@ -206,11 +219,11 @@ export default function ShopPage() {
           {shopProducts.length === 0 && (
             <div className="col-span-full py-16 text-center text-muted-foreground space-y-3 bg-card/40 rounded-3xl border border-dashed p-8">
               <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mx-auto text-2xl">
-                🛒
+                📦
               </div>
-              <h3 className="text-lg font-bold text-foreground">No retail products found</h3>
+              <h3 className="text-lg font-bold text-foreground">No retail packaged products found</h3>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                We couldn't find any products matching your selection. Try resetting your search filter.
+                We couldn't find any packaged retail items matching your selection.
               </p>
               <button
                 type="button"

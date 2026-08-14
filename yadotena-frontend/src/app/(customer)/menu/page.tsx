@@ -89,12 +89,24 @@ function MenuContent() {
       .map(cn => ({ name: cn, icon: "🍽️" }))
   ];
   
+  const isRetailProduct = (item: MenuItem): boolean => {
+    const cat = (item.category || "").toLowerCase();
+    const catId = item.categoryId || "";
+    return (
+      item.id.startsWith("shop-") ||
+      catId.startsWith("cat-shop") ||
+      cat.includes("tomoca") ||
+      cat.includes("retail")
+    );
+  };
+
   const filteredMenu = menu?.filter(m => {
     const isAvailable = m.available !== false;
+    const isCookedDish = !isRetailProduct(m);
     const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase()) || 
                           m.description.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = activeCategory === "All" || m.category === activeCategory;
-    return isAvailable && matchesSearch && matchesCategory;
+    return isAvailable && isCookedDish && matchesSearch && matchesCategory;
   });
 
   return (

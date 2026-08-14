@@ -30,6 +30,7 @@ export default function PaymentsPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"TRANSACTIONS" | "GATEWAYS">("TRANSACTIONS");
   const [search, setSearch] = useState("");
+  const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<any | null>(null);
 
   // Modals for Payment Gateways
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -263,7 +264,11 @@ export default function PaymentsPage() {
               </thead>
               <tbody className="divide-y">
                 {filteredPaidOrders.map((order: any) => (
-                  <tr key={order.id} className="hover:bg-muted/30 transition-colors">
+                  <tr 
+                    key={order.id} 
+                    onClick={() => setSelectedOrderForDetail(order)}
+                    className="cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                  >
                     <td className="px-4 py-3 font-black text-foreground">
                       #{order.id.slice(-6).toUpperCase()}
                     </td>
@@ -316,7 +321,11 @@ export default function PaymentsPage() {
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {methods.map((method) => (
-              <Card key={method.id} className="rounded-xl border p-4 bg-muted/20 space-y-3">
+              <Card 
+                key={method.id} 
+                onClick={() => openEditModal(method)}
+                className="rounded-xl border p-4 bg-muted/20 space-y-3 cursor-pointer hover:shadow-md active:bg-muted/50 transition-all"
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 rounded-xl bg-card border shrink-0">
@@ -329,7 +338,10 @@ export default function PaymentsPage() {
                   </div>
 
                   <button
-                    onClick={() => toggleMutation.mutate({ id: method.id, isActive: !method.isActive })}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleMutation.mutate({ id: method.id, isActive: !method.isActive });
+                    }}
                     className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
                       method.isActive 
                         ? "bg-primary/10 text-primary border-primary/30" 
@@ -362,7 +374,7 @@ export default function PaymentsPage() {
                     size="sm"
                     variant="outline"
                     className="h-7 text-[11px] font-bold rounded-lg"
-                    onClick={() => openEditModal(method)}
+                    onClick={(e) => { e.stopPropagation(); openEditModal(method); }}
                   >
                     Edit
                   </Button>
@@ -370,7 +382,7 @@ export default function PaymentsPage() {
                     size="sm"
                     variant="ghost"
                     className="h-7 text-[11px] font-bold text-destructive hover:bg-destructive/10 rounded-lg"
-                    onClick={() => handleDelete(method)}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(method); }}
                   >
                     Delete
                   </Button>
@@ -470,6 +482,85 @@ export default function PaymentsPage() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Settlement Detail Modal */}
+      {selectedOrderForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="fixed inset-0" onClick={() => setSelectedOrderForDetail(null)} />
+          <div className="relative w-full max-w-lg bg-card border rounded-3xl shadow-2xl p-6 space-y-4 z-10 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black">
+                  <Receipt className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base">Settlement Receipt #{selectedOrderForDetail.id.slice(-6).toUpperCase()}</h3>
+                  <p className="text-[11px] text-muted-foreground font-mono">Order ID: {selectedOrderForDetail.id}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedOrderForDetail(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="p-4 bg-primary/10 border border-primary/20 rounded-2xl flex justify-between items-center">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-primary block">Total Paid Revenue</span>
+                  <span className="text-2xl font-black text-primary">{formatETB(selectedOrderForDetail.total)}</span>
+                </div>
+                <Badge className="bg-primary text-primary-foreground font-black text-xs px-3 py-1">
+                  Settled ({selectedOrderForDetail.paymentMethod || "CASH"})
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                <div className="p-3 bg-muted/30 rounded-xl border">
+                  <span className="text-[10px] font-bold block uppercase">Customer / Location</span>
+                  <span className="text-xs font-bold text-foreground">
+                    {selectedOrderForDetail.type === "DINE_IN" ? `Table #${selectedOrderForDetail.tableId?.replace('t', '')}` : (selectedOrderForDetail.customerName || "Takeout Guest")}
+                  </span>
+                </div>
+                <div className="p-3 bg-muted/30 rounded-xl border">
+                  <span className="text-[10px] font-bold block uppercase">Settlement Date</span>
+                  <span className="text-xs font-semibold text-foreground">
+                    {format(new Date(selectedOrderForDetail.updatedAt), "MMM d, yyyy h:mm a")}
+                  </span>
+                </div>
+              </div>
+
+              {/* Itemized breakdown */}
+              {selectedOrderForDetail.items && selectedOrderForDetail.items.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-bold text-xs uppercase text-muted-foreground">Itemized Receipt breakdown</h4>
+                  <div className="divide-y border rounded-2xl bg-muted/20 overflow-hidden">
+                    {selectedOrderForDetail.items.map((item: any, idx: number) => (
+                      <div key={idx} className="p-3 flex justify-between items-center text-xs">
+                        <div>
+                          <span className="font-bold text-foreground">{item.quantity}x {item.name}</span>
+                          {item.selectedAddons && item.selectedAddons.length > 0 && (
+                            <div className="text-[10px] text-muted-foreground">
+                              Addons: {item.selectedAddons.map((a: any) => typeof a === 'string' ? a : a.name).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                        <span className="font-black text-primary">{formatETB(item.price * item.quantity)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center pt-3 border-t">
+              <Button variant="outline" onClick={() => window.print()} className="rounded-xl font-bold text-xs gap-1.5">
+                <span>Print Official Receipt</span>
+              </Button>
+              <Button onClick={() => setSelectedOrderForDetail(null)} className="rounded-xl font-bold text-xs">
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -15,6 +15,7 @@ export default function ExpensesPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [selectedExpense, setSelectedExpense] = useState<any | null>(null);
 
   const [category, setCategory] = useState("Dairy Supplies (Raw Milk, Butter, Honey)");
   const [description, setDescription] = useState("");
@@ -246,7 +247,11 @@ export default function ExpensesPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredExpenses.map((expense: any) => (
-                  <tr key={expense.id} className="hover:bg-muted/30 transition-colors">
+                  <tr 
+                    key={expense.id} 
+                    onClick={() => setSelectedExpense(expense)}
+                    className="cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                  >
                     <td className="px-5 py-4 font-mono text-muted-foreground">
                       {new Date(expense.date).toLocaleDateString()}
                     </td>
@@ -275,6 +280,74 @@ export default function ExpensesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Expense Detail & Audit Inspection Modal */}
+      {selectedExpense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="fixed inset-0" onClick={() => setSelectedExpense(null)} />
+          <div className="relative w-full max-w-md bg-card border rounded-3xl shadow-2xl p-6 space-y-4 z-10 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-600 font-black">
+                  <Receipt className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base">Expense Record Detail</h3>
+                  <p className="text-[11px] text-muted-foreground font-mono">ID: #{selectedExpense.id}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedExpense(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex justify-between items-center">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-rose-600 block">Expense Amount</span>
+                  <span className="text-2xl font-black text-rose-600">{formatETB(selectedExpense.amount)}</span>
+                </div>
+                <Badge variant="outline" className="font-extrabold uppercase bg-card text-foreground">
+                  {selectedExpense.category}
+                </Badge>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase">Description / Purpose</label>
+                <div className="p-3 bg-muted/40 rounded-xl border text-foreground font-semibold leading-relaxed">
+                  {selectedExpense.description}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                <div className="p-2.5 bg-muted/30 rounded-xl border">
+                  <span className="text-[10px] font-bold block uppercase">Payment Method</span>
+                  <span className="text-xs font-bold text-foreground">{selectedExpense.paymentMethod}</span>
+                </div>
+                <div className="p-2.5 bg-muted/30 rounded-xl border">
+                  <span className="text-[10px] font-bold block uppercase">Transaction Ref</span>
+                  <span className="text-xs font-mono font-bold text-primary">{selectedExpense.reference || "N/A"}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                <div className="p-2.5 bg-muted/30 rounded-xl border">
+                  <span className="text-[10px] font-bold block uppercase">Recorded Date</span>
+                  <span className="text-xs font-medium text-foreground">{new Date(selectedExpense.date).toLocaleString()}</span>
+                </div>
+                <div className="p-2.5 bg-muted/30 rounded-xl border">
+                  <span className="text-[10px] font-bold block uppercase">Audit Staff</span>
+                  <span className="text-xs font-bold text-foreground">{selectedExpense.recordedBy || "Store Manager"}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t">
+              <Button onClick={() => setSelectedExpense(null)} className="rounded-xl font-bold text-xs">
+                Close Inspection
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

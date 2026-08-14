@@ -232,7 +232,11 @@ export default function EmployeesPage() {
                   {filteredUsers.map((user) => {
                     const roleBadge = getRoleBadge(user.role);
                     return (
-                      <tr key={user.id} className="hover:bg-muted/30 transition-colors">
+                      <tr 
+                        key={user.id} 
+                        onClick={() => setEditingUser(user)}
+                        className="cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                      >
                         {/* Name & Email */}
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3">

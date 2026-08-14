@@ -364,7 +364,8 @@ function TableCard({
 
   return (
     <Card 
-      className={cn("overflow-hidden hover:shadow-xl transition-all duration-300 border-2 rounded-3xl flex flex-col justify-between", config.cardBg)}
+      onClick={onViewQR}
+      className={cn("overflow-hidden hover:shadow-xl transition-all duration-300 border-2 rounded-3xl flex flex-col justify-between cursor-pointer active:scale-[0.99]", config.cardBg)}
     >
       <CardContent className="p-4 sm:p-5 flex flex-col h-full justify-between space-y-3.5">
         <div className="flex justify-between items-start">

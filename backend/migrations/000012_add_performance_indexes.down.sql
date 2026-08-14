@@ -5,5 +5,5 @@ DROP INDEX IF EXISTS idx_order_items_order_id;
 DROP INDEX IF EXISTS idx_dining_sessions_table_status;
 DROP INDEX IF EXISTS idx_service_requests_table_status;
 DROP INDEX IF EXISTS idx_menu_item_addons_item_id;
-DROP INDEX IF EXISTS idx_expenses_expense_date;
+DROP INDEX IF EXISTS idx_expenses_date;
 DROP INDEX IF EXISTS idx_activity_logs_created_at;

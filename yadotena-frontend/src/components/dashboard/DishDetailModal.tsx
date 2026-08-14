@@ -9,8 +9,9 @@ import {
   X, Clock, Edit, Trash2, CheckCircle2, AlertCircle, 
   Sparkles, Flame, Layers, Utensils
 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
+import { getApplicableAddonsForItem } from "@/lib/orderUtils";
 
 interface DishDetailModalProps {
   item: MenuItem | null;
@@ -21,6 +22,11 @@ interface DishDetailModalProps {
 
 export function DishDetailModal({ item, isOpen, onClose, onEdit }: DishDetailModalProps) {
   const queryClient = useQueryClient();
+
+  const { data: allAddons = [] } = useQuery<any[]>({
+    queryKey: ["addons"],
+    queryFn: () => api.addons.getAll(),
+  });
 
   const toggleAvailability = useMutation({
     mutationFn: (id: string) => api.menu.toggleAvailability(id),
@@ -38,6 +44,8 @@ export function DishDetailModal({ item, isOpen, onClose, onEdit }: DishDetailMod
   });
 
   if (!isOpen || !item) return null;
+
+  const applicableAddons = getApplicableAddonsForItem(item, allAddons);
 
   const handleDelete = () => {
     if (confirm(`Are you sure you want to remove "${item.name}" from the active menu?`)) {
@@ -118,14 +126,19 @@ export function DishDetailModal({ item, isOpen, onClose, onEdit }: DishDetailMod
             </div>
           )}
 
-          {/* Configured Add-ons */}
-          {item.customAddons && item.customAddons.length > 0 && (
+          {/* Configured & Applicable Add-ons */}
+          {applicableAddons.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Available Add-ons</h3>
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Applicable Add-ons ({applicableAddons.length})</h3>
               <div className="divide-y rounded-2xl border bg-muted/20 overflow-hidden">
-                {item.customAddons.map((addon) => (
+                {applicableAddons.map((addon) => (
                   <div key={addon.id} className="p-3 flex items-center justify-between text-xs">
-                    <span className="font-semibold">{addon.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{addon.name}</span>
+                      <Badge variant="outline" className="text-[9px] font-mono px-1.5 py-0 uppercase">
+                        {addon.scope || "ITEM"}
+                      </Badge>
+                    </div>
                     <span className="font-bold text-primary">+{formatETB(addon.price)}</span>
                   </div>
                 ))}

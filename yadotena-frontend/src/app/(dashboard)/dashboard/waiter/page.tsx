@@ -15,7 +15,8 @@ import {
   ArrowLeft, Sparkles, ChevronRight, Users
 } from "lucide-react";
 import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
-import { Order, MenuItem, MenuItemAddon, Table } from "@/types";
+import { Order, MenuItem, MenuItemAddon, Table, AddonItem } from "@/types";
+import { getApplicableAddonsForItem } from "@/lib/orderUtils";
 
 export interface WaiterCartItem {
   cartItemId: string;
@@ -40,26 +41,26 @@ const KITCHEN_NOTE_PRESETS = [
 export default function WaiterDashboardPage() {
   const queryClient = useQueryClient();
 
-  // Multi-Step State (Step 1: Select Table, Step 2: Select Menu & Addons)
+  // Wizard state: 1 = Table Floor selection, 2 = Menu item selection
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
-
-  // Table Details / Operations Modal State (Used for occupied tables)
-  const [viewingTableDetails, setViewingTableDetails] = useState<Table | null>(null);
-
-  // Menu Search & Category
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // Cart Items State (Persisted across step switches)
-  const [cartItems, setCartItems] = useState<WaiterCartItem[]>([]);
-  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<Order | null>(null);
+  // Table Details Inspection Modal (for occupied sessions)
+  const [viewingTableDetails, setViewingTableDetails] = useState<Table | null>(null);
 
-  // Custom Dish Addon Modal State
+  // Cart state
+  const [cartItems, setCartItems] = useState<WaiterCartItem[]>([]);
+
+  // Dish customization modal state
   const [configuringDish, setConfiguringDish] = useState<MenuItem | null>(null);
   const [modalAddons, setModalAddons] = useState<MenuItemAddon[]>([]);
   const [modalNote, setModalNote] = useState<string>("");
   const [modalQty, setModalQty] = useState<number>(1);
+
+  // Payment Settlement Modal
+  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<Order | null>(null);
 
   // Queries
   const { data: tables = [] } = useQuery<Table[]>({
@@ -80,6 +81,11 @@ export default function WaiterDashboardPage() {
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: api.categories.getAll,
+  });
+
+  const { data: allAddons = [] } = useQuery<AddonItem[]>({
+    queryKey: ["addons"],
+    queryFn: () => api.addons.getAll(),
   });
 
   // Identify active order for currently selected table
@@ -118,14 +124,17 @@ export default function WaiterDashboardPage() {
     mutationFn: ({ id, status }: { id: string; status: any }) => api.orders.updateStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["tables"] });
     },
   });
 
-  // Select Table Handler -> Directly enters Step 2 (Operations)
+  // Navigation handlers
   const handleSelectTable = (table: Table) => {
     setSelectedTable(table);
     setCurrentStep(2);
+  };
+
+  const handleBackToTables = () => {
+    setCurrentStep(1);
   };
 
   // Addon Modal Handlers
@@ -160,7 +169,8 @@ export default function WaiterDashboardPage() {
   };
 
   const quickAddItem = (item: MenuItem) => {
-    if (item.customAddons && item.customAddons.length > 0) {
+    const applicableAddons = getApplicableAddonsForItem(item, allAddons);
+    if (applicableAddons.length > 0) {
       openDishModal(item);
       return;
     }
@@ -837,7 +847,7 @@ export default function WaiterDashboardPage() {
       {/* Dish Addon & Presets Configuration Modal */}
       {configuringDish && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border rounded-2xl shadow-xl max-w-md w-full p-5 space-y-4 relative">
+          <div className="bg-card border rounded-2xl shadow-xl max-w-md w-full p-5 space-y-4 relative animate-in zoom-in-95 duration-200">
             
             <div className="flex items-start justify-between border-b pb-2">
               <div>
@@ -849,35 +859,56 @@ export default function WaiterDashboardPage() {
               </button>
             </div>
 
-            {/* Custom Addons Selection */}
-            {configuringDish.customAddons && configuringDish.customAddons.length > 0 && (
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-muted-foreground uppercase">Select Addons</span>
-                <div className="space-y-1.5">
-                  {configuringDish.customAddons.map((addon) => {
-                    const selected = modalAddons.some((a) => a.id === addon.id);
-                    return (
-                      <label
-                        key={addon.id}
-                        onClick={() => {
-                          if (selected) {
-                            setModalAddons((prev) => prev.filter((a) => a.id !== addon.id));
-                          } else {
-                            setModalAddons((prev) => [...prev, addon]);
-                          }
-                        }}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer text-xs transition-all ${
-                          selected ? "bg-primary/10 border-primary font-bold text-primary" : "bg-muted/30 border-transparent hover:bg-muted"
-                        }`}
-                      >
-                        <span>{addon.name}</span>
-                        <span className="text-primary font-bold">+ {formatETB(addon.price)}</span>
-                      </label>
-                    );
-                  })}
+            {/* Resolved Addons Selection */}
+            {(() => {
+              const applicableAddons = getApplicableAddonsForItem(configuringDish, allAddons);
+
+              if (applicableAddons.length === 0) {
+                return (
+                  <div className="p-3 bg-muted/30 rounded-xl border text-center text-xs text-muted-foreground font-medium">
+                    No extra add-ons required for this dish. Standard recipe will be prepared.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  <span className="text-xs font-bold text-muted-foreground uppercase block">
+                    Available Add-ons (Global, Category & Item)
+                  </span>
+                  <div className="space-y-1.5">
+                    {applicableAddons.map((addon) => {
+                      const selected = modalAddons.some((a) => a.id === addon.id);
+                      return (
+                        <label
+                          key={addon.id}
+                          onClick={() => {
+                            if (selected) {
+                              setModalAddons((prev) => prev.filter((a) => a.id !== addon.id));
+                            } else {
+                              setModalAddons((prev) => [...prev, addon]);
+                            }
+                          }}
+                          className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer text-xs transition-all ${
+                            selected 
+                              ? "bg-primary/10 border-primary font-bold text-primary shadow-sm" 
+                              : "bg-muted/30 border-transparent hover:bg-muted"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>{addon.name}</span>
+                            <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 uppercase">
+                              {addon.scope || "ITEM"}
+                            </Badge>
+                          </div>
+                          <span className="text-primary font-bold">+ {formatETB(addon.price)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Special Instructions & Presets */}
             <div className="space-y-2">

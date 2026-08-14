@@ -1,14 +1,15 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { OrderType, MenuItem, OrderItem, Order } from "@/types";
+import { OrderType, MenuItem, OrderItem, Order, AddonItem, MenuItemAddon } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { formatETB } from "@/lib/currency";
-import { ArrowLeft, Plus, Minus, Search, Utensils, ShoppingBag, Truck, CheckCircle2 } from "lucide-react";
-import { toOrderItemPayload, estimateOrderTotals } from "@/lib/orderUtils";
+import { ArrowLeft, Plus, Minus, Search, Utensils, ShoppingBag, Truck, CheckCircle2, Sparkles, X, Edit } from "lucide-react";
+import { toOrderItemPayload, estimateOrderTotals, getApplicableAddonsForItem } from "@/lib/orderUtils";
 
 interface FullPageMenuPOSProps {
   orderType?: OrderType;
@@ -18,6 +19,16 @@ interface FullPageMenuPOSProps {
   onCancel: () => void;
   onSuccess: () => void;
 }
+
+const KITCHEN_NOTE_PRESETS = [
+  "No Spicy",
+  "Extra Hot",
+  "No Onions",
+  "Serve Warm",
+  "Extra Sauce",
+  "Separate Plate",
+  "Well Done",
+];
 
 export function FullPageMenuPOS({
   orderType = "DINE_IN",
@@ -32,6 +43,11 @@ export function FullPageMenuPOS({
   const { data: menu, isLoading: isLoadingMenu } = useQuery({
     queryKey: ["menu"],
     queryFn: api.menu.getAll,
+  });
+
+  const { data: allAddons = [] } = useQuery<AddonItem[]>({
+    queryKey: ["addons"],
+    queryFn: () => api.addons.getAll(),
   });
 
   // State
@@ -49,12 +65,20 @@ export function FullPageMenuPOS({
   const [isPaid, setIsPaid] = useState(existingOrder?.paymentStatus === "PAID" || false);
 
   const [orderItems, setOrderItems] = useState<Array<{
+    cartItemId: string;
     menuItemId: string;
     name: string;
     price: number;
     quantity: number;
+    selectedAddons: MenuItemAddon[];
     specialInstructions?: string;
   }>>([]);
+
+  // Dish customization modal state
+  const [configuringDish, setConfiguringDish] = useState<MenuItem | null>(null);
+  const [modalAddons, setModalAddons] = useState<MenuItemAddon[]>([]);
+  const [modalNote, setModalNote] = useState<string>("");
+  const [modalQty, setModalQty] = useState<number>(1);
 
   const activeOrderType = existingOrder?.type || orderType;
   const activeTableId = existingOrder?.tableId || tableId;
@@ -80,34 +104,68 @@ export function FullPageMenuPOS({
     onError: (err: Error) => alert(err.message || "Failed to add items"),
   });
 
-  const handleAddItem = (item: MenuItem) => {
-    setOrderItems(prev => {
-      const exists = prev.find(i => i.menuItemId === item.id);
-      if (exists) {
-        return prev.map(i => i.menuItemId === item.id ? { ...i, quantity: i.quantity + 1 } : i);
-      }
-      return [...prev, { menuItemId: item.id, name: item.name, price: item.price, quantity: 1 }];
-    });
-    
-    // Provide visual feedback
-    const btn = document.getElementById(`add-btn-${item.id}`);
-    if (btn) {
-      const originalText = btn.innerHTML;
-      btn.innerHTML = "✓ Added";
-      btn.classList.add("bg-green-500", "text-white");
-      btn.classList.remove("bg-primary/10", "text-primary");
-      setTimeout(() => {
-        btn.innerHTML = originalText;
-        btn.classList.remove("bg-green-500", "text-white");
-        btn.classList.add("bg-primary/10", "text-primary");
-      }, 1000);
+  const openDishModal = (item: MenuItem) => {
+    setConfiguringDish(item);
+    setModalAddons([]);
+    setModalNote("");
+    setModalQty(1);
+  };
+
+  const handleAddPresetNote = (preset: string) => {
+    if (!modalNote) {
+      setModalNote(preset);
+    } else if (!modalNote.includes(preset)) {
+      setModalNote(`${modalNote}, ${preset}`);
     }
   };
 
-  const handleUpdateQuantity = (menuItemId: string, delta: number) => {
+  const handleAddModalDishToCart = () => {
+    if (!configuringDish) return;
+
+    const addonsSum = modalAddons.reduce((acc, a) => acc + (a.price || 0), 0);
+    const unitPrice = configuringDish.price + addonsSum;
+
+    setOrderItems(prev => [
+      ...prev,
+      {
+        cartItemId: `c-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        menuItemId: configuringDish.id,
+        name: configuringDish.name,
+        price: unitPrice,
+        quantity: modalQty,
+        selectedAddons: [...modalAddons],
+        specialInstructions: modalNote.trim(),
+      }
+    ]);
+
+    setConfiguringDish(null);
+  };
+
+  const handleQuickAddItem = (item: MenuItem) => {
+    const applicable = getApplicableAddonsForItem(item, allAddons);
+    if (applicable.length > 0) {
+      openDishModal(item);
+      return;
+    }
+
+    setOrderItems(prev => [
+      ...prev,
+      {
+        cartItemId: `c-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        menuItemId: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: 1,
+        selectedAddons: [],
+        specialInstructions: "",
+      }
+    ]);
+  };
+
+  const handleUpdateQuantity = (cartItemId: string, delta: number) => {
     setOrderItems(prev => {
       return prev
-        .map(i => i.menuItemId === menuItemId ? { ...i, quantity: i.quantity + delta } : i)
+        .map(i => i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + delta } : i)
         .filter(i => i.quantity > 0);
     });
   };
@@ -123,9 +181,13 @@ export function FullPageMenuPOS({
 
     const payloadItems = toOrderItemPayload(
       orderItems.map((item) => ({
-        ...item,
-        id: item.menuItemId,
+        id: item.cartItemId,
         menuItemId: item.menuItemId,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        specialInstructions: item.specialInstructions,
+        selectedAddons: item.selectedAddons,
       }))
     );
 
@@ -210,42 +272,63 @@ export function FullPageMenuPOS({
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
-            {filteredMenu?.map(item => (
-              <Card key={item.id} className="rounded-3xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden group">
-                <div className="h-32 bg-muted relative overflow-hidden">
-                  {item.image ? (
-                    <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  ) : (
-                    <div className="w-full h-full bg-primary/5 flex items-center justify-center text-primary/20">
-                      <Utensils className="h-10 w-10" />
-                    </div>
-                  )}
-                  {item.dietaryTags && item.dietaryTags.includes("Chef's Special") && (
-                    <Badge className="absolute top-2 right-2 bg-amber-500 hover:bg-amber-600 border-none shadow-sm text-[10px] uppercase font-black px-2 py-0.5 rounded-full">
-                      Popular
-                    </Badge>
-                  )}
-                </div>
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-1 gap-2">
-                    <h3 className="font-bold text-sm leading-tight line-clamp-1">{item.name}</h3>
-                    <span className="font-black text-primary text-sm whitespace-nowrap">{formatETB(item.price)}</span>
+            {filteredMenu?.map(item => {
+              const applicableAddons = getApplicableAddonsForItem(item, allAddons);
+
+              return (
+                <Card key={item.id} className="rounded-3xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden group">
+                  <div className="h-32 bg-muted relative overflow-hidden cursor-pointer" onClick={() => openDishModal(item)}>
+                    {item.image ? (
+                      <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="w-full h-full bg-primary/5 flex items-center justify-center text-primary/20">
+                        <Utensils className="h-10 w-10" />
+                      </div>
+                    )}
+                    
+                    {applicableAddons.length > 0 && (
+                      <Badge className="absolute top-2 left-2 bg-background/90 backdrop-blur-md text-primary border border-primary/30 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        <span>{applicableAddons.length} Addons</span>
+                      </Badge>
+                    )}
+
+                    {item.dietaryTags && item.dietaryTags.includes("Chef's Special") && (
+                      <Badge className="absolute top-2 right-2 bg-amber-500 hover:bg-amber-600 border-none shadow-sm text-[10px] uppercase font-black px-2 py-0.5 rounded-full">
+                        Popular
+                      </Badge>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-1 mb-3">{item.description}</p>
-                  
-                  <Button 
-                    id={`add-btn-${item.id}`}
-                    className="w-full rounded-xl h-9 font-bold text-xs bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
-                    onClick={() => handleAddItem(item)}
-                  >
-                    <Plus className="h-3 w-3 mr-1" /> Add to Order
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex justify-between items-start gap-2 cursor-pointer" onClick={() => openDishModal(item)}>
+                      <h3 className="font-bold text-sm leading-tight line-clamp-1">{item.name}</h3>
+                      <span className="font-black text-primary text-sm whitespace-nowrap">{formatETB(item.price)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{item.description}</p>
+                    
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline"
+                        className="flex-1 rounded-xl h-9 font-bold text-xs bg-card hover:bg-muted"
+                        onClick={() => openDishModal(item)}
+                      >
+                        <Sparkles className="h-3 w-3 mr-1 text-primary" /> Options
+                      </Button>
+                      <Button 
+                        className="flex-1 rounded-xl h-9 font-bold text-xs bg-primary text-primary-foreground"
+                        onClick={() => handleQuickAddItem(item)}
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> Add
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
             {filteredMenu?.length === 0 && (
               <div className="col-span-full py-12 text-center text-muted-foreground">
-                No items found.
+                No items found matching your filters.
               </div>
             )}
           </div>
@@ -295,21 +378,41 @@ export function FullPageMenuPOS({
               </div>
             ) : (
               <div className="space-y-4">
-                {orderItems.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm truncate">{item.name}</div>
-                      <div className="text-xs text-muted-foreground">{formatETB(item.price)}</div>
+                {orderItems.map((item) => (
+                  <div key={item.cartItemId} className="p-3 rounded-2xl bg-muted/20 border space-y-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm truncate">{item.name}</div>
+                        <div className="text-xs text-primary font-bold">{formatETB(item.price)} each</div>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-card p-1 rounded-full border shadow-sm">
+                        <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full" onClick={() => handleUpdateQuantity(item.cartItemId, -1)}>
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
+                        <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full" onClick={() => handleUpdateQuantity(item.cartItemId, 1)}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-full border">
-                      <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full" onClick={() => handleUpdateQuantity(item.menuItemId, -1)}>
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
-                      <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full" onClick={() => handleUpdateQuantity(item.menuItemId, 1)}>
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
+
+                    {/* Selected Addons */}
+                    {item.selectedAddons && item.selectedAddons.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1 border-t">
+                        {item.selectedAddons.map((addon) => (
+                          <Badge key={addon.id} variant="secondary" className="text-[10px] bg-primary/10 text-primary border border-primary/20 font-bold">
+                            + {addon.name} ({formatETB(addon.price)})
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Special Instructions */}
+                    {item.specialInstructions && (
+                      <p className="text-[11px] italic text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg">
+                        Note: {item.specialInstructions}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -357,6 +460,128 @@ export function FullPageMenuPOS({
           </div>
         </Card>
       </div>
+
+      {/* Dish Addon & Presets Configuration Modal */}
+      {configuringDish && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-card border rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4 relative animate-in zoom-in-95 duration-200">
+            
+            <div className="flex items-start justify-between border-b pb-3">
+              <div>
+                <h3 className="font-black text-lg text-foreground">{configuringDish.name}</h3>
+                <span className="text-xs text-primary font-bold">{formatETB(configuringDish.price)} Base Price</span>
+              </div>
+              <button onClick={() => setConfiguringDish(null)} className="p-1 text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Applicable Addons List */}
+            {(() => {
+              const applicableAddons = getApplicableAddonsForItem(configuringDish, allAddons);
+
+              if (applicableAddons.length === 0) {
+                return (
+                  <div className="p-3.5 bg-muted/30 rounded-2xl border text-center text-xs text-muted-foreground font-medium">
+                    No extra add-ons required for this dish. Standard recipe will be prepared.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                    Available Add-ons (Global, Category & Item)
+                  </span>
+                  <div className="space-y-2">
+                    {applicableAddons.map((addon) => {
+                      const selected = modalAddons.some((a) => a.id === addon.id);
+                      return (
+                        <label
+                          key={addon.id}
+                          onClick={() => {
+                            if (selected) {
+                              setModalAddons((prev) => prev.filter((a) => a.id !== addon.id));
+                            } else {
+                              setModalAddons((prev) => [...prev, addon]);
+                            }
+                          }}
+                          className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer text-xs transition-all ${
+                            selected 
+                              ? "bg-primary/10 border-primary font-bold text-primary shadow-sm" 
+                              : "bg-muted/20 border-transparent hover:bg-muted/50 text-foreground"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold">{addon.name}</span>
+                            <Badge variant="outline" className="text-[9px] font-mono px-1.5 py-0 uppercase">
+                              {addon.scope || "ITEM"}
+                            </Badge>
+                          </div>
+                          <span className="text-primary font-black">+ {formatETB(addon.price)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Kitchen Notes */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                Kitchen Special Notes
+              </span>
+              
+              <div className="flex flex-wrap gap-1.5">
+                {KITCHEN_NOTE_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => handleAddPresetNote(preset)}
+                    className="px-2.5 py-1 rounded-lg bg-muted text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-primary/15 transition-all"
+                  >
+                    + {preset}
+                  </button>
+                ))}
+              </div>
+
+              <Textarea
+                placeholder="Type custom instructions (e.g. Extra hot pepper on side)..."
+                value={modalNote}
+                onChange={(e: any) => setModalNote(e.target.value)}
+                className="text-xs h-16 rounded-2xl bg-muted/20 resize-none"
+              />
+            </div>
+
+            {/* Quantity */}
+            <div className="flex items-center justify-between border-t pt-3">
+              <span className="text-xs font-bold text-muted-foreground uppercase">Quantity</span>
+              <div className="flex items-center gap-3 bg-muted/50 p-1.5 rounded-2xl border text-xs font-bold">
+                <button onClick={() => setModalQty((q) => Math.max(1, q - 1))} className="px-2.5 py-0.5 text-foreground hover:text-primary">
+                  -
+                </button>
+                <span className="w-4 text-center">{modalQty}</span>
+                <button onClick={() => setModalQty((q) => q + 1)} className="px-2.5 py-0.5 text-foreground hover:text-primary">
+                  +
+                </button>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleAddModalDishToCart}
+              className="w-full h-12 rounded-2xl font-black text-xs bg-primary text-primary-foreground shadow-lg shadow-primary/25"
+            >
+              Add to Ticket (
+              {formatETB(
+                (configuringDish.price + modalAddons.reduce((acc, a) => acc + (a.price || 0), 0)) * modalQty
+              )}
+              )
+            </Button>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

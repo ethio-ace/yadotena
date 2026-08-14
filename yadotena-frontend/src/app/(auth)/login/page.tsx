@@ -35,6 +35,10 @@ export default function LoginPage() {
       } else {
         const session = await getSession();
         const role = (session?.user as any)?.role;
+        const accessToken = (session as any)?.accessToken;
+        if (accessToken) {
+          localStorage.setItem("token", accessToken);
+        }
 
         setSuccess("Staff authorization verified! Loading dashboard...");
         

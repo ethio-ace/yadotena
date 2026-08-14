@@ -10,6 +10,13 @@ async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}):
   const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   const headers = new Headers(options.headers || {});
+
+  if (typeof window !== "undefined" && !headers.has("Authorization")) {
+    const token = localStorage.getItem("token") || localStorage.getItem("access_token") || localStorage.getItem("auth_token");
+    if (token) {
+      headers.set("Authorization", token.startsWith("Bearer ") ? token : `Bearer ${token}`);
+    }
+  }
   
   // If the body is FormData, do NOT set Content-Type to application/json
   // Let the browser automatically set the Content-Type with the correct boundary
@@ -205,8 +212,12 @@ export const api = {
         idempotencyKey?: string;
       }
     ): Promise<Order> => {
+      const idempotencyKey = order.idempotencyKey || `idem-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       return requestApiStrict<Order>("/orders", {
         method: "POST",
+        headers: {
+          "Idempotency-Key": idempotencyKey,
+        },
         body: JSON.stringify({
           type: order.type,
           paymentStatus: order.paymentStatus || "PENDING",
@@ -214,7 +225,7 @@ export const api = {
           customerName: order.customerName,
           customerPhone: order.customerPhone,
           deliveryAddress: order.deliveryAddress,
-          idempotencyKey: order.idempotencyKey,
+          idempotencyKey: idempotencyKey,
           items: serializeOrderItems(order.items),
         }),
       });

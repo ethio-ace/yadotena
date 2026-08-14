@@ -22,7 +22,12 @@ export function AblySyncProvider({ children }: { children: React.ReactNode }) {
       if (!apiKey) {
         try {
           const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
-          const res = await fetch(`${apiBase}/auth/ably-token`);
+          const headers: Record<string, string> = {};
+          if (typeof window !== "undefined") {
+            const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+            if (token) headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+          }
+          const res = await fetch(`${apiBase}/auth/ably-token`, { headers });
           if (res.ok) {
             const data = await res.json();
             apiKey = data.apiKey || data.token;

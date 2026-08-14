@@ -343,6 +343,11 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 				writeErr(w, 500, errAdd.Error())
 				return
 			}
+			for _, addonName := range item.addons {
+				_, _ = tx.Exec(ctx, `
+					INSERT INTO order_item_addons (order_item_id, addon_id, name, price)
+					VALUES ($1, NULL, $2, 0.00)`, itemID, addonName)
+			}
 		}
 
 		s.recalculateOrderFinancialsTx(ctx, tx, targetOrderID, orderType)
@@ -402,11 +407,16 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, 500, errAdd.Error())
 			return
 		}
+		for _, addonName := range item.addons {
+			_, _ = tx.Exec(ctx, `
+				INSERT INTO order_item_addons (order_item_id, addon_id, name, price)
+				VALUES ($1, NULL, $2, 0.00)`, itemID, addonName)
+		}
 	}
 
 	// Update table status to OCCUPIED if dine-in
 	if orderType == "DINE_IN" && input.TableID != nil && *input.TableID != "" {
-		_, _ = tx.Exec(ctx, `UPDATE tables SET status = 'OCCUPIED', current_order_id = $1, updated_at = now() WHERE id = $2`, orderID, *input.TableID)
+		_, _ = tx.Exec(ctx, `UPDATE tables SET status = 'OCCUPIED', updated_at = now() WHERE id = $1`, *input.TableID)
 		s.Ably.Publish(ctx, "yadotena-realtime", "table.updated", map[string]any{"id": *input.TableID, "status": "OCCUPIED"})
 	}
 

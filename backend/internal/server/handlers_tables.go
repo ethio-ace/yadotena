@@ -37,8 +37,10 @@ type DiningSession struct {
 
 func (s *Server) listTables(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.Pool.Query(r.Context(), `
-		SELECT id, name, capacity, status, qr_token, current_order_id, created_at, updated_at
-		FROM tables ORDER BY name`)
+		SELECT t.id, t.name, t.capacity, t.status, t.qr_token,
+		       (SELECT o.id FROM orders o WHERE o.table_id = t.id AND o.status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY o.created_at DESC LIMIT 1) AS current_order_id,
+		       t.created_at, t.updated_at
+		FROM tables t ORDER BY t.name`)
 	if err != nil {
 		writeJSON(w, 200, []Table{})
 		return
@@ -59,11 +61,13 @@ func (s *Server) getTable(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var t Table
 	err := s.Pool.QueryRow(r.Context(), `
-		SELECT id, name, capacity, status, qr_token, current_order_id, created_at, updated_at
-		FROM tables
-		WHERE id = $1 OR LOWER(id) = LOWER($1) OR LOWER(name) = LOWER($1)
-		   OR REPLACE(LOWER(id), 'tbl-', 't') = LOWER($1)
-		   OR REPLACE(LOWER(name), 'table ', 't') = LOWER($1)
+		SELECT t.id, t.name, t.capacity, t.status, t.qr_token,
+		       (SELECT o.id FROM orders o WHERE o.table_id = t.id AND o.status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY o.created_at DESC LIMIT 1) AS current_order_id,
+		       t.created_at, t.updated_at
+		FROM tables t
+		WHERE t.id = $1 OR LOWER(t.id) = LOWER($1) OR LOWER(t.name) = LOWER($1)
+		   OR REPLACE(LOWER(t.id), 'tbl-', 't') = LOWER($1)
+		   OR REPLACE(LOWER(t.name), 'table ', 't') = LOWER($1)
 		LIMIT 1`, id).Scan(
 		&t.ID, &t.Name, &t.Capacity, &t.Status, &t.QRToken, &t.CurrentOrderId, &t.CreatedAt, &t.UpdatedAt,
 	)
@@ -108,9 +112,9 @@ func (s *Server) createTable(w http.ResponseWriter, r *http.Request) {
 	err := s.Pool.QueryRow(r.Context(), `
 		INSERT INTO tables (id, name, capacity, status, qr_token)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, name, capacity, status, qr_token, current_order_id, created_at, updated_at`,
+		RETURNING id, name, capacity, status, qr_token, created_at, updated_at`,
 		id, body.Name, body.Capacity, body.Status, qrToken,
-	).Scan(&t.ID, &t.Name, &t.Capacity, &t.Status, &t.QRToken, &t.CurrentOrderId, &t.CreatedAt, &t.UpdatedAt)
+	).Scan(&t.ID, &t.Name, &t.Capacity, &t.Status, &t.QRToken, &t.CreatedAt, &t.UpdatedAt)
 
 	if err != nil {
 		writeErr(w, 400, err.Error())
@@ -133,8 +137,10 @@ func (s *Server) updateTable(w http.ResponseWriter, r *http.Request) {
 
 	var t Table
 	err := s.Pool.QueryRow(r.Context(), `
-		SELECT id, name, capacity, status, qr_token, current_order_id, created_at, updated_at
-		FROM tables WHERE id = $1`, id).Scan(
+		SELECT t.id, t.name, t.capacity, t.status, t.qr_token,
+		       (SELECT o.id FROM orders o WHERE o.table_id = t.id AND o.status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY o.created_at DESC LIMIT 1) AS current_order_id,
+		       t.created_at, t.updated_at
+		FROM tables t WHERE t.id = $1`, id).Scan(
 		&t.ID, &t.Name, &t.Capacity, &t.Status, &t.QRToken, &t.CurrentOrderId, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
@@ -163,8 +169,7 @@ func (s *Server) updateTable(w http.ResponseWriter, r *http.Request) {
 func (s *Server) updateTableStatus(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Status         string  `json:"status"`
-		CurrentOrderId *string `json:"currentOrderId"`
+		Status string `json:"status"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, 400, "invalid JSON body")
@@ -178,8 +183,10 @@ func (s *Server) updateTableStatus(w http.ResponseWriter, r *http.Request) {
 
 	var t Table
 	err := s.Pool.QueryRow(r.Context(), `
-		SELECT id, name, capacity, status, qr_token, current_order_id, created_at, updated_at
-		FROM tables WHERE id = $1`, id).Scan(
+		SELECT t.id, t.name, t.capacity, t.status, t.qr_token,
+		       (SELECT o.id FROM orders o WHERE o.table_id = t.id AND o.status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY o.created_at DESC LIMIT 1) AS current_order_id,
+		       t.created_at, t.updated_at
+		FROM tables t WHERE t.id = $1`, id).Scan(
 		&t.ID, &t.Name, &t.Capacity, &t.Status, &t.QRToken, &t.CurrentOrderId, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
@@ -188,11 +195,8 @@ func (s *Server) updateTableStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t.Status = body.Status
-	if body.CurrentOrderId != nil {
-		t.CurrentOrderId = body.CurrentOrderId
-	}
 
-	_, _ = s.Pool.Exec(r.Context(), `UPDATE tables SET status=$1, current_order_id=$2, updated_at=now() WHERE id=$3`, t.Status, t.CurrentOrderId, id)
+	_, _ = s.Pool.Exec(r.Context(), `UPDATE tables SET status=$1, updated_at=now() WHERE id=$2`, t.Status, id)
 
 	s.Ably.Publish(r.Context(), "yadotena-realtime", "table.updated", map[string]any{"id": t.ID, "status": t.Status})
 	s.NATS.Publish("yadotena.tables.updated", map[string]any{"id": t.ID, "status": t.Status})

@@ -311,6 +311,22 @@ func (s *Server) createMenuItem(w http.ResponseWriter, r *http.Request) {
 		item.DietaryTags = []string{}
 	}
 
+	for _, tag := range dietaryTags {
+		tName := strings.TrimSpace(tag)
+		if tName == "" {
+			continue
+		}
+		tID := fmt.Sprintf("tag-%s", strings.ToLower(strings.ReplaceAll(tName, " ", "-")))
+		_, _ = s.Pool.Exec(r.Context(), `
+			INSERT INTO dietary_tags (id, name) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING`, tID, tName)
+		var actualTagID string
+		_ = s.Pool.QueryRow(r.Context(), `SELECT id FROM dietary_tags WHERE LOWER(name) = LOWER($1)`, tName).Scan(&actualTagID)
+		if actualTagID != "" {
+			_, _ = s.Pool.Exec(r.Context(), `
+				INSERT INTO menu_item_dietary_tags (menu_item_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, id, actualTagID)
+		}
+	}
+
 	// Save custom addons
 	item.CustomAddons = make([]Addon, 0)
 	for _, ad := range customAddons {

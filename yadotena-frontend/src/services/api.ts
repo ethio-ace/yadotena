@@ -373,6 +373,51 @@ export const api = {
 
   media: {
     upload: async (file: File): Promise<{ url: string; publicUrl: string }> => {
+      try {
+        // 1. Request presigned PUT URL from backend for direct S3 upload
+        const presign = await requestApiStrict<{
+          uploadUrl: string;
+          key: string;
+          publicUrl: string;
+        }>("/media/presign", {
+          method: "POST",
+          body: JSON.stringify({
+            filename: file.name,
+            contentType: file.type || "image/jpeg",
+          }),
+        });
+
+        if (presign && presign.uploadUrl) {
+          // Direct PUT to Tigris S3 (0 MB payload on application server)
+          const s3Put = await fetch(presign.uploadUrl, {
+            method: "PUT",
+            headers: {
+              "Content-Type": file.type || "image/jpeg",
+            },
+            body: file,
+          });
+
+          if (s3Put.ok) {
+            // Confirm presigned upload & register hash metadata in DB
+            const confirm = await requestApiStrict<{ url: string; publicUrl: string }>(
+              "/media/confirm-presigned",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  key: presign.key,
+                  filename: file.name,
+                }),
+              }
+            );
+            const finalURL = confirm.publicUrl || confirm.url || presign.publicUrl;
+            return { url: finalURL, publicUrl: finalURL };
+          }
+        }
+      } catch (err) {
+        console.warn("Presigned upload attempt bypassed, falling back to direct server upload:", err);
+      }
+
+      // 2. Direct server upload fallback
       const formData = new FormData();
       formData.append("file", file);
       return requestApiStrict<{ url: string; publicUrl: string }>("/media/upload", {

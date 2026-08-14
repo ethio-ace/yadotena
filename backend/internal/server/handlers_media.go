@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -40,6 +41,44 @@ func (s *Server) presignMediaUpload(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, res)
 }
 
+func (s *Server) confirmPresignedMediaUpload(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Key      string `json:"key"`
+		Filename string `json:"filename"`
+	}
+	if err := decodeJSON(r, &body); err != nil || strings.TrimSpace(body.Key) == "" {
+		writeErr(w, 400, "key is required")
+		return
+	}
+
+	fn := body.Filename
+	if fn == "" {
+		fn = filepath.Base(body.Key)
+	}
+
+	res, err := s.Storage.ConfirmPresignedUpload(r.Context(), body.Key, fn)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+
+	status := 201
+	if res.Deduplicated {
+		status = 200
+	}
+
+	writeJSON(w, status, map[string]any{
+		"url":          res.PublicURL,
+		"publicUrl":    res.PublicURL,
+		"key":          res.Key,
+		"filename":     res.Filename,
+		"hash":         res.Hash,
+		"contentType":  res.ContentType,
+		"fileSize":     res.FileSize,
+		"deduplicated": res.Deduplicated,
+	})
+}
+
 func (s *Server) directMediaUpload(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(s.Cfg.UploadMaxBytes)
 	if err != nil {
@@ -57,16 +96,26 @@ func (s *Server) directMediaUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	publicURL, err := s.Storage.UploadAndOptimizeImage(r.Context(), file, header.Filename)
+	res, err := s.Storage.UploadAndOptimizeImageDetailed(r.Context(), file, header.Filename)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
 	}
 
-	writeJSON(w, 201, map[string]string{
-		"url":       publicURL,
-		"publicUrl": publicURL,
-		"filename":  header.Filename,
+	status := 201
+	if res.Deduplicated {
+		status = 200
+	}
+
+	writeJSON(w, status, map[string]any{
+		"url":          res.PublicURL,
+		"publicUrl":    res.PublicURL,
+		"key":          res.Key,
+		"filename":     res.Filename,
+		"hash":         res.Hash,
+		"contentType":  res.ContentType,
+		"fileSize":     res.FileSize,
+		"deduplicated": res.Deduplicated,
 	})
 }
 
@@ -79,16 +128,43 @@ func (s *Server) uploadMediaFromLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	publicURL, err := s.Storage.UploadFromLink(r.Context(), body.URL)
+	res, err := s.Storage.UploadFromLinkDetailed(r.Context(), body.URL)
 	if err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
 
-	writeJSON(w, 201, map[string]string{
-		"url":       publicURL,
-		"publicUrl": publicURL,
+	status := 201
+	if res.Deduplicated {
+		status = 200
+	}
+
+	writeJSON(w, status, map[string]any{
+		"url":          res.PublicURL,
+		"publicUrl":    res.PublicURL,
+		"key":          res.Key,
+		"filename":     res.Filename,
+		"hash":         res.Hash,
+		"contentType":  res.ContentType,
+		"fileSize":     res.FileSize,
+		"deduplicated": res.Deduplicated,
 	})
+}
+
+func (s *Server) getMediaAssetByHash(w http.ResponseWriter, r *http.Request) {
+	hash := strings.TrimSpace(r.URL.Query().Get("hash"))
+	if hash == "" {
+		writeErr(w, 400, "hash parameter is required")
+		return
+	}
+
+	asset, err := s.Storage.GetAssetByHash(r.Context(), hash)
+	if err != nil || asset == nil || asset.PublicURL == "" {
+		writeErr(w, 404, "media asset not found")
+		return
+	}
+
+	writeJSON(w, 200, asset)
 }
 
 func (s *Server) mediaProxy(w http.ResponseWriter, r *http.Request) {
@@ -132,9 +208,15 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 
 	localFullPath := filepath.Join(s.Cfg.UploadsDir, relPath)
 
-	// 1. If file exists on local disk, serve it immediately
+	// 1. If file exists on local disk, serve it with ETag and immutable cache headers
 	if fi, err := os.Stat(localFullPath); err == nil && !fi.IsDir() {
-		w.Header().Set("Cache-Control", "public, max-age=31536000")
+		etag := fmt.Sprintf(`"%x-%x"`, fi.ModTime().UnixNano(), fi.Size())
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		if match := r.Header.Get("If-None-Match"); match == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 		http.ServeFile(w, r, localFullPath)
 		return
 	}
@@ -150,7 +232,7 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 			_ = os.WriteFile(localFullPath, buf, 0o644)
 
 			w.Header().Set("Content-Type", ct)
-			w.Header().Set("Cache-Control", "public, max-age=31536000")
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			w.WriteHeader(200)
 			_, _ = w.Write(buf)
 			return

@@ -175,10 +175,13 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 
 	// --- Media Uploads & Presigned URLs ---
 	r.Get("/media/proxy", s.mediaProxy)
+	r.Get("/media/asset", s.getMediaAssetByHash)
 	r.Post("/media/presign", s.presignMediaUpload)
+	r.Post("/media/confirm-presigned", s.confirmPresignedMediaUpload)
 	r.Post("/media/upload", s.directMediaUpload)
 	r.Post("/media/upload-link", s.uploadMediaFromLink)
 	r.Post("/uploads/presign", s.presignMediaUpload)
+	r.Post("/uploads/confirm", s.confirmPresignedMediaUpload)
 	r.Post("/uploads", s.directMediaUpload)
 	r.Get("/uploads/*", s.serveUploads)
 

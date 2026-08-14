@@ -2,10 +2,7 @@ package server
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -183,20 +180,23 @@ func (s *Server) putUpload(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "bad name")
 		return
 	}
-	_ = os.MkdirAll(s.Cfg.UploadsDir, 0o755)
-	path := filepath.Join(s.Cfg.UploadsDir, name)
-	f, err := os.Create(path)
+	r.Body = http.MaxBytesReader(w, r.Body, s.Cfg.UploadMaxBytes)
+	res, err := s.Storage.UploadAndOptimizeImageDetailed(r.Context(), r.Body, name)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
 	}
-	defer f.Close()
-	r.Body = http.MaxBytesReader(w, r.Body, s.Cfg.UploadMaxBytes)
-	if _, err := io.Copy(f, r.Body); err != nil {
-		writeErr(w, 400, "upload failed")
-		return
+	status := 201
+	if res.Deduplicated {
+		status = 200
 	}
-	writeJSON(w, 200, map[string]string{"public_url": "/uploads/" + name})
+	writeJSON(w, status, map[string]any{
+		"public_url":   res.PublicURL,
+		"publicUrl":    res.PublicURL,
+		"url":          res.PublicURL,
+		"hash":         res.Hash,
+		"deduplicated": res.Deduplicated,
+	})
 }
 
 // --- Legacy Handlers Aliases & Adapters ---

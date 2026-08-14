@@ -33,7 +33,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, rdb *redis.Client) *Server {
 		Redis:   rdb,
 		Ably:    pubsub.NewAblyClient(cfg),
 		NATS:    pubsub.NewNATSClient(cfg),
-		Storage: storage.NewTigrisStorage(cfg),
+		Storage: storage.NewTigrisStorage(cfg, pool),
 	}
 }
 

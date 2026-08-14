@@ -17,6 +17,7 @@ import {
 import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
 import { Order, MenuItem, MenuItemAddon, Table, AddonItem } from "@/types";
 import { getApplicableAddonsForItem } from "@/lib/orderUtils";
+import { soundAlerts } from "@/lib/audioAlerts";
 
 export interface WaiterCartItem {
   cartItemId: string;
@@ -487,6 +488,18 @@ export default function WaiterDashboardPage() {
                 >
                   All Items ({menu.length})
                 </button>
+
+                <button
+                  onClick={() => setActiveCategory("✨ Standalone Add-ons")}
+                  className={`px-4 py-2 rounded-xl font-black whitespace-nowrap border transition-all ${
+                    activeCategory === "✨ Standalone Add-ons"
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  ✨ Standalone Add-ons ({allAddons.length})
+                </button>
+
                 {categories.map((c) => {
                   const catCount = menu.filter((m) => m.category === c.name).length;
                   return (
@@ -505,83 +518,143 @@ export default function WaiterDashboardPage() {
                 })}
               </div>
 
-              {/* High-Visibility Larger Dish Cards Grid */}
+              {/* High-Visibility Larger Dish & Addon Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[580px] overflow-y-auto pr-1">
-                {menu
-                  .filter((item) => {
-                    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-                    const matchesCat = activeCategory === "All" || item.category === activeCategory;
-                    return matchesSearch && matchesCat && item.available !== false;
-                  })
-                  .map((item) => {
-                    const hasAddons = item.customAddons && item.customAddons.length > 0;
-                    
-                    // Count how many of this dish are in current cart
-                    const inCartCount = cartItems
-                      .filter((c) => c.menuItemId === item.id)
-                      .reduce((sum, c) => sum + c.quantity, 0);
+                {activeCategory === "✨ Standalone Add-ons" ? (
+                  allAddons
+                    .filter((addon) => {
+                      const matchesSearch = addon.name.toLowerCase().includes(searchQuery.toLowerCase()) || (addon.description || "").toLowerCase().includes(searchQuery.toLowerCase());
+                      return matchesSearch && addon.isActive !== false;
+                    })
+                    .map((addon) => {
+                      const inCartCount = cartItems
+                        .filter((c) => c.menuItemId === addon.id)
+                        .reduce((sum, c) => sum + c.quantity, 0);
 
-                    return (
-                      <div
-                        key={item.id}
-                        className="p-4 rounded-2xl border bg-card hover:border-primary/40 transition-all flex flex-col justify-between space-y-3 relative shadow-sm hover:shadow-md"
-                      >
-                        {/* Top Badge: In Ticket Counter */}
-                        {inCartCount > 0 && (
-                          <div className="absolute top-3 right-3 bg-primary text-primary-foreground font-black text-[10px] px-2.5 py-1 rounded-full shadow-md z-10 animate-pulse">
-                            {inCartCount} IN TICKET
-                          </div>
-                        )}
+                      return (
+                        <div
+                          key={addon.id}
+                          className="p-4 rounded-2xl border border-primary/20 bg-card hover:border-primary transition-all flex flex-col justify-between space-y-3 relative shadow-sm hover:shadow-md"
+                        >
+                          {inCartCount > 0 && (
+                            <div className="absolute top-3 right-3 bg-primary text-primary-foreground font-black text-[10px] px-2.5 py-1 rounded-full shadow-md z-10 animate-pulse">
+                              {inCartCount} IN TICKET
+                            </div>
+                          )}
 
-                        <div className="flex gap-3.5 items-start">
-                          <img
-                            src={getImageUrl(item.image)}
-                            alt={item.name}
-                            className="h-24 w-24 rounded-2xl object-cover border shrink-0 shadow-sm"
-                          />
-                          <div className="min-w-0 space-y-1">
-                            <Badge variant="outline" className="text-[9px] font-bold uppercase text-muted-foreground">
-                              {item.category || "Main"}
+                          <div className="space-y-1">
+                            <Badge className="bg-primary/10 text-primary border-primary/30 text-[9px] font-bold uppercase">
+                              ✨ Standalone Add-on
                             </Badge>
-                            <h4 className="font-black text-sm text-foreground leading-snug line-clamp-2">
-                              {item.name}
+                            <h4 className="font-black text-sm text-foreground leading-snug">
+                              {addon.name}
                             </h4>
                             <span className="font-black text-base text-primary block">
-                              {formatETB(item.price)}
+                              {formatETB(addon.price)}
                             </span>
-                            {hasAddons && (
-                              <span className="text-[10px] font-bold text-primary/80 block">
-                                ✨ {item.customAddons?.length} Options Available
-                              </span>
+                            {addon.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-1">{addon.description}</p>
                             )}
                           </div>
-                        </div>
 
-                        {/* Large Touch Target Action Button */}
-                        <div className="pt-2 border-t">
-                          {hasAddons ? (
+                          <div className="pt-2 border-t">
                             <Button
                               size="lg"
-                              variant="outline"
-                              onClick={() => openDishModal(item)}
-                              className="w-full h-10 text-xs font-black rounded-xl text-primary border-primary/40 hover:bg-primary/10 gap-1.5"
+                              onClick={() => {
+                                const newItem: WaiterCartItem = {
+                                  cartItemId: `c-addon-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                                  menuItemId: addon.id,
+                                  name: `[Extra] ${addon.name}`,
+                                  basePrice: addon.price,
+                                  quantity: 1,
+                                  selectedAddons: [],
+                                  specialInstructions: "",
+                                };
+                                soundAlerts.playActionPing();
+                                setCartItems((prev) => [...prev, newItem]);
+                              }}
+                              className="w-full h-10 text-xs font-black rounded-xl bg-primary text-primary-foreground gap-1.5 shadow-sm"
                             >
-                              <Sparkles className="h-3.5 w-3.5" /> Customize Addons
+                              <Plus className="h-4 w-4" /> Add Standalone Extra
                             </Button>
-                          ) : (
+                          </div>
+
+                        </div>
+                      );
+                    })
+                ) : (
+                  menu
+                    .filter((item) => {
+                      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+                      const matchesCat = activeCategory === "All" || item.category === activeCategory;
+                      return matchesSearch && matchesCat && item.available !== false;
+                    })
+                    .map((item) => {
+                      const hasAddons = item.customAddons && item.customAddons.length > 0;
+                      
+                      const inCartCount = cartItems
+                        .filter((c) => c.menuItemId === item.id)
+                        .reduce((sum, c) => sum + c.quantity, 0);
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-4 rounded-2xl border bg-card hover:border-primary/40 transition-all flex flex-col justify-between space-y-3 relative shadow-sm hover:shadow-md"
+                        >
+                          {inCartCount > 0 && (
+                            <div className="absolute top-3 right-3 bg-primary text-primary-foreground font-black text-[10px] px-2.5 py-1 rounded-full shadow-md z-10 animate-pulse">
+                              {inCartCount} IN TICKET
+                            </div>
+                          )}
+
+                          <div className="flex gap-3.5 items-start">
+                            <img
+                              src={getImageUrl(item.image)}
+                              alt={item.name}
+                              className="h-24 w-24 rounded-2xl object-cover border shrink-0 shadow-sm"
+                            />
+                            <div className="min-w-0 space-y-1">
+                              <Badge variant="outline" className="text-[9px] font-bold uppercase text-muted-foreground">
+                                {item.category || "Main"}
+                              </Badge>
+                              <h4 className="font-black text-sm text-foreground leading-snug line-clamp-2">
+                                {item.name}
+                              </h4>
+                              <span className="font-black text-base text-primary block">
+                                {formatETB(item.price)}
+                              </span>
+                              {hasAddons && (
+                                <span className="text-[10px] font-bold text-primary/80 block">
+                                  ✨ {item.customAddons?.length} Options Available
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t flex gap-2">
+                            {hasAddons && (
+                              <Button
+                                size="lg"
+                                variant="outline"
+                                onClick={() => openDishModal(item)}
+                                className="flex-1 h-10 text-xs font-black rounded-xl text-primary border-primary/40 hover:bg-primary/10 gap-1.5"
+                              >
+                                <Sparkles className="h-3.5 w-3.5" /> Customize
+                              </Button>
+                            )}
                             <Button
                               size="lg"
                               onClick={() => quickAddItem(item)}
-                              className="w-full h-10 text-xs font-black rounded-xl bg-primary text-primary-foreground gap-1.5 shadow-sm"
+                              className="flex-1 h-10 text-xs font-black rounded-xl bg-primary text-primary-foreground gap-1.5 shadow-sm"
                             >
-                              <Plus className="h-4 w-4" /> Add to Order Ticket
+                              <Plus className="h-4 w-4" /> Quick Add Dish
                             </Button>
-                          )}
-                        </div>
+                          </div>
 
-                      </div>
-                    );
-                  })}
+                        </div>
+                      );
+                    })
+                )}
               </div>
 
             </Card>

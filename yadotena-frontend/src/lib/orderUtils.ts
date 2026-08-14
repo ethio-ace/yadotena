@@ -90,8 +90,12 @@ export function getApplicableAddonsForItem(
 export function toOrderItemPayload(items: OrderItem[]) {
   return items.map((item) => ({
     menuItemId: item.menuItemId,
+    name: item.name,
+    price: item.price,
     quantity: item.quantity,
+    qty: item.quantity,
     specialInstructions: item.specialInstructions,
+    notes: item.specialInstructions,
     selectedAddons: item.selectedAddons?.map((addon) => addon.id || addon.name) || [],
   }));
 }

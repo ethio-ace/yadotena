@@ -214,13 +214,35 @@ export function FullPageMenuPOS({
     }
   };
 
-  const categories = ["All", ...Array.from(new Set(menu?.map(m => m.category || "Uncategorized") || []))];
+  const handleQuickAddAddon = (addon: AddonItem) => {
+    setOrderItems(prev => [
+      ...prev,
+      {
+        cartItemId: `c-addon-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        menuItemId: addon.id,
+        name: `[Extra] ${addon.name}`,
+        price: addon.price,
+        quantity: 1,
+        selectedAddons: [],
+        specialInstructions: "",
+      }
+    ]);
+  };
+
+  const categories = ["All", "✨ Standalone Add-ons", ...Array.from(new Set(menu?.map(m => m.category || "Uncategorized") || []))];
+  
   const filteredMenu = menu?.filter(m => {
     const itemName = m.name || "";
     const matchesSearch = itemName.toLowerCase().includes((menuSearch || "").toLowerCase());
     const itemCat = m.category || "Uncategorized";
     const matchesCategory = selectedCategory === "All" || itemCat === selectedCategory;
     return matchesSearch && matchesCategory && m.available !== false;
+  });
+
+  const filteredAddons = allAddons.filter(a => {
+    const nameMatch = a.name.toLowerCase().includes((menuSearch || "").toLowerCase());
+    const descMatch = (a.description || "").toLowerCase().includes((menuSearch || "").toLowerCase());
+    return (nameMatch || descMatch) && a.isActive !== false;
   });
 
   return (
@@ -243,7 +265,7 @@ export function FullPageMenuPOS({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Search menu items..." 
+              placeholder="Search dishes or standalone add-ons..." 
               value={menuSearch}
               onChange={e => setMenuSearch(e.target.value)}
               className="pl-9 h-12 rounded-2xl bg-card border-none shadow-sm"
@@ -269,6 +291,37 @@ export function FullPageMenuPOS({
         {isLoadingMenu ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-40 bg-muted/60 animate-pulse rounded-3xl"></div>)}
+          </div>
+        ) : selectedCategory === "✨ Standalone Add-ons" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
+            {filteredAddons.map(addon => (
+              <Card key={addon.id} className="rounded-3xl border-primary/20 bg-card shadow-sm hover:shadow-md transition-all overflow-hidden p-4 space-y-3 flex flex-col justify-between">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <Badge className="bg-primary/10 text-primary border-primary/30 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1">
+                      ✨ Standalone Add-on
+                    </Badge>
+                    <h3 className="font-bold text-sm leading-tight">{addon.name}</h3>
+                    {addon.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{addon.description}</p>
+                    )}
+                  </div>
+                  <span className="font-black text-primary text-sm whitespace-nowrap">{formatETB(addon.price)}</span>
+                </div>
+
+                <Button 
+                  className="w-full rounded-xl h-9 font-bold text-xs bg-primary text-primary-foreground gap-1"
+                  onClick={() => handleQuickAddAddon(addon)}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Extra to Order Ticket
+                </Button>
+              </Card>
+            ))}
+            {filteredAddons.length === 0 && (
+              <div className="col-span-full py-12 text-center text-muted-foreground">
+                No standalone add-ons found matching search.
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
@@ -313,13 +366,13 @@ export function FullPageMenuPOS({
                         className="flex-1 rounded-xl h-9 font-bold text-xs bg-card hover:bg-muted"
                         onClick={() => openDishModal(item)}
                       >
-                        <Sparkles className="h-3 w-3 mr-1 text-primary" /> Options
+                        <Sparkles className="h-3 w-3 mr-1 text-primary" /> Customize
                       </Button>
                       <Button 
                         className="flex-1 rounded-xl h-9 font-bold text-xs bg-primary text-primary-foreground"
                         onClick={() => handleQuickAddItem(item)}
                       >
-                        <Plus className="h-3 w-3 mr-1" /> Add
+                        <Plus className="h-3 w-3 mr-1" /> Add Dish
                       </Button>
                     </div>
                   </CardContent>

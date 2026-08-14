@@ -52,6 +52,8 @@ type APIOrder struct {
 
 type CreateOrderItemInput struct {
 	MenuItemID          string   `json:"menuItemId"`
+	Name                string   `json:"name"`
+	Price               float64  `json:"price"`
 	Quantity            int      `json:"quantity"`
 	SpecialInstructions string   `json:"specialInstructions"`
 	SelectedAddons      []string `json:"selectedAddons"`
@@ -61,6 +63,26 @@ func (item *CreateOrderItemInput) UnmarshalJSON(data []byte) error {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
+	}
+
+	for _, key := range []string{"name", "title", "label"} {
+		if val, ok := raw[key]; ok {
+			var str string
+			if err := json.Unmarshal(val, &str); err == nil && str != "" {
+				item.Name = str
+				break
+			}
+		}
+	}
+
+	for _, key := range []string{"price", "cost", "unitPrice"} {
+		if val, ok := raw[key]; ok {
+			var p float64
+			if err := json.Unmarshal(val, &p); err == nil {
+				item.Price = p
+				break
+			}
+		}
 	}
 
 	for _, key := range []string{"menuItemId", "menu_item_id", "id"} {
@@ -419,6 +441,20 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+
+		// Also resolve standalone add-on IDs
+		rowsAddons, errA := s.Pool.Query(r.Context(), `SELECT id, name, price::float8, is_active FROM addons WHERE id = ANY($1)`, menuItemIDs)
+		if errA == nil {
+			defer rowsAddons.Close()
+			for rowsAddons.Next() {
+				var idStr, name string
+				var pr float64
+				var act bool
+				if errScan := rowsAddons.Scan(&idStr, &name, &pr, &act); errScan == nil {
+					menuMap[idStr] = menuItemInfo{name: name, price: pr, available: act}
+				}
+			}
+		}
 	}
 
 	for _, item := range input.Items {
@@ -431,8 +467,12 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 
 		info, ok := menuMap[mID]
 		if !ok {
-			unavailableItems = append(unavailableItems, fmt.Sprintf("Item %s not found", mID))
-			continue
+			if item.Name != "" {
+				info = menuItemInfo{name: item.Name, price: item.Price, available: true}
+			} else {
+				unavailableItems = append(unavailableItems, fmt.Sprintf("Item %s not found", mID))
+				continue
+			}
 		}
 		if !info.available {
 			unavailableItems = append(unavailableItems, info.name)
@@ -663,8 +703,16 @@ func (s *Server) addOrderItemsEndpoint(w http.ResponseWriter, r *http.Request) {
 		var price float64
 		errItem := tx.QueryRow(ctx, `SELECT name, price::float8 FROM menu_items WHERE id = $1`, item.MenuItemID).Scan(&name, &price)
 		if errItem != nil {
-			name = "Custom Item"
-			price = 0.0
+			errAddon := tx.QueryRow(ctx, `SELECT name, price::float8 FROM addons WHERE id = $1`, item.MenuItemID).Scan(&name, &price)
+			if errAddon != nil {
+				if item.Name != "" {
+					name = item.Name
+					price = item.Price
+				} else {
+					name = "Custom Item"
+					price = 0.0
+				}
+			}
 		}
 
 		adBytes, _ := json.Marshal(item.SelectedAddons)

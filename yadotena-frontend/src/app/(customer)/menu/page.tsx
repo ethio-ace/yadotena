@@ -16,16 +16,6 @@ import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
 import Link from "next/link";
 
-const CATEGORY_ICONS: Record<string, string> = {
-  All: "✨",
-  "Main Course": "🍔",
-  "Appetizers": "🍟",
-  "Beverages": "☕",
-  "Desserts": "🍰",
-  "Pizza": "🍕",
-  "Salads": "🥗",
-};
-
 function MenuContent() {
   const { data: menu, isLoading: isMenuLoading } = useQuery({
     queryKey: ["menu"],
@@ -90,13 +80,13 @@ function MenuContent() {
   }
 
   // Combine dynamic categories with any categories present on menu items
-  const categoryNamesFromMenu = Array.from(new Set(menu?.map(m => m.category) || []));
+  const categoryNamesFromMenu = Array.from(new Set(menu?.map(m => m.category || "General") || []));
   const combinedCategoryList = [
     { name: "All", icon: "✨" },
     ...dynamicCategories.map(c => ({ name: c.name, icon: c.icon || "🍽️" })),
     ...categoryNamesFromMenu
-      .filter(cn => !dynamicCategories.some(dc => dc.name === cn))
-      .map(cn => ({ name: cn, icon: CATEGORY_ICONS[cn] || "🍽️" }))
+      .filter(cn => cn && !dynamicCategories.some(dc => dc.name === cn))
+      .map(cn => ({ name: cn, icon: "🍽️" }))
   ];
   
   const filteredMenu = menu?.filter(m => {
@@ -330,21 +320,12 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
           )}
         </div>
         
-        {/* Price & Action Button */}
-        <div className="flex items-center justify-between pt-3 border-t border-muted/50">
+        {/* Price Tag */}
+        <div className="pt-3 border-t border-muted/50 flex items-center justify-between">
           <div>
-            <span className="text-xs text-muted-foreground block font-medium">Price</span>
+            <span className="text-[10px] text-muted-foreground block font-bold uppercase">Price</span>
             <span className="font-black text-xl text-primary">{formatETB(item.price)}</span>
           </div>
-          
-          <Button 
-            size="sm"
-            variant="secondary"
-            className="rounded-full shadow-sm font-bold px-3.5 h-8 text-xs hover:scale-105 transition-transform flex items-center gap-1" 
-            onClick={onOpenModal}
-          >
-            <span>View Details</span>
-          </Button>
         </div>
       </div>
     </Card>

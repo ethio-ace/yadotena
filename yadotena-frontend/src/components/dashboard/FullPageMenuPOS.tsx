@@ -50,6 +50,11 @@ export function FullPageMenuPOS({
     queryFn: () => api.addons.getAll(),
   });
 
+  const { data: dbCategories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: api.categories.getAll,
+  });
+
   // State
   const [menuSearch, setMenuSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
@@ -229,16 +234,24 @@ export function FullPageMenuPOS({
     ]);
   };
 
-  const categories = ["All", "🛒 Retail Shop Store", "✨ Standalone Add-ons", ...Array.from(new Set(menu?.map(m => m.category || "Uncategorized") || []))];
+  const dbCatNames = dbCategories.map(c => c.name);
+  const categoriesFromMenu = Array.from(new Set(menu?.map(m => m.category || "Uncategorized") || []));
+  const combinedCategoryNames = Array.from(new Set([...dbCatNames, ...categoriesFromMenu]));
+
+  const categories = ["All", "🛒 Retail Shop Store", "✨ Standalone Add-ons", ...combinedCategoryNames];
   
   const filteredMenu = menu?.filter(m => {
     const itemName = m.name || "";
     const matchesSearch = itemName.toLowerCase().includes((menuSearch || "").toLowerCase());
     const itemCat = (m.category || "Uncategorized").toLowerCase();
+    const itemCatId = m.categoryId || "";
 
     let matchesCategory = selectedCategory === "All" || m.category === selectedCategory;
     if (selectedCategory === "🛒 Retail Shop Store") {
-      matchesCategory = itemCat.includes("dairy") || itemCat.includes("milk") || itemCat.includes("butter") || itemCat.includes("cheese") || itemCat.includes("honey") || itemCat.includes("coffee") || itemCat.includes("tea") || itemCat.includes("spice") || itemCat.includes("bakery") || itemCat.includes("shop") || itemCat.includes("retail");
+      matchesCategory =
+        m.id.startsWith("shop-") ||
+        itemCatId.startsWith("cat-shop") ||
+        itemCat.includes("dairy") || itemCat.includes("milk") || itemCat.includes("butter") || itemCat.includes("cheese") || itemCat.includes("honey") || itemCat.includes("coffee") || itemCat.includes("tea") || itemCat.includes("spice") || itemCat.includes("bakery") || itemCat.includes("shop") || itemCat.includes("retail");
     }
 
     return matchesSearch && matchesCategory && m.available !== false;

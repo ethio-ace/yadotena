@@ -172,22 +172,10 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
           </div>
         </div>
 
-        {/* Footer Info */}
-        <div className="p-4 border-t bg-card/80 backdrop-blur-md flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold">
-            <Utensils className="h-4 w-4 text-primary" />
-            <span>Show options to your waiter</span>
-          </div>
-
-          <Button
-            variant="outline"
-            className="rounded-full font-bold px-6 h-10 text-xs border-muted-foreground/30 hover:bg-muted"
-            onClick={onClose}
-          >
-            Close
-          </Button>
+        {/* Optional Footer Note */}
+        <div className="p-3 border-t bg-muted/20 text-center text-xs text-muted-foreground font-medium">
+          <span>Show selected options to your floor waiter when placing order</span>
         </div>
-
       </div>
     </div>
   );

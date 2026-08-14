@@ -52,9 +52,10 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = now();
 
 -- ============================================================================
--- 3. MENU CATEGORIES
+-- 3. MENU & SHOP CATEGORIES (Database-backed category architecture)
 -- ============================================================================
 INSERT INTO menu_categories (id, name, icon, description, sort_order, is_active) VALUES
+-- Restaurant Menu Categories
 ('cat-dairy', 'Fresh Dairy & Yadotena Milk', '🥛', 'Pure organic cow milk, spiced ergo yogurt, fresh cream & milkshakes', 1, true),
 ('cat-traditional', 'Ethiopian Traditional Specials', '🥘', 'Authentic slow-cooked Ethiopian stews, doro wat, tibs & beyaynetu', 2, true),
 ('cat-breakfast', 'Traditional Breakfast & Fitfit', '🥐', 'Morning delights: Chechebsa, Yadotena Special Fitfit, Kinche & Ful', 3, true),
@@ -63,7 +64,13 @@ INSERT INTO menu_categories (id, name, icon, description, sort_order, is_active)
 ('cat-beverages', 'Specialty Coffees & Juices', '☕', 'Ethiopian Yirgacheffe coffee, espresso, layered smoothies & fresh juices', 6, true),
 ('cat-appetizers', 'Appetizers & Starters', '🍟', 'Crispy truffle fries, sambusa, chicken wings & garlic bread', 7, true),
 ('cat-desserts', 'Pastries & Desserts', '🍰', 'Decadent lava cake, baklava, tiramisu & artisanal gelato', 8, true),
-('cat-shop', 'Shop & Farm Groceries', '🛒', 'Fresh farm dairy packs, pure honey, butter, ayib & specialty roasts', 9, true)
+
+-- Retail Shop Store Categories
+('cat-shop-dairy', 'Dairy & Farm Milk', '🥛', 'Farm-fresh pasteurized milk, raw milk packs & organic cream bottles', 9, true),
+('cat-shop-butter', 'Butter & Ayib Cheese', '🧈', 'Traditional Ethiopian spiced butter (Niter Kibbeh) & fresh handmade Ayib', 10, true),
+('cat-shop-coffee', 'Craft Coffee & Tea', '☕', 'Freshly roasted Yirgacheffe coffee beans & herbal teas', 11, true),
+('cat-shop-honey', 'Organic Honey & Pantry', '🍯', '100% pure wild highland forest honey & artisanal preserves', 12, true),
+('cat-shop-spices', 'Ethiopian Spices & Berbere', '🌶️', 'Organic Berbere, Mitmita, Korarima & spiced Shiro powder', 13, true)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -73,45 +80,43 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = now();
 
 -- ============================================================================
--- 4. MENU ITEMS
+-- 4. MENU & SHOP ITEMS
 -- ============================================================================
 INSERT INTO menu_items (id, name, description, price, category_id, image, available, preparation_time, dietary_tags) VALUES
--- Dairy
+-- Restaurant Menu Items
 ('item-milk-01', 'Pure Farm-Fresh Cow Milk (Warm / Chilled)', '100% organic, pasteurized rich whole milk served fresh from local dairy farms.', 120.00, 'cat-dairy', 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=800&q=80', true, 5, '["Organic","Dairy"]'::jsonb),
 ('item-milk-02', 'Artisanal Spiced Ergo (Organic Yogurt)', 'Traditional fermented creamy yogurt topped with mild organic spices and freshly churned butter.', 180.00, 'cat-dairy', 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=800&q=80', true, 5, '["Organic","Vegetarian"]'::jsonb),
 ('item-milk-03', 'Signature Yadotena Cream Milkshake', 'Ultra-thick milkshake with fresh dairy cream, Madagascar vanilla, and strawberry coulis.', 260.00, 'cat-dairy', 'https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=800&q=80', true, 8, '["Sweet"]'::jsonb),
 
--- Traditional
 ('item-trad-01', 'Special Doro Wat Platter', 'Slow-cooked organic chicken stew simmered in berbere spice, served with hard-boiled egg & fresh injera.', 550.00, 'cat-traditional', 'https://images.unsplash.com/photo-1604329760661-e7b0c7f4f6c8?auto=format&fit=crop&w=800&q=80', true, 20, '["Spicy","Authentic"]'::jsonb),
 ('item-trad-02', 'Sizzling Beef Tibs Special', 'Tender sautéed beef cubes with red onions, rosemary, jalapeños, and awaze dip.', 480.00, 'cat-traditional', 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80', true, 18, '["Popular"]'::jsonb),
 ('item-trad-03', 'Grand Fasting Beyaynetu Platter', 'Colorful assortment of 8 traditional vegan dishes including Shiro, Misir, Gomen, and Kik Alicha.', 360.00, 'cat-traditional', 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80', true, 15, '["Vegan","Fasting"]'::jsonb),
 ('item-trad-04', 'Shiro Tegabino with Spiced Kibe', 'Rich, bubbling chickpea stew served in a traditional clay pot with spiced clarified butter.', 280.00, 'cat-traditional', 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=800&q=80', true, 12, '["Vegetarian","Hot"]'::jsonb),
 
--- Breakfast
 ('item-brk-01', 'Special Chechebsa with Honey & Ergo', 'Shredded flatbread tossed in spiced kibe & berbere, served with wild honey and cool ergo.', 240.00, 'cat-breakfast', 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=800&q=80', true, 10, '["Favorite"]'::jsonb),
 ('item-brk-02', 'Yadotena House Fitfit (Beef / Lamb)', 'Crispy torn injera soaked in rich spiced meat broth, green peppers, and clarified butter.', 320.00, 'cat-breakfast', 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=800&q=80', true, 12, '["Hearty"]'::jsonb),
 
--- Mains
 ('item-main-01', 'Prime Ribeye Steak with Herb Mash', 'Aged beef ribeye steak grilled to order, served with rosemary herb butter and garlic mashed potatoes.', 890.00, 'cat-mains', 'https://images.unsplash.com/photo-1600891964092-4316c288032e?auto=format&fit=crop&w=800&q=80', true, 25, '["Chef Special"]'::jsonb),
 ('item-main-02', 'Classic Chicken Burger & Chips', 'Charbroiled chicken breast, smoked cheese, crisp lettuce, ripe tomato, and house truffle sauce.', 420.00, 'cat-mains', 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80', true, 15, '["Popular"]'::jsonb),
 
--- Pizza
 ('item-pizza-01', 'Artisanal Margherita Pizza', 'Wood-fired crust with San Marzano tomatoes, fresh buffalo mozzarella, and basil.', 580.00, 'cat-pizza', 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=800&q=80', true, 18, '["Vegetarian"]'::jsonb),
 ('item-pizza-02', 'Yadotena Meat Lovers Special Pizza', 'Pepperoni, ground beef, chicken sausage, mozzarella, and house chili drizzle.', 680.00, 'cat-pizza', 'https://images.unsplash.com/photo-1628840042765-356cda07504e?auto=format&fit=crop&w=800&q=80', true, 20, '["Spicy"]'::jsonb),
 
--- Beverages
 ('item-bev-01', 'Signature Macchiato / Iced Caramel Latte', 'Rich double shot Yirgacheffe espresso with steamed milk foam & caramel.', 180.00, 'cat-beverages', 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=800&q=80', true, 5, '["Coffee"]'::jsonb),
 ('item-bev-02', 'Fresh Layered Mango-Avocado Juice', 'Thick organic mango and avocado layers topped with lime twist.', 190.00, 'cat-beverages', 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=800&q=80', true, 5, '["Fresh"]'::jsonb),
 
--- Appetizers & Desserts
 ('item-app-01', 'Truffle Parmesan Fries', 'Hand-cut potato fries tossed in white truffle oil, sea salt, and aged parmesan.', 250.00, 'cat-appetizers', 'https://images.unsplash.com/photo-1576107232684-1279f390859f?auto=format&fit=crop&w=800&q=80', true, 8, '["Crispy"]'::jsonb),
 ('item-des-01', 'Molten Chocolate Lava Cake', 'Warm dark chocolate cake with a molten chocolate core, served with vanilla gelato.', 320.00, 'cat-desserts', 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=800&q=80', true, 12, '["Dessert"]'::jsonb),
 
--- Shop & Groceries Items
-('shop-milk-1l', 'Fresh Whole Milk (1 Liter)', 'Daily farm-fresh, pasteurized whole cow milk in eco-glass bottle.', 60.00, 'cat-shop', 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=800&q=80', true, 5, '["Fresh","Organic"]'::jsonb),
-('shop-ergo-500g', 'Artisanal Spiced Ergo (500g)', 'Traditional fermented Ethiopian yogurt infused with cardamom & black seed.', 90.00, 'cat-shop', 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=800&q=80', true, 5, '["Organic"]'::jsonb),
-('shop-honey-1kg', 'Ethiopian Wild Organic Honey (1kg)', '100% pure raw forest honey harvested from Lalibela highlands.', 450.00, 'cat-shop', 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&w=800&q=80', true, 5, '["Pure"]'::jsonb),
-('shop-cheese-250g', 'Pasteurized Cottage Cheese / Ayib (250g)', 'Creamy homemade Ayib cheese, perfect with mitmita and spinach.', 180.00, 'cat-shop', 'https://images.unsplash.com/photo-1552767059-ce182ead8c1b?auto=format&fit=crop&w=800&q=80', true, 5, '["Dairy"]'::jsonb)
+-- Retail Shop Store Items
+('shop-milk-1l', 'Fresh Whole Cow Milk (1 Liter Glass Bottle)', 'Daily farm-fresh, pasteurized whole cow milk packed in eco-glass bottle.', 80.00, 'cat-shop-dairy', 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=800&q=80', true, 5, '["Fresh","Organic"]'::jsonb),
+('shop-ergo-500g', 'Artisanal Spiced Ergo Yogurt (500g)', 'Traditional fermented Ethiopian yogurt infused with cardamom & black seed.', 120.00, 'cat-shop-dairy', 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=800&q=80', true, 5, '["Organic"]'::jsonb),
+('shop-butter-1kg', 'Traditional Spiced Butter / Niter Kibbeh (1kg)', 'Aromatic clarified butter simmered with Korarima, Koseret, and turmeric.', 950.00, 'cat-shop-butter', 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?auto=format&fit=crop&w=800&q=80', true, 5, '["Authentic"]'::jsonb),
+('shop-ayib-500g', 'Fresh Cottage Cheese / Ayib (500g)', 'Creamy handmade traditional Ayib cheese, perfect for Ethiopian dishes.', 220.00, 'cat-shop-butter', 'https://images.unsplash.com/photo-1552767059-ce182ead8c1b?auto=format&fit=crop&w=800&q=80', true, 5, '["Dairy"]'::jsonb),
+('shop-coffee-500g', 'Roasted Yirgacheffe Coffee Beans (500g)', 'Grade 1 single-origin Ethiopian roasted coffee beans with floral notes.', 480.00, 'cat-shop-coffee', 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=800&q=80', true, 5, '["Organic","Coffee"]'::jsonb),
+('shop-honey-1kg', 'Ethiopian Wild Organic Forest Honey (1kg)', '100% pure raw amber honey harvested from highland forest hives.', 580.00, 'cat-shop-honey', 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&w=800&q=80', true, 5, '["Pure"]'::jsonb),
+('shop-berbere-250g', 'Premium Ethiopian Berbere Spice Powder (250g)', 'Hand-ground sun-dried red chili pepper blend with 12 organic spices.', 160.00, 'cat-shop-spices', 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80', true, 5, '["Spicy"]'::jsonb),
+('shop-shiro-500g', 'Special Spiced Shiro Powder (500g)', 'Finely ground chickpea & yellow split pea flour seasoned with garlic & spices.', 240.00, 'cat-shop-spices', 'https://images.unsplash.com/photo-1604329760661-e7b0c7f4f6c8?auto=format&fit=crop&w=800&q=80', true, 5, '["Vegan"]'::jsonb)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,

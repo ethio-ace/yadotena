@@ -1,0 +1,476 @@
+{
+	"info": {
+		"_postman_id": "yadotena-backend-api-collection",
+		"name": "Yadotena Restaurant Backend API Collection",
+		"description": "Exhaustive Postman collection for the Yadotena Restaurant Management & POS Backend API including Auth, Menu, Orders, Presigned S3 Media, Tables, and Staff Analytics.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "authToken",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Health & Diagnostics",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Readiness Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/ready",
+							"host": ["{{baseUrl}}"],
+							"path": ["ready"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login (Owner / Staff)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.token) {",
+									"    pm.collectionVariables.set('authToken', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"owner@yadotena.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Get Current User Profile (/me)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "me"]
+						}
+					}
+				},
+				{
+					"name": "Logout User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "logout"]
+						}
+					}
+				},
+				{
+					"name": "Get Ably Realtime Token",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/ably-token",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "ably-token"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Menu Categories",
+			"item": [
+				{
+					"name": "List Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": ["{{baseUrl}}"],
+							"path": ["categories"]
+						}
+					}
+				},
+				{
+					"name": "Create Category",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Ethiopian Specialties\",\n  \"description\": \"Traditional rich stews and fresh Injera\",\n  \"icon\": \"utensils\",\n  \"displayOrder\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": ["{{baseUrl}}"],
+							"path": ["categories"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Menu Items Catalog",
+			"item": [
+				{
+					"name": "List Menu Items",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/menu",
+							"host": ["{{baseUrl}}"],
+							"path": ["menu"]
+						}
+					}
+				},
+				{
+					"name": "Create Menu Item",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Special Doro Wot\",\n  \"description\": \"Tender chicken drumsticks simmered in berbere sauce\",\n  \"price\": 450.00,\n  \"category\": \"Main Course\",\n  \"image\": \"/uploads/media/2026/08/f09074912d0edf0f.webp\",\n  \"isAvailable\": true,\n  \"preparationTime\": 20,\n  \"dietaryTags\": [\"SPICY\", \"TRADITIONAL\"]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/menu",
+							"host": ["{{baseUrl}}"],
+							"path": ["menu"]
+						}
+					}
+				},
+				{
+					"name": "Toggle Menu Item Availability",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/menu/item_123/toggle-availability",
+							"host": ["{{baseUrl}}"],
+							"path": ["menu", "item_123", "toggle-availability"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Tables & Sessions",
+			"item": [
+				{
+					"name": "List Restaurant Tables",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/tables",
+							"host": ["{{baseUrl}}"],
+							"path": ["tables"]
+						}
+					}
+				},
+				{
+					"name": "Start Dining Session",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/tables/tbl_05/start-session",
+							"host": ["{{baseUrl}}"],
+							"path": ["tables", "tbl_05", "start-session"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Orders Workflow",
+			"item": [
+				{
+					"name": "List All Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders"]
+						}
+					}
+				},
+				{
+					"name": "Create Order",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"DINE_IN\",\n  \"tableId\": \"tbl_05\",\n  \"customerName\": \"Selam Worku\",\n  \"customerPhone\": \"+251911998877\",\n  \"idempotencyKey\": \"ord_test_001\",\n  \"items\": [\n    {\n      \"menuItemId\": \"item_doro_wot\",\n      \"quantity\": 2,\n      \"specialInstructions\": \"Extra Injera\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/orders",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders"]
+						}
+					}
+				},
+				{
+					"name": "Update Order Status (Kitchen / Staff)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"IN_PREPARATION\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/orders/ord_123/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders", "ord_123", "status"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Presigned S3 Media & Deduplication Engine",
+			"item": [
+				{
+					"name": "1. Request Presigned Upload URL",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"filename\": \"dish_photo.jpg\",\n  \"contentType\": \"image/jpeg\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/media/presign",
+							"host": ["{{baseUrl}}"],
+							"path": ["media", "presign"]
+						}
+					}
+				},
+				{
+					"name": "2. Confirm Direct S3 Presigned Upload",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"key\": \"uploads/2026/08/sample-key.jpg\",\n  \"filename\": \"dish_photo.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/media/confirm-presigned",
+							"host": ["{{baseUrl}}"],
+							"path": ["media", "confirm-presigned"]
+						}
+					}
+				},
+				{
+					"name": "Direct Server Multipart Upload (Fallback)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/media/upload",
+							"host": ["{{baseUrl}}"],
+							"path": ["media", "upload"]
+						}
+					}
+				},
+				{
+					"name": "Get Media Asset by SHA-256 Hash",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/media/asset?hash=f09074912d0edf0f50018ca5f987faf8e13342b3d8eff93ac3eade5d8ef65d16",
+							"host": ["{{baseUrl}}"],
+							"path": ["media", "asset"],
+							"query": [
+								{
+									"key": "hash",
+									"value": "f09074912d0edf0f50018ca5f987faf8e13342b3d8eff93ac3eade5d8ef65d16"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Staff Analytics & Activity Logs",
+			"item": [
+				{
+					"name": "Get Analytics Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/staff/analytics?from=2026-08-01&to=2026-08-14",
+							"host": ["{{baseUrl}}"],
+							"path": ["staff", "analytics"],
+							"query": [
+								{
+									"key": "from",
+									"value": "2026-08-01"
+								},
+								{
+									"key": "to",
+									"value": "2026-08-14"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "List Activity Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/activity-logs",
+							"host": ["{{baseUrl}}"],
+							"path": ["activity-logs"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

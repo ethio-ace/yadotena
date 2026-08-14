@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { MenuItem, MenuItemAddon } from "@/types";
+import { MenuItem, MenuItemAddon, AddonItem, AddonScope } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
+import { getImageUrl } from "@/lib/utils";
 import { 
   X, Plus, Trash2, Utensils, Image as ImageIcon, Sparkles, 
-  Clock, Flame, Check, HelpCircle, Eye
+  Clock, Flame, Check, Eye, Layers, Globe, CheckCircle2
 } from "lucide-react";
 
 interface MenuItemModalProps {
@@ -18,8 +19,6 @@ interface MenuItemModalProps {
   onClose: () => void;
   itemToEdit?: MenuItem | null;
 }
-
-
 
 const DIETARY_TAG_OPTIONS = [
   "Chef's Special",
@@ -39,6 +38,12 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
     queryFn: api.categories.getAll,
   });
 
+  const { data: availableAddons = [] } = useQuery({
+    queryKey: ["addons"],
+    queryFn: () => api.addons.getAll(),
+    enabled: isOpen,
+  });
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Main Course");
@@ -50,9 +55,14 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
   const [dietaryTags, setDietaryTags] = useState<string[]>([]);
   const [customAddons, setCustomAddons] = useState<MenuItemAddon[]>([]);
 
-  // Local Addon inputs
-  const [newAddonName, setNewAddonName] = useState("");
-  const [newAddonPrice, setNewAddonPrice] = useState<number | "">("");
+  // Addon Creator modal state
+  const [showAddonCreator, setShowAddonCreator] = useState(false);
+  const [addonName, setAddonName] = useState("");
+  const [addonPrice, setAddonPrice] = useState<number | "">("");
+  const [addonDescription, setAddonDescription] = useState("");
+  const [addonScope, setAddonScope] = useState<AddonScope>("ITEM");
+  const [addonImageFile, setAddonImageFile] = useState<File | null>(null);
+  const [addonImagePreview, setAddonImagePreview] = useState("");
 
   const [error, setError] = useState("");
 
@@ -81,6 +91,7 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
       setCustomAddons([]);
     }
     setError("");
+    setShowAddonCreator(false);
   }, [itemToEdit, isOpen, categories]);
 
   const createMutation = useMutation({
@@ -100,6 +111,29 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
     },
   });
 
+  const createAddonMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com"}/api/v1/addons`, {
+        method: "POST",
+        headers: token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Failed to create addon");
+      return res.json() as Promise<AddonItem>;
+    },
+    onSuccess: (newAddon) => {
+      queryClient.invalidateQueries({ queryKey: ["addons"] });
+      setCustomAddons(prev => [...prev, { id: newAddon.id, name: newAddon.name, price: newAddon.price }]);
+      setShowAddonCreator(false);
+      setAddonName("");
+      setAddonPrice("");
+      setAddonDescription("");
+      setAddonImageFile(null);
+      setAddonImagePreview("");
+    },
+  });
+
   if (!isOpen) return null;
 
   const toggleTag = (tag: string) => {
@@ -108,17 +142,13 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
     );
   };
 
-  const handleAddAddon = () => {
-    if (!newAddonName.trim()) return;
-    const addonPriceNum = Number(newAddonPrice) || 0;
-    const newAddon: MenuItemAddon = {
-      id: `add-${Date.now()}`,
-      name: newAddonName.trim(),
-      price: addonPriceNum,
-    };
-    setCustomAddons(prev => [...prev, newAddon]);
-    setNewAddonName("");
-    setNewAddonPrice("");
+  const toggleSelectExistingAddon = (addon: AddonItem) => {
+    const exists = customAddons.some(a => a.id === addon.id || a.name === addon.name);
+    if (exists) {
+      setCustomAddons(prev => prev.filter(a => a.id !== addon.id && a.name !== addon.name));
+    } else {
+      setCustomAddons(prev => [...prev, { id: addon.id, name: addon.name, price: addon.price }]);
+    }
   };
 
   const handleRemoveAddon = (id: string) => {
@@ -131,6 +161,38 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
     }
+  };
+
+  const handleAddonImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAddonImageFile(file);
+      setAddonImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleCreateNewAddonSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addonName.trim()) return;
+
+    const selectedCat = categories.find(c => c.name === category);
+
+    const formData = new FormData();
+    formData.append("name", addonName.trim());
+    formData.append("description", addonDescription.trim());
+    formData.append("price", String(Number(addonPrice) || 0));
+    formData.append("scope", addonScope);
+    if (addonScope === "CATEGORY" && selectedCat) {
+      formData.append("categoryId", selectedCat.id);
+    }
+    if (addonScope === "ITEM" && itemToEdit) {
+      formData.append("menuItemId", itemToEdit.id);
+    }
+    if (addonImageFile) {
+      formData.append("image", addonImageFile);
+    }
+
+    createAddonMutation.mutate(formData);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -178,7 +240,7 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
                 {itemToEdit ? "Edit Dish Details" : "Create New Menu Item"}
               </h2>
               <p className="text-xs text-muted-foreground">
-                Set name, category, ETB price, photo, dietary attributes, and customize add-ons
+                Set name, category, ETB price, photo, dietary attributes, and attach custom add-ons
               </p>
             </div>
           </div>
@@ -281,13 +343,12 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
                 <label className="flex-1 cursor-pointer">
                   <div className="border-2 border-dashed border-input rounded-xl p-6 flex flex-col items-center justify-center bg-muted/20 hover:bg-muted/40 transition-colors">
                     <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
-                    <span className="text-sm font-bold text-foreground">Click to upload</span>
+                    <span className="text-sm font-bold text-foreground">Click to upload photo</span>
                     <span className="text-[11px] text-muted-foreground mt-1 text-center">SVG, PNG, JPG or GIF (max. 5MB)</span>
                   </div>
                   <input
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     className="hidden"
                     onChange={handleImageChange}
                   />
@@ -320,59 +381,170 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
               </div>
             </div>
 
-            {/* Custom Addons Builder */}
-            <div className="space-y-2 pt-2 border-t">
-              <label className="text-xs font-bold text-foreground flex items-center justify-between">
-                <span>Custom Add-ons (Optional)</span>
-                <span className="text-[11px] text-muted-foreground font-normal">Customer selectable extras</span>
-              </label>
+            {/* Add-ons & Extras Selection */}
+            <div className="space-y-3 pt-3 border-t">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>Attached Add-ons & Modifiers</span>
+                  </label>
+                  <p className="text-[11px] text-muted-foreground">Select system add-ons or create a new custom add-on</p>
+                </div>
 
-              {/* Existing Addons */}
-              <div className="space-y-1.5">
-                {customAddons.map((addon) => (
-                  <div key={addon.id} className="flex items-center justify-between p-2 rounded-xl border bg-muted/30 text-xs">
-                    <span className="font-semibold">{addon.name}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-primary">+{formatETB(addon.price)}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-destructive rounded-lg"
-                        onClick={() => handleRemoveAddon(addon.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add Addon Input */}
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Addon name (e.g. Extra Cheese)"
-                  value={newAddonName}
-                  onChange={(e) => setNewAddonName(e.target.value)}
-                  className="rounded-xl text-xs bg-background flex-1 h-9"
-                />
-                <Input
-                  type="number"
-                  placeholder="Price (ETB)"
-                  value={newAddonPrice}
-                  onChange={(e) => setNewAddonPrice(e.target.value ? Number(e.target.value) : "")}
-                  className="rounded-xl text-xs bg-background w-28 h-9 font-bold"
-                />
                 <Button
                   type="button"
                   size="sm"
-                  variant="secondary"
-                  className="rounded-xl h-9 text-xs font-bold px-3"
-                  onClick={handleAddAddon}
+                  variant="outline"
+                  className="rounded-2xl text-xs font-bold gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                  onClick={() => setShowAddonCreator(!showAddonCreator)}
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Add
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{showAddonCreator ? "Close Form" : "Create New Addon"}</span>
                 </Button>
               </div>
+
+              {/* Inline Addon Creator Form */}
+              {showAddonCreator && (
+                <div className="p-4 rounded-2xl border border-primary/30 bg-primary/5 space-y-3 animate-in fade-in duration-200">
+                  <div className="font-bold text-xs text-primary flex items-center gap-1">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Create New System Add-on</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Addon name (e.g. Extra Cheese)"
+                      value={addonName}
+                      onChange={(e) => setAddonName(e.target.value)}
+                      className="rounded-xl text-xs bg-background h-9"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Price in ETB (e.g. 35)"
+                      value={addonPrice}
+                      onChange={(e) => setAddonPrice(e.target.value ? Number(e.target.value) : "")}
+                      className="rounded-xl text-xs bg-background h-9 font-bold"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Short description (optional)"
+                      value={addonDescription}
+                      onChange={(e) => setAddonDescription(e.target.value)}
+                      className="rounded-xl text-xs bg-background h-9"
+                    />
+                    <div className="flex items-center gap-2">
+                      <label className="cursor-pointer flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl border border-dashed border-input bg-background px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        <span>{addonImageFile ? addonImageFile.name.substring(0, 15) : "Upload Photo"}</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleAddonImageChange} />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="flex gap-1.5 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setAddonScope("ITEM")}
+                        className={`px-2.5 py-1 rounded-xl font-bold border transition-colors ${addonScope === "ITEM" ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground"}`}
+                      >
+                        Item Only
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAddonScope("CATEGORY")}
+                        className={`px-2.5 py-1 rounded-xl font-bold border transition-colors ${addonScope === "CATEGORY" ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground"}`}
+                      >
+                        Category
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAddonScope("GLOBAL")}
+                        className={`px-2.5 py-1 rounded-xl font-bold border transition-colors ${addonScope === "GLOBAL" ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground"}`}
+                      >
+                        Global
+                      </button>
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={createAddonMutation.isPending}
+                      onClick={handleCreateNewAddonSubmit}
+                      className="rounded-xl h-8 text-xs font-bold"
+                    >
+                      {createAddonMutation.isPending ? "Saving..." : "Save & Attach Addon"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Available System Addons Pills / Grid */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-muted-foreground uppercase">Available System Add-ons</label>
+                <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 border rounded-2xl bg-muted/20">
+                  {availableAddons.map((addon) => {
+                    const isSelected = customAddons.some(a => a.id === addon.id || a.name === addon.name);
+                    return (
+                      <button
+                        key={addon.id}
+                        type="button"
+                        onClick={() => toggleSelectExistingAddon(addon)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl text-xs font-bold border transition-all ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm scale-105"
+                            : "bg-card hover:bg-muted text-muted-foreground border-muted"
+                        }`}
+                      >
+                        {addon.imageUrl && (
+                          <img src={getImageUrl(addon.imageUrl)} alt={addon.name} className="h-4 w-4 rounded-full object-cover" />
+                        )}
+                        <span>{addon.name}</span>
+                        <span className={`text-[10px] ${isSelected ? "text-primary-foreground/80" : "text-primary font-mono"}`}>
+                          +{formatETB(addon.price)}
+                        </span>
+                        {isSelected && <Check className="h-3 w-3 ml-0.5" />}
+                      </button>
+                    );
+                  })}
+
+                  {availableAddons.length === 0 && (
+                    <span className="text-xs text-muted-foreground italic p-2">
+                      No system add-ons created yet. Click "Create New Addon" above to add your first customization!
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Attached Addons List */}
+              {customAddons.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase">Selected Add-ons for this Dish ({customAddons.length})</label>
+                  <div className="space-y-1">
+                    {customAddons.map((addon) => (
+                      <div key={addon.id} className="flex items-center justify-between px-3 py-1.5 rounded-xl border bg-card text-xs">
+                        <span className="font-bold">{addon.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-primary">+{formatETB(addon.price)}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive rounded-lg"
+                            onClick={() => handleRemoveAddon(addon.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
 
             {/* Availability Toggle */}
@@ -445,9 +617,16 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
                   )}
 
                   {customAddons.length > 0 && (
-                    <p className="text-[11px] text-muted-foreground italic pt-1">
-                      +{customAddons.length} custom add-on option{customAddons.length > 1 ? "s" : ""} available
-                    </p>
+                    <div className="pt-2 border-t text-xs">
+                      <span className="font-bold text-foreground block mb-1">Selectable Extras:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {customAddons.map((a) => (
+                          <span key={a.id} className="text-[10px] bg-muted px-2 py-0.5 rounded-lg border font-semibold">
+                            {a.name} (+{formatETB(a.price)})
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

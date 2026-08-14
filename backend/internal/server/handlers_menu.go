@@ -155,8 +155,18 @@ func (s *Server) getMenuItem(w http.ResponseWriter, r *http.Request) {
 		item.DietaryTags = []string{}
 	}
 
-	// Load custom addons
-	addonRows, errAdd := s.Pool.Query(r.Context(), `SELECT id, name, price::float8 FROM menu_item_addons WHERE menu_item_id = $1`, item.ID)
+	// Load custom & respective addons (Item specific + Category + Global)
+	addonRows, errAdd := s.Pool.Query(r.Context(), `
+		SELECT a.id, a.name, a.price::float8
+		FROM menu_item_addons a
+		LEFT JOIN menu_items m ON m.id = $1
+		WHERE COALESCE(a.is_active, true) = true
+		  AND (
+		    COALESCE(a.is_global, false) = true
+		    OR a.menu_item_id = $1
+		    OR (a.category_id IS NOT NULL AND m.category_id = a.category_id)
+		  )
+		ORDER BY a.is_global DESC, a.name ASC`, item.ID)
 	if errAdd == nil {
 		item.CustomAddons = make([]Addon, 0)
 		for addonRows.Next() {

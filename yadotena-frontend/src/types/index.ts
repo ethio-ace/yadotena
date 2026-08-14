@@ -30,6 +30,9 @@ export interface MenuItemAddon {
   id: string;
   name: string;
   price: number; // in ETB
+  description?: string;
+  imageUrl?: string;
+  image?: string;
   scope?: AddonScope;
   categoryId?: string;
   categoryName?: string;
@@ -43,6 +46,9 @@ export interface AddonItem {
   id: string;
   name: string;
   price: number;
+  description?: string;
+  imageUrl?: string;
+  image?: string;
   scope: AddonScope;
   categoryId?: string;
   categoryName?: string;

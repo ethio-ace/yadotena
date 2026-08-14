@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatETB } from "@/lib/currency";
+import { getImageUrl } from "@/lib/utils";
 import { 
   Plus, Edit, Trash2, Search, Layers, Globe, Utensils, 
-  CheckCircle2, Sparkles, AlertCircle, X, Check
+  Sparkles, X, Image as ImageIcon
 } from "lucide-react";
 
 export default function AddonManagementPage() {
@@ -34,7 +35,6 @@ export default function AddonManagementPage() {
 
   const [search, setSearch] = useState("");
   const [scopeFilter, setScopeFilter] = useState<"ALL" | AddonScope>("ALL");
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("ALL");
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,15 +42,27 @@ export default function AddonManagementPage() {
 
   // Form State
   const [formName, setFormName] = useState("");
+  const [formDescription, setFormDescription] = useState("");
   const [formPrice, setFormPrice] = useState("");
   const [formScope, setFormScope] = useState<AddonScope>("GLOBAL");
   const [formCategoryId, setFormCategoryId] = useState("");
   const [formMenuItemId, setFormMenuItemId] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
+  const [formImageFile, setFormImageFile] = useState<File | null>(null);
+  const [formImagePreview, setFormImagePreview] = useState("");
 
   // Mutations
   const createMutation = useMutation({
-    mutationFn: (data: Partial<AddonItem>) => api.addons.create(data),
+    mutationFn: async (formData: FormData) => {
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com"}/api/v1/addons`, {
+        method: "POST",
+        headers: token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Failed to create addon");
+      return res.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["addons"] });
       closeModal();
@@ -58,7 +70,16 @@ export default function AddonManagementPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<AddonItem> }) => api.addons.update(id, data),
+    mutationFn: async ({ id, formData }: { id: string; formData: FormData }) => {
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com"}/api/v1/addons/${id}`, {
+        method: "PATCH",
+        headers: token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Failed to update addon");
+      return res.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["addons"] });
       closeModal();
@@ -75,22 +96,28 @@ export default function AddonManagementPage() {
   const openCreateModal = () => {
     setEditingAddon(null);
     setFormName("");
+    setFormDescription("");
     setFormPrice("");
     setFormScope("GLOBAL");
     setFormCategoryId("");
     setFormMenuItemId("");
     setFormIsActive(true);
+    setFormImageFile(null);
+    setFormImagePreview("");
     setIsModalOpen(true);
   };
 
   const openEditModal = (addon: AddonItem) => {
     setEditingAddon(addon);
     setFormName(addon.name);
+    setFormDescription(addon.description || "");
     setFormPrice(addon.price.toString());
     setFormScope(addon.scope || (addon.isGlobal ? "GLOBAL" : addon.categoryId ? "CATEGORY" : "ITEM"));
     setFormCategoryId(addon.categoryId || "");
     setFormMenuItemId(addon.menuItemId || "");
     setFormIsActive(addon.isActive);
+    setFormImageFile(null);
+    setFormImagePreview(addon.imageUrl || "");
     setIsModalOpen(true);
   };
 
@@ -99,24 +126,40 @@ export default function AddonManagementPage() {
     setEditingAddon(null);
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormImageFile(file);
+      setFormImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) return;
 
-    const payload: Partial<AddonItem> = {
-      name: formName.trim(),
-      price: parseFloat(formPrice) || 0,
-      scope: formScope,
-      isGlobal: formScope === "GLOBAL",
-      categoryId: formScope === "CATEGORY" ? formCategoryId : undefined,
-      menuItemId: formScope === "ITEM" ? formMenuItemId : undefined,
-      isActive: formIsActive,
-    };
+    const formData = new FormData();
+    formData.append("name", formName.trim());
+    formData.append("description", formDescription.trim());
+    formData.append("price", String(parseFloat(formPrice) || 0));
+    formData.append("scope", formScope);
+    formData.append("isGlobal", String(formScope === "GLOBAL"));
+    formData.append("isActive", String(formIsActive));
+
+    if (formScope === "CATEGORY" && formCategoryId) {
+      formData.append("categoryId", formCategoryId);
+    }
+    if (formScope === "ITEM" && formMenuItemId) {
+      formData.append("menuItemId", formMenuItemId);
+    }
+    if (formImageFile) {
+      formData.append("image", formImageFile);
+    }
 
     if (editingAddon) {
-      updateMutation.mutate({ id: editingAddon.id, data: payload });
+      updateMutation.mutate({ id: editingAddon.id, formData });
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate(formData);
     }
   };
 
@@ -130,20 +173,16 @@ export default function AddonManagementPage() {
   const filteredAddons = addons.filter((addon) => {
     const matchesSearch =
       addon.name.toLowerCase().includes(search.toLowerCase()) ||
+      (addon.description && addon.description.toLowerCase().includes(search.toLowerCase())) ||
       (addon.categoryName && addon.categoryName.toLowerCase().includes(search.toLowerCase())) ||
       (addon.menuItemName && addon.menuItemName.toLowerCase().includes(search.toLowerCase()));
 
     const matchesScope = scopeFilter === "ALL" || addon.scope === scopeFilter;
 
-    const matchesCategory =
-      selectedCategoryFilter === "ALL" ||
-      addon.categoryId === selectedCategoryFilter ||
-      addon.isGlobal;
-
-    return matchesSearch && matchesScope && matchesCategory;
+    return matchesSearch && matchesScope;
   });
 
-  // Overview metrics
+  // Metrics
   const totalCount = addons.length;
   const globalCount = addons.filter((a) => a.isGlobal || a.scope === "GLOBAL").length;
   const categoryCount = addons.filter((a) => a.scope === "CATEGORY" || (a.categoryId && !a.isGlobal)).length;
@@ -157,10 +196,10 @@ export default function AddonManagementPage() {
         <div>
           <h2 className="text-3xl font-black tracking-tight flex items-center gap-2.5">
             <Sparkles className="h-7 w-7 text-primary" />
-            <span>Add-ons & Modifiers</span>
+            <span>Add-ons & Modifiers Catalog</span>
           </h2>
           <p className="text-muted-foreground mt-1">
-            Manage global, category-wide, and item-specific extra toppings, sides, and customizations.
+            Manage photos, pricing, and assignments for global, category-wide, and dish-specific extras.
           </p>
         </div>
 
@@ -181,7 +220,7 @@ export default function AddonManagementPage() {
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
           <div className="text-2xl font-black mt-2">{totalCount}</div>
-          <span className="text-[11px] text-muted-foreground">Configured in system</span>
+          <span className="text-[11px] text-muted-foreground">Active in system</span>
         </Card>
 
         <Card className="rounded-3xl border-blue-500/20 bg-blue-500/5 shadow-sm p-4">
@@ -190,7 +229,7 @@ export default function AddonManagementPage() {
             <Globe className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-2">{globalCount}</div>
-          <span className="text-[11px] text-muted-foreground">Applies to all dishes</span>
+          <span className="text-[11px] text-muted-foreground">Available menu-wide</span>
         </Card>
 
         <Card className="rounded-3xl border-amber-500/20 bg-amber-500/5 shadow-sm p-4">
@@ -199,7 +238,7 @@ export default function AddonManagementPage() {
             <Layers className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           </div>
           <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-2">{categoryCount}</div>
-          <span className="text-[11px] text-muted-foreground">Scoped by category</span>
+          <span className="text-[11px] text-muted-foreground">Whole category scope</span>
         </Card>
 
         <Card className="rounded-3xl border-emerald-500/20 bg-emerald-500/5 shadow-sm p-4">
@@ -217,7 +256,7 @@ export default function AddonManagementPage() {
         <div className="relative flex-1 w-full sm:max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search add-ons by name or scope..."
+            placeholder="Search add-ons by name, description, or target..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 rounded-2xl bg-background/50 h-10 text-xs border-muted"
@@ -267,10 +306,10 @@ export default function AddonManagementPage() {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
                   <tr>
-                    <th className="px-6 py-3.5 font-bold">Addon Name</th>
+                    <th className="px-6 py-3.5 font-bold">Addon Item</th>
                     <th className="px-6 py-3.5 font-bold">Price (ETB)</th>
-                    <th className="px-6 py-3.5 font-bold">Scope / Assignment</th>
-                    <th className="px-6 py-3.5 font-bold">Target Context</th>
+                    <th className="px-6 py-3.5 font-bold">Scope / Level</th>
+                    <th className="px-6 py-3.5 font-bold">Assigned Target</th>
                     <th className="px-6 py-3.5 font-bold">Status</th>
                     <th className="px-6 py-3.5 font-bold text-right">Actions</th>
                   </tr>
@@ -278,8 +317,28 @@ export default function AddonManagementPage() {
                 <tbody className="divide-y">
                   {filteredAddons.map((addon) => (
                     <tr key={addon.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-6 py-4 font-bold text-foreground">
-                        {addon.name}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {addon.imageUrl ? (
+                            <img 
+                              src={getImageUrl(addon.imageUrl)} 
+                              alt={addon.name} 
+                              className="h-10 w-10 rounded-xl object-cover border shadow-sm" 
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                              ✨
+                            </div>
+                          )}
+                          <div>
+                            <span className="font-bold text-foreground block">{addon.name}</span>
+                            {addon.description && (
+                              <span className="text-xs text-muted-foreground line-clamp-1 max-w-xs">
+                                {addon.description}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       <td className="px-6 py-4 font-black text-primary">
@@ -290,7 +349,7 @@ export default function AddonManagementPage() {
                         {addon.isGlobal || addon.scope === "GLOBAL" ? (
                           <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 font-bold text-xs gap-1">
                             <Globe className="h-3 w-3" />
-                            <span>Global (All Dishes)</span>
+                            <span>Global</span>
                           </Badge>
                         ) : addon.scope === "CATEGORY" || addon.categoryId ? (
                           <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-bold text-xs gap-1">
@@ -307,7 +366,7 @@ export default function AddonManagementPage() {
 
                       <td className="px-6 py-4 text-xs font-semibold text-muted-foreground">
                         {addon.isGlobal ? (
-                          <span className="text-muted-foreground font-normal">Available across entire menu</span>
+                          <span className="text-muted-foreground font-normal">All menu items</span>
                         ) : addon.categoryName ? (
                           <span className="text-amber-600 font-bold">📁 {addon.categoryName}</span>
                         ) : addon.menuItemName ? (
@@ -363,7 +422,7 @@ export default function AddonManagementPage() {
       {/* Modal for Creating / Editing Addons */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-card border border-muted-foreground/20 rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-6 animate-in zoom-in-95 duration-200">
+          <div className="bg-card border border-muted-foreground/20 rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center pb-4 border-b border-muted/50">
               <h3 className="text-xl font-black">
                 {editingAddon ? "Edit Add-on" : "Create New Add-on"}
@@ -374,28 +433,57 @@ export default function AddonManagementPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground">Addon Name *</label>
+                  <Input
+                    required
+                    placeholder="e.g., Extra Cheese, Takeaway Box"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    className="rounded-2xl text-xs h-10"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground">Price in ETB *</label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    required
+                    placeholder="e.g., 35.00"
+                    value={formPrice}
+                    onChange={(e) => setFormPrice(e.target.value)}
+                    className="rounded-2xl text-xs h-10 font-bold"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground">Addon Name *</label>
+                <label className="text-xs font-bold text-muted-foreground">Description (Optional)</label>
                 <Input
-                  required
-                  placeholder="e.g., Extra Cheese, Takeaway Container, Extra Shot"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="e.g. Fresh melted cheddar cheese topping"
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
                   className="rounded-2xl text-xs h-10"
                 />
               </div>
 
+              {/* Photo Upload */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground">Price in ETB (0 for free) *</label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  required
-                  placeholder="e.g., 25.00"
-                  value={formPrice}
-                  onChange={(e) => setFormPrice(e.target.value)}
-                  className="rounded-2xl text-xs h-10"
-                />
+                <label className="text-xs font-bold text-muted-foreground">Addon Photo</label>
+                <label className="cursor-pointer flex items-center justify-between p-3 rounded-2xl border border-dashed border-input bg-muted/20 hover:bg-muted/40 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-xs font-semibold">
+                      {formImageFile ? formImageFile.name : formImagePreview ? "Change Photo" : "Upload Addon Photo"}
+                    </span>
+                  </div>
+                  {formImagePreview && (
+                    <img src={getImageUrl(formImagePreview)} alt="Preview" className="h-8 w-8 rounded-lg object-cover" />
+                  )}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                </label>
               </div>
 
               <div className="space-y-1.5">
@@ -442,7 +530,7 @@ export default function AddonManagementPage() {
                 </div>
               </div>
 
-              {/* Target Dropdown based on Scope */}
+              {/* Target Selection Dropdown */}
               {formScope === "CATEGORY" && (
                 <div className="space-y-1.5 animate-in fade-in duration-200">
                   <label className="text-xs font-bold text-muted-foreground">Select Category *</label>
@@ -483,8 +571,12 @@ export default function AddonManagementPage() {
                 <Button type="button" variant="outline" className="rounded-2xl" onClick={closeModal}>
                   Cancel
                 </Button>
-                <Button type="submit" className="rounded-2xl font-bold shadow-md shadow-primary/20">
-                  {editingAddon ? "Save Changes" : "Create Addon"}
+                <Button 
+                  type="submit" 
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                  className="rounded-2xl font-bold shadow-md shadow-primary/20"
+                >
+                  {createMutation.isPending || updateMutation.isPending ? "Saving..." : editingAddon ? "Save Changes" : "Create Addon"}
                 </Button>
               </div>
             </form>

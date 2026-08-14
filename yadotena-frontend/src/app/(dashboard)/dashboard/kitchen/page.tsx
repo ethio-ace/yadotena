@@ -10,6 +10,7 @@ import { Order, OrderStatus } from "@/types";
 import { Clock, Flame, Check, UtensilsCrossed, ArrowRight, ArrowLeft, ChevronRight } from "lucide-react";
 import { soundAlerts } from "@/lib/audioAlerts";
 import { KitchenOrderCard } from "@/components/dashboard/KitchenOrderCard";
+import { ReadyDeliveryPane } from "@/components/dashboard/ReadyDeliveryPane";
 
 export default function KitchenDashboard() {
   const queryClient = useQueryClient();
@@ -246,48 +247,12 @@ export default function KitchenDashboard() {
         </Card>
       )}
 
-      {/* STEP 3 PAGE: READY FOR PICKUP & COMPLETION */}
+      {/* STEP 3 PAGE: READY DISHES & DELIVERY DISPATCH PANE */}
       {currentStep === 3 && (
-        <Card className="rounded-2xl border p-5 space-y-4 bg-card shadow-sm">
-          <div className="flex items-center justify-between border-b pb-3">
-            <div>
-              <h3 className="font-black text-lg flex items-center gap-2 text-foreground">
-                <Check className="h-5 w-5 text-primary" />
-                <span>Step 3: Ready Orders & Final Order Completion</span>
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Dishes sitting on the pickup counter ready for waiters. Tap "Mark as Complete" to archive ticket.
-              </p>
-            </div>
+        <div className="space-y-4">
+          <ReadyDeliveryPane />
 
-            <Badge variant="outline" className="font-black text-xs px-3 py-1">
-              {readyOrders.length} Ready Ticket(s)
-            </Badge>
-          </div>
-
-          {readyOrders.length === 0 ? (
-            <div className="py-20 text-center text-xs text-muted-foreground border border-dashed rounded-2xl space-y-2">
-              <p className="font-bold text-sm">No orders sitting on pickup counter</p>
-              <p className="opacity-70">Mark cooked dishes as ready in Step 2 to move them here.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {readyOrders.map((order) => (
-                <KitchenOrderCard 
-                  key={order.id} 
-                  order={order} 
-                  actionText="✓ Mark Order Complete / Delivered"
-                  onAction={() => {
-                    updateStatus.mutate({ id: order.id, status: "COMPLETED" });
-                  }}
-                  isLoading={updateStatus.isPending}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Bottom Stepper Footer Navigation */}
-          <div className="pt-4 border-t flex justify-start">
+          <div className="flex justify-start">
             <Button
               variant="outline"
               onClick={() => setCurrentStep(2)}
@@ -297,7 +262,7 @@ export default function KitchenDashboard() {
               <span>Back to Step 2: Cooking Line</span>
             </Button>
           </div>
-        </Card>
+        </div>
       )}
 
     </div>

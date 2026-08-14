@@ -359,34 +359,51 @@ export default function AddonManagementPage() {
                       </td>
 
                       <td className="px-6 py-4">
-                        {addon.isGlobal || addon.scope === "GLOBAL" ? (
-                          <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 font-bold text-xs gap-1">
-                            <Globe className="h-3 w-3" />
-                            <span>Global</span>
-                          </Badge>
-                        ) : addon.scope === "CATEGORY" || addon.categoryId ? (
-                          <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-bold text-xs gap-1">
-                            <Layers className="h-3 w-3" />
-                            <span>Whole Category</span>
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-bold text-xs gap-1">
-                            <Utensils className="h-3 w-3" />
-                            <span>Single Dish</span>
-                          </Badge>
-                        )}
+                        {(() => {
+                          const targetCat = categories.find((c: any) => c.id === addon.categoryId || c.name === addon.categoryName);
+                          const targetItem = menu.find((m: any) => m.id === addon.menuItemId || m.name === addon.menuItemName);
+
+                          if (addon.isGlobal || addon.scope === "GLOBAL") {
+                            return (
+                              <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 font-bold text-xs gap-1">
+                                <Globe className="h-3 w-3" />
+                                <span>GLOBAL</span>
+                              </Badge>
+                            );
+                          }
+                          if (addon.scope === "CATEGORY" || addon.categoryId) {
+                            return (
+                              <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-bold text-xs gap-1">
+                                <Layers className="h-3 w-3" />
+                                <span>Category: {targetCat?.name || addon.categoryName || addon.categoryId}</span>
+                              </Badge>
+                            );
+                          }
+                          return (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-bold text-xs gap-1">
+                              <Utensils className="h-3 w-3" />
+                              <span>Item: {targetItem?.name || addon.menuItemName || addon.menuItemId}</span>
+                            </Badge>
+                          );
+                        })()}
                       </td>
 
                       <td className="px-6 py-4 text-xs font-semibold text-muted-foreground">
-                        {addon.isGlobal ? (
-                          <span className="text-muted-foreground font-normal">All menu items</span>
-                        ) : addon.categoryName ? (
-                          <span className="text-amber-600 font-bold">📁 {addon.categoryName}</span>
-                        ) : addon.menuItemName ? (
-                          <span className="text-emerald-600 font-bold">🍽️ {addon.menuItemName}</span>
-                        ) : (
-                          <span>—</span>
-                        )}
+                        {(() => {
+                          const targetCat = categories.find((c: any) => c.id === addon.categoryId || c.name === addon.categoryName);
+                          const targetItem = menu.find((m: any) => m.id === addon.menuItemId || m.name === addon.menuItemName);
+
+                          if (addon.isGlobal || addon.scope === "GLOBAL") {
+                            return <span className="text-blue-600 font-bold">🌍 All Menu Items</span>;
+                          }
+                          if (targetCat || addon.categoryName) {
+                            return <span className="text-amber-600 font-bold">📁 {targetCat?.name || addon.categoryName}</span>;
+                          }
+                          if (targetItem || addon.menuItemName) {
+                            return <span className="text-emerald-600 font-bold">🍽️ {targetItem?.name || addon.menuItemName}</span>;
+                          }
+                          return <span>—</span>;
+                        })()}
                       </td>
 
                       <td className="px-6 py-4">

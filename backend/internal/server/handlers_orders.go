@@ -53,10 +53,72 @@ type APIOrder struct {
 type CreateOrderItemInput struct {
 	MenuItemID          string   `json:"menuItemId"`
 	Quantity            int      `json:"quantity"`
-	Qty                 int      `json:"qty"`
 	SpecialInstructions string   `json:"specialInstructions"`
-	Note                string   `json:"note"`
 	SelectedAddons      []string `json:"selectedAddons"`
+}
+
+func (item *CreateOrderItemInput) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	for _, key := range []string{"menuItemId", "menu_item_id", "id"} {
+		if val, ok := raw[key]; ok {
+			var str string
+			if err := json.Unmarshal(val, &str); err == nil && str != "" {
+				item.MenuItemID = str
+				break
+			}
+		}
+	}
+
+	for _, key := range []string{"quantity", "qty"} {
+		if val, ok := raw[key]; ok {
+			var q int
+			if err := json.Unmarshal(val, &q); err == nil && q > 0 {
+				item.Quantity = q
+				break
+			}
+		}
+	}
+	if item.Quantity <= 0 {
+		item.Quantity = 1
+	}
+
+	for _, key := range []string{"specialInstructions", "special_instructions", "note"} {
+		if val, ok := raw[key]; ok {
+			var str string
+			if err := json.Unmarshal(val, &str); err == nil {
+				item.SpecialInstructions = str
+				break
+			}
+		}
+	}
+
+	item.SelectedAddons = []string{}
+	for _, key := range []string{"selectedAddons", "selected_addons"} {
+		if val, ok := raw[key]; ok {
+			var strSlice []string
+			if err := json.Unmarshal(val, &strSlice); err == nil {
+				item.SelectedAddons = strSlice
+				break
+			}
+			var objSlice []map[string]interface{}
+			if err := json.Unmarshal(val, &objSlice); err == nil {
+				for _, obj := range objSlice {
+					if id, ok := obj["id"].(string); ok && id != "" {
+						item.SelectedAddons = append(item.SelectedAddons, id)
+					} else if name, ok := obj["name"].(string); ok && name != "" {
+						item.SelectedAddons = append(item.SelectedAddons, name)
+					}
+				}
+				break
+			}
+		}
+	}
+
+	return nil
 }
 
 type CreateOrderInput struct {
@@ -69,6 +131,93 @@ type CreateOrderInput struct {
 	DeliveryAddress *string                `json:"deliveryAddress"`
 	IdempotencyKey  *string                `json:"idempotencyKey"`
 	Items           []CreateOrderItemInput `json:"items"`
+}
+
+func (input *CreateOrderInput) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	for _, key := range []string{"type", "order_type", "orderType"} {
+		if val, ok := raw[key]; ok {
+			var str string
+			if err := json.Unmarshal(val, &str); err == nil && str != "" {
+				input.Type = str
+				input.OrderType = str
+				break
+			}
+		}
+	}
+
+	for _, key := range []string{"paymentStatus", "payment_status"} {
+		if val, ok := raw[key]; ok {
+			var str string
+			if err := json.Unmarshal(val, &str); err == nil && str != "" {
+				input.PaymentStatus = str
+				break
+			}
+		}
+	}
+
+	for _, key := range []string{"tableId", "table_id"} {
+		if val, ok := raw[key]; ok {
+			var str string
+			if err := json.Unmarshal(val, &str); err == nil && str != "" {
+				input.TableID = &str
+				break
+			}
+		}
+	}
+
+	for _, key := range []string{"customerName", "customer_name"} {
+		if val, ok := raw[key]; ok {
+			var str string
+			if err := json.Unmarshal(val, &str); err == nil && str != "" {
+				input.CustomerName = &str
+				break
+			}
+		}
+	}
+
+	for _, key := range []string{"customerPhone", "customer_phone"} {
+		if val, ok := raw[key]; ok {
+			var str string
+			if err := json.Unmarshal(val, &str); err == nil && str != "" {
+				input.CustomerPhone = &str
+				break
+			}
+		}
+	}
+
+	for _, key := range []string{"deliveryAddress", "delivery_address"} {
+		if val, ok := raw[key]; ok {
+			var str string
+			if err := json.Unmarshal(val, &str); err == nil && str != "" {
+				input.DeliveryAddress = &str
+				break
+			}
+		}
+	}
+
+	for _, key := range []string{"idempotencyKey", "idempotency_key"} {
+		if val, ok := raw[key]; ok {
+			var str string
+			if err := json.Unmarshal(val, &str); err == nil && str != "" {
+				input.IdempotencyKey = &str
+				break
+			}
+		}
+	}
+
+	if val, ok := raw["items"]; ok {
+		var items []CreateOrderItemInput
+		if err := json.Unmarshal(val, &items); err == nil {
+			input.Items = items
+		}
+	}
+
+	return nil
 }
 
 func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
@@ -276,15 +425,9 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 		mID := item.MenuItemID
 		qty := item.Quantity
 		if qty <= 0 {
-			qty = item.Qty
-		}
-		if qty <= 0 {
 			qty = 1
 		}
 		notes := item.SpecialInstructions
-		if notes == "" {
-			notes = item.Note
-		}
 
 		info, ok := menuMap[mID]
 		if !ok {
@@ -512,15 +655,9 @@ func (s *Server) addOrderItemsEndpoint(w http.ResponseWriter, r *http.Request) {
 	for _, item := range input.Items {
 		qty := item.Quantity
 		if qty <= 0 {
-			qty = item.Qty
-		}
-		if qty <= 0 {
 			qty = 1
 		}
 		notes := item.SpecialInstructions
-		if notes == "" {
-			notes = item.Note
-		}
 
 		var name string
 		var price float64

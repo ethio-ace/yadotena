@@ -325,7 +325,11 @@ export default function AddonManagementPage() {
                 </thead>
                 <tbody className="divide-y">
                   {filteredAddons.map((addon) => (
-                    <tr key={addon.id} className="hover:bg-muted/30 transition-colors">
+                    <tr 
+                      key={addon.id} 
+                      onClick={() => openEditModal(addon)}
+                      className="cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {addon.imageUrl ? (

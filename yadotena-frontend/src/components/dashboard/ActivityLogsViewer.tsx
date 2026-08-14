@@ -404,146 +404,181 @@ export function ActivityLogsViewer({
                     const hasDiff = logItem.prevState || logItem.nextState;
 
                     return (
-                      <tr key={logItem.id} className="hover:bg-muted/30 transition-colors">
-                        
-                        {/* Staff Member (Attributed Full Name) */}
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-2xl bg-muted/60 border flex items-center justify-center shrink-0">
-                              {getRoleIcon(logItem.userRole)}
-                            </div>
-                            <div>
-                              <div className="font-bold text-sm text-foreground flex items-center gap-1.5">
-                                <span>{logItem.userName || "Staff Member"}</span>
+                        <tr 
+                          key={logItem.id} 
+                          onClick={() => setInspectingLog(logItem)}
+                          className="cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                        >
+                          
+                          {/* Staff Member (Attributed Full Name) */}
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="h-9 w-9 rounded-2xl bg-muted/60 border flex items-center justify-center shrink-0">
+                                {getRoleIcon(logItem.userRole)}
                               </div>
-                              <Badge className={`text-[9px] font-black uppercase rounded-full px-2 py-0 border ${getRoleBadgeVariant(logItem.userRole)}`}>
-                                {logItem.userRole}
-                              </Badge>
+                              <div>
+                                <div className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                                  <span>{logItem.userName || "Staff Member"}</span>
+                                </div>
+                                <Badge className={`text-[9px] font-black uppercase rounded-full px-2 py-0 border ${getRoleBadgeVariant(logItem.userRole)}`}>
+                                  {logItem.userRole}
+                                </Badge>
+                              </div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Action Description */}
-                        <td className="px-6 py-4">
-                          <div className="space-y-0.5">
-                            <span className="font-mono text-xs font-black uppercase tracking-wider text-primary">
-                              {logItem.action.replace(/_/g, " ")}
-                            </span>
-                            <p className="text-xs text-muted-foreground font-medium leading-relaxed max-w-sm">
-                              {logItem.description}
-                            </p>
-                          </div>
-                        </td>
+                          {/* Action Description */}
+                          <td className="px-6 py-4">
+                            <div className="space-y-0.5">
+                              <span className="font-mono text-xs font-black uppercase tracking-wider text-primary">
+                                {logItem.action.replace(/_/g, " ")}
+                              </span>
+                              <p className="text-xs text-muted-foreground font-medium leading-relaxed max-w-sm">
+                                {logItem.description}
+                              </p>
+                            </div>
+                          </td>
 
-                        {/* Entity */}
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            {getEntityIcon(logItem.entityType)}
-                            <span className="font-mono text-xs font-bold text-foreground">
-                              {logItem.entityType}: #{logItem.entityId.slice(-8).toUpperCase()}
-                            </span>
-                          </div>
-                        </td>
+                          {/* Entity */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              {getEntityIcon(logItem.entityType)}
+                              <span className="font-mono text-xs font-bold text-foreground">
+                                {logItem.entityType}: #{logItem.entityId.slice(-8).toUpperCase()}
+                              </span>
+                            </div>
+                          </td>
 
-                        {/* IP Address */}
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground font-semibold">
-                            <Laptop className="h-3.5 w-3.5 text-muted-foreground/70" />
-                            <span>{logItem.ipAddress || "Internal"}</span>
-                          </div>
-                        </td>
+                          {/* IP Address */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground font-semibold">
+                              <Laptop className="h-3.5 w-3.5 text-muted-foreground/70" />
+                              <span>{logItem.ipAddress || "Internal"}</span>
+                            </div>
+                          </td>
 
-                        {/* Timestamp */}
-                        <td className="px-6 py-4 whitespace-nowrap text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1.5 font-medium">
-                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{format(new Date(logItem.createdAt), "MMM d, h:mm:ss a")}</span>
-                          </div>
-                        </td>
+                          {/* Timestamp */}
+                          <td className="px-6 py-4 whitespace-nowrap text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1.5 font-medium">
+                              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>{format(new Date(logItem.createdAt), "MMM d, h:mm:ss a")}</span>
+                            </div>
+                          </td>
 
-                        {/* Inspect Action */}
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <Button
-                            size="sm"
-                            variant={hasDiff ? "default" : "outline"}
-                            className="rounded-xl text-xs font-bold gap-1 px-3"
-                            onClick={() => setInspectingLog(logItem)}
-                          >
-                            <FileDiff className="h-3.5 w-3.5" />
-                            <span>Inspect Data</span>
-                          </Button>
-                        </td>
+                          {/* Inspect Action */}
+                          <td className="px-6 py-4 text-right whitespace-nowrap">
+                            <Button
+                              size="sm"
+                              variant={hasDiff ? "default" : "outline"}
+                              className="rounded-xl text-xs font-bold gap-1 px-3"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInspectingLog(logItem);
+                              }}
+                            >
+                              <FileDiff className="h-3.5 w-3.5" />
+                              <span>Inspect Data</span>
+                            </Button>
+                          </td>
 
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Inspect Diff Modal */}
-      {inspectingLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="fixed inset-0" onClick={() => setInspectingLog(null)} />
+        {/* Inspect Diff Modal */}
+        {inspectingLog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="fixed inset-0" onClick={() => setInspectingLog(null)} />
 
-          <div className="relative w-full max-w-3xl bg-card border rounded-3xl shadow-2xl overflow-hidden z-10 p-6 space-y-6 max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
-            
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b pb-4 shrink-0">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Badge className={`text-[10px] font-black uppercase rounded-full border ${getRoleBadgeVariant(inspectingLog.userRole)}`}>
-                    {inspectingLog.userRole}
-                  </Badge>
-                  <h3 className="text-xl font-black tracking-tight">{inspectingLog.action.replace(/_/g, " ")}</h3>
+            <div className="relative w-full max-w-3xl bg-card border rounded-3xl shadow-2xl overflow-hidden z-10 p-6 space-y-6 max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+              
+              {/* Modal Header */}
+              <div className="flex items-start justify-between border-b pb-4 shrink-0">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`text-[10px] font-black uppercase rounded-full border ${getRoleBadgeVariant(inspectingLog.userRole)}`}>
+                      {inspectingLog.userRole}
+                    </Badge>
+                    <h3 className="text-xl font-black tracking-tight">{inspectingLog.action.replace(/_/g, " ")}</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 font-medium">{inspectingLog.description}</p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">{inspectingLog.description}</p>
+
+                <Button size="icon" variant="ghost" className="rounded-full" onClick={() => setInspectingLog(null)}>
+                  <X className="h-5 w-5" />
+                </Button>
               </div>
 
-              <Button size="icon" variant="ghost" className="rounded-full" onClick={() => setInspectingLog(null)}>
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-
-            {/* Metadata Card */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-muted/30 p-3.5 rounded-2xl border text-xs shrink-0">
-              <div>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase block">Staff Member</span>
-                <span className="font-bold text-foreground">{inspectingLog.userName || "Staff Member"}</span>
+              {/* Metadata Card */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-muted/30 p-3.5 rounded-2xl border text-xs shrink-0">
+                <div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase block">Staff Member</span>
+                  <span className="font-bold text-foreground">{inspectingLog.userName || "Staff Member"}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase block">Entity ID</span>
+                  <span className="font-mono font-bold text-foreground">{inspectingLog.entityId}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase block">Timestamp</span>
+                  <span className="font-bold text-foreground">{format(new Date(inspectingLog.createdAt), "MMM d, h:mm:ss a")}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase block">IP Address</span>
+                  <span className="font-mono font-bold text-foreground">{inspectingLog.ipAddress || "Internal"}</span>
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase block">Entity ID</span>
-                <span className="font-mono font-bold text-foreground">{inspectingLog.entityId}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase block">Timestamp</span>
-                <span className="font-bold text-foreground">{format(new Date(inspectingLog.createdAt), "MMM d, h:mm:ss a")}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase block">IP Address</span>
-                <span className="font-mono font-bold text-foreground">{inspectingLog.ipAddress || "Internal"}</span>
-              </div>
-            </div>
 
-            {/* Side-by-Side Data Diff Visualizer */}
-            <div className="flex-1 overflow-y-auto space-y-2">
-              <h4 className="font-black text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <FileDiff className="h-4 w-4 text-primary" />
-                <span>Attribute State Comparison (Previous vs. Current)</span>
-              </h4>
+              {/* Side-by-Side Data Diff Visualizer */}
+              <div className="flex-1 overflow-y-auto space-y-2">
+                <h4 className="font-black text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <FileDiff className="h-4 w-4 text-primary" />
+                  <span>Attribute State Comparison (Previous vs. Current)</span>
+                </h4>
 
-              {renderStateDiff(inspectingLog.prevState, inspectingLog.nextState)}
-            </div>
+                {renderStateDiff(inspectingLog.prevState, inspectingLog.nextState)}
+              </div>
 
-            {/* Modal Footer */}
-            <div className="pt-4 border-t flex justify-end shrink-0">
-              <Button className="rounded-xl font-bold" onClick={() => setInspectingLog(null)}>
-                Close Audit View
-              </Button>
-            </div>
+              {/* Modal Footer with Action Navigation */}
+              <div className="pt-4 border-t flex flex-wrap items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  {inspectingLog.entityType === "ORDER" && (
+                    <a href="/dashboard/orders" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                      <ShoppingCart className="h-3.5 w-3.5" /> View Orders Queue &rarr;
+                    </a>
+                  )}
+                  {inspectingLog.entityType === "MENU_ITEM" && (
+                    <a href="/dashboard/menu" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                      <MenuSquare className="h-3.5 w-3.5" /> Open Menu Catalog &rarr;
+                    </a>
+                  )}
+                  {inspectingLog.entityType === "ADDON" && (
+                    <a href="/dashboard/addons" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                      <Sparkles className="h-3.5 w-3.5" /> Manage Add-ons &rarr;
+                    </a>
+                  )}
+                  {inspectingLog.entityType === "USER" && (
+                    <a href="/dashboard/employees" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                      <User className="h-3.5 w-3.5" /> Manage Staff Accounts &rarr;
+                    </a>
+                  )}
+                  {inspectingLog.entityType === "TABLE" && (
+                    <a href="/dashboard/tables" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                      <Grid className="h-3.5 w-3.5" /> Manage Floor Tables &rarr;
+                    </a>
+                  )}
+                </div>
+
+                <Button className="rounded-xl font-bold" onClick={() => setInspectingLog(null)}>
+                  Close Audit View
+                </Button>
+              </div>
 
           </div>
         </div>

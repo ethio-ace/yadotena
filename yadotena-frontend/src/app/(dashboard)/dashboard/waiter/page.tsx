@@ -476,25 +476,36 @@ export default function WaiterDashboardPage() {
                 </div>
               </div>
 
-              {/* Large Touch Category Filter Tabs */}
+              {/* Category Filter Bar */}
               <div className="flex gap-2 overflow-x-auto text-xs pb-1 scrollbar-none">
                 <button
                   onClick={() => setActiveCategory("All")}
-                  className={`px-4 py-2 rounded-xl font-black whitespace-nowrap border transition-all ${
+                  className={`px-4 py-2 rounded-xl font-extrabold whitespace-nowrap border transition-all ${
                     activeCategory === "All"
                       ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                      : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
+                      : "bg-card border-muted text-muted-foreground hover:bg-muted"
                   }`}
                 >
                   All Items ({menu.length})
                 </button>
 
                 <button
+                  onClick={() => setActiveCategory("🛒 Retail Shop Store")}
+                  className={`px-4 py-2 rounded-xl font-extrabold whitespace-nowrap border transition-all ${
+                    activeCategory === "🛒 Retail Shop Store"
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-card border-muted text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  🛒 Retail Shop Store
+                </button>
+
+                <button
                   onClick={() => setActiveCategory("✨ Standalone Add-ons")}
-                  className={`px-4 py-2 rounded-xl font-black whitespace-nowrap border transition-all ${
+                  className={`px-4 py-2 rounded-xl font-extrabold whitespace-nowrap border transition-all ${
                     activeCategory === "✨ Standalone Add-ons"
                       ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                      : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
+                      : "bg-card border-muted text-muted-foreground hover:bg-muted"
                   }`}
                 >
                   ✨ Standalone Add-ons ({allAddons.length})
@@ -506,10 +517,10 @@ export default function WaiterDashboardPage() {
                     <button
                       key={c.id}
                       onClick={() => setActiveCategory(c.name)}
-                      className={`px-4 py-2 rounded-xl font-black whitespace-nowrap border transition-all ${
+                      className={`px-4 py-2 rounded-xl font-extrabold whitespace-nowrap border transition-all ${
                         activeCategory === c.name
                           ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
+                          : "bg-card border-muted text-muted-foreground hover:bg-muted"
                       }`}
                     >
                       {c.name} ({catCount})
@@ -518,7 +529,7 @@ export default function WaiterDashboardPage() {
                 })}
               </div>
 
-              {/* High-Visibility Larger Dish & Addon Cards Grid */}
+              {/* Refined Dish, Shop Product & Addon Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[580px] overflow-y-auto pr-1">
                 {activeCategory === "✨ Standalone Add-ons" ? (
                   allAddons
@@ -537,16 +548,16 @@ export default function WaiterDashboardPage() {
                           className="p-4 rounded-2xl border border-primary/20 bg-card hover:border-primary transition-all flex flex-col justify-between space-y-3 relative shadow-sm hover:shadow-md"
                         >
                           {inCartCount > 0 && (
-                            <div className="absolute top-3 right-3 bg-primary text-primary-foreground font-black text-[10px] px-2.5 py-1 rounded-full shadow-md z-10 animate-pulse">
+                            <div className="absolute top-3 right-3 bg-primary text-primary-foreground font-black text-[10px] px-2 py-0.5 rounded-full shadow-md z-10 animate-pulse">
                               {inCartCount} IN TICKET
                             </div>
                           )}
 
                           <div className="space-y-1">
                             <Badge className="bg-primary/10 text-primary border-primary/30 text-[9px] font-bold uppercase">
-                              ✨ Standalone Add-on
+                              ✨ Standalone Extra
                             </Badge>
-                            <h4 className="font-black text-sm text-foreground leading-snug">
+                            <h4 className="font-bold text-sm text-foreground leading-snug">
                               {addon.name}
                             </h4>
                             <span className="font-black text-base text-primary block">
@@ -559,7 +570,7 @@ export default function WaiterDashboardPage() {
 
                           <div className="pt-2 border-t">
                             <Button
-                              size="lg"
+                              size="sm"
                               onClick={() => {
                                 const newItem: WaiterCartItem = {
                                   cartItemId: `c-addon-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -573,7 +584,7 @@ export default function WaiterDashboardPage() {
                                 soundAlerts.playActionPing();
                                 setCartItems((prev) => [...prev, newItem]);
                               }}
-                              className="w-full h-10 text-xs font-black rounded-xl bg-primary text-primary-foreground gap-1.5 shadow-sm"
+                              className="w-full h-9 text-xs font-bold rounded-xl bg-primary text-primary-foreground gap-1.5 shadow-sm"
                             >
                               <Plus className="h-4 w-4" /> Add Standalone Extra
                             </Button>
@@ -586,15 +597,24 @@ export default function WaiterDashboardPage() {
                   menu
                     .filter((item) => {
                       const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-                      const matchesCat = activeCategory === "All" || item.category === activeCategory;
+                      const catLower = (item.category || "").toLowerCase();
+                      
+                      let matchesCat = activeCategory === "All" || item.category === activeCategory;
+                      if (activeCategory === "🛒 Retail Shop Store") {
+                        matchesCat = catLower.includes("dairy") || catLower.includes("milk") || catLower.includes("butter") || catLower.includes("cheese") || catLower.includes("honey") || catLower.includes("coffee") || catLower.includes("tea") || catLower.includes("spice") || catLower.includes("bakery") || catLower.includes("shop") || catLower.includes("retail");
+                      }
+
                       return matchesSearch && matchesCat && item.available !== false;
                     })
                     .map((item) => {
-                      const hasAddons = item.customAddons && item.customAddons.length > 0;
+                      const applicableAddons = getApplicableAddonsForItem(item, allAddons);
+                      const hasAddons = applicableAddons.length > 0;
                       
                       const inCartCount = cartItems
                         .filter((c) => c.menuItemId === item.id)
                         .reduce((sum, c) => sum + c.quantity, 0);
+
+                      const isShopItem = (item.category || "").toLowerCase().includes("dairy") || (item.category || "").toLowerCase().includes("milk") || (item.category || "").toLowerCase().includes("butter") || (item.category || "").toLowerCase().includes("cheese") || (item.category || "").toLowerCase().includes("shop");
 
                       return (
                         <div
@@ -602,7 +622,7 @@ export default function WaiterDashboardPage() {
                           className="p-4 rounded-2xl border bg-card hover:border-primary/40 transition-all flex flex-col justify-between space-y-3 relative shadow-sm hover:shadow-md"
                         >
                           {inCartCount > 0 && (
-                            <div className="absolute top-3 right-3 bg-primary text-primary-foreground font-black text-[10px] px-2.5 py-1 rounded-full shadow-md z-10 animate-pulse">
+                            <div className="absolute top-3 right-3 bg-primary text-primary-foreground font-black text-[10px] px-2 py-0.5 rounded-full shadow-md z-10 animate-pulse">
                               {inCartCount} IN TICKET
                             </div>
                           )}
@@ -611,13 +631,13 @@ export default function WaiterDashboardPage() {
                             <img
                               src={getImageUrl(item.image)}
                               alt={item.name}
-                              className="h-24 w-24 rounded-2xl object-cover border shrink-0 shadow-sm"
+                              className="h-20 w-20 rounded-2xl object-cover border shrink-0 shadow-sm"
                             />
                             <div className="min-w-0 space-y-1">
                               <Badge variant="outline" className="text-[9px] font-bold uppercase text-muted-foreground">
-                                {item.category || "Main"}
+                                {isShopItem ? "🛒 Retail Shop" : (item.category || "Main")}
                               </Badge>
-                              <h4 className="font-black text-sm text-foreground leading-snug line-clamp-2">
+                              <h4 className="font-bold text-sm text-foreground leading-snug line-clamp-2">
                                 {item.name}
                               </h4>
                               <span className="font-black text-base text-primary block">
@@ -625,7 +645,7 @@ export default function WaiterDashboardPage() {
                               </span>
                               {hasAddons && (
                                 <span className="text-[10px] font-bold text-primary/80 block">
-                                  ✨ {item.customAddons?.length} Options Available
+                                  ✨ {applicableAddons.length} Options Available
                                 </span>
                               )}
                             </div>
@@ -634,20 +654,20 @@ export default function WaiterDashboardPage() {
                           <div className="pt-2 border-t flex gap-2">
                             {hasAddons && (
                               <Button
-                                size="lg"
+                                size="sm"
                                 variant="outline"
                                 onClick={() => openDishModal(item)}
-                                className="flex-1 h-10 text-xs font-black rounded-xl text-primary border-primary/40 hover:bg-primary/10 gap-1.5"
+                                className="flex-1 h-9 text-xs font-bold rounded-xl text-primary border-primary/40 hover:bg-primary/10 gap-1"
                               >
                                 <Sparkles className="h-3.5 w-3.5" /> Customize
                               </Button>
                             )}
                             <Button
-                              size="lg"
+                              size="sm"
                               onClick={() => quickAddItem(item)}
-                              className="flex-1 h-10 text-xs font-black rounded-xl bg-primary text-primary-foreground gap-1.5 shadow-sm"
+                              className="flex-1 h-9 text-xs font-bold rounded-xl bg-primary text-primary-foreground gap-1 shadow-sm"
                             >
-                              <Plus className="h-4 w-4" /> Quick Add Dish
+                              <Plus className="h-3.5 w-3.5" /> {hasAddons ? "Quick Add" : "Add to Ticket"}
                             </Button>
                           </div>
 

@@ -229,13 +229,18 @@ export function FullPageMenuPOS({
     ]);
   };
 
-  const categories = ["All", "✨ Standalone Add-ons", ...Array.from(new Set(menu?.map(m => m.category || "Uncategorized") || []))];
+  const categories = ["All", "🛒 Retail Shop Store", "✨ Standalone Add-ons", ...Array.from(new Set(menu?.map(m => m.category || "Uncategorized") || []))];
   
   const filteredMenu = menu?.filter(m => {
     const itemName = m.name || "";
     const matchesSearch = itemName.toLowerCase().includes((menuSearch || "").toLowerCase());
-    const itemCat = m.category || "Uncategorized";
-    const matchesCategory = selectedCategory === "All" || itemCat === selectedCategory;
+    const itemCat = (m.category || "Uncategorized").toLowerCase();
+
+    let matchesCategory = selectedCategory === "All" || m.category === selectedCategory;
+    if (selectedCategory === "🛒 Retail Shop Store") {
+      matchesCategory = itemCat.includes("dairy") || itemCat.includes("milk") || itemCat.includes("butter") || itemCat.includes("cheese") || itemCat.includes("honey") || itemCat.includes("coffee") || itemCat.includes("tea") || itemCat.includes("spice") || itemCat.includes("bakery") || itemCat.includes("shop") || itemCat.includes("retail");
+    }
+
     return matchesSearch && matchesCategory && m.available !== false;
   });
 

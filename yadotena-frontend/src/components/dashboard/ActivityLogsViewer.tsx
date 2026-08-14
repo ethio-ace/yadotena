@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { format } from "date-fns";
+import { format, subDays, startOfDay } from "date-fns";
 import { 
-  Activity, Search, Shield, User, ChefHat, Wallet, ShoppingCart, 
-  CreditCard, Grid, MenuSquare, ArrowRight, Eye, RefreshCw, X, 
-  FileDiff, Clock, Sparkles
+  Activity, Search, Shield, User, ChefHat, ShoppingCart, 
+  CreditCard, Grid, MenuSquare, RefreshCw, X, 
+  FileDiff, Clock, Sparkles, Download, Filter, Calendar, Laptop
 } from "lucide-react";
 
 export interface ActivityLogItem {
@@ -32,28 +32,49 @@ export interface ActivityLogItem {
 interface ActivityLogsViewerProps {
   title?: string;
   description?: string;
-  allowedRoles?: string[]; // If provided, limits default view to these roles
+  allowedRoles?: string[];
   isOwnerView?: boolean;
 }
 
 export function ActivityLogsViewer({
   title = "Staff Activity Audit Log",
-  description = "Track each staff action, order modification, status update, and financial transaction with full previous vs. current data diffs.",
+  description = "Track each staff action, order status change, payment settlement, and menu edit with full attribution and data diffs.",
   allowedRoles,
   isOwnerView = false,
 }: ActivityLogsViewerProps) {
   const [search, setSearch] = useState("");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("ALL");
   const [selectedEntityTypeFilter, setSelectedEntityTypeFilter] = useState<string>("ALL");
+  const [selectedActionFilter, setSelectedActionFilter] = useState<string>("ALL");
+  const [timeframeFilter, setTimeframeFilter] = useState<"ALL" | "TODAY" | "7DAYS" | "30DAYS">("ALL");
   const [inspectingLog, setInspectingLog] = useState<ActivityLogItem | null>(null);
+
+  // Compute date range based on timeframeFilter
+  const getDateRange = () => {
+    const now = new Date();
+    if (timeframeFilter === "TODAY") {
+      return { startDate: startOfDay(now).toISOString() };
+    }
+    if (timeframeFilter === "7DAYS") {
+      return { startDate: startOfDay(subDays(now, 7)).toISOString() };
+    }
+    if (timeframeFilter === "30DAYS") {
+      return { startDate: startOfDay(subDays(now, 30)).toISOString() };
+    }
+    return {};
+  };
+
+  const { startDate } = getDateRange();
 
   // Queries
   const { data: logs = [], isLoading, refetch } = useQuery<ActivityLogItem[]>({
-    queryKey: ["activityLogs", selectedRoleFilter, selectedEntityTypeFilter, search],
+    queryKey: ["activityLogs", selectedRoleFilter, selectedEntityTypeFilter, selectedActionFilter, search, timeframeFilter],
     queryFn: () => api.activityLogs.getAll({
       role: selectedRoleFilter !== "ALL" ? selectedRoleFilter : undefined,
       entityType: selectedEntityTypeFilter !== "ALL" ? selectedEntityTypeFilter : undefined,
+      action: selectedActionFilter !== "ALL" ? selectedActionFilter : undefined,
       search: search.trim() || undefined,
+      startDate: startDate,
     }),
   });
 
@@ -70,6 +91,7 @@ export function ActivityLogsViewer({
       case "WAITER":
         return <User className="h-4 w-4 text-amber-500" />;
       case "KITCHEN":
+      case "CHEF":
         return <ChefHat className="h-4 w-4 text-orange-500" />;
       case "MANAGER":
         return <Shield className="h-4 w-4 text-purple-500" />;
@@ -85,6 +107,7 @@ export function ActivityLogsViewer({
       case "WAITER":
         return "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30";
       case "KITCHEN":
+      case "CHEF":
         return "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30";
       case "MANAGER":
         return "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30";
@@ -104,6 +127,7 @@ export function ActivityLogsViewer({
       case "TABLE":
         return <Grid className="h-4 w-4 text-amber-500" />;
       case "MENU_ITEM":
+      case "ADDON":
         return <MenuSquare className="h-4 w-4 text-purple-500" />;
       default:
         return <Activity className="h-4 w-4 text-muted-foreground" />;
@@ -148,7 +172,7 @@ export function ActivityLogsViewer({
     }
 
     return (
-      <div className="overflow-hidden rounded-2xl border bg-card text-xs">
+      <div className="overflow-hidden rounded-2xl border bg-card text-xs shadow-sm">
         <table className="w-full text-left">
           <thead className="bg-muted/60 text-[11px] font-bold uppercase text-muted-foreground border-b">
             <tr>
@@ -190,6 +214,33 @@ export function ActivityLogsViewer({
     );
   };
 
+  // Export audit logs to CSV
+  const exportCSV = () => {
+    if (displayLogs.length === 0) return;
+
+    const headers = ["Log ID", "Staff Name", "Role", "Action", "Entity Type", "Entity ID", "Description", "IP Address", "Timestamp"];
+    const rows = displayLogs.map(l => [
+      l.id,
+      `"${l.userName || "Staff Member"}"`,
+      l.userRole,
+      l.action,
+      l.entityType,
+      l.entityId,
+      `"${(l.description || "").replace(/"/g, '""')}"`,
+      l.ipAddress || "Internal",
+      format(new Date(l.createdAt), "yyyy-MM-dd HH:mm:ss")
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `yadotena_audit_report_${format(new Date(), "yyyyMMdd_HHmm")}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       
@@ -203,74 +254,122 @@ export function ActivityLogsViewer({
           <p className="text-xs text-muted-foreground mt-1 max-w-2xl">{description}</p>
         </div>
 
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => refetch()}
-          className="rounded-2xl text-xs font-bold gap-1.5 shrink-0"
-        >
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh Audit Feed
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportCSV}
+            disabled={displayLogs.length === 0}
+            className="rounded-2xl text-xs font-bold gap-1.5"
+          >
+            <Download className="h-3.5 w-3.5" /> Export Audit CSV
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refetch()}
+            className="rounded-2xl text-xs font-bold gap-1.5 shrink-0"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* Filter Controls Bar */}
-      <div className="flex flex-col md:flex-row gap-3 bg-card p-4 rounded-3xl border shadow-sm">
+      {/* Advanced Multi-Filter Controls Bar */}
+      <div className="space-y-3 bg-card p-4 rounded-3xl border shadow-sm">
         
-        {/* Search */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by staff member, order ID, or action..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 rounded-2xl h-10 text-xs bg-muted/30"
-          />
+        {/* Top Row: Search & Timeframe */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+          <div className="relative md:col-span-8">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by staff member, order ID, description, or IP..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 rounded-2xl h-10 text-xs bg-muted/20 border-muted"
+            />
+          </div>
+
+          <div className="md:col-span-4 flex items-center gap-1.5 bg-muted/40 p-1 rounded-2xl border text-xs">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground ml-2" />
+            <button
+              onClick={() => setTimeframeFilter("ALL")}
+              className={`flex-1 py-1.5 rounded-xl font-bold transition-all ${timeframeFilter === "ALL" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+            >
+              All Time
+            </button>
+            <button
+              onClick={() => setTimeframeFilter("TODAY")}
+              className={`flex-1 py-1.5 rounded-xl font-bold transition-all ${timeframeFilter === "TODAY" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+            >
+              Today
+            </button>
+            <button
+              onClick={() => setTimeframeFilter("7DAYS")}
+              className={`flex-1 py-1.5 rounded-xl font-bold transition-all ${timeframeFilter === "7DAYS" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+            >
+              7 Days
+            </button>
+          </div>
         </div>
 
-        {/* Role Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-bold">
-          <button
-            onClick={() => setSelectedRoleFilter("ALL")}
-            className={`px-3 py-2 rounded-2xl border transition-all ${
-              selectedRoleFilter === "ALL"
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            All Roles
-          </button>
-          <button
-            onClick={() => setSelectedRoleFilter("WAITER")}
-            className={`px-3 py-2 rounded-2xl border transition-all ${
-              selectedRoleFilter === "WAITER"
-                ? "bg-amber-500 text-amber-950 border-amber-500"
-                : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            Waiters
-          </button>
-          <button
-            onClick={() => setSelectedRoleFilter("KITCHEN")}
-            className={`px-3 py-2 rounded-2xl border transition-all ${
-              selectedRoleFilter === "KITCHEN"
-                ? "bg-orange-500 text-white border-orange-500"
-                : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            Chefs
-          </button>
-          {isOwnerView && (
-            <button
-              onClick={() => setSelectedRoleFilter("MANAGER")}
-              className={`px-3 py-2 rounded-2xl border transition-all ${
-                selectedRoleFilter === "MANAGER"
-                  ? "bg-purple-500 text-white border-purple-500"
-                  : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-              }`}
+        {/* Bottom Row: Role, Entity, Action Filter Pills */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t">
+          
+          {/* Role Filter Pills */}
+          <div className="flex items-center gap-1 text-xs font-bold overflow-x-auto">
+            <span className="text-[11px] text-muted-foreground uppercase mr-1 flex items-center gap-1">
+              <Filter className="h-3 w-3" /> Role:
+            </span>
+            {["ALL", "WAITER", "KITCHEN", "MANAGER", "OWNER"].map((role) => (
+              <button
+                key={role}
+                onClick={() => setSelectedRoleFilter(role)}
+                className={`px-3 py-1.5 rounded-xl border text-xs transition-all ${
+                  selectedRoleFilter === role
+                    ? "bg-primary text-primary-foreground border-primary font-black shadow-sm"
+                    : "bg-muted/20 border-transparent text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {role === "ALL" ? "All Roles" : role}
+              </button>
+            ))}
+          </div>
+
+          {/* Entity Type Filter */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase">Target:</span>
+            <select
+              value={selectedEntityTypeFilter}
+              onChange={(e) => setSelectedEntityTypeFilter(e.target.value)}
+              className="h-8 rounded-xl border border-muted bg-background px-3 text-xs font-bold"
             >
-              Managers
-            </button>
-          )}
+              <option value="ALL">All Entities</option>
+              <option value="ORDER">Orders 🛒</option>
+              <option value="PAYMENT">Payments 💳</option>
+              <option value="TABLE">Tables 🍽️</option>
+              <option value="MENU_ITEM">Menu Items 📜</option>
+              <option value="ADDON">Add-ons ✨</option>
+              <option value="EXPENSE">Expenses 💸</option>
+              <option value="USER">Staff Accounts 👤</option>
+            </select>
+
+            {/* Action Filter */}
+            <select
+              value={selectedActionFilter}
+              onChange={(e) => setSelectedActionFilter(e.target.value)}
+              className="h-8 rounded-xl border border-muted bg-background px-3 text-xs font-bold"
+            >
+              <option value="ALL">All Actions</option>
+              <option value="UPDATE_ORDER_STATUS">Status Changes</option>
+              <option value="CREATE_ORDER">Order Placed</option>
+              <option value="CREATE_PAYMENT">Payment Verification</option>
+              <option value="CREATE_ADDON">Addon Modifications</option>
+              <option value="CREATE_MENU_ITEM">Menu Additions</option>
+            </select>
+          </div>
+
         </div>
 
       </div>
@@ -279,24 +378,25 @@ export function ActivityLogsViewer({
       <Card className="rounded-3xl border-muted-foreground/15 shadow-sm overflow-hidden bg-card">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-12 text-center text-xs text-muted-foreground animate-pulse">
-              Loading staff activity history...
+            <div className="p-12 text-center text-xs text-muted-foreground animate-pulse font-bold">
+              Fetching staff audit history...
             </div>
           ) : displayLogs.length === 0 ? (
             <div className="p-12 text-center space-y-2">
               <Activity className="h-8 w-8 text-muted-foreground mx-auto opacity-50" />
-              <p className="text-sm font-bold text-muted-foreground">No audit activity logs recorded matching criteria.</p>
+              <p className="text-sm font-bold text-muted-foreground">No activity log entries match the selected filters.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-muted-foreground uppercase bg-muted/40 border-b">
                   <tr>
-                    <th className="px-6 py-3 font-bold">Staff Member</th>
-                    <th className="px-6 py-3 font-bold">Action Performed</th>
-                    <th className="px-6 py-3 font-bold">Target Entity</th>
-                    <th className="px-6 py-3 font-bold">Timestamp</th>
-                    <th className="px-6 py-3 font-bold text-right">Data Audit Diff</th>
+                    <th className="px-6 py-3.5 font-bold">Staff Member (Who)</th>
+                    <th className="px-6 py-3.5 font-bold">Action Performed</th>
+                    <th className="px-6 py-3.5 font-bold">Target Entity</th>
+                    <th className="px-6 py-3.5 font-bold">Terminal IP</th>
+                    <th className="px-6 py-3.5 font-bold">Timestamp</th>
+                    <th className="px-6 py-3.5 font-bold text-right">Data Audit Diff</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -306,15 +406,15 @@ export function ActivityLogsViewer({
                     return (
                       <tr key={logItem.id} className="hover:bg-muted/30 transition-colors">
                         
-                        {/* Staff Member & Role */}
+                        {/* Staff Member (Attributed Full Name) */}
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div className="h-9 w-9 rounded-2xl bg-muted/60 border flex items-center justify-center shrink-0">
                               {getRoleIcon(logItem.userRole)}
                             </div>
                             <div>
-                              <div className="font-bold text-sm text-foreground flex items-center gap-2">
-                                <span>{logItem.userName}</span>
+                              <div className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                                <span>{logItem.userName || "Staff Member"}</span>
                               </div>
                               <Badge className={`text-[9px] font-black uppercase rounded-full px-2 py-0 border ${getRoleBadgeVariant(logItem.userRole)}`}>
                                 {logItem.userRole}
@@ -329,7 +429,7 @@ export function ActivityLogsViewer({
                             <span className="font-mono text-xs font-black uppercase tracking-wider text-primary">
                               {logItem.action.replace(/_/g, " ")}
                             </span>
-                            <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+                            <p className="text-xs text-muted-foreground font-medium leading-relaxed max-w-sm">
                               {logItem.description}
                             </p>
                           </div>
@@ -340,8 +440,16 @@ export function ActivityLogsViewer({
                           <div className="flex items-center gap-2">
                             {getEntityIcon(logItem.entityType)}
                             <span className="font-mono text-xs font-bold text-foreground">
-                              {logItem.entityType}: {logItem.entityId.slice(-8).toUpperCase()}
+                              {logItem.entityType}: #{logItem.entityId.slice(-8).toUpperCase()}
                             </span>
+                          </div>
+                        </td>
+
+                        {/* IP Address */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground font-semibold">
+                            <Laptop className="h-3.5 w-3.5 text-muted-foreground/70" />
+                            <span>{logItem.ipAddress || "Internal"}</span>
                           </div>
                         </td>
 
@@ -404,7 +512,7 @@ export function ActivityLogsViewer({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-muted/30 p-3.5 rounded-2xl border text-xs shrink-0">
               <div>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase block">Staff Member</span>
-                <span className="font-bold text-foreground">{inspectingLog.userName}</span>
+                <span className="font-bold text-foreground">{inspectingLog.userName || "Staff Member"}</span>
               </div>
               <div>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase block">Entity ID</span>

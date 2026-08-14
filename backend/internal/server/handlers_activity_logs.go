@@ -98,7 +98,7 @@ func (s *Server) LogActivity(
 	}()
 }
 
-// LogActivityFromReq inspects the request's JWT claims to automatically identify the staff member name, role, and IP address.
+// LogActivityFromReq inspects the request's JWT claims and database to identify exact staff name, role, and IP address.
 func (s *Server) LogActivityFromReq(
 	r *http.Request,
 	action, entityType, entityID, description string,
@@ -106,7 +106,7 @@ func (s *Server) LogActivityFromReq(
 ) {
 	claims := claimsFrom(r)
 	userID := "staff-user"
-	userName := "Staff Member"
+	userName := ""
 	userRole := "WAITER"
 
 	if claims != nil {
@@ -123,6 +123,30 @@ func (s *Server) LogActivityFromReq(
 		}
 	}
 
+	// If userName is generic or empty, perform a database query to resolve exact staff full name
+	if (userName == "" || userName == "Staff Member" || strings.HasSuffix(userName, "Staff") || strings.HasPrefix(userName, "staff")) && userID != "" && userID != "staff-user" {
+		var dbName, dbRole string
+		err := s.Pool.QueryRow(r.Context(), `SELECT name, role FROM users WHERE id = $1`, userID).Scan(&dbName, &dbRole)
+		if err == nil && dbName != "" {
+			userName = dbName
+			if dbRole != "" {
+				userRole = strings.ToUpper(dbRole)
+			}
+		} else {
+			_ = s.Pool.QueryRow(r.Context(), `SELECT name, role FROM staff WHERE id = $1`, userID).Scan(&dbName, &dbRole)
+			if dbName != "" {
+				userName = dbName
+				if dbRole != "" {
+					userRole = strings.ToUpper(dbRole)
+				}
+			}
+		}
+	}
+
+	if userName == "" {
+		userName = fmt.Sprintf("%s Staff", strings.Title(strings.ToLower(userRole)))
+	}
+
 	ipAddress := r.RemoteAddr
 	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
 		ipAddress = strings.TrimSpace(strings.Split(forwarded, ",")[0])
@@ -136,9 +160,11 @@ func (s *Server) listActivityLogs(w http.ResponseWriter, r *http.Request) {
 	entityTypeFilter := r.URL.Query().Get("entityType")
 	actionFilter := r.URL.Query().Get("action")
 	searchFilter := r.URL.Query().Get("search")
+	startDate := r.URL.Query().Get("startDate")
+	endDate := r.URL.Query().Get("endDate")
 	limitStr := r.URL.Query().Get("limit")
 
-	limit := 100
+	limit := 150
 	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 		limit = l
 	}
@@ -152,26 +178,51 @@ func (s *Server) listActivityLogs(w http.ResponseWriter, r *http.Request) {
 	args := []any{}
 	n := 1
 
-	if roleFilter != "" {
+	if roleFilter != "" && roleFilter != "ALL" {
 		q += fmt.Sprintf(" AND user_role = $%d", n)
 		args = append(args, strings.ToUpper(roleFilter))
 		n++
 	}
 
-	if entityTypeFilter != "" {
+	if entityTypeFilter != "" && entityTypeFilter != "ALL" {
 		q += fmt.Sprintf(" AND entity_type = $%d", n)
 		args = append(args, strings.ToUpper(entityTypeFilter))
 		n++
 	}
 
-	if actionFilter != "" {
+	if actionFilter != "" && actionFilter != "ALL" {
 		q += fmt.Sprintf(" AND action = $%d", n)
 		args = append(args, actionFilter)
 		n++
 	}
 
+	if startDate != "" {
+		if t, err := time.Parse(time.RFC3339, startDate); err == nil {
+			q += fmt.Sprintf(" AND created_at >= $%d", n)
+			args = append(args, t)
+			n++
+		} else if t, err := time.Parse("2006-01-02", startDate); err == nil {
+			q += fmt.Sprintf(" AND created_at >= $%d", n)
+			args = append(args, t)
+			n++
+		}
+	}
+
+	if endDate != "" {
+		if t, err := time.Parse(time.RFC3339, endDate); err == nil {
+			q += fmt.Sprintf(" AND created_at <= $%d", n)
+			args = append(args, t)
+			n++
+		} else if t, err := time.Parse("2006-01-02", endDate); err == nil {
+			// Add 1 day to include full end day
+			q += fmt.Sprintf(" AND created_at <= $%d", n)
+			args = append(args, t.Add(24*time.Hour))
+			n++
+		}
+	}
+
 	if searchFilter != "" {
-		q += fmt.Sprintf(" AND (user_name ILIKE $%d OR description ILIKE $%d OR entity_id ILIKE $%d)", n, n, n)
+		q += fmt.Sprintf(" AND (user_name ILIKE $%d OR description ILIKE $%d OR entity_id ILIKE $%d OR ip_address ILIKE $%d)", n, n, n, n)
 		args = append(args, "%"+searchFilter+"%")
 		n++
 	}

@@ -49,6 +49,6 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 
 func decodeJSON(r *http.Request, dst any) error {
 	defer r.Body.Close()
-	dec := json.NewDecoder(r.Body)
+	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 2<<20))
 	return dec.Decode(dst)
 }

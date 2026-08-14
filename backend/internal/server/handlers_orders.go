@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +14,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"yadotena/internal/cache"
 )
+
+func round2(x float64) float64 {
+	return math.Round(x*100) / 100
+}
 
 type APIOrderItem struct {
 	ID                  string   `json:"id"`
@@ -226,7 +231,7 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check menu items & availability
+	// Check menu items & availability in batch
 	unavailableItems := make([]string, 0)
 	type resolvedItem struct {
 		menuItemID string
@@ -237,6 +242,35 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 		addons     []string
 	}
 	resolved := make([]resolvedItem, 0, len(input.Items))
+
+	menuItemIDs := make([]string, 0, len(input.Items))
+	for _, item := range input.Items {
+		if item.MenuItemID != "" {
+			menuItemIDs = append(menuItemIDs, item.MenuItemID)
+		}
+	}
+
+	type menuItemInfo struct {
+		name      string
+		price     float64
+		available bool
+	}
+	menuMap := make(map[string]menuItemInfo)
+
+	if len(menuItemIDs) > 0 {
+		rowsMenu, errM := s.Pool.Query(r.Context(), `SELECT id, name, price::float8, available FROM menu_items WHERE id = ANY($1)`, menuItemIDs)
+		if errM == nil {
+			defer rowsMenu.Close()
+			for rowsMenu.Next() {
+				var idStr, name string
+				var pr float64
+				var av bool
+				if errScan := rowsMenu.Scan(&idStr, &name, &pr, &av); errScan == nil {
+					menuMap[idStr] = menuItemInfo{name: name, price: pr, available: av}
+				}
+			}
+		}
+	}
 
 	for _, item := range input.Items {
 		mID := item.MenuItemID
@@ -252,23 +286,20 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 			notes = item.Note
 		}
 
-		var name string
-		var price float64
-		var available bool
-		errItem := s.Pool.QueryRow(r.Context(), `SELECT name, price::float8, available FROM menu_items WHERE id = $1`, mID).Scan(&name, &price, &available)
-		if errItem != nil {
+		info, ok := menuMap[mID]
+		if !ok {
 			unavailableItems = append(unavailableItems, fmt.Sprintf("Item %s not found", mID))
 			continue
 		}
-		if !available {
-			unavailableItems = append(unavailableItems, name)
+		if !info.available {
+			unavailableItems = append(unavailableItems, info.name)
 			continue
 		}
 
 		resolved = append(resolved, resolvedItem{
 			menuItemID: mID,
-			name:       name,
-			price:      price,
+			name:       info.name,
+			price:      info.price,
 			qty:        qty,
 			notes:      notes,
 			addons:     item.SelectedAddons,
@@ -334,17 +365,18 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 	for _, item := range resolved {
 		subtotal += item.price * float64(item.qty)
 	}
+	subtotal = round2(subtotal)
 
-	vatTax := subtotal * 0.15
+	vatTax := round2(subtotal * 0.15)
 	var serviceCharge float64
 	if orderType == "DINE_IN" {
-		serviceCharge = subtotal * 0.10
+		serviceCharge = round2(subtotal * 0.10)
 	}
 	var deliveryFee float64
 	if orderType == "DELIVERY" {
 		deliveryFee = 100.00
 	}
-	total := subtotal + vatTax + serviceCharge + deliveryFee
+	total := round2(subtotal + vatTax + serviceCharge + deliveryFee)
 
 	_, errIns := tx.Exec(ctx, `
 		INSERT INTO orders (id, type, status, payment_status, table_id, customer_name, customer_phone, delivery_address, subtotal, tax, service_charge, delivery_fee, total, idempotency_key)
@@ -571,17 +603,18 @@ func (s *Server) loadOrderItems(ctx context.Context, orderID string) []APIOrderI
 func (s *Server) recalculateOrderFinancialsTx(ctx context.Context, tx pgx.Tx, orderID string, orderType string) {
 	var subtotal float64
 	_ = tx.QueryRow(ctx, `SELECT COALESCE(SUM(price * quantity), 0)::float8 FROM order_items WHERE order_id = $1`, orderID).Scan(&subtotal)
+	subtotal = round2(subtotal)
 
-	tax := subtotal * 0.15
+	tax := round2(subtotal * 0.15)
 	var serviceCharge float64
 	if orderType == "DINE_IN" {
-		serviceCharge = subtotal * 0.10
+		serviceCharge = round2(subtotal * 0.10)
 	}
 	var deliveryFee float64
 	if orderType == "DELIVERY" {
 		deliveryFee = 100.00
 	}
-	total := subtotal + tax + serviceCharge + deliveryFee
+	total := round2(subtotal + tax + serviceCharge + deliveryFee)
 
 	_, _ = tx.Exec(ctx, `
 		UPDATE orders SET subtotal=$1, tax=$2, service_charge=$3, delivery_fee=$4, total=$5, updated_at=now() WHERE id=$6`,

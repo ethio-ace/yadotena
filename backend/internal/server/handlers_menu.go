@@ -97,23 +97,31 @@ func (s *Server) listMenuItems(w http.ResponseWriter, r *http.Request) {
 			if item.DietaryTags == nil {
 				item.DietaryTags = []string{}
 			}
+			item.CustomAddons = make([]Addon, 0)
+			items = append(items, item)
+		}
+	}
 
-			// Load custom addons
-			addonRows, errAdd := s.Pool.Query(r.Context(), `SELECT id, name, price::float8 FROM menu_item_addons WHERE menu_item_id = $1`, item.ID)
-			if errAdd == nil {
-				item.CustomAddons = make([]Addon, 0)
-				for addonRows.Next() {
-					var ad Addon
-					if errScan := addonRows.Scan(&ad.ID, &ad.Name, &ad.Price); errScan == nil {
-						item.CustomAddons = append(item.CustomAddons, ad)
+	if len(items) > 0 {
+		itemIDs := make([]string, len(items))
+		itemMap := make(map[string]*MenuItem, len(items))
+		for i := range items {
+			itemIDs[i] = items[i].ID
+			itemMap[items[i].ID] = &items[i]
+		}
+
+		addonRows, errAdd := s.Pool.Query(r.Context(), `SELECT id, menu_item_id, name, price::float8 FROM menu_item_addons WHERE menu_item_id = ANY($1)`, itemIDs)
+		if errAdd == nil {
+			defer addonRows.Close()
+			for addonRows.Next() {
+				var ad Addon
+				var mID string
+				if errScan := addonRows.Scan(&ad.ID, &mID, &ad.Name, &ad.Price); errScan == nil {
+					if targetItem, ok := itemMap[mID]; ok {
+						targetItem.CustomAddons = append(targetItem.CustomAddons, ad)
 					}
 				}
-				addonRows.Close()
-			} else {
-				item.CustomAddons = []Addon{}
 			}
-
-			items = append(items, item)
 		}
 	}
 

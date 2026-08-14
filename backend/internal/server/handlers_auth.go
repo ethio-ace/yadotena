@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"yadotena/internal/auth"
+	"yadotena/internal/models"
 )
 
 type User struct {
@@ -76,7 +77,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, 401, "Invalid credentials")
 			return
 		}
-		if bcrypt.CompareHashAndPassword([]byte(pinHash), []byte(pass)) != nil && pass != pinHash {
+		if bcrypt.CompareHashAndPassword([]byte(pinHash), []byte(pass)) != nil {
 			writeErr(w, 401, "Invalid credentials")
 			return
 		}
@@ -99,19 +100,14 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt: time.Now(),
 		}
 	} else {
-		if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(pass)) != nil && pass != u.PasswordHash {
+		if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(pass)) != nil {
 			writeErr(w, 401, "Invalid credentials")
 			return
 		}
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  u.ID,
-		"name": u.Name,
-		"role": u.Role,
-		"exp":  time.Now().Add(s.Cfg.JWTExpiry).Unix(),
-	})
-	tokenStr, err := token.SignedString([]byte(s.Cfg.JWTSecret))
+	uUUID, _ := uuid.Parse(u.ID)
+	tokenStr, err := auth.IssueToken(s.Cfg.JWTSecret, s.Cfg.JWTExpiry, uUUID, models.Role(strings.ToLower(u.Role)), u.Name)
 	if err != nil {
 		writeErr(w, 500, "failed to generate token")
 		return
@@ -166,7 +162,7 @@ func (s *Server) authRegister(w http.ResponseWriter, r *http.Request) {
 	var u User
 	err := s.Pool.QueryRow(ctx, `
 		INSERT INTO users (id, email, password_hash, name, phone, role, status)
-		VALUES ($1, $2, $3, $4, $5, 'WAITER', 'ACTIVE')
+		VALUES ($1, $2, $3, $4, $5, 'CUSTOMER', 'ACTIVE')
 		RETURNING id, email, name, phone, role, status, avatar_url, created_at, updated_at`,
 		userID, email, string(hash), name, phone,
 	).Scan(&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
@@ -176,13 +172,8 @@ func (s *Server) authRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  u.ID,
-		"name": u.Name,
-		"role": u.Role,
-		"exp":  time.Now().Add(s.Cfg.JWTExpiry).Unix(),
-	})
-	tokenStr, _ := token.SignedString([]byte(s.Cfg.JWTSecret))
+	uUUID, _ := uuid.Parse(u.ID)
+	tokenStr, _ := auth.IssueToken(s.Cfg.JWTSecret, s.Cfg.JWTExpiry, uUUID, models.Role(strings.ToLower(u.Role)), u.Name)
 
 	writeJSON(w, 201, map[string]any{
 		"access":       tokenStr,
@@ -198,27 +189,25 @@ func (s *Server) authLogout(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
-	if claims == nil || claims.StaffID == uuid.Nil {
-		// Return standard default user if unauthenticated in demo mode
-		writeJSON(w, 200, map[string]any{
-			"id":     "usr-admin",
-			"name":   "Admin User",
-			"email":  "admin@yadotena.com",
-			"role":   "OWNER",
-			"status": "ACTIVE",
-		})
+	if claims == nil || (claims.UserID == "" && claims.StaffID == uuid.Nil) {
+		writeErr(w, 401, "unauthorized")
 		return
+	}
+
+	targetID := claims.UserID
+	if targetID == "" {
+		targetID = claims.StaffID.String()
 	}
 
 	var u User
 	err := s.Pool.QueryRow(r.Context(), `
 		SELECT id, email, name, phone, role, status, avatar_url, created_at, updated_at
-		FROM users WHERE id = $1`, claims.StaffID.String()).Scan(
+		FROM users WHERE id = $1`, targetID).Scan(
 		&u.ID, &u.Email, &u.Name, &u.Phone, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
 		writeJSON(w, 200, map[string]any{
-			"id":     claims.StaffID.String(),
+			"id":     targetID,
 			"name":   claims.Name,
 			"role":   strings.ToUpper(string(claims.Role)),
 			"status": "ACTIVE",
@@ -228,7 +217,12 @@ func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, u)
 }
 
-func (s *Server) ablyToken(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) ablyToken(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if claims == nil {
+		writeErr(w, 401, "unauthorized")
+		return
+	}
 	details := s.Ably.GetClientDetails()
 	writeJSON(w, 200, map[string]any{
 		"token":  details.ApiKey,

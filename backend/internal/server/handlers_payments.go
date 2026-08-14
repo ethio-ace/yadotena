@@ -83,7 +83,14 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 	id := uuid.New().String()
 	var p PaymentRecord
 
-	err := s.Pool.QueryRow(r.Context(), `
+	tx, errTx := s.Pool.Begin(r.Context())
+	if errTx != nil {
+		writeErr(w, 500, "failed to begin payment transaction")
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	err := tx.QueryRow(r.Context(), `
 		INSERT INTO payments (id, order_id, method, amount, status, transaction_ref, receipt_url)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, order_id, method, amount::float8, status, transaction_ref, receipt_url, created_at`,
@@ -97,16 +104,29 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 
 	// Update order payment status and mark order completed
 	var tableID *string
-	_ = s.Pool.QueryRow(r.Context(), `
+	errOrder := tx.QueryRow(r.Context(), `
 		UPDATE orders
 		SET payment_status = $1, status = 'COMPLETED', updated_at = now()
 		WHERE id = $2
 		RETURNING table_id`, p.Status, p.OrderID).Scan(&tableID)
 
+	if errOrder != nil {
+		writeErr(w, 400, "order not found or settlement failed")
+		return
+	}
+
 	// If table_id is present, free table and close active dining session
 	if tableID != nil && *tableID != "" {
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE tables SET status = 'AVAILABLE' WHERE id = $1`, *tableID)
-		_, _ = s.Pool.Exec(r.Context(), `UPDATE dining_sessions SET status = 'CLOSED', closed_at = now() WHERE table_id = $1 AND status = 'ACTIVE'`, *tableID)
+		_, _ = tx.Exec(r.Context(), `UPDATE tables SET status = 'AVAILABLE' WHERE id = $1`, *tableID)
+		_, _ = tx.Exec(r.Context(), `UPDATE dining_sessions SET status = 'CLOSED', closed_at = now() WHERE table_id = $1 AND status = 'ACTIVE'`, *tableID)
+	}
+
+	if errCommit := tx.Commit(r.Context()); errCommit != nil {
+		writeErr(w, 500, "failed to commit payment transaction")
+		return
+	}
+
+	if tableID != nil && *tableID != "" {
 		s.Ably.Publish(r.Context(), "yadotena-realtime", "table.updated", map[string]any{"id": *tableID, "status": "AVAILABLE"})
 	}
 

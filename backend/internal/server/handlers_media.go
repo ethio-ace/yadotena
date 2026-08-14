@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func (s *Server) presignMediaUpload(w http.ResponseWriter, r *http.Request) {
@@ -174,13 +175,30 @@ func (s *Server) mediaProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, rawURL, nil)
-	if err != nil {
+	parsed, err := http.NewRequestWithContext(r.Context(), http.MethodGet, rawURL, nil)
+	if err != nil || parsed.URL == nil {
 		writeErr(w, 400, "invalid target URL")
 		return
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	scheme := strings.ToLower(parsed.URL.Scheme)
+	if scheme != "http" && scheme != "https" {
+		writeErr(w, 400, "only http and https schemes are permitted")
+		return
+	}
+
+	host := strings.ToLower(parsed.URL.Hostname())
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "169.254.169.254" ||
+		strings.HasPrefix(host, "10.") || strings.HasPrefix(host, "192.168.") || strings.HasPrefix(host, "172.16.") {
+		writeErr(w, 403, "access to internal host is forbidden")
+		return
+	}
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	resp, err := client.Do(parsed)
 	if err != nil || resp.StatusCode >= 400 {
 		writeErr(w, 502, "failed to proxy image target")
 		return
@@ -200,13 +218,19 @@ func (s *Server) mediaProxy(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 	relPath := strings.TrimPrefix(r.URL.Path, "/uploads/")
 	relPath = strings.TrimPrefix(relPath, "/")
+	relPath = filepath.Clean(relPath)
 
-	if relPath == "" {
+	if relPath == "" || relPath == "." || strings.HasPrefix(relPath, "..") {
 		writeErr(w, 400, "invalid upload path")
 		return
 	}
 
 	localFullPath := filepath.Join(s.Cfg.UploadsDir, relPath)
+	rel, errRel := filepath.Rel(s.Cfg.UploadsDir, localFullPath)
+	if errRel != nil || strings.HasPrefix(rel, "..") {
+		writeErr(w, 400, "invalid upload path")
+		return
+	}
 
 	// 1. If file exists on local disk, serve it with ETag and immutable cache headers
 	if fi, err := os.Stat(localFullPath); err == nil && !fi.IsDir() {
@@ -221,22 +245,27 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Try fetching from Tigris S3 via GetObject
+	// 2. Try fetching from Tigris S3 via GetObject (stream body)
 	body, ct, err := s.Storage.GetObject(r.Context(), relPath)
 	if err == nil && body != nil {
 		defer body.Close()
-		buf, errRead := io.ReadAll(body)
-		if errRead == nil && len(buf) > 0 {
-			// Cache to disk for future requests
-			_ = os.MkdirAll(filepath.Dir(localFullPath), 0o755)
-			_ = os.WriteFile(localFullPath, buf, 0o644)
-
+		_ = os.MkdirAll(filepath.Dir(localFullPath), 0o755)
+		tmpFile, errTmp := os.Create(localFullPath)
+		if errTmp == nil {
+			mw := io.MultiWriter(w, tmpFile)
 			w.Header().Set("Content-Type", ct)
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			w.WriteHeader(200)
-			_, _ = w.Write(buf)
+			_, _ = io.Copy(mw, body)
+			_ = tmpFile.Close()
 			return
 		}
+
+		w.Header().Set("Content-Type", ct)
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.WriteHeader(200)
+		_, _ = io.Copy(w, body)
+		return
 	}
 
 	// 3. Fallback: redirect to high-res placeholder image

@@ -255,19 +255,26 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request) {
 	}
 	tableId := *resolvedPtr
 
+	tx, errTx := s.Pool.Begin(ctx)
+	if errTx != nil {
+		writeErr(w, 500, "failed to begin transaction")
+		return
+	}
+	defer tx.Rollback(ctx)
+
 	var session DiningSession
 	var created bool = false
 
 	// Check if active session already exists
-	errS := s.Pool.QueryRow(ctx, `
+	errS := tx.QueryRow(ctx, `
 		SELECT id, table_id, session_code, status, started_at, closed_at
-		FROM dining_sessions WHERE table_id = $1 AND status = 'ACTIVE' LIMIT 1`, tableId).Scan(
+		FROM dining_sessions WHERE table_id = $1 AND status = 'ACTIVE' LIMIT 1 FOR UPDATE`, tableId).Scan(
 		&session.ID, &session.TableID, &session.SessionCode, &session.Status, &session.StartedAt, &session.ClosedAt,
 	)
 
 	if errS != nil {
 		// Close previous active sessions if any
-		_, _ = s.Pool.Exec(ctx, `UPDATE dining_sessions SET status = 'CLOSED', closed_at = now() WHERE table_id = $1 AND status = 'ACTIVE'`, tableId)
+		_, _ = tx.Exec(ctx, `UPDATE dining_sessions SET status = 'CLOSED', closed_at = now() WHERE table_id = $1 AND status = 'ACTIVE'`, tableId)
 
 		session.ID = uuid.New().String()
 		session.TableID = tableId
@@ -276,18 +283,30 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request) {
 		session.StartedAt = time.Now()
 		created = true
 
-		_, _ = s.Pool.Exec(ctx, `
+		_, errIns := tx.Exec(ctx, `
 			INSERT INTO dining_sessions (id, table_id, session_code, status, started_at)
 			VALUES ($1, $2, $3, $4, $5)`,
 			session.ID, session.TableID, session.SessionCode, session.Status, session.StartedAt)
+		if errIns != nil {
+			writeErr(w, 500, "failed to create session")
+			return
+		}
 
 		var currStatus string
-		_ = s.Pool.QueryRow(ctx, `SELECT status FROM tables WHERE id = $1`, tableId).Scan(&currStatus)
+		_ = tx.QueryRow(ctx, `SELECT status FROM tables WHERE id = $1 FOR UPDATE`, tableId).Scan(&currStatus)
 		if currStatus == "AVAILABLE" {
-			_, _ = s.Pool.Exec(ctx, `UPDATE tables SET status = 'OCCUPIED', updated_at = now() WHERE id = $1`, tableId)
-			s.Ably.Publish(ctx, "yadotena-realtime", "table.updated", map[string]any{"id": tableId, "status": "OCCUPIED"})
-			s.NATS.Publish("yadotena.tables.updated", map[string]any{"id": tableId, "status": "OCCUPIED"})
+			_, _ = tx.Exec(ctx, `UPDATE tables SET status = 'OCCUPIED', updated_at = now() WHERE id = $1`, tableId)
 		}
+	}
+
+	if errCommit := tx.Commit(ctx); errCommit != nil {
+		writeErr(w, 500, "failed to commit session transaction")
+		return
+	}
+
+	if created {
+		s.Ably.Publish(ctx, "yadotena-realtime", "table.updated", map[string]any{"id": tableId, "status": "OCCUPIED"})
+		s.NATS.Publish("yadotena.tables.updated", map[string]any{"id": tableId, "status": "OCCUPIED"})
 	}
 
 	session.Active = true

@@ -58,6 +58,14 @@ type UploadResult struct {
 	Deduplicated bool   `json:"deduplicated"`
 }
 
+type PresignResult struct {
+	UploadURL string            `json:"uploadUrl"`
+	Key       string            `json:"key,omitempty"`
+	PublicURL string            `json:"publicUrl"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	ExpiresIn int               `json:"expiresIn,omitempty"`
+}
+
 type TigrisStorage struct {
 	client        *s3.Client
 	presignClient *s3.PresignClient

@@ -13,7 +13,8 @@ import (
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
 type Claims struct {
-	StaffID uuid.UUID   `json:"staff_id"`
+	UserID  string      `json:"sub,omitempty"`
+	StaffID uuid.UUID   `json:"staff_id,omitempty"`
 	Role    models.Role `json:"role"`
 	Name    string      `json:"name"`
 	jwt.RegisteredClaims
@@ -29,11 +30,17 @@ func CheckPIN(hash, pin string) bool {
 }
 
 func IssueToken(secret string, expiry time.Duration, staffID uuid.UUID, role models.Role, name string) (string, error) {
+	staffIDStr := ""
+	if staffID != uuid.Nil {
+		staffIDStr = staffID.String()
+	}
 	claims := Claims{
+		UserID:  staffIDStr,
 		StaffID: staffID,
 		Role:    role,
 		Name:    name,
 		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   staffIDStr,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
@@ -52,6 +59,17 @@ func ParseToken(secret, token string) (*Claims, error) {
 	claims, ok := parsed.Claims.(*Claims)
 	if !ok || !parsed.Valid {
 		return nil, ErrInvalidCredentials
+	}
+	if claims.UserID == "" && claims.Subject != "" {
+		claims.UserID = claims.Subject
+	}
+	if claims.UserID == "" && claims.StaffID != uuid.Nil {
+		claims.UserID = claims.StaffID.String()
+	}
+	if claims.StaffID == uuid.Nil && claims.UserID != "" {
+		if parsedID, err := uuid.Parse(claims.UserID); err == nil {
+			claims.StaffID = parsedID
+		}
 	}
 	return claims, nil
 }

@@ -60,8 +60,13 @@ func (h *Hub) UnsubscribeOrder(orderID string, ch chan []byte) {
 func (h *Hub) BroadcastStaff(event string, payload any) {
 	b, _ := json.Marshal(map[string]any{"event": event, "data": payload})
 	h.mu.RLock()
-	defer h.mu.RUnlock()
+	clients := make([]chan []byte, 0, len(h.staff))
 	for ch := range h.staff {
+		clients = append(clients, ch)
+	}
+	h.mu.RUnlock()
+
+	for _, ch := range clients {
 		select {
 		case ch <- b:
 		default:
@@ -72,14 +77,23 @@ func (h *Hub) BroadcastStaff(event string, payload any) {
 func (h *Hub) BroadcastOrder(orderID, event string, payload any) {
 	b, _ := json.Marshal(map[string]any{"event": event, "data": payload})
 	h.mu.RLock()
-	defer h.mu.RUnlock()
+	orderClients := make([]chan []byte, 0, len(h.orders[orderID]))
 	for ch := range h.orders[orderID] {
+		orderClients = append(orderClients, ch)
+	}
+	staffClients := make([]chan []byte, 0, len(h.staff))
+	for ch := range h.staff {
+		staffClients = append(staffClients, ch)
+	}
+	h.mu.RUnlock()
+
+	for _, ch := range orderClients {
 		select {
 		case ch <- b:
 		default:
 		}
 	}
-	for ch := range h.staff {
+	for _, ch := range staffClients {
 		select {
 		case ch <- b:
 		default:

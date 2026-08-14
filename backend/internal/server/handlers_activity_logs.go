@@ -98,6 +98,39 @@ func (s *Server) LogActivity(
 	}()
 }
 
+// LogActivityFromReq inspects the request's JWT claims to automatically identify the staff member name, role, and IP address.
+func (s *Server) LogActivityFromReq(
+	r *http.Request,
+	action, entityType, entityID, description string,
+	prevState, nextState any,
+) {
+	claims := claimsFrom(r)
+	userID := "staff-user"
+	userName := "Staff Member"
+	userRole := "WAITER"
+
+	if claims != nil {
+		if claims.UserID != "" {
+			userID = claims.UserID
+		} else if claims.StaffID != uuid.Nil {
+			userID = claims.StaffID.String()
+		}
+		if claims.Name != "" {
+			userName = claims.Name
+		}
+		if claims.Role != "" {
+			userRole = strings.ToUpper(string(claims.Role))
+		}
+	}
+
+	ipAddress := r.RemoteAddr
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		ipAddress = strings.TrimSpace(strings.Split(forwarded, ",")[0])
+	}
+
+	s.LogActivity(r.Context(), userID, userName, userRole, action, entityType, entityID, description, prevState, nextState, ipAddress)
+}
+
 func (s *Server) listActivityLogs(w http.ResponseWriter, r *http.Request) {
 	roleFilter := r.URL.Query().Get("role")
 	entityTypeFilter := r.URL.Query().Get("entityType")

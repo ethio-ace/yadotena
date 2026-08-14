@@ -462,7 +462,7 @@ func (s *Server) updateOrderStatusEndpoint(w http.ResponseWriter, r *http.Reques
 			_, _ = s.Pool.Exec(ctx, `UPDATE tables SET status = 'WAITING_FOR_SERVICE', updated_at = now() WHERE id = $1`, *tableID)
 			s.Ably.Publish(ctx, "yadotena-realtime", "table.updated", map[string]any{"id": *tableID, "status": "WAITING_FOR_SERVICE"})
 		} else if newStatus == "COMPLETED" || newStatus == "CANCELLED" {
-			_, _ = s.Pool.Exec(ctx, `UPDATE tables SET status = 'AVAILABLE', current_order_id = NULL, updated_at = now() WHERE id = $1`, *tableID)
+			_, _ = s.Pool.Exec(ctx, `UPDATE tables SET status = 'AVAILABLE', updated_at = now() WHERE id = $1`, *tableID)
 			s.Ably.Publish(ctx, "yadotena-realtime", "table.updated", map[string]any{"id": *tableID, "status": "AVAILABLE"})
 		}
 	}
@@ -471,13 +471,7 @@ func (s *Server) updateOrderStatusEndpoint(w http.ResponseWriter, r *http.Reques
 	s.Ably.Publish(ctx, "yadotena-realtime", "order.updated", updatedOrder)
 	s.NATS.Publish("yadotena.orders.updated", updatedOrder)
 
-	role := "STAFF"
-	if newStatus == "PREPARING" || newStatus == "READY" {
-		role = "KITCHEN"
-	} else if newStatus == "SERVED" {
-		role = "WAITER"
-	}
-	s.LogActivity(ctx, strings.ToLower(role), fmt.Sprintf("%s Staff", role), role, "UPDATE_ORDER_STATUS", "ORDER", id, fmt.Sprintf("Updated Order #%s status from %s to %s", id, oldStatus, newStatus), map[string]string{"status": oldStatus}, map[string]string{"status": newStatus}, r.RemoteAddr)
+	s.LogActivityFromReq(r, "UPDATE_ORDER_STATUS", "ORDER", id, fmt.Sprintf("Updated Order #%s status from %s to %s", id, oldStatus, newStatus), map[string]string{"status": oldStatus}, map[string]string{"status": newStatus})
 
 	writeJSON(w, 200, updatedOrder)
 }

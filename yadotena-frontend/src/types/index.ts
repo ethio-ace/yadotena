@@ -24,10 +24,34 @@ export type OrderStatus =
 export type OrderType = "DINE_IN" | "TAKEAWAY" | "DELIVERY";
 export type PaymentStatus = "PENDING" | "PAID" | "REFUNDED";
 
+export type AddonScope = "GLOBAL" | "CATEGORY" | "ITEM";
+
 export interface MenuItemAddon {
   id: string;
   name: string;
   price: number; // in ETB
+  scope?: AddonScope;
+  categoryId?: string;
+  categoryName?: string;
+  menuItemId?: string;
+  menuItemName?: string;
+  isGlobal?: boolean;
+  isActive?: boolean;
+}
+
+export interface AddonItem {
+  id: string;
+  name: string;
+  price: number;
+  scope: AddonScope;
+  categoryId?: string;
+  categoryName?: string;
+  menuItemId?: string;
+  menuItemName?: string;
+  isGlobal: boolean;
+  isActive: boolean;
+  sortOrder?: number;
+  createdAt?: string;
 }
 
 export interface MenuCategory {

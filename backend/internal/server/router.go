@@ -70,6 +70,8 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 	// Public Read & Customer Action Routes
 	r.Get("/menu", s.listMenuItems)
 	r.Get("/menu/{id}", s.getMenuItem)
+	r.Get("/menu/{id}/addons", s.getRespectiveAddonsForMenuItem)
+	r.Get("/addons", s.listAddons)
 	r.Get("/categories", s.listCategories)
 	r.Get("/categories/{id}", s.getCategory)
 	r.Get("/tables", s.listTables)
@@ -165,6 +167,11 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 			r.Put("/menu/{id}", s.updateMenuItem)
 			r.Post("/menu/{id}/toggle-availability", s.toggleMenuItemAvailability)
 			r.Delete("/menu/{id}", s.deleteMenuItem)
+
+			r.Post("/addons", s.createAddon)
+			r.Patch("/addons/{id}", s.updateAddon)
+			r.Put("/addons/{id}", s.updateAddon)
+			r.Delete("/addons/{id}", s.deleteAddon)
 
 			r.Post("/tables", s.createTable)
 			r.Patch("/tables/{id}", s.updateTable)

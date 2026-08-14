@@ -1,4 +1,4 @@
-import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession } from "../types";
+import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession, AddonItem } from "../types";
 
 const rawBase = (process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com").replace(/\/+$/, "");
 export const API_BASE_URL = rawBase.endsWith("/api/v1") ? rawBase : `${rawBase}/api/v1`;
@@ -148,6 +148,36 @@ export const api = {
     },
     delete: async (id: string): Promise<void> => {
       return requestApiStrict<void>(`/menu/${id}`, { method: "DELETE" });
+    },
+  },
+
+  addons: {
+    getAll: async (params?: { category_id?: string; menu_item_id?: string; scope?: string }): Promise<AddonItem[]> => {
+      const cleanParams: Record<string, string> = {};
+      if (params?.category_id) cleanParams.category_id = params.category_id;
+      if (params?.menu_item_id) cleanParams.menu_item_id = params.menu_item_id;
+      if (params?.scope) cleanParams.scope = params.scope;
+      const query = new URLSearchParams(cleanParams).toString();
+      const endpoint = query ? `/addons?${query}` : "/addons";
+      return requestApiStrict<AddonItem[]>(endpoint, { method: "GET" });
+    },
+    getRespectiveForMenuItem: async (menuItemId: string): Promise<AddonItem[]> => {
+      return requestApiStrict<AddonItem[]>(`/menu/${menuItemId}/addons`, { method: "GET" });
+    },
+    create: async (data: Partial<AddonItem>): Promise<AddonItem> => {
+      return requestApiStrict<AddonItem>("/addons", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    update: async (id: string, updates: Partial<AddonItem>): Promise<AddonItem> => {
+      return requestApiStrict<AddonItem>(`/addons/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+      });
+    },
+    delete: async (id: string): Promise<void> => {
+      await requestApiStrict<void>(`/addons/${id}`, { method: "DELETE" });
     },
   },
 

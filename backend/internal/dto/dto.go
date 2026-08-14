@@ -2,6 +2,7 @@ package dto
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,23 +18,23 @@ func RoleAPI(role models.Role) string {
 		return "MANAGER"
 	case models.RoleWaiter:
 		return "WAITER"
-	case models.RoleChef:
+	case models.RoleKitchen:
 		return "KITCHEN"
 	default:
-		return ""
+		return string(role)
 	}
 }
 
 func ParseRoleAPI(role string) (models.Role, error) {
-	switch role {
+	switch strings.ToUpper(role) {
 	case "OWNER":
 		return models.RoleOwner, nil
 	case "MANAGER":
 		return models.RoleManager, nil
 	case "WAITER":
 		return models.RoleWaiter, nil
-	case "KITCHEN":
-		return models.RoleChef, nil
+	case "KITCHEN", "CHEF":
+		return models.RoleKitchen, nil
 	default:
 		return "", fmt.Errorf("unknown API role %q", role)
 	}

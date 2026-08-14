@@ -107,7 +107,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uUUID, _ := uuid.Parse(u.ID)
-	tokenStr, err := auth.IssueToken(s.Cfg.JWTSecret, s.Cfg.JWTExpiry, uUUID, models.Role(strings.ToLower(u.Role)), u.Name)
+	tokenStr, err := auth.IssueToken(s.Cfg.JWTSecret, s.Cfg.JWTExpiry, uUUID, models.Role(strings.ToUpper(u.Role)), u.Name)
 	if err != nil {
 		writeErr(w, 500, "failed to generate token")
 		return

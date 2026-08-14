@@ -8,11 +8,11 @@ import (
 )
 
 func TestRoleRoundTrip(t *testing.T) {
-	if dto.RoleAPI(models.RoleChef) != "KITCHEN" {
+	if dto.RoleAPI(models.RoleKitchen) != "KITCHEN" {
 		t.Fatal()
 	}
 	r, err := dto.ParseRoleAPI("KITCHEN")
-	if err != nil || r != models.RoleChef {
+	if err != nil || r != models.RoleKitchen {
 		t.Fatal(err, r)
 	}
 }

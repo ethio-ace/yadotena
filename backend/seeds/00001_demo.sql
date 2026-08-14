@@ -37,11 +37,11 @@ INSERT INTO users (id, email, password_hash, name, phone, role, status, avatar_u
 ('10000000-0000-0000-0000-000000000007', 'waiter3@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Tigist Alemu', '0911000007', 'WAITER', 'ACTIVE', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150', now() - interval '90 days'),
 ('10000000-0000-0000-0000-000000000013', 'waiter@demo.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Charlie Waiter', '0900000003', 'WAITER', 'ACTIVE', NULL, now() - interval '100 days'),
 
--- CHEF / KITCHEN (4 Staff Members)
-('10000000-0000-0000-0000-000000000008', 'chef@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Dawit Kifle', '0911000008', 'CHEF', 'ACTIVE', 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=150', now() - interval '90 days'),
-('10000000-0000-0000-0000-000000000009', 'chef2@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Hanna Zewde', '0911000009', 'CHEF', 'ACTIVE', 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=150', now() - interval '90 days'),
-('10000000-0000-0000-0000-000000000010', 'chef3@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Hiwot Assefa', '0911000010', 'CHEF', 'ACTIVE', 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150', now() - interval '90 days'),
-('10000000-0000-0000-0000-000000000014', 'kitchen@demo.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Dave Chef', '0900000004', 'CHEF', 'ACTIVE', NULL, now() - interval '100 days')
+-- KITCHEN (4 Staff Members)
+('10000000-0000-0000-0000-000000000008', 'chef@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Dawit Kifle', '0911000008', 'KITCHEN', 'ACTIVE', 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=150', now() - interval '90 days'),
+('10000000-0000-0000-0000-000000000009', 'chef2@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Hanna Zewde', '0911000009', 'KITCHEN', 'ACTIVE', 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=150', now() - interval '90 days'),
+('10000000-0000-0000-0000-000000000010', 'chef3@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Hiwot Assefa', '0911000010', 'KITCHEN', 'ACTIVE', 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150', now() - interval '90 days'),
+('10000000-0000-0000-0000-000000000014', 'kitchen@demo.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Dave Chef', '0900000004', 'KITCHEN', 'ACTIVE', NULL, now() - interval '100 days')
 ON CONFLICT (id) DO UPDATE SET
   email = EXCLUDED.email,
   password_hash = EXCLUDED.password_hash,

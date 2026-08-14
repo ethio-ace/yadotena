@@ -42,7 +42,8 @@ INSERT INTO users (id, email, password_hash, name, phone, role, status, avatar_u
 ('10000000-0000-0000-0000-000000000009', 'chef2@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Hanna Zewde', '0911000009', 'CHEF', 'ACTIVE', 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=150', now() - interval '90 days'),
 ('10000000-0000-0000-0000-000000000010', 'chef3@yadotena.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Hiwot Assefa', '0911000010', 'CHEF', 'ACTIVE', 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150', now() - interval '90 days'),
 ('10000000-0000-0000-0000-000000000014', 'kitchen@demo.com', '$2a$10$IqDd2.JsX23YvGWEfk3pP.yM874YJ/kLAR8sVHYvZHNglhfqkOX4u', 'Dave Chef', '0900000004', 'CHEF', 'ACTIVE', NULL, now() - interval '100 days')
-ON CONFLICT (email) DO UPDATE SET
+ON CONFLICT (id) DO UPDATE SET
+  email = EXCLUDED.email,
   password_hash = EXCLUDED.password_hash,
   name = EXCLUDED.name,
   phone = EXCLUDED.phone,

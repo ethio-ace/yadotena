@@ -48,6 +48,7 @@ export const navSections: NavSection[] = [
     title: "RESTAURANT MANAGEMENT",
     items: [
       { name: "Overview Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER", "MANAGER"] },
+      { name: "Live Orders & Tickets", href: "/dashboard/orders", icon: ShoppingCart, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN"] },
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER", "WAITER"] },
       { name: "Menu & Catalog", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER", "KITCHEN"] },
       { name: "Add-ons & Modifiers", href: "/dashboard/addons", icon: Sparkles, roles: ["OWNER", "MANAGER", "KITCHEN"] },

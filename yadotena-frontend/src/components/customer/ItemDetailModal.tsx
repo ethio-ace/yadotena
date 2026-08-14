@@ -176,14 +176,15 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
         <div className="p-4 border-t bg-card/80 backdrop-blur-md flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold">
             <Utensils className="h-4 w-4 text-primary" />
-            <span>Order with your floor waiter</span>
+            <span>Show options to your waiter</span>
           </div>
 
           <Button
-            className="rounded-full font-bold px-6 h-11 text-sm bg-primary hover:bg-primary/90"
+            variant="outline"
+            className="rounded-full font-bold px-6 h-10 text-xs border-muted-foreground/30 hover:bg-muted"
             onClick={onClose}
           >
-            Done Viewing
+            Close
           </Button>
         </div>
 

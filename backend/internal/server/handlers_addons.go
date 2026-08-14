@@ -250,19 +250,32 @@ func (s *Server) createAddon(w http.ResponseWriter, r *http.Request) {
 	}
 
 	scopeUpper := strings.ToUpper(strings.TrimSpace(scope))
-	if scopeUpper == "GLOBAL" || isGlobal {
+	if scopeUpper == "GLOBAL" || (isGlobal && categoryID == nil && menuItemID == nil) {
 		isGlobal = true
 		categoryID = nil
 		menuItemID = nil
 		scopeUpper = "GLOBAL"
 	} else if scopeUpper == "CATEGORY" || (categoryID != nil && *categoryID != "") {
+		if categoryID == nil || *categoryID == "" {
+			writeErr(w, 400, "category_id is required for CATEGORY scoped addons")
+			return
+		}
 		isGlobal = false
 		menuItemID = nil
 		scopeUpper = "CATEGORY"
-	} else {
+	} else if scopeUpper == "ITEM" || (menuItemID != nil && *menuItemID != "") {
+		if menuItemID == nil || *menuItemID == "" {
+			writeErr(w, 400, "menu_item_id is required for ITEM scoped addons")
+			return
+		}
 		isGlobal = false
 		categoryID = nil
 		scopeUpper = "ITEM"
+	} else {
+		isGlobal = true
+		categoryID = nil
+		menuItemID = nil
+		scopeUpper = "GLOBAL"
 	}
 
 	// Optimize image link if external URL

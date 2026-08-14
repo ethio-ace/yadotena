@@ -138,6 +138,15 @@ export default function AddonManagementPage() {
     e.preventDefault();
     if (!formName.trim()) return;
 
+    if (formScope === "CATEGORY" && !formCategoryId) {
+      alert("Please select a target Category for category-scoped add-ons.");
+      return;
+    }
+    if (formScope === "ITEM" && !formMenuItemId) {
+      alert("Please select a target Menu Dish for dish-specific add-ons.");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("name", formName.trim());
     formData.append("description", formDescription.trim());
@@ -535,6 +544,7 @@ export default function AddonManagementPage() {
                 <div className="space-y-1.5 animate-in fade-in duration-200">
                   <label className="text-xs font-bold text-muted-foreground">Select Category *</label>
                   <select
+                    required
                     value={formCategoryId}
                     onChange={(e) => setFormCategoryId(e.target.value)}
                     className="w-full h-10 rounded-2xl border border-muted bg-background px-3 text-xs font-semibold"
@@ -553,6 +563,7 @@ export default function AddonManagementPage() {
                 <div className="space-y-1.5 animate-in fade-in duration-200">
                   <label className="text-xs font-bold text-muted-foreground">Select Menu Dish *</label>
                   <select
+                    required
                     value={formMenuItemId}
                     onChange={(e) => setFormMenuItemId(e.target.value)}
                     className="w-full h-10 rounded-2xl border border-muted bg-background px-3 text-xs font-semibold"

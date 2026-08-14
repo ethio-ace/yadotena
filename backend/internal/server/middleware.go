@@ -31,14 +31,24 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 }
 
 func (s *Server) requireRoles(roles ...models.Role) func(http.Handler) http.Handler {
-	allowed := map[models.Role]bool{}
+	allowed := map[string]bool{}
 	for _, r := range roles {
-		allowed[r] = true
+		roleStr := strings.ToUpper(string(r))
+		allowed[roleStr] = true
+		if roleStr == "CHEF" || roleStr == "KITCHEN" {
+			allowed["CHEF"] = true
+			allowed["KITCHEN"] = true
+		}
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			c := claimsFrom(r)
-			if c == nil || !allowed[c.Role] {
+			if c == nil {
+				writeErr(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			userRole := strings.ToUpper(string(c.Role))
+			if !allowed[userRole] && !allowed[strings.ToLower(string(c.Role))] {
 				writeErr(w, http.StatusForbidden, "forbidden")
 				return
 			}

@@ -9,10 +9,11 @@ import (
 type Role string
 
 const (
-	RoleOwner   Role = "owner"
-	RoleManager Role = "manager"
-	RoleWaiter  Role = "waiter"
-	RoleChef    Role = "chef"
+	RoleOwner   Role = "OWNER"
+	RoleManager Role = "MANAGER"
+	RoleWaiter  Role = "WAITER"
+	RoleChef    Role = "CHEF"
+	RoleKitchen Role = "KITCHEN"
 )
 
 type OrderType string

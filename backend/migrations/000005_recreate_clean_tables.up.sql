@@ -21,7 +21,7 @@ CREATE TABLE expenses (
   category TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   date DATE NOT NULL DEFAULT CURRENT_DATE,
-  recorded_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  recorded_by_id VARCHAR(50) REFERENCES users(id) ON DELETE SET NULL,
   payment_method TEXT NOT NULL DEFAULT 'Cash',
   receipt_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()

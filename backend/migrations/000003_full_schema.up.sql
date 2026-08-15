@@ -21,7 +21,7 @@ DROP TABLE IF EXISTS restaurant_settings CASCADE;
 DROP TABLE IF EXISTS settings CASCADE;
 
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id VARCHAR(50) PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL DEFAULT '',
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   category TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   date DATE NOT NULL DEFAULT CURRENT_DATE,
-  recorded_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  recorded_by_id VARCHAR(50) REFERENCES users(id) ON DELETE SET NULL,
   payment_method TEXT NOT NULL DEFAULT 'Cash',
   receipt_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()

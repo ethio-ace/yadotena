@@ -126,8 +126,6 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 			r.Post("/payments", s.createPayment)
 			r.Get("/payments/{id}", s.getPayment)
 
-			r.Get("/payment-methods", s.listPaymentMethods)
-			r.Get("/payment-methods/{id}", s.getPaymentMethod)
 
 			r.Post("/media/presign", s.presignMediaUpload)
 			r.Post("/media/confirm-presigned", s.confirmPresignedMediaUpload)
@@ -196,9 +194,7 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 			})
 
 			r.Route("/payment-methods", func(r chi.Router) {
-				r.Get("/", s.listPaymentMethods)
 				r.Post("/", s.createPaymentMethod)
-				r.Get("/{id}", s.getPaymentMethod)
 				r.Patch("/{id}", s.updatePaymentMethod)
 				r.Delete("/{id}", s.deletePaymentMethod)
 			})

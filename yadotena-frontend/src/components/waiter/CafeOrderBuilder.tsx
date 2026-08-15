@@ -36,7 +36,9 @@ export function CafeOrderBuilder({
   isShopMode, preselectedTable, appendToOrder, onBack, onSubmit,
 }: CafeOrderBuilderProps) {
   // Flow state
-  const [orderType, setOrderType] = useState<"DINE_IN" | "TAKEAWAY">(preselectedTable ? "DINE_IN" : "DINE_IN");
+  const [orderType, setOrderType] = useState<"DINE_IN" | "TAKEAWAY">(
+    isShopMode ? "TAKEAWAY" : preselectedTable ? "DINE_IN" : "DINE_IN"
+  );
   const [selectedTable, setSelectedTable] = useState<Table | null>(preselectedTable || null);
   const [showTablePicker, setShowTablePicker] = useState(!preselectedTable && !isShopMode);
 
@@ -106,11 +108,11 @@ export function CafeOrderBuilder({
 
   const handleSubmit = () => {
     if (cart.length === 0) return;
-    if (orderType === "DINE_IN" && !selectedTable && !appendToOrder) {
+    if (!isShopMode && orderType === "DINE_IN" && !selectedTable && !appendToOrder) {
       setShowTablePicker(true);
       return;
     }
-    onSubmit(cart, selectedTable?.id, orderType, appendToOrder?.id);
+    onSubmit(cart, selectedTable?.id, isShopMode ? "TAKEAWAY" : orderType, appendToOrder?.id);
   };
 
   // === TABLE PICKER STEP ===

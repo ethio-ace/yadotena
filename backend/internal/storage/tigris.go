@@ -176,10 +176,9 @@ func (t *TigrisStorage) GetPresignedPutURL(ctx context.Context, fileName string,
 	key := fmt.Sprintf("uploads/%s/%s%s", time.Now().Format("2006/01"), uuid.New().String(), ext)
 
 	req, err := t.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
-		Bucket:       aws.String(t.bucket),
-		Key:          aws.String(key),
-		ContentType:  aws.String(contentType),
-		CacheControl: aws.String("public, max-age=31536000, immutable"),
+		Bucket:      aws.String(t.bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
 	}, s3.WithPresignExpires(15*time.Minute))
 
 	if err != nil {

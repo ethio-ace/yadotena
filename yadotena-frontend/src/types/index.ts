@@ -76,12 +76,24 @@ export interface MenuItem {
   price: number;
   category: string;
   categoryId?: string;
-  image: string;
+  image?: string;
+  imageUrl?: string;
   available: boolean;
   preparationTime: number; // in minutes
   dietaryTags?: string[]; // e.g. "Spicy", "Vegetarian", "Halal", "Chef's Special"
   customAddons?: MenuItemAddon[];
   calories?: number;
+}
+
+export interface PaymentRecord {
+  id: string;
+  orderId: string;
+  method: string;
+  amount: number;
+  status: string;
+  transactionRef?: string;
+  receiptUrl?: string;
+  createdAt: string;
 }
 
 export interface OrderItem {
@@ -101,6 +113,7 @@ export interface Order {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   items: OrderItem[];
+  payments?: PaymentRecord[];
   subtotal?: number;
   tax?: number;
   serviceCharge?: number;

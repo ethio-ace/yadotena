@@ -44,7 +44,8 @@ type APIOrder struct {
 	ServiceCharge   float64        `json:"serviceCharge"`
 	DeliveryFee     float64        `json:"deliveryFee"`
 	Total           float64        `json:"total"`
-	Items           []APIOrderItem `json:"items"`
+	Items           []APIOrderItem  `json:"items"`
+	Payments        []PaymentRecord `json:"payments"`
 	IdempotencyKey  *string        `json:"idempotencyKey,omitempty"`
 	CreatedAt       time.Time      `json:"createdAt"`
 	UpdatedAt       time.Time      `json:"updatedAt"`
@@ -324,6 +325,7 @@ func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
 			if o.Items == nil {
 				o.Items = []APIOrderItem{}
 			}
+			o.Payments = s.loadOrderPayments(r.Context(), o.ID)
 			ordersList = append(ordersList, o)
 		}
 	}
@@ -812,7 +814,34 @@ func (s *Server) fetchOrderFull(ctx context.Context, id string) (*APIOrder, erro
 		return nil, err
 	}
 	o.Items = s.loadOrderItems(ctx, o.ID)
+	o.Payments = s.loadOrderPayments(ctx, o.ID)
 	return &o, nil
+}
+
+func (s *Server) loadOrderPayments(ctx context.Context, orderID string) []PaymentRecord {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT id, order_id, method, amount::float8, status, COALESCE(transaction_ref, ''), COALESCE(receipt_url, ''), created_at
+		FROM payments WHERE order_id = $1 ORDER BY created_at DESC`, orderID)
+	if err != nil {
+		return []PaymentRecord{}
+	}
+	defer rows.Close()
+
+	pmts := make([]PaymentRecord, 0)
+	for rows.Next() {
+		var p PaymentRecord
+		var txRef, rcUrl string
+		if errScan := rows.Scan(&p.ID, &p.OrderID, &p.Method, &p.Amount, &p.Status, &txRef, &rcUrl, &p.CreatedAt); errScan == nil {
+			if txRef != "" {
+				p.TransactionRef = &txRef
+			}
+			if rcUrl != "" {
+				p.ReceiptURL = &rcUrl
+			}
+			pmts = append(pmts, p)
+		}
+	}
+	return pmts
 }
 
 func (s *Server) loadOrderItems(ctx context.Context, orderID string) []APIOrderItem {

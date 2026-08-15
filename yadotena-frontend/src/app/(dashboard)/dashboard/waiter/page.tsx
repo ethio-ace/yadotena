@@ -12,6 +12,7 @@ import { CafeOrderBuilder, CartItem } from "@/components/waiter/CafeOrderBuilder
 import { OrdersBoard } from "@/components/waiter/OrdersBoard";
 import { AlertsView } from "@/components/waiter/AlertsView";
 import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
+import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 
 import { Home, Grid3X3, ClipboardList, Bell, Coffee, ShoppingBag } from "lucide-react";
 
@@ -201,33 +202,13 @@ export default function WaiterWorkspacePage() {
       )}
 
       {/* ORDER INSPECT MODAL */}
-      {inspectOrder && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setInspectOrder(null)}>
-          <div className="bg-card rounded-2xl border p-5 max-w-md w-full max-h-[80vh] overflow-y-auto space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-lg font-bold">Order #{inspectOrder.id.slice(-6).toUpperCase()}</h3>
-                <p className="text-sm text-muted-foreground">{inspectOrder.tableId ? `Table ${inspectOrder.tableId}` : inspectOrder.type} · {inspectOrder.status}</p>
-              </div>
-              <button onClick={() => setInspectOrder(null)} className="text-muted-foreground hover:text-foreground text-lg">✕</button>
-            </div>
-            <div className="space-y-2">
-              {inspectOrder.items?.map((item, i) => (
-                <div key={item.id || i} className="flex justify-between text-sm p-2 rounded-lg border">
-                  <div>
-                    <span className="font-medium">{item.quantity}× {item.name}</span>
-                    {item.specialInstructions && <p className="text-xs text-muted-foreground italic mt-0.5">"{item.specialInstructions}"</p>}
-                  </div>
-                  <span className="font-mono">{(item.price * item.quantity).toFixed(0)} ETB</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-between font-bold text-lg pt-2 border-t">
-              <span>Total</span><span>{inspectOrder.total?.toFixed(0) || "0"} ETB</span>
-            </div>
-          </div>
-        </div>
-      )}
+      <OrderDetailsModal
+        order={inspectOrder}
+        isOpen={!!inspectOrder}
+        onClose={() => setInspectOrder(null)}
+        menu={menu}
+        onSettle={(o: Order) => setPaymentOrder(o)}
+      />
 
       {/* PAYMENT MODAL */}
       <PaymentSettlementModal

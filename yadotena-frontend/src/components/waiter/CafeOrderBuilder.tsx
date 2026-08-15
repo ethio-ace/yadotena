@@ -268,14 +268,45 @@ export function CafeOrderBuilder({
                 const inCart = cart.filter(c => c.menuItemId === item.id).reduce((s, c) => s + c.quantity, 0);
                 return (
                   <button key={item.id} onClick={() => addToCart(item)}
-                    className="relative p-4 rounded-xl border bg-card text-left hover:shadow-md hover:border-foreground/20 active:scale-[0.97] transition-all">
-                    <div className="font-bold text-sm leading-tight">{item.name}</div>
-                    <div className="text-base font-bold text-foreground mt-2">{formatETB(item.price)}</div>
-                    {inCart > 0 && (
-                      <span className={`absolute top-2 right-2 h-6 w-6 rounded-full bg-${brandColor}-600 text-white text-xs font-bold flex items-center justify-center`}>
-                        {inCart}
-                      </span>
-                    )}
+                    className="group relative flex flex-col rounded-2xl border bg-card text-left overflow-hidden hover:shadow-lg hover:border-amber-500/50 dark:hover:border-amber-500/40 active:scale-[0.97] transition-all">
+                    {/* Image / Thumbnail */}
+                    <div className="relative w-full h-28 sm:h-32 bg-muted/40 overflow-hidden flex items-center justify-center">
+                      {(() => {
+                        const imgPath = item.imageUrl || item.image;
+                        if (!imgPath) {
+                          return (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent text-amber-600/60 dark:text-amber-400/60">
+                              <ShoppingCart className="h-8 w-8 opacity-40" />
+                            </div>
+                          );
+                        }
+                        const srcUrl = imgPath.startsWith("http") || imgPath.startsWith("/") ? imgPath : `/uploads/${imgPath}`;
+                        return (
+                          <img
+                            src={srcUrl}
+                            alt={item.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = "none";
+                            }}
+                          />
+                        );
+                      })()}
+                      {inCart > 0 && (
+                        <span className={`absolute top-2 right-2 h-6 w-6 rounded-full shadow-md text-white text-xs font-bold flex items-center justify-center ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}>
+                          {inCart}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-3 flex flex-col justify-between flex-1">
+                      <div className="font-bold text-sm leading-tight text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                        {item.name}
+                      </div>
+                      <div className="text-base font-black text-foreground mt-2">
+                        {formatETB(item.price)}
+                      </div>
+                    </div>
                   </button>
                 );
               })}

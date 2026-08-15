@@ -184,3 +184,9 @@ CREATE TABLE IF NOT EXISTS restaurant_settings (
 INSERT INTO restaurant_settings (id, restaurant_name, phone, address, service_charge_percent, vat_percent, guest_wifi_ssid, guest_wifi_password)
 VALUES (1, 'Yadotena Milk & Foods', '+251 91 123 4567', 'Bole Road, Addis Ababa', 10.00, 15.00, 'Yadotena_Milk_5G', 'Yadotena2026')
 ON CONFLICT (id) DO NOTHING;
+
+-- Operational Performance & Defense-in-Depth Indexes
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
+CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON orders (payment_status);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_round ON order_items (order_id, round_number);
+CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments (order_id);

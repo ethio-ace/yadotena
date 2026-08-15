@@ -14,6 +14,7 @@ export interface User {
 }
 
 export type OrderStatus =
+  | "DRAFT"
   | "PENDING"
   | "PREPARING"
   | "READY"

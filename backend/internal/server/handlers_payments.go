@@ -90,6 +90,33 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
+	// 1. Explicit PostgreSQL FOR UPDATE Row Lock to block concurrent settlement race conditions
+	var existingPaymentStatus string
+	var orderTotal float64
+	errLock := tx.QueryRow(r.Context(), `SELECT payment_status, total::float8 FROM orders WHERE id = $1 FOR UPDATE`, body.OrderID).Scan(&existingPaymentStatus, &orderTotal)
+	if errLock != nil {
+		writeErr(w, 404, "order not found for payment settlement")
+		return
+	}
+
+	// Server-Authoritative Amount Override: force payment amount to match authoritative order total
+	if body.Amount <= 0 || body.Amount < orderTotal {
+		body.Amount = orderTotal
+	}
+
+	if existingPaymentStatus == "PAID" {
+		var existingP PaymentRecord
+		errExisting := tx.QueryRow(r.Context(), `
+			SELECT id, order_id, method, amount::float8, status, transaction_ref, receipt_url, created_at
+			FROM payments WHERE order_id = $1 AND status = 'PAID' ORDER BY created_at DESC LIMIT 1`, body.OrderID).Scan(
+			&existingP.ID, &existingP.OrderID, &existingP.Method, &existingP.Amount, &existingP.Status, &existingP.TransactionRef, &existingP.ReceiptURL, &existingP.CreatedAt,
+		)
+		if errExisting == nil && existingP.ID != "" {
+			writeJSON(w, 200, existingP)
+			return
+		}
+	}
+
 	err := tx.QueryRow(r.Context(), `
 		INSERT INTO payments (id, order_id, method, amount, status, transaction_ref, receipt_url)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -102,21 +129,34 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update order payment status and mark order completed
+	// Update payment_status to PAID. Order status transitions to COMPLETED ONLY IF order was already SERVED or DRAFT.
+	var currentOrderStatus string
 	var tableID *string
 	errOrder := tx.QueryRow(r.Context(), `
-		UPDATE orders
-		SET payment_status = $1, status = 'COMPLETED', updated_at = now()
-		WHERE id = $2
-		RETURNING table_id`, p.Status, p.OrderID).Scan(&tableID)
+		SELECT status, table_id FROM orders WHERE id = $1`, p.OrderID).Scan(&currentOrderStatus, &tableID)
 
 	if errOrder != nil {
 		writeErr(w, 400, "order not found or settlement failed")
 		return
 	}
 
-	// If table_id is present, free table and close active dining session
-	if tableID != nil && *tableID != "" {
+	newOrderStatus := currentOrderStatus
+	if currentOrderStatus == "SERVED" || currentOrderStatus == "DRAFT" {
+		newOrderStatus = "COMPLETED"
+	}
+
+	_, errUpd := tx.Exec(r.Context(), `
+		UPDATE orders
+		SET payment_status = $1, status = $2, updated_at = now()
+		WHERE id = $3`, p.Status, newOrderStatus, p.OrderID)
+
+	if errUpd != nil {
+		writeErr(w, 500, "failed to update order payment status")
+		return
+	}
+
+	// If order completed and table_id is present, free table and close active dining session
+	if newOrderStatus == "COMPLETED" && tableID != nil && *tableID != "" {
 		_, _ = tx.Exec(r.Context(), `UPDATE tables SET status = 'AVAILABLE' WHERE id = $1`, *tableID)
 		_, _ = tx.Exec(r.Context(), `UPDATE dining_sessions SET status = 'CLOSED', closed_at = now() WHERE table_id = $1 AND status = 'ACTIVE'`, *tableID)
 	}

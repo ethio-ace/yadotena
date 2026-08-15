@@ -630,7 +630,51 @@ func (s *Server) updateOrderStatusEndpoint(w http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 
 	var oldStatus string
-	_ = s.Pool.QueryRow(ctx, `SELECT status FROM orders WHERE id = $1`, id).Scan(&oldStatus)
+	var currentPaymentStatus string
+	errScanOld := s.Pool.QueryRow(ctx, `SELECT status, payment_status FROM orders WHERE id = $1`, id).Scan(&oldStatus, &currentPaymentStatus)
+	if errScanOld != nil {
+		writeErr(w, 404, "Order not found")
+		return
+	}
+
+	oldStatus = strings.ToUpper(oldStatus)
+
+	// Explicit State Transition Matrix Rules
+	if oldStatus != newStatus {
+		validTransitions := map[string][]string{
+			"DRAFT":     {"PENDING", "CANCELLED"},
+			"PENDING":   {"PREPARING", "CANCELLED"},
+			"PREPARING": {"READY", "CANCELLED"},
+			"READY":     {"SERVED", "CANCELLED"},
+			"SERVED":    {"COMPLETED", "CANCELLED"},
+			"COMPLETED": {}, // Terminal state
+			"CANCELLED": {}, // Terminal state
+		}
+
+		allowed, exists := validTransitions[oldStatus]
+		if !exists {
+			allowed = []string{"PENDING", "PREPARING", "READY", "SERVED", "COMPLETED", "CANCELLED"}
+		}
+
+		isAllowed := false
+		for _, target := range allowed {
+			if target == newStatus {
+				isAllowed = true
+				break
+			}
+		}
+
+		if !isAllowed && oldStatus != "" {
+			writeErr(w, 409, fmt.Sprintf("Invalid order status transition from %s to %s", oldStatus, newStatus))
+			return
+		}
+	}
+
+	// Strict State Invariant: An order cannot transition to COMPLETED unless payment_status is PAID
+	if newStatus == "COMPLETED" && strings.ToUpper(currentPaymentStatus) != "PAID" {
+		writeErr(w, 409, "Cannot set order status to COMPLETED when payment is UNPAID. Settle payment first.")
+		return
+	}
 
 	var tableID *string
 	err := s.Pool.QueryRow(ctx, `UPDATE orders SET status = $1, updated_at = now() WHERE id = $2 RETURNING table_id`, newStatus, id).Scan(&tableID)
@@ -687,6 +731,14 @@ func (s *Server) addOrderItemsEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(ctx)
+
+	// Explicit FOR UPDATE Row Lock on orders table to serialize round_number calculation under concurrent writes
+	var dummyID string
+	errLock := tx.QueryRow(ctx, `SELECT id FROM orders WHERE id = $1 FOR UPDATE`, id).Scan(&dummyID)
+	if errLock != nil {
+		writeErr(w, 404, "Order not found")
+		return
+	}
 
 	var maxRound int
 	_ = tx.QueryRow(ctx, `SELECT COALESCE(MAX(round_number), 1) FROM order_items WHERE order_id = $1`, id).Scan(&maxRound)

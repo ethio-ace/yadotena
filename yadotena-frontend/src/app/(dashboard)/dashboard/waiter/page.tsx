@@ -14,7 +14,7 @@ import {
   Search, Plus, Trash2, Check, CreditCard, X, ShoppingBag, 
   ArrowLeft, Sparkles, ChevronRight, Users, Utensils, Zap,
   Clock, Coffee, RefreshCw, Edit2, Filter, Receipt, LayoutDashboard,
-  CheckCircle2, AlertCircle, FileText, ChevronDown, ListFilter
+  CheckCircle2, AlertCircle, FileText, ChevronDown, ListFilter, Copy, Save
 } from "lucide-react";
 import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
 import { Order, MenuItem, MenuItemAddon, Table, AddonItem } from "@/types";
@@ -44,16 +44,17 @@ const KITCHEN_NOTE_PRESETS = [
 export default function WaiterWorkspacePage() {
   const queryClient = useQueryClient();
 
-  // Top-level Navigation View: "dashboard" (home) | "entry" (order entry workspace) | "orders" (active orders list) | "history" (completed history)
+  // Navigation Views: "dashboard" | "entry" | "orders" | "history"
   const [activeView, setActiveView] = useState<"dashboard" | "entry" | "orders" | "history">("dashboard");
 
   // Mode inside Order Entry workspace: "PREPARED" (Prepared Menu) vs "SHOP" (Retail Shop Store)
   const [entryMode, setEntryMode] = useState<"PREPARED" | "SHOP">("PREPARED");
 
-  // Order Context State
+  // Order Context & Meta
   const [orderType, setOrderType] = useState<"DINE_IN" | "TAKEAWAY" | "COUNTER">("DINE_IN");
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [tableModalOpen, setTableModalOpen] = useState<boolean>(false);
+  const [orderLevelNote, setOrderLevelNote] = useState<string>("");
 
   // Category & Search State
   const [activeCategory, setActiveCategory] = useState<string>("All");
@@ -61,6 +62,7 @@ export default function WaiterWorkspacePage() {
 
   // Ticket / Cart State
   const [cartItems, setCartItems] = useState<WaiterCartItem[]>([]);
+  const [mobileCartDrawerOpen, setMobileCartDrawerOpen] = useState<boolean>(false);
 
   // Modifier Sheet State (for creating new item or editing existing cart item)
   const [configuringDish, setConfiguringDish] = useState<MenuItem | null>(null);
@@ -74,7 +76,7 @@ export default function WaiterWorkspacePage() {
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
 
   // Orders Queue Filter
-  const [ordersFilterTab, setOrdersFilterTab] = useState<"ALL" | "UNPAID" | "READY" | "COMPLETED">("ALL");
+  const [ordersFilterTab, setOrdersFilterTab] = useState<"ALL" | "ACTION_REQUIRED" | "IN_PROGRESS" | "COMPLETED">("ALL");
 
   // Data Queries
   const { data: tables = [] } = useQuery<Table[]>({
@@ -102,7 +104,7 @@ export default function WaiterWorkspacePage() {
     queryFn: () => api.addons.getAll(),
   });
 
-  // Active ongoing order for currently selected table
+  // Ongoing order for selected table
   const activeOrderForSelectedTable = orders.find(
     (o) => o.tableId === selectedTable?.id && o.status !== "COMPLETED" && o.status !== "CANCELLED"
   );
@@ -115,12 +117,11 @@ export default function WaiterWorkspacePage() {
       queryClient.invalidateQueries({ queryKey: ["tables"] });
       soundAlerts.playActionPing();
       setCartItems([]);
+      setOrderLevelNote("");
 
       if (orderType === "COUNTER" || entryMode === "SHOP") {
-        // Quick retail or counter sale: open settlement modal directly
         setSelectedOrderForPayment(newOrder);
       } else {
-        // Switch view to active orders queue after sending to kitchen
         setActiveView("orders");
       }
     },
@@ -133,6 +134,7 @@ export default function WaiterWorkspacePage() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       soundAlerts.playActionPing();
       setCartItems([]);
+      setOrderLevelNote("");
       setActiveView("orders");
     },
     onError: (err: any) => alert(err.message || "Failed to add items"),
@@ -145,10 +147,16 @@ export default function WaiterWorkspacePage() {
     },
   });
 
-  // Action Handlers
-  const handleStartNewOrder = (mode: "PREPARED" | "SHOP" = "PREPARED") => {
-    setEntryMode(mode);
-    setOrderType(mode === "SHOP" ? "COUNTER" : "DINE_IN");
+  // Navigation & Flow Handlers
+  const handleStartNewOrder = (isQuickShop: boolean = false) => {
+    if (isQuickShop) {
+      setEntryMode("SHOP");
+      setOrderType("COUNTER");
+      setSelectedTable(null);
+    } else {
+      setEntryMode("PREPARED");
+      setOrderType("DINE_IN");
+    }
     setActiveCategory("All");
     setSearchQuery("");
     setActiveView("entry");
@@ -188,7 +196,6 @@ export default function WaiterWorkspacePage() {
     if (!configuringDish) return;
 
     if (editingCartItemId) {
-      // Editing existing cart item
       setCartItems((prev) =>
         prev.map((ci) =>
           ci.cartItemId === editingCartItemId
@@ -202,7 +209,6 @@ export default function WaiterWorkspacePage() {
         )
       );
     } else {
-      // Adding new line item
       const newItem: WaiterCartItem = {
         cartItemId: `c-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         menuItemId: configuringDish.id,
@@ -261,8 +267,36 @@ export default function WaiterWorkspacePage() {
     }
   };
 
+  // Repeat Order Handler (Duplicates an existing order's items into cart)
+  const handleRepeatOrder = (orderToRepeat: Order) => {
+    if (!orderToRepeat.items || orderToRepeat.items.length === 0) return;
+
+    const newCartItems: WaiterCartItem[] = orderToRepeat.items.map((item: any) => ({
+      cartItemId: `c-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      menuItemId: item.menuItemId || item.id,
+      name: item.name,
+      basePrice: item.price,
+      quantity: item.quantity || item.qty || 1,
+      selectedAddons: Array.isArray(item.selectedAddons)
+        ? item.selectedAddons.map((a: any) => (typeof a === "string" ? { id: a, name: a, price: 0 } : a))
+        : [],
+      specialInstructions: item.specialInstructions || "",
+    }));
+
+    setCartItems(newCartItems);
+    setInspectingOrder(null);
+    setActiveView("entry");
+    soundAlerts.playActionPing();
+  };
+
+  // Determine Composition of Ticket (Prepared items vs Retail-Only)
+  const hasPreparedItems = cartItems.some((ci) => {
+    const matched = menu.find((m) => m.id === ci.menuItemId);
+    return !isShopProductItem(matched || { id: ci.menuItemId, name: ci.name } as any);
+  });
+
   // Order Submission Logic
-  const handleSendToKitchenOrSubmit = () => {
+  const handleOrderSubmission = (isDraft: boolean = false) => {
     if (cartItems.length === 0) return alert("Please add items to ticket first.");
 
     if (orderType === "DINE_IN" && !selectedTable) {
@@ -274,21 +308,23 @@ export default function WaiterWorkspacePage() {
       menuItemId: item.menuItemId,
       quantity: item.quantity,
       qty: item.quantity,
-      specialInstructions: item.specialInstructions,
+      specialInstructions: item.specialInstructions || orderLevelNote ? `${item.specialInstructions || ""} ${orderLevelNote ? `[Order Note: ${orderLevelNote}]` : ""}`.trim() : "",
       notes: item.specialInstructions,
       selectedAddons: item.selectedAddons.map((a) => a.id || a.name),
     }));
 
-    if (orderType === "DINE_IN" && selectedTable && activeOrderForSelectedTable) {
-      // Append to active table session
+    if (orderType === "DINE_IN" && selectedTable && activeOrderForSelectedTable && !isDraft) {
       appendItemsMutation.mutate({
         id: activeOrderForSelectedTable.id,
         items: itemsPayload,
       });
     } else {
-      // Create new order ticket
       const mappedType = orderType === "COUNTER" ? "TAKEAWAY" : orderType;
-      const initialStatus = orderType === "COUNTER" ? "COMPLETED" : "PENDING";
+      const initialStatus = isDraft
+        ? "DRAFT"
+        : !hasPreparedItems
+        ? "COMPLETED" // Retail-only items bypass kitchen queue!
+        : "PENDING";
 
       createOrderMutation.mutate({
         type: mappedType,
@@ -311,42 +347,36 @@ export default function WaiterWorkspacePage() {
   const serviceCharge = orderType === "DINE_IN" ? subtotal * 0.10 : 0;
   const grandTotal = subtotal + serviceCharge;
 
-  // Filter menu lists
+  // Filter catalog lists
   const preparedMenuItems = menu.filter((m) => !isShopProductItem(m));
   const retailShopItems = menu.filter((m) => isShopProductItem(m));
 
-  // Ready and Unpaid Orders
-  const readyOrders = orders.filter((o) => o.status === "READY");
-  const activeUnpaidOrders = orders.filter((o) => o.paymentStatus !== "PAID" && o.status !== "CANCELLED");
-  const recentOrders = orders.slice(0, 10);
+  // Categorized Order Queues (Dual Independent State Machines)
+  const actionRequiredOrders = orders.filter(
+    (o) => o.status === "READY" || (o.paymentStatus !== "PAID" && o.status !== "CANCELLED" && o.status !== "DRAFT")
+  );
+
+  const inProgressOrders = orders.filter(
+    (o) => (o.status === "PENDING" || o.status === "PREPARING" || o.status === "DRAFT") && o.paymentStatus !== "PAID"
+  );
 
   return (
     <div className="space-y-4 animate-in fade-in duration-200 pb-28 min-h-[calc(100vh-4rem)]">
       
-      {/* KITCHEN READY NOTIFICATION STRIP */}
-      {readyOrders.length > 0 && (
-        <div className="bg-emerald-500/10 border-2 border-emerald-500/30 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm backdrop-blur-md">
-          <div className="flex items-center gap-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-            <span className="h-3 w-3 rounded-full bg-emerald-500 animate-ping" />
-            <span>{readyOrders.length} Order(s) Ready for Table Delivery:</span>
-            {readyOrders.map((o) => (
-              <Badge key={o.id} className="bg-emerald-600 text-white font-mono px-2 py-0.5 text-[10px]">
-                {o.tableId ? `Table #${o.tableId.replace("t", "")}` : `#${o.id.slice(-4)}`}
-              </Badge>
-            ))}
+      {/* ACTION REQUIRED ALERTS BAR */}
+      {actionRequiredOrders.length > 0 && activeView === "dashboard" && (
+        <div className="bg-amber-500/10 border-2 border-amber-500/30 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm backdrop-blur-md">
+          <div className="flex items-center gap-2 text-xs font-black text-amber-600 dark:text-amber-400">
+            <AlertCircle className="h-4 w-4 animate-bounce text-amber-500" />
+            <span>ACTION REQUIRED: {actionRequiredOrders.length} Order(s) Need Delivery or Settlement</span>
           </div>
-          <div className="flex gap-2">
-            {readyOrders.map((o) => (
-              <Button
-                key={o.id}
-                size="sm"
-                onClick={() => updateOrderStatusMutation.mutate({ id: o.id, status: "SERVED" })}
-                className="h-8 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white gap-1 px-3 shadow-sm"
-              >
-                <Check className="h-3.5 w-3.5" /> Mark Table #{o.tableId?.replace("t", "") || o.id.slice(-4)} Served
-              </Button>
-            ))}
-          </div>
+          <Button
+            size="sm"
+            onClick={() => { setActiveView("orders"); setOrdersFilterTab("ACTION_REQUIRED"); }}
+            className="h-8 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-white gap-1 px-3 shadow-sm"
+          >
+            View Required Actions ({actionRequiredOrders.length}) →
+          </Button>
         </div>
       )}
 
@@ -365,30 +395,28 @@ export default function WaiterWorkspacePage() {
               <div>
                 <h2 className="text-xl font-black text-foreground">Yadotena Waiter Workspace</h2>
                 <p className="text-xs text-muted-foreground font-medium">
-                  Fast Order Taking • Instant Kitchen Dispatch • Direct Settlement
+                  Fast Order Taking • Combined Menu & Shop Ticket • Independent Payment Flow
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs font-bold px-3 py-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                Online & Ready
-              </Badge>
-            </div>
+            <Badge variant="outline" className="text-xs font-bold px-3 py-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Online & Ready
+            </Badge>
           </div>
 
-          {/* TODAY QUICK ACTION TILES */}
+          {/* DASHBOARD ACTION TILES */}
           <div className="space-y-2">
             <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground px-1">
-              Start New Order Ticket
+              Start Order Entry
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
-              {/* Tile A: Prepared Menu */}
+              {/* Tile 1: Primary + NEW ORDER */}
               <div
-                onClick={() => handleStartNewOrder("PREPARED")}
-                className="p-6 rounded-3xl border-2 border-primary/30 bg-card hover:border-primary transition-all cursor-pointer shadow-sm hover:shadow-lg group space-y-4 relative overflow-hidden"
+                onClick={() => handleStartNewOrder(false)}
+                className="p-6 rounded-3xl border-2 border-primary/40 bg-card hover:border-primary transition-all cursor-pointer shadow-sm hover:shadow-lg group space-y-4 relative overflow-hidden"
               >
                 <div className="absolute top-0 right-0 p-8 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform" />
                 <div className="flex items-center justify-between">
@@ -396,51 +424,51 @@ export default function WaiterWorkspacePage() {
                     <Utensils className="h-7 w-7" />
                   </div>
                   <Badge className="bg-primary/20 text-primary border border-primary/30 text-xs font-bold px-3 py-1">
-                    Prepared Dishes
+                    Primary CTA
                   </Badge>
                 </div>
 
                 <div>
                   <h4 className="text-xl font-black text-foreground group-hover:text-primary transition-colors">
-                    + NEW MENU ORDER
+                    + NEW ORDER
                   </h4>
                   <p className="text-xs text-muted-foreground font-medium mt-1">
-                    Coffee, Food, Juices, Breakfast & Custom Addons with Table Assignment
+                    Build ticket with Prepared Menu Dishes + Retail Shop Store Items
                   </p>
                 </div>
 
                 <div className="flex items-center text-xs font-black text-primary gap-1 group-hover:translate-x-1 transition-transform">
-                  <span>Open Order Ticket Workspace</span>
+                  <span>Open Order Workspace</span>
                   <ChevronRight className="h-4 w-4" />
                 </div>
               </div>
 
-              {/* Tile B: Shop Retail */}
+              {/* Tile 2: + QUICK SHOP SALE */}
               <div
-                onClick={() => handleStartNewOrder("SHOP")}
+                onClick={() => handleStartNewOrder(true)}
                 className="p-6 rounded-3xl border-2 border-emerald-500/30 bg-card hover:border-emerald-500 transition-all cursor-pointer shadow-sm hover:shadow-lg group space-y-4 relative overflow-hidden"
               >
                 <div className="absolute top-0 right-0 p-8 bg-emerald-500/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform" />
                 <div className="flex items-center justify-between">
                   <div className="h-14 w-14 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
-                    <ShoppingBag className="h-7 w-7" />
+                    <Zap className="h-7 w-7" />
                   </div>
                   <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-1">
-                    Direct Counter Sale
+                    Counter Shortcut
                   </Badge>
                 </div>
 
                 <div>
                   <h4 className="text-xl font-black text-foreground group-hover:text-emerald-600 transition-colors">
-                    + SHOP RETAIL SALE
+                    + QUICK SHOP SALE
                   </h4>
                   <p className="text-xs text-muted-foreground font-medium mt-1">
-                    Coffee Beans, Coffee Powder, Packaged Items & Over-the-Counter Products
+                    Direct over-the-counter retail sale (Coffee Beans, Powders & Snacks)
                   </p>
                 </div>
 
                 <div className="flex items-center text-xs font-black text-emerald-600 dark:text-emerald-400 gap-1 group-hover:translate-x-1 transition-transform">
-                  <span>Instant Counter Checkout</span>
+                  <span>Instant Counter Ticket</span>
                   <ChevronRight className="h-4 w-4" />
                 </div>
               </div>
@@ -448,13 +476,14 @@ export default function WaiterWorkspacePage() {
             </div>
           </div>
 
-          {/* ACTIVE & UNPAID ORDERS LIST */}
+          {/* ACTION REQUIRED OPERATIONAL QUEUE (INVARIANT #11) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
-              <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <span>Active & Unpaid Orders</span>
-                <Badge className="bg-primary text-primary-foreground text-[10px] font-bold">
-                  {activeUnpaidOrders.length} Active
+              <h3 className="text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                <span>Action Required Now</span>
+                <Badge className="bg-amber-500 text-white text-[10px] font-bold">
+                  {actionRequiredOrders.length}
                 </Badge>
               </h3>
               <Button
@@ -467,15 +496,15 @@ export default function WaiterWorkspacePage() {
               </Button>
             </div>
 
-            {activeUnpaidOrders.length === 0 ? (
+            {actionRequiredOrders.length === 0 ? (
               <Card className="p-8 text-center rounded-3xl border border-dashed space-y-2 bg-card">
                 <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto opacity-80" />
-                <h4 className="font-black text-sm text-foreground">All Orders Clear!</h4>
-                <p className="text-xs text-muted-foreground">No pending or unpaid orders at the moment.</p>
+                <h4 className="font-black text-sm text-foreground">No Pending Actions!</h4>
+                <p className="text-xs text-muted-foreground">All table food is delivered and bills are settled.</p>
               </Card>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {activeUnpaidOrders.map((order) => {
+                {actionRequiredOrders.map((order) => {
                   const isReady = order.status === "READY";
                   const isUnpaid = order.paymentStatus !== "PAID";
 
@@ -484,8 +513,8 @@ export default function WaiterWorkspacePage() {
                       key={order.id}
                       className={`p-4 rounded-2xl border-2 transition-all space-y-3 relative shadow-sm hover:shadow-md ${
                         isReady
-                          ? "border-emerald-500/50 bg-emerald-500/5"
-                          : "border-border bg-card hover:border-primary/50"
+                          ? "border-emerald-500/60 bg-emerald-500/5 ring-1 ring-emerald-500/30"
+                          : "border-amber-500/50 bg-amber-500/5"
                       }`}
                     >
                       <div className="flex items-start justify-between">
@@ -503,29 +532,26 @@ export default function WaiterWorkspacePage() {
                           </p>
                         </div>
 
-                        <div className="flex flex-col items-end gap-1">
-                          <Badge
-                            className={`text-[9px] font-black uppercase ${
-                              isReady
-                                ? "bg-emerald-600 text-white"
-                                : "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                            }`}
-                          >
-                            {order.status}
-                          </Badge>
-                          {isUnpaid && (
-                            <Badge className="bg-destructive/15 text-destructive border border-destructive/30 text-[9px] font-black">
-                              UNPAID
+                        {/* Dual Independent State Display */}
+                        <div className="flex flex-col items-end gap-1 text-[10px] font-black">
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Kitchen:</span>
+                            <Badge className={isReady ? "bg-emerald-600 text-white animate-pulse" : "bg-primary/20 text-primary"}>
+                              {order.status}
                             </Badge>
-                          )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Payment:</span>
+                            <Badge className={isUnpaid ? "bg-amber-500 text-white" : "bg-emerald-500 text-white"}>
+                              {order.paymentStatus || "UNPAID"}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="text-xs text-muted-foreground font-medium border-t pt-2 space-y-1">
-                        <div className="flex justify-between">
-                          <span>{order.items?.length || 0} Line Item(s)</span>
-                          <span className="font-black text-foreground text-sm">{formatETB(order.total)}</span>
-                        </div>
+                      <div className="text-xs text-muted-foreground font-medium border-t pt-2 flex justify-between items-center">
+                        <span>{order.items?.length || 0} Item(s)</span>
+                        <span className="font-black text-foreground text-sm font-mono">{formatETB(order.total)}</span>
                       </div>
 
                       <div className="flex gap-2 pt-1">
@@ -535,16 +561,28 @@ export default function WaiterWorkspacePage() {
                           onClick={() => setInspectingOrder(order)}
                           className="flex-1 h-9 rounded-xl text-xs font-bold border"
                         >
-                          Inspect Ticket
+                          View Details
                         </Button>
 
-                        <Button
-                          size="sm"
-                          onClick={() => setSelectedOrderForPayment(order)}
-                          className="flex-1 h-9 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-                        >
-                          <CreditCard className="h-3.5 w-3.5" /> Settle
-                        </Button>
+                        {isReady && (
+                          <Button
+                            size="sm"
+                            onClick={() => updateOrderStatusMutation.mutate({ id: order.id, status: "SERVED" })}
+                            className="flex-1 h-9 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                          >
+                            <Check className="h-3.5 w-3.5" /> Serve Food
+                          </Button>
+                        )}
+
+                        {isUnpaid && !isReady && (
+                          <Button
+                            size="sm"
+                            onClick={() => setSelectedOrderForPayment(order)}
+                            className="flex-1 h-9 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                          >
+                            <CreditCard className="h-3.5 w-3.5" /> Settle Bill
+                          </Button>
+                        )}
                       </div>
                     </Card>
                   );
@@ -557,12 +595,12 @@ export default function WaiterWorkspacePage() {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. ORDER ENTRY WORKSPACE (THE MAIN ORDER TAKING SCREEN)                    */}
+      {/* 2. ORDER ENTRY WORKSPACE (WITH DUAL MENU/SHOP & COMPOSITION LOGIC)       */}
       {/* ========================================================================= */}
       {activeView === "entry" && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* Header Bar */}
+          {/* Header & Mode Switch */}
           <div className="bg-card border p-3 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
             
             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -575,7 +613,7 @@ export default function WaiterWorkspacePage() {
                 <ArrowLeft className="h-4 w-4" /> Waiter Home
               </Button>
 
-              {/* Mode Switch: Prepared Menu vs Shop Retail */}
+              {/* Mode Switch inside workspace */}
               <div className="flex items-center p-1 bg-muted rounded-xl text-xs font-black border">
                 <button
                   onClick={() => setEntryMode("PREPARED")}
@@ -598,12 +636,12 @@ export default function WaiterWorkspacePage() {
                   }`}
                 >
                   <ShoppingBag className="h-3.5 w-3.5" />
-                  <span>Retail Shop</span>
+                  <span>Shop Retail</span>
                 </button>
               </div>
             </div>
 
-            {/* Order Context Selector (Dine-in / Takeaway / Counter) */}
+            {/* Context Selector */}
             <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
               <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border text-xs font-bold">
                 <button
@@ -638,7 +676,6 @@ export default function WaiterWorkspacePage() {
                 </button>
               </div>
 
-              {/* Table Selection Trigger if Dine-in */}
               {orderType === "DINE_IN" && (
                 <Button
                   size="sm"
@@ -658,20 +695,20 @@ export default function WaiterWorkspacePage() {
 
           </div>
 
-          {/* MAIN GRID WORKSPACE (Menu side vs Cart side) */}
+          {/* MAIN WORKSPACE GRID */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             
-            {/* MENU / CATALOG COLUMN */}
+            {/* CATALOG COLUMN */}
             <div className="lg:col-span-8 space-y-4">
               <Card className="rounded-3xl border shadow-sm p-5 space-y-4 bg-card">
                 
-                {/* Search Bar & Category Header */}
+                {/* Search & Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
                   <h3 className="font-black text-base flex items-center gap-2">
                     {entryMode === "PREPARED" ? (
                       <>
                         <Coffee className="h-4 w-4 text-primary" />
-                        <span>Prepared Kitchen Dishes & Beverages</span>
+                        <span>Prepared Kitchen Dishes & Drinks</span>
                       </>
                     ) : (
                       <>
@@ -700,7 +737,7 @@ export default function WaiterWorkspacePage() {
                   </div>
                 </div>
 
-                {/* Horizontal Category Scroll Bar */}
+                {/* Category Selector Bar */}
                 <div className="flex gap-2 overflow-x-auto text-xs pb-1 scrollbar-none">
                   <button
                     onClick={() => setActiveCategory("All")}
@@ -751,7 +788,7 @@ export default function WaiterWorkspacePage() {
                     })}
                 </div>
 
-                {/* Selectable Items Grid */}
+                {/* Items Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[580px] overflow-y-auto pr-1">
                   {activeCategory === "✨ Standalone Add-ons" && entryMode === "PREPARED" ? (
                     allAddons
@@ -854,7 +891,7 @@ export default function WaiterWorkspacePage() {
                                 <h4 className="font-bold text-xs text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
                                   {item.name}
                                 </h4>
-                                <span className="font-black text-sm text-primary block">
+                                <span className="font-black text-sm text-primary block font-mono">
                                   {formatETB(item.price)}
                                 </span>
                               </div>
@@ -866,7 +903,7 @@ export default function WaiterWorkspacePage() {
                                   <Sparkles className="h-3 w-3" /> Options ({applicableAddons.length})
                                 </span>
                               ) : (
-                                <span className="text-muted-foreground">Standard Recipe</span>
+                                <span className="text-muted-foreground">Standard Item</span>
                               )}
 
                               <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
@@ -882,12 +919,11 @@ export default function WaiterWorkspacePage() {
               </Card>
             </div>
 
-            {/* PERSISTENT ORDER TICKET / CART COLUMN */}
-            <div className="lg:col-span-4 space-y-3">
-              <Card className="rounded-3xl border shadow-sm p-4 space-y-4 bg-card flex flex-col justify-between min-h-[580px]">
+            {/* PERSISTENT STICKY CART COLUMN (DESKTOP) */}
+            <div className="hidden lg:block lg:col-span-4 space-y-3">
+              <Card className="rounded-3xl border shadow-sm p-4 space-y-4 bg-card flex flex-col justify-between min-h-[580px] sticky top-20">
                 
                 <div className="space-y-3">
-                  {/* Ticket Context Header */}
                   <div className="flex items-center justify-between border-b pb-3">
                     <div className="flex items-center gap-2">
                       <ShoppingBag className="h-4 w-4 text-primary" />
@@ -906,7 +942,7 @@ export default function WaiterWorkspacePage() {
                     )}
                   </div>
 
-                  {/* Context Info Banner */}
+                  {/* Context Info */}
                   <div className="p-3 bg-muted/40 rounded-2xl border text-xs space-y-1">
                     <div className="flex items-center justify-between font-bold">
                       <span>Type: {orderType}</span>
@@ -928,15 +964,13 @@ export default function WaiterWorkspacePage() {
                     </div>
                   </div>
 
-                  {/* Line Items List */}
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                  {/* Line Items */}
+                  <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
                     {cartItems.length === 0 ? (
                       <div className="py-12 text-center text-xs text-muted-foreground border-2 border-dashed rounded-2xl space-y-1">
                         <ShoppingBag className="h-8 w-8 text-muted-foreground mx-auto opacity-40" />
                         <p className="font-bold">Ticket is Empty</p>
-                        <p className="text-[11px] opacity-70">
-                          Click menu dishes or shop items to build ticket.
-                        </p>
+                        <p className="text-[11px] opacity-70">Click items to build ticket.</p>
                       </div>
                     ) : (
                       cartItems.map((ci) => {
@@ -948,10 +982,9 @@ export default function WaiterWorkspacePage() {
                           >
                             <div className="flex justify-between font-bold text-foreground">
                               <span>{ci.name}</span>
-                              <span className="text-primary">{formatETB(unitPrice * ci.quantity)}</span>
+                              <span className="text-primary font-mono">{formatETB(unitPrice * ci.quantity)}</span>
                             </div>
 
-                            {/* Modifiers List */}
                             {ci.selectedAddons.length > 0 && (
                               <div className="text-[10px] text-muted-foreground font-medium flex flex-wrap gap-1">
                                 {ci.selectedAddons.map((a) => (
@@ -962,14 +995,12 @@ export default function WaiterWorkspacePage() {
                               </div>
                             )}
 
-                            {/* Kitchen Note */}
                             {ci.specialInstructions && (
                               <div className="text-[10px] text-primary font-medium italic">
                                 "{ci.specialInstructions}"
                               </div>
                             )}
 
-                            {/* Actions & Qty */}
                             <div className="flex items-center justify-between pt-1 border-t border-border/50">
                               <div className="flex items-center gap-1.5 bg-background border px-2 py-0.5 rounded-xl text-xs font-black">
                                 <button
@@ -991,7 +1022,7 @@ export default function WaiterWorkspacePage() {
                                 <button
                                   onClick={() => openModifierSheetForCartItem(ci)}
                                   className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                  title="Edit Item Modifiers"
+                                  title="Edit Line Item"
                                 >
                                   <Edit2 className="h-3.5 w-3.5" />
                                 </button>
@@ -1011,11 +1042,25 @@ export default function WaiterWorkspacePage() {
                       })
                     )}
                   </div>
+
+                  {/* Order-Level Note Layer */}
+                  {cartItems.length > 0 && (
+                    <div className="space-y-1 pt-1 border-t">
+                      <label className="text-[10px] font-extrabold uppercase text-muted-foreground">Order-Level Note (Optional)</label>
+                      <Input
+                        placeholder="e.g. Customer will collect at 6 PM..."
+                        value={orderLevelNote}
+                        onChange={(e) => setOrderLevelNote(e.target.value)}
+                        className="text-xs h-8 rounded-xl bg-muted/20"
+                      />
+                    </div>
+                  )}
+
                 </div>
 
-                {/* Calculation Totals & Actions */}
+                {/* Calculation Totals & Composition-Based CTA */}
                 <div className="pt-3 border-t space-y-3">
-                  <div className="space-y-1.5 text-xs font-semibold text-muted-foreground">
+                  <div className="space-y-1 text-xs font-semibold text-muted-foreground">
                     <div className="flex justify-between">
                       <span>Subtotal</span>
                       <span className="font-mono">{formatETB(subtotal)}</span>
@@ -1032,21 +1077,37 @@ export default function WaiterWorkspacePage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  {/* DYNAMIC CTA BUTTONS BASED ON TICKET COMPOSITION */}
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
-                      onClick={handleSendToKitchenOrSubmit}
+                      variant="outline"
+                      onClick={() => handleOrderSubmission(true)}
+                      disabled={cartItems.length === 0 || createOrderMutation.isPending}
+                      className="h-11 rounded-2xl font-bold text-xs border gap-1"
+                    >
+                      <Save className="h-4 w-4" /> Draft
+                    </Button>
+
+                    <Button
+                      onClick={() => handleOrderSubmission(false)}
                       disabled={
                         cartItems.length === 0 ||
                         createOrderMutation.isPending ||
                         appendItemsMutation.isPending
                       }
-                      className="w-full h-12 rounded-2xl font-black text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
+                      className={`h-11 rounded-2xl font-black text-xs shadow-md gap-1 ${
+                        hasPreparedItems
+                          ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary/20"
+                          : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                      }`}
                     >
-                      {createOrderMutation.isPending || appendItemsMutation.isPending
-                        ? "Submitting Ticket..."
-                        : activeOrderForSelectedTable && orderType === "DINE_IN"
-                        ? `Append to Table #${selectedTable?.id.replace("t", "")} Ticket (${formatETB(grandTotal)})`
-                        : `Send to Kitchen (${formatETB(grandTotal)})`}
+                      {createOrderMutation.isPending || appendItemsMutation.isPending ? (
+                        "Submitting..."
+                      ) : hasPreparedItems ? (
+                        "Send to Kitchen"
+                      ) : (
+                        "Complete Sale"
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -1060,7 +1121,7 @@ export default function WaiterWorkspacePage() {
       )}
 
       {/* ========================================================================= */}
-      {/* 3. ORDERS QUEUE & HISTORY VIEW                                             */}
+      {/* 3. ORDERS QUEUE & HISTORY VIEW (DUAL INDEPENDENT STATE MACHINES)         */}
       {/* ========================================================================= */}
       {(activeView === "orders" || activeView === "history") && (
         <div className="space-y-4 animate-in fade-in duration-200">
@@ -1069,10 +1130,10 @@ export default function WaiterWorkspacePage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
               <div>
                 <h3 className="font-black text-lg text-foreground">
-                  {activeView === "history" ? "Completed Orders History" : "Active Kitchen & Table Orders"}
+                  {activeView === "history" ? "Completed Orders History" : "Active Orders Workspace"}
                 </h3>
                 <p className="text-xs text-muted-foreground font-medium">
-                  Track preparation status, unpaid tickets, and payment settlement
+                  Independent Kitchen & Payment Status Machines
                 </p>
               </div>
 
@@ -1089,24 +1150,24 @@ export default function WaiterWorkspacePage() {
                   All ({orders.length})
                 </button>
                 <button
-                  onClick={() => setOrdersFilterTab("UNPAID")}
+                  onClick={() => setOrdersFilterTab("ACTION_REQUIRED")}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
-                    ordersFilterTab === "UNPAID"
+                    ordersFilterTab === "ACTION_REQUIRED"
                       ? "bg-amber-500 text-white font-black shadow-xs"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  Unpaid ({orders.filter((o) => o.paymentStatus !== "PAID").length})
+                  Action Required ({actionRequiredOrders.length})
                 </button>
                 <button
-                  onClick={() => setOrdersFilterTab("READY")}
+                  onClick={() => setOrdersFilterTab("IN_PROGRESS")}
                   className={`px-3 py-1.5 rounded-lg transition-all ${
-                    ordersFilterTab === "READY"
-                      ? "bg-emerald-600 text-white font-black shadow-xs"
+                    ordersFilterTab === "IN_PROGRESS"
+                      ? "bg-primary text-primary-foreground font-black shadow-xs"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  Ready ({orders.filter((o) => o.status === "READY").length})
+                  In Progress ({inProgressOrders.length})
                 </button>
                 <button
                   onClick={() => setOrdersFilterTab("COMPLETED")}
@@ -1126,8 +1187,12 @@ export default function WaiterWorkspacePage() {
               {orders
                 .filter((order) => {
                   if (activeView === "history") return order.status === "COMPLETED" || order.status === "CANCELLED";
-                  if (ordersFilterTab === "UNPAID") return order.paymentStatus !== "PAID";
-                  if (ordersFilterTab === "READY") return order.status === "READY";
+                  if (ordersFilterTab === "ACTION_REQUIRED") {
+                    return order.status === "READY" || (order.paymentStatus !== "PAID" && order.status !== "CANCELLED");
+                  }
+                  if (ordersFilterTab === "IN_PROGRESS") {
+                    return (order.status === "PENDING" || order.status === "PREPARING" || order.status === "DRAFT") && order.paymentStatus !== "PAID";
+                  }
                   if (ordersFilterTab === "COMPLETED") return order.status === "COMPLETED";
                   return order.status !== "COMPLETED" && order.status !== "CANCELLED";
                 })
@@ -1140,7 +1205,7 @@ export default function WaiterWorkspacePage() {
                       key={order.id}
                       className={`p-4 rounded-2xl border-2 transition-all space-y-3 shadow-sm hover:shadow-md ${
                         isReady
-                          ? "border-emerald-500/50 bg-emerald-500/5"
+                          ? "border-emerald-500/60 bg-emerald-500/5"
                           : isUnpaid
                           ? "border-amber-500/40 bg-card"
                           : "border-border bg-card"
@@ -1161,25 +1226,20 @@ export default function WaiterWorkspacePage() {
                           </p>
                         </div>
 
-                        <div className="flex flex-col items-end gap-1">
-                          <Badge
-                            className={`text-[9px] font-black uppercase ${
-                              isReady
-                                ? "bg-emerald-600 text-white animate-pulse"
-                                : "bg-primary/20 text-primary border border-primary/30"
-                            }`}
-                          >
-                            {order.status}
-                          </Badge>
-                          <Badge
-                            className={`text-[9px] font-black ${
-                              order.paymentStatus === "PAID"
-                                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                                : "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                            }`}
-                          >
-                            {order.paymentStatus || "UNPAID"}
-                          </Badge>
+                        {/* Dual Independent State Display */}
+                        <div className="flex flex-col items-end gap-1 text-[10px] font-black">
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Kitchen:</span>
+                            <Badge className={isReady ? "bg-emerald-600 text-white animate-pulse" : "bg-primary/20 text-primary"}>
+                              {order.status}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Payment:</span>
+                            <Badge className={isUnpaid ? "bg-amber-500 text-white" : "bg-emerald-500 text-white"}>
+                              {order.paymentStatus || "UNPAID"}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
 
@@ -1201,7 +1261,7 @@ export default function WaiterWorkspacePage() {
                           onClick={() => setInspectingOrder(order)}
                           className="flex-1 h-9 rounded-xl text-xs font-bold"
                         >
-                          View Details
+                          View Ticket
                         </Button>
 
                         {isUnpaid && (
@@ -1224,7 +1284,7 @@ export default function WaiterWorkspacePage() {
       )}
 
       {/* ========================================================================= */}
-      {/* 4. MODAL: TABLE SELECTOR GRID (If Dine-in)                                */}
+      {/* 4. MODAL: TABLE SELECTOR GRID                                             */}
       {/* ========================================================================= */}
       {tableModalOpen && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -1232,9 +1292,7 @@ export default function WaiterWorkspacePage() {
             <div className="flex items-start justify-between border-b pb-3">
               <div>
                 <h3 className="font-black text-lg text-foreground">Select Floor Dining Table</h3>
-                <p className="text-xs text-muted-foreground font-medium">
-                  Choose a table to assign order ticket
-                </p>
+                <p className="text-xs text-muted-foreground font-medium">Choose table for order ticket</p>
               </div>
               <button onClick={() => setTableModalOpen(false)} className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground">
                 <X className="h-5 w-5" />
@@ -1266,7 +1324,7 @@ export default function WaiterWorkspacePage() {
                     
                     {ongoingOrder ? (
                       <Badge className="bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[9px] font-bold">
-                        Appending Session
+                        Ongoing Ticket
                       </Badge>
                     ) : (
                       <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold">
@@ -1301,14 +1359,14 @@ export default function WaiterWorkspacePage() {
               </button>
             </div>
 
-            {/* Applicable Addons Group */}
+            {/* Priced Modifiers Group */}
             {(() => {
               const applicableAddons = getApplicableAddonsForItem(configuringDish, allAddons);
 
               if (applicableAddons.length === 0) {
                 return (
                   <div className="p-3 bg-muted/40 rounded-2xl border text-center text-xs text-muted-foreground font-medium">
-                    No extra customization options for this item. Standard recipe will be prepared.
+                    No extra priced customization options for this item. Standard recipe will be prepared.
                   </div>
                 );
               }
@@ -1316,7 +1374,7 @@ export default function WaiterWorkspacePage() {
               return (
                 <div className="space-y-2">
                   <span className="text-xs font-extrabold uppercase text-muted-foreground tracking-wider block">
-                    Available Customization Options
+                    Priced Addons & Options
                   </span>
                   <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                     {applicableAddons.map((addon) => {
@@ -1352,10 +1410,10 @@ export default function WaiterWorkspacePage() {
               );
             })()}
 
-            {/* Kitchen Special Notes & Presets */}
+            {/* Kitchen Instructions / Notes Layer */}
             <div className="space-y-2">
               <span className="text-xs font-extrabold uppercase text-muted-foreground tracking-wider block">
-                Kitchen Special Notes
+                Kitchen Instructions (Item Note)
               </span>
               
               <div className="flex flex-wrap gap-1.5">
@@ -1372,14 +1430,14 @@ export default function WaiterWorkspacePage() {
               </div>
 
               <Textarea
-                placeholder="Type kitchen instructions or select presets above..."
+                placeholder="Type kitchen instructions or select presets..."
                 value={modalNote}
                 onChange={(e) => setModalNote(e.target.value)}
                 className="text-xs h-16 rounded-xl bg-muted/30 resize-none border"
               />
             </div>
 
-            {/* Quantity Controls */}
+            {/* Qty Controls */}
             <div className="flex items-center justify-between border-t pt-3">
               <span className="text-xs font-bold text-muted-foreground">Quantity</span>
               <div className="flex items-center gap-3 bg-muted p-1.5 rounded-xl text-xs font-black">
@@ -1393,7 +1451,6 @@ export default function WaiterWorkspacePage() {
               </div>
             </div>
 
-            {/* Save Button */}
             <Button
               onClick={handleSaveModalDishToCart}
               className="w-full h-12 rounded-2xl font-black text-xs bg-primary text-primary-foreground shadow-lg shadow-primary/20"
@@ -1409,7 +1466,7 @@ export default function WaiterWorkspacePage() {
       )}
 
       {/* ========================================================================= */}
-      {/* 6. MODAL: ORDER DETAILS INSPECTOR                                         */}
+      {/* 6. MODAL: ORDER DETAILS & REPEAT ORDER FEATURE                           */}
       {/* ========================================================================= */}
       {inspectingOrder && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -1446,13 +1503,13 @@ export default function WaiterWorkspacePage() {
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-black uppercase text-[10px] text-muted-foreground">Ordered Line Items</h4>
+                <h4 className="font-black uppercase text-[10px] text-muted-foreground">Ordered Items Breakdown</h4>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                   {inspectingOrder.items?.map((item: any, idx: number) => (
                     <div key={item.id || idx} className="p-3 rounded-xl bg-muted/30 border space-y-1">
                       <div className="flex justify-between font-bold">
                         <span>{item.quantity || item.qty}x {item.name}</span>
-                        <span className="text-primary">{formatETB((item.price || 0) * (item.quantity || item.qty || 1))}</span>
+                        <span className="text-primary font-mono">{formatETB((item.price || 0) * (item.quantity || item.qty || 1))}</span>
                       </div>
                       {item.specialInstructions && (
                         <p className="text-[10px] text-muted-foreground italic">"{item.specialInstructions}"</p>
@@ -1462,17 +1519,33 @@ export default function WaiterWorkspacePage() {
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                {inspectingOrder.paymentStatus !== "PAID" && (
+              {/* REPEAT ORDER & SETTLE BUTTONS */}
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleRepeatOrder(inspectingOrder)}
+                  className="h-11 rounded-xl font-black text-xs border gap-1.5 hover:bg-primary/10 hover:text-primary"
+                >
+                  <Copy className="h-4 w-4" /> Duplicate / Repeat Ticket
+                </Button>
+
+                {inspectingOrder.paymentStatus !== "PAID" ? (
                   <Button
                     onClick={() => {
                       const ord = inspectingOrder;
                       setInspectingOrder(null);
                       setSelectedOrderForPayment(ord);
                     }}
-                    className="flex-1 h-11 rounded-xl font-black text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                    className="h-11 rounded-xl font-black text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
                   >
-                    <CreditCard className="h-4 w-4" /> Settle Payment ({formatETB(inspectingOrder.total)})
+                    <CreditCard className="h-4 w-4" /> Settle ({formatETB(inspectingOrder.total)})
+                  </Button>
+                ) : (
+                  <Button
+                    disabled
+                    className="h-11 rounded-xl font-black text-xs bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 opacity-80"
+                  >
+                    Payment Settled ✓
                   </Button>
                 )}
               </div>
@@ -1482,7 +1555,7 @@ export default function WaiterWorkspacePage() {
       )}
 
       {/* ========================================================================= */}
-      {/* 7. MODAL: PAYMENT SETTLEMENT                                              */}
+      {/* 7. PAYMENT SETTLEMENT MODAL                                              */}
       {/* ========================================================================= */}
       <PaymentSettlementModal
         order={selectedOrderForPayment}
@@ -1495,11 +1568,80 @@ export default function WaiterWorkspacePage() {
       />
 
       {/* ========================================================================= */}
-      {/* 8. FIXED BOTTOM NAVIGATION BAR FOR WAITER WORKSPACE                      */}
+      {/* 8. MOBILE COLLAPSIBLE FLOATING CART SLIDE-UP SHEET                       */}
+      {/* ========================================================================= */}
+      {cartItems.length > 0 && activeView === "entry" && (
+        <div className="lg:hidden fixed bottom-16 left-3 right-3 z-40">
+          <div className="bg-card border-2 border-primary/60 shadow-2xl p-3.5 rounded-2xl flex items-center justify-between backdrop-blur-md">
+            <div>
+              <span className="text-[10px] font-extrabold uppercase text-muted-foreground block">Current Ticket</span>
+              <div className="flex items-center gap-2 font-black text-sm text-foreground">
+                <span>{cartItems.reduce((acc, i) => acc + i.quantity, 0)} Items</span>
+                <span>•</span>
+                <span className="text-primary font-mono">{formatETB(grandTotal)}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => setMobileCartDrawerOpen(!mobileCartDrawerOpen)}
+                className="h-10 rounded-xl text-xs font-black bg-primary text-primary-foreground gap-1"
+              >
+                View Ticket ({cartItems.length})
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Cart Drawer Overlay */}
+      {mobileCartDrawerOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-end justify-center p-3">
+          <div className="bg-card border rounded-t-3xl shadow-2xl w-full p-5 space-y-4 relative max-h-[80vh] overflow-y-auto animate-in slide-in-from-bottom-5 duration-200">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-black text-base">Current Ticket ({cartItems.length} items)</h3>
+              <button onClick={() => setMobileCartDrawerOpen(false)} className="p-1 text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {cartItems.map((ci) => (
+                <div key={ci.cartItemId} className="p-2.5 rounded-xl bg-muted/40 border text-xs flex justify-between items-center">
+                  <div>
+                    <span className="font-bold">{ci.quantity}x {ci.name}</span>
+                    {ci.selectedAddons.length > 0 && (
+                      <p className="text-[10px] text-muted-foreground">+{ci.selectedAddons.map((a) => a.name).join(", ")}</p>
+                    )}
+                  </div>
+                  <span className="font-black text-primary font-mono">{formatETB(getItemUnitPrice(ci) * ci.quantity)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t space-y-2">
+              <div className="flex justify-between font-black text-sm">
+                <span>Total Amount</span>
+                <span className="text-primary font-mono">{formatETB(grandTotal)}</span>
+              </div>
+              <Button
+                onClick={() => { setMobileCartDrawerOpen(false); handleOrderSubmission(false); }}
+                className="w-full h-11 rounded-xl font-black text-xs bg-primary text-primary-foreground shadow-md"
+              >
+                {hasPreparedItems ? "Send to Kitchen" : "Complete Sale"} ({formatETB(grandTotal)})
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 9. FIXED BOTTOM NAVIGATION BAR                                            */}
       {/* ========================================================================= */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-t shadow-2xl p-2.5 flex items-center justify-around max-w-4xl mx-auto rounded-t-3xl">
         
-        {/* Tab 1: Dashboard Home */}
+        {/* Tab 1: Dashboard */}
         <button
           onClick={() => setActiveView("dashboard")}
           className={`flex flex-col items-center gap-1 px-4 py-1.5 rounded-2xl transition-all ${
@@ -1512,9 +1654,9 @@ export default function WaiterWorkspacePage() {
           <span className="text-[10px]">Dashboard</span>
         </button>
 
-        {/* Tab 2: NEW ORDER (PRIMARY HIGHLIGHTED BUTTON!) */}
+        {/* Tab 2: + NEW ORDER (PRIMARY HIGHLIGHTED CTA) */}
         <button
-          onClick={() => handleStartNewOrder("PREPARED")}
+          onClick={() => handleStartNewOrder(false)}
           className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-primary text-primary-foreground font-black text-xs shadow-lg shadow-primary/30 -translate-y-2 transition-transform hover:scale-105 active:scale-95"
         >
           <Plus className="h-4 w-4 stroke-[3]" />
@@ -1532,9 +1674,9 @@ export default function WaiterWorkspacePage() {
         >
           <Utensils className="h-5 w-5" />
           <span className="text-[10px]">Active Orders</span>
-          {activeUnpaidOrders.length > 0 && (
-            <span className="absolute top-0 right-3 bg-amber-500 text-white font-black text-[9px] h-4 w-4 rounded-full flex items-center justify-center shadow-xs">
-              {activeUnpaidOrders.length}
+          {actionRequiredOrders.length > 0 && (
+            <span className="absolute top-0 right-3 bg-amber-500 text-white font-black text-[9px] h-4 w-4 rounded-full flex items-center justify-center shadow-xs animate-bounce">
+              {actionRequiredOrders.length}
             </span>
           )}
         </button>

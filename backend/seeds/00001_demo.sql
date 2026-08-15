@@ -119,5 +119,4 @@ ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
   price = EXCLUDED.price,
-  is_active = EXCLUDED.is_active,
-  updated_at = now();
+  is_active = EXCLUDED.is_active;

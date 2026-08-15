@@ -9,3 +9,6 @@ ALTER TABLE users ALTER COLUMN id TYPE VARCHAR(50) USING id::text;
 
 -- 3. Re-add foreign key constraint
 ALTER TABLE expenses ADD CONSTRAINT expenses_recorded_by_id_fkey FOREIGN KEY (recorded_by_id) REFERENCES users(id) ON DELETE SET NULL;
+
+-- 4. Ensure menu_item_addons has updated_at column
+ALTER TABLE menu_item_addons ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();

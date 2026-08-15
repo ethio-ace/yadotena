@@ -4,11 +4,11 @@
 
 -- 1. USERS & ROLES
 INSERT INTO users (id, name, email, password_hash, role, status) VALUES
-('usr-owner', 'Yadotena Owner', 'owner@yadotena.com', '$2a$10$7890abcdef7890abcdef7890abcdef7890abcdef7890abcdef', 'OWNER', 'ACTIVE'),
-('usr-mgr-1', 'Abebe Manager', 'manager@yadotena.com', '$2a$10$7890abcdef7890abcdef7890abcdef7890abcdef7890abcdef', 'MANAGER', 'ACTIVE'),
-('usr-waiter-1', 'Tigist Waiter', 'waiter@yadotena.com', '$2a$10$7890abcdef7890abcdef7890abcdef7890abcdef7890abcdef', 'WAITER', 'ACTIVE'),
-('usr-chef-1', 'Dawit Kitchen Chef', 'chef@yadotena.com', '$2a$10$7890abcdef7890abcdef7890abcdef7890abcdef7890abcdef', 'CHEF', 'ACTIVE'),
-('usr-cashier-1', 'Makeda Cashier', 'cashier@yadotena.com', '$2a$10$7890abcdef7890abcdef7890abcdef7890abcdef7890abcdef', 'CASHIER', 'ACTIVE')
+('usr-owner', 'Yadotena Owner', 'owner@yadotena.com', '$2a$10$1z0SUWV1zdVle3l7CFy2IunK.AE0kCDyyOBulcFYMWwWt8jMdOAYe', 'OWNER', 'ACTIVE'),
+('usr-mgr-1', 'Abebe Manager', 'manager@yadotena.com', '$2a$10$1z0SUWV1zdVle3l7CFy2IunK.AE0kCDyyOBulcFYMWwWt8jMdOAYe', 'MANAGER', 'ACTIVE'),
+('usr-waiter-1', 'Tigist Waiter', 'waiter@yadotena.com', '$2a$10$1z0SUWV1zdVle3l7CFy2IunK.AE0kCDyyOBulcFYMWwWt8jMdOAYe', 'WAITER', 'ACTIVE'),
+('usr-chef-1', 'Dawit Kitchen Chef', 'chef@yadotena.com', '$2a$10$1z0SUWV1zdVle3l7CFy2IunK.AE0kCDyyOBulcFYMWwWt8jMdOAYe', 'CHEF', 'ACTIVE'),
+('usr-cashier-1', 'Makeda Cashier', 'cashier@yadotena.com', '$2a$10$1z0SUWV1zdVle3l7CFy2IunK.AE0kCDyyOBulcFYMWwWt8jMdOAYe', 'CASHIER', 'ACTIVE')
 ON CONFLICT (email) DO UPDATE SET
   id = EXCLUDED.id,
   name = EXCLUDED.name,

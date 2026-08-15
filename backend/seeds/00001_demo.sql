@@ -9,9 +9,10 @@ INSERT INTO users (id, name, email, password_hash, role, status) VALUES
 ('usr-waiter-1', 'Tigist Waiter', 'waiter@yadotena.com', '$2a$10$7890abcdef7890abcdef7890abcdef7890abcdef7890abcdef', 'WAITER', 'ACTIVE'),
 ('usr-chef-1', 'Dawit Kitchen Chef', 'chef@yadotena.com', '$2a$10$7890abcdef7890abcdef7890abcdef7890abcdef7890abcdef', 'CHEF', 'ACTIVE'),
 ('usr-cashier-1', 'Makeda Cashier', 'cashier@yadotena.com', '$2a$10$7890abcdef7890abcdef7890abcdef7890abcdef7890abcdef', 'CASHIER', 'ACTIVE')
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (email) DO UPDATE SET
+  id = EXCLUDED.id,
   name = EXCLUDED.name,
-  email = EXCLUDED.email,
+  password_hash = EXCLUDED.password_hash,
   role = EXCLUDED.role,
   status = EXCLUDED.status,
   updated_at = now();

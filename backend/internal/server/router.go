@@ -77,6 +77,8 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 	r.Get("/tables", s.listTables)
 	r.Get("/tables/{id}", s.getTable)
 	r.Get("/settings", s.getSettings)
+	r.Get("/payment-methods", s.listPaymentMethods)
+	r.Get("/payment-methods/{id}", s.getPaymentMethod)
 	r.Post("/orders", s.createOrderEndpoint)
 	r.Get("/orders/{id}", s.getOrder)
 	r.Post("/service-requests", s.createServiceRequest)

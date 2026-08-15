@@ -165,191 +165,207 @@ export function PaymentSettlementModal({
           </Badge>
         </div>
 
-        {/* Payment Method Selector */}
+        {/* Payment Method Selector (Dynamically Loaded from DB) */}
         <div className="space-y-2">
-          <label className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-            Select Payment Method
+          <label className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex justify-between items-center">
+            <span>Select Payment Method (DB)</span>
+            <span className="text-[10px] text-muted-foreground font-normal">
+              {paymentMethods.length > 0 ? `${paymentMethods.length} Available` : "Loading DB Methods..."}
+            </span>
           </label>
-          <div className="grid grid-cols-3 gap-2 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => { setSelectedMethod("CASH"); setValidationError(""); }}
-              className={`p-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${
-                selectedMethod === "CASH"
-                  ? "bg-primary text-primary-foreground border-primary shadow-md scale-102"
-                  : "bg-card border-border text-muted-foreground hover:bg-muted/50"
-              }`}
-            >
-              <Banknote className="h-5 w-5" />
-              <span>Cash</span>
-            </button>
 
-            <button
-              type="button"
-              onClick={() => { setSelectedMethod("BANK_TRANSFER"); setValidationError(""); }}
-              className={`p-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${
-                selectedMethod === "BANK_TRANSFER" || selectedMethod === "BANK"
-                  ? "bg-primary text-primary-foreground border-primary shadow-md scale-102"
-                  : "bg-card border-border text-muted-foreground hover:bg-muted/50"
-              }`}
-            >
-              <CreditCard className="h-5 w-5" />
-              <span>Digital / Bank</span>
-            </button>
+          {/* Dynamic Grid of DB Payment Methods */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-bold">
+            {(paymentMethods.length > 0 ? paymentMethods : [
+              { id: "cash", name: "Cash", code: "CASH", type: "CASH" },
+              { id: "cbe", name: "CBE Birr / Transfer", code: "CBE_BIRR", type: "DIGITAL", accountNumber: "1000123456789", accountName: "Yadotena Restaurant", instructions: "Transfer to CBE Account 1000123456789 and input Txn ID" },
+              { id: "telebirr", name: "Telebirr", code: "TELEBIRR", type: "WALLET", accountNumber: "0911223344", accountName: "Yadotena Merchant", instructions: "Pay via Telebirr Merchant ID 0911223344" },
+              { id: "boa", name: "Bank of Abyssinia", code: "BOA", type: "DIGITAL", accountNumber: "88990011", accountName: "Yadotena POS" },
+            ]).map((pm: any) => {
+              const code = pm.code || pm.name;
+              const isSelected = selectedMethod === code || (selectedMethod === "CASH" && pm.type === "CASH");
+              const isCash = pm.type === "CASH" || code.toUpperCase() === "CASH";
 
-            <button
-              type="button"
-              onClick={() => { setSelectedMethod("WALLET"); setValidationError(""); }}
-              className={`p-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${
-                selectedMethod === "WALLET"
-                  ? "bg-primary text-primary-foreground border-primary shadow-md scale-102"
-                  : "bg-card border-border text-muted-foreground hover:bg-muted/50"
-              }`}
-            >
-              <Wallet className="h-5 w-5" />
-              <span>Wallet</span>
-            </button>
-          </div>
-
-          {paymentMethods.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {paymentMethods.map((pm: any) => (
+              return (
                 <button
-                  key={pm.id}
+                  key={pm.id || code}
                   type="button"
-                  onClick={() => { setSelectedMethod(pm.code || pm.name); setValidationError(""); }}
-                  className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all ${
-                    selectedMethod === (pm.code || pm.name)
-                      ? "bg-primary/20 border-primary text-primary"
-                      : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted"
+                  onClick={() => {
+                    setSelectedMethod(code);
+                    setValidationError("");
+                  }}
+                  className={`p-3 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 text-center ${
+                    isSelected
+                      ? "bg-primary text-primary-foreground border-primary shadow-md scale-102 font-black"
+                      : "bg-card border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                   }`}
                 >
-                  {pm.name}
+                  {isCash ? (
+                    <Banknote className="h-5 w-5 shrink-0" />
+                  ) : pm.type === "WALLET" ? (
+                    <Wallet className="h-5 w-5 shrink-0" />
+                  ) : (
+                    <CreditCard className="h-5 w-5 shrink-0" />
+                  )}
+                  <span className="truncate max-w-full text-xs">{pm.name}</span>
                 </button>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </div>
 
-        {/* CASH SPECIFIC INPUT & CALCULATOR */}
-        {selectedMethod === "CASH" ? (
-          <div className="space-y-3 bg-muted/30 p-4 rounded-2xl border border-border">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground flex justify-between">
-                <span>Cash Received (ETB)</span>
-                {cashTenderedNum > 0 && cashTenderedNum >= totalAmount && (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">Valid Amount</span>
-                )}
-              </label>
-              <Input
-                type="number"
-                placeholder={`e.g. ${totalAmount}`}
-                value={cashTendered}
-                onChange={(e) => setCashTendered(e.target.value)}
-                className="text-base h-11 font-black rounded-xl bg-background border"
-              />
-            </div>
+        {/* Dynamic Payment Details & Inputs based on Selected DB Method */}
+        {(() => {
+          const currentMethodObj = paymentMethods.find(
+            (pm: any) => (pm.code || pm.name) === selectedMethod
+          );
+          const isCash = selectedMethod === "CASH" || currentMethodObj?.type === "CASH";
 
-            {/* Quick Cash Presets */}
-            {cashPresets.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                <span className="text-[10px] font-extrabold uppercase text-muted-foreground self-center mr-1">Presets:</span>
-                {cashPresets.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setCashTendered(preset.toString())}
-                    className="px-2.5 py-1 rounded-lg bg-background border text-xs font-extrabold text-foreground hover:border-primary hover:text-primary transition-all"
-                  >
-                    {formatETB(preset)}
-                  </button>
-                ))}
-              </div>
-            )}
+          if (isCash) {
+            return (
+              <div className="space-y-3 bg-muted/30 p-4 rounded-2xl border border-border">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground flex justify-between">
+                    <span>Cash Received (ETB)</span>
+                    {cashTenderedNum > 0 && cashTenderedNum >= totalAmount && (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">Valid Amount</span>
+                    )}
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder={`e.g. ${totalAmount}`}
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(e.target.value)}
+                    className="text-base h-11 font-black rounded-xl bg-background border"
+                  />
+                </div>
 
-            {cashTenderedNum > 0 && (
-              <div className="flex justify-between items-center text-sm font-black pt-2 border-t border-border">
-                <span className="text-muted-foreground">Change to Return:</span>
-                <span className={cashTenderedNum >= totalAmount ? "text-emerald-600 dark:text-emerald-400 text-base font-black" : "text-destructive"}>
-                  {cashTenderedNum >= totalAmount ? formatETB(changeDue) : "Insufficient cash"}
-                </span>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* DIGITAL / BANK / WALLET SPECIFIC INPUT */
-          <div className="space-y-3 bg-muted/30 p-4 rounded-2xl border border-border">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground flex justify-between">
-                <span>Transaction Reference *</span>
-                <span className="text-destructive text-[10px]">Required</span>
-              </label>
-              <Input
-                placeholder="e.g. TXN-984210 or CBE-839284"
-                value={transactionRef}
-                onChange={(e) => {
-                  setTransactionRef(e.target.value);
-                  if (validationError) setValidationError("");
-                }}
-                className="text-xs h-10 rounded-xl bg-background font-mono border"
-              />
-            </div>
-
-            {/* Optional Receipt Photo Upload */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground flex justify-between">
-                <span>Receipt Photo (Optional)</span>
-                {receiptUrl && <span className="text-emerald-600 text-[10px] font-bold">Uploaded ✓</span>}
-              </label>
-
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="image/*"
-                onChange={handleReceiptUpload}
-                className="hidden"
-              />
-
-              {receiptUrl ? (
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-background border text-xs">
-                  <div className="flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4 text-primary shrink-0" />
-                    <span className="truncate max-w-[180px] font-medium text-foreground">Receipt Uploaded</span>
+                {/* Quick Cash Presets */}
+                {cashPresets.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-[10px] font-extrabold uppercase text-muted-foreground self-center mr-1">Presets:</span>
+                    {cashPresets.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setCashTendered(preset.toString())}
+                        className="px-2.5 py-1 rounded-lg bg-background border text-xs font-extrabold text-foreground hover:border-primary hover:text-primary transition-all"
+                      >
+                        {formatETB(preset)}
+                      </button>
+                    ))}
                   </div>
+                )}
+
+                {cashTenderedNum > 0 && (
+                  <div className="flex justify-between items-center text-sm font-black pt-2 border-t border-border">
+                    <span className="text-muted-foreground">Change to Return:</span>
+                    <span className={cashTenderedNum >= totalAmount ? "text-emerald-600 dark:text-emerald-400 text-base font-black" : "text-destructive"}>
+                      {cashTenderedNum >= totalAmount ? formatETB(changeDue) : "Insufficient cash"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-3 bg-muted/30 p-4 rounded-2xl border border-border">
+              {/* Display DB Account Details if available */}
+              {(currentMethodObj?.accountNumber || currentMethodObj?.instructions) && (
+                <div className="p-3 bg-primary/5 border border-primary/15 rounded-xl space-y-1 text-xs">
+                  {currentMethodObj.accountName && (
+                    <div className="flex justify-between font-bold">
+                      <span className="text-muted-foreground">Account Name:</span>
+                      <span className="text-foreground">{currentMethodObj.accountName}</span>
+                    </div>
+                  )}
+                  {currentMethodObj.accountNumber && (
+                    <div className="flex justify-between font-mono font-bold">
+                      <span className="text-muted-foreground font-sans">Account No:</span>
+                      <span className="text-primary font-extrabold">{currentMethodObj.accountNumber}</span>
+                    </div>
+                  )}
+                  {currentMethodObj.instructions && (
+                    <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/50">
+                      💡 {currentMethodObj.instructions}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted-foreground flex justify-between">
+                  <span>Transaction Reference / Txn ID *</span>
+                  <span className="text-destructive text-[10px]">Required</span>
+                </label>
+                <Input
+                  placeholder="e.g. TXN-984210 or CBE-839284"
+                  value={transactionRef}
+                  onChange={(e) => {
+                    setTransactionRef(e.target.value);
+                    if (validationError) setValidationError("");
+                  }}
+                  className="text-xs h-10 rounded-xl bg-background font-mono border"
+                />
+              </div>
+
+              {/* Optional Receipt Photo Upload */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted-foreground flex justify-between">
+                  <span>Receipt Photo (Optional)</span>
+                  {receiptUrl && <span className="text-emerald-600 text-[10px] font-bold">Uploaded ✓</span>}
+                </label>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleReceiptUpload}
+                  className="hidden"
+                />
+
+                {receiptUrl ? (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-background border text-xs">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4 text-primary shrink-0" />
+                      <span className="truncate max-w-[180px] font-medium text-foreground">Receipt Uploaded</span>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setReceiptUrl("")}
+                      className="h-7 text-[10px] text-destructive hover:bg-destructive/10"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
                   <Button
                     type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setReceiptUrl("")}
-                    className="h-7 text-[10px] text-destructive hover:bg-destructive/10"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="w-full h-10 rounded-xl text-xs font-bold border-dashed border-muted-foreground/40 gap-2 hover:border-primary text-muted-foreground hover:text-foreground"
                   >
-                    Remove
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        Uploading Receipt...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4" />
+                        Upload Receipt Image
+                      </>
+                    )}
                   </Button>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                  className="w-full h-10 rounded-xl text-xs font-bold border-dashed border-muted-foreground/40 gap-2 hover:border-primary text-muted-foreground hover:text-foreground"
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      Uploading Receipt...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4" />
-                      Upload Receipt Image
-                    </>
-                  )}
-                </Button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Submit Action */}
         <div className="pt-2">

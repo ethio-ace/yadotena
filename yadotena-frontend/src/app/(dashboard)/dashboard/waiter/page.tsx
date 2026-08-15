@@ -700,6 +700,83 @@ export default function WaiterWorkspacePage() {
             
             {/* CATALOG COLUMN */}
             <div className="lg:col-span-8 space-y-4">
+
+              {/* FAST TABLE SELECTION STEP (Enforce Table First for Dine-In) */}
+              {orderType === "DINE_IN" && (
+                <Card className={`rounded-3xl border p-4 shadow-sm transition-all ${
+                  !selectedTable ? "border-amber-500/60 bg-amber-500/5 ring-2 ring-amber-500/30" : "bg-card"
+                }`}>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`h-10 w-10 rounded-2xl flex items-center justify-center font-black text-sm ${
+                        selectedTable ? "bg-emerald-500 text-white" : "bg-amber-500 text-white animate-bounce"
+                      }`}>
+                        {selectedTable ? "✓" : "1"}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-foreground flex items-center gap-2">
+                          <span>{selectedTable ? `Table Selected: Table #${selectedTable.id.replace("t", "")}` : "Step 1: Select Dining Table First"}</span>
+                          {selectedTable && (
+                            <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                              {selectedTable.capacity} Seats • {selectedTable.status}
+                            </Badge>
+                          )}
+                        </h4>
+                        <p className="text-xs text-muted-foreground font-medium">
+                          {selectedTable 
+                            ? (activeOrderForSelectedTable 
+                                ? `Active Order #${activeOrderForSelectedTable.id.slice(-6).toUpperCase()} found on this table. Added items will append.` 
+                                : "Table ready for new dine-in order entry.")
+                            : "Select a dining table below before adding menu items to ticket."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant={selectedTable ? "outline" : "default"}
+                      onClick={() => setTableModalOpen(true)}
+                      className={`h-9 rounded-xl text-xs font-black shrink-0 ${
+                        !selectedTable ? "bg-amber-500 hover:bg-amber-600 text-white shadow-md" : "border"
+                      }`}
+                    >
+                      <Users className="h-4 w-4" />
+                      <span>{selectedTable ? "Change Table" : "Browse All Tables"}</span>
+                    </Button>
+                  </div>
+
+                  {/* 1-Tap Quick Table Buttons Grid */}
+                  <div className="flex flex-wrap gap-2 pt-3 border-t mt-3">
+                    {tables.map((tbl) => {
+                      const isSelected = selectedTable?.id === tbl.id;
+                      const hasActive = orders.some(o => o.tableId === tbl.id && o.status !== "COMPLETED" && o.status !== "CANCELLED");
+
+                      return (
+                        <button
+                          key={tbl.id}
+                          type="button"
+                          onClick={() => handleSelectTable(tbl)}
+                          className={`px-3.5 py-2 rounded-2xl border text-xs font-black transition-all flex items-center gap-1.5 ${
+                            isSelected
+                              ? "bg-primary text-primary-foreground border-primary shadow-md scale-105"
+                              : hasActive
+                              ? "bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                              : "bg-card border-border text-foreground hover:border-primary hover:bg-primary/5"
+                          }`}
+                        >
+                          <span>Table #{tbl.id.replace("t", "")}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
+                            isSelected ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                          }`}>
+                            {tbl.capacity}p
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Card>
+              )}
+
               <Card className="rounded-3xl border shadow-sm p-5 space-y-4 bg-card">
                 
                 {/* Search & Header */}

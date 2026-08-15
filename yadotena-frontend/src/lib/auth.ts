@@ -38,7 +38,11 @@ export const authOptions: NextAuthOptions = {
               id: user.id,
               name: user.name,
               email: user.email,
-              role: user.role,
+              // The backend issues CHEF for kitchen staff; the frontend models
+              // the kitchen role as KITCHEN. Normalize at the boundary so every
+              // downstream role check (layout, routing, chrome) treats both
+              // identically — exactly as the backend middleware does.
+              role: user.role === "CHEF" ? "KITCHEN" : user.role,
               accessToken: tokenStr,
             };
           }

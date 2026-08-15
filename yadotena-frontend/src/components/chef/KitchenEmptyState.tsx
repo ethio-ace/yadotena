@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Flame, Clock } from "lucide-react";
+import { CheckCircle2, Clock } from "lucide-react";
 
 interface KitchenEmptyStateProps {
   type: "PENDING" | "PREPARING" | "READY" | "ALL_CLEAR";

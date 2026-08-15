@@ -7,6 +7,8 @@ import { Flame, Clock, CheckCircle2 } from "lucide-react";
 
 interface KitchenBoardProps {
   orders: Order[];
+  newOrderIds?: Set<string>;
+  addonMap?: Record<string, string>;
   onStartPreparing: (orderId: string) => void;
   onMarkReady: (orderId: string) => void;
   onInspectOrder: (order: Order) => void;
@@ -15,6 +17,8 @@ interface KitchenBoardProps {
 
 export function KitchenBoard({
   orders,
+  newOrderIds,
+  addonMap,
   onStartPreparing,
   onMarkReady,
   onInspectOrder,
@@ -22,17 +26,14 @@ export function KitchenBoard({
 }: KitchenBoardProps) {
   const [mobileTab, setMobileTab] = useState<"PENDING" | "PREPARING" | "READY">("PENDING");
 
-  const pendingOrders = orders
-    .filter((o) => o.status === "PENDING")
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  // Stable FIFO: oldest ticket on top. New arrivals slot in at the bottom with a
+  // NEW highlight instead of reshuffling what the chef is already reading.
+  const byOldestFirst = (a: Order, b: Order) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
 
-  const preparingOrders = orders
-    .filter((o) => o.status === "PREPARING")
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-  const readyOrders = orders
-    .filter((o) => o.status === "READY")
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const pendingOrders = orders.filter((o) => o.status === "PENDING").sort(byOldestFirst);
+  const preparingOrders = orders.filter((o) => o.status === "PREPARING").sort(byOldestFirst);
+  const readyOrders = orders.filter((o) => o.status === "READY").sort(byOldestFirst);
 
   return (
     <div className="flex flex-col flex-1 p-4 max-w-[1800px] mx-auto w-full">
@@ -82,6 +83,8 @@ export function KitchenBoard({
             title="New Orders"
             status="PENDING"
             orders={pendingOrders}
+            newOrderIds={newOrderIds}
+            addonMap={addonMap}
             onStartPreparing={onStartPreparing}
             onInspect={onInspectOrder}
             isLoading={isLoading}
@@ -92,6 +95,7 @@ export function KitchenBoard({
             title="Preparing"
             status="PREPARING"
             orders={preparingOrders}
+            addonMap={addonMap}
             onMarkReady={onMarkReady}
             onInspect={onInspectOrder}
             isLoading={isLoading}
@@ -102,6 +106,7 @@ export function KitchenBoard({
             title="Ready for Pickup"
             status="READY"
             orders={readyOrders}
+            addonMap={addonMap}
             onInspect={onInspectOrder}
             isLoading={isLoading}
           />
@@ -114,6 +119,8 @@ export function KitchenBoard({
           title="New Orders Waiting"
           status="PENDING"
           orders={pendingOrders}
+          newOrderIds={newOrderIds}
+          addonMap={addonMap}
           onStartPreparing={onStartPreparing}
           onInspect={onInspectOrder}
           isLoading={isLoading}
@@ -123,6 +130,7 @@ export function KitchenBoard({
           title="Currently Preparing"
           status="PREPARING"
           orders={preparingOrders}
+          addonMap={addonMap}
           onMarkReady={onMarkReady}
           onInspect={onInspectOrder}
           isLoading={isLoading}
@@ -132,6 +140,7 @@ export function KitchenBoard({
           title="Ready for Waiter"
           status="READY"
           orders={readyOrders}
+          addonMap={addonMap}
           onInspect={onInspectOrder}
           isLoading={isLoading}
         />

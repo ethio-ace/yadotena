@@ -2,10 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { Order } from "@/types";
-import { Clock, Play, CheckCircle2, AlertTriangle, ChevronRight, MessageSquare } from "lucide-react";
+import { Clock, Play, CheckCircle2, AlertTriangle, Sparkles } from "lucide-react";
+import {
+  formatElapsed,
+  getUrgency,
+  orderDestination,
+  orderTicketNumber,
+  addonNames,
+} from "@/lib/kitchen";
 
 interface KitchenOrderCardProps {
   order: Order;
+  isNew?: boolean;
+  addonMap?: Record<string, string>;
   onStartPreparing?: (orderId: string) => void;
   onMarkReady?: (orderId: string) => void;
   onInspect?: (order: Order) => void;
@@ -14,6 +23,8 @@ interface KitchenOrderCardProps {
 
 export function KitchenOrderCard({
   order,
+  isNew = false,
+  addonMap,
   onStartPreparing,
   onMarkReady,
   onInspect,
@@ -24,8 +35,7 @@ export function KitchenOrderCard({
   useEffect(() => {
     const calculateElapsed = () => {
       const createdTime = new Date(order.createdAt).getTime();
-      const now = Date.now();
-      const diffSec = Math.max(0, Math.floor((now - createdTime) / 1000));
+      const diffSec = Math.max(0, Math.floor((Date.now() - createdTime) / 1000));
       setElapsedSeconds(diffSec);
     };
 
@@ -35,20 +45,25 @@ export function KitchenOrderCard({
   }, [order.createdAt]);
 
   const elapsedMins = Math.floor(elapsedSeconds / 60);
-  const elapsedSecsLeft = elapsedSeconds % 60;
-  const formattedTimer = `${String(elapsedMins).padStart(2, "0")}:${String(elapsedSecsLeft).padStart(2, "0")}`;
+  const urgency = getUrgency(elapsedMins);
+  const formattedTimer = formatElapsed(elapsedSeconds);
 
-  // Progressive Urgency thresholds
-  // 0-5 min: Normal | 5-10 min: Attention | >10 min: Urgent
-  let urgencyLevel: "NORMAL" | "ATTENTION" | "URGENT" = "NORMAL";
-  if (elapsedMins >= 10) {
-    urgencyLevel = "URGENT";
-  } else if (elapsedMins >= 5) {
-    urgencyLevel = "ATTENTION";
-  }
+  // Urgency is communicated with explicit labels + icons, never color alone.
+  const urgencyLabel =
+    urgency === "URGENT"
+      ? {
+          text: "LATE TICKET",
+          chip: "bg-red-600 text-white border-red-500 animate-pulse",
+        }
+      : urgency === "ATTENTION"
+        ? {
+            text: "ATTENTION",
+            chip: "bg-amber-500 text-zinc-950 border-amber-400",
+          }
+        : null;
 
   const getUrgencyStyles = () => {
-    switch (urgencyLevel) {
+    switch (urgency) {
       case "URGENT":
         return {
           cardBorder: "border-red-500/80 bg-red-950/20 shadow-red-900/30 ring-2 ring-red-500/40 animate-pulse",
@@ -75,13 +90,15 @@ export function KitchenOrderCard({
   const isPreparing = order.status === "PREPARING";
   const isReady = order.status === "READY";
 
-  const orderNumber = order.id.slice(-6).toUpperCase();
-  const destination = order.tableId ? `TABLE ${order.tableId.replace(/^t/i, "")}` : order.type || "TAKEAWAY";
+  const destination = orderDestination(order);
+  const orderNumber = orderTicketNumber(order);
 
   return (
     <div
       onClick={() => onInspect?.(order)}
-      className={`rounded-2xl border p-4 transition-all duration-200 flex flex-col justify-between cursor-pointer select-none group relative overflow-hidden ${styles.cardBorder}`}
+      className={`rounded-2xl border p-4 transition-all duration-200 flex flex-col justify-between cursor-pointer select-none group relative overflow-hidden ${
+        isNew ? "ring-2 ring-amber-400/70 border-amber-400/70 shadow-amber-900/30 animate-in fade-in zoom-in-95 duration-200" : styles.cardBorder
+      }`}
     >
       {/* CARD HEADER */}
       <div>
@@ -94,21 +111,27 @@ export function KitchenOrderCard({
               <span className="text-xs font-mono font-bold text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded-md">
                 #{orderNumber}
               </span>
+              {isNew && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500 text-zinc-950 text-[10px] font-black uppercase tracking-wider animate-pulse">
+                  <Sparkles className="h-3 w-3" /> New
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-zinc-400 mt-0.5 font-medium">
               {order.type === "DINE_IN" ? "Dine-in Ticket" : "Takeaway / Counter"}
             </p>
           </div>
 
-          {/* Elapsed Timer & Urgency Badge */}
+          {/* Elapsed Timer & Urgency Label */}
           <div className="flex flex-col items-end gap-1">
             <span className={`px-2.5 py-1 rounded-xl text-xs font-mono flex items-center gap-1 shadow-sm ${styles.timerBadge}`}>
               <Clock className="h-3.5 w-3.5" />
               {formattedTimer}
             </span>
-            {urgencyLevel === "URGENT" && (
-              <span className="text-[10px] font-black text-red-400 flex items-center gap-1 uppercase tracking-wider">
-                <AlertTriangle className="h-3 w-3" /> LATE TICKET
+            {urgencyLabel && (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${urgencyLabel.chip}`}>
+                {urgency === "URGENT" && <AlertTriangle className="h-3 w-3" />}
+                {urgencyLabel.text}
               </span>
             )}
           </div>
@@ -126,12 +149,12 @@ export function KitchenOrderCard({
               </div>
 
               {/* Add-ons list */}
-              {item.selectedAddons && item.selectedAddons.length > 0 && (
+              {addonNames(item.selectedAddons, addonMap).length > 0 && (
                 <div className="pl-4 space-y-0.5 text-xs font-medium text-zinc-400 border-l-2 border-amber-500/30 ml-1">
-                  {item.selectedAddons.map((addon, aIdx) => (
+                  {addonNames(item.selectedAddons, addonMap).map((addon, aIdx) => (
                     <div key={aIdx} className="flex items-center gap-1 text-zinc-300">
                       <span className="text-amber-500 font-bold">+</span>
-                      <span>{typeof addon === "string" ? addon : (addon as any).name || addon}</span>
+                      <span>{addon}</span>
                     </div>
                   ))}
                 </div>

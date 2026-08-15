@@ -1,7 +1,8 @@
 "use client";
 
 import { Order } from "@/types";
-import { X, Play, CheckCircle2, Clock, MapPin, AlertTriangle, MessageSquare } from "lucide-react";
+import { X, Play, CheckCircle2, Clock, AlertTriangle, MapPin } from "lucide-react";
+import { orderDestination, orderTicketNumber, addonNames } from "@/lib/kitchen";
 
 interface OrderDetailSheetProps {
   order: Order | null;
@@ -10,6 +11,7 @@ interface OrderDetailSheetProps {
   onStartPreparing?: (orderId: string) => void;
   onMarkReady?: (orderId: string) => void;
   isLoading?: boolean;
+  addonMap?: Record<string, string>;
 }
 
 export function OrderDetailSheet({
@@ -19,21 +21,23 @@ export function OrderDetailSheet({
   onStartPreparing,
   onMarkReady,
   isLoading,
+  addonMap,
 }: OrderDetailSheetProps) {
   if (!isOpen || !order) return null;
 
   const isPending = order.status === "PENDING";
   const isPreparing = order.status === "PREPARING";
   const isReady = order.status === "READY";
-  const destination = order.tableId ? `TABLE ${order.tableId.replace(/^t/i, "")}` : order.type || "TAKEAWAY";
+  const destination = orderDestination(order);
+  const hasStarted = order.status !== "PENDING";
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end md:items-stretch md:justify-end animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="bg-zinc-950 text-zinc-100 border-l border-zinc-800 w-full max-w-md h-full flex flex-col justify-between p-6 shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300"
+        className="bg-zinc-950 text-zinc-100 border-t md:border-t-0 md:border-l border-zinc-800 w-full md:w-full md:max-w-md h-[85vh] md:h-full flex flex-col justify-between p-6 shadow-2xl overflow-y-auto animate-in slide-in-from-bottom duration-300 md:slide-in-from-right"
         onClick={(e) => e.stopPropagation()}
       >
         <div>
@@ -41,15 +45,41 @@ export function OrderDetailSheet({
           <div className="flex items-start justify-between border-b border-zinc-800 pb-4 mb-6">
             <div>
               <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg uppercase tracking-wide">
-                #{order.id.slice(-6).toUpperCase()}
+                #{orderTicketNumber(order)}
               </span>
               <h2 className="text-2xl font-black text-white mt-2 tracking-tight">
                 {destination}
               </h2>
-              <p className="text-xs text-zinc-400 mt-1 flex items-center gap-2 font-medium">
-                <Clock className="h-3.5 w-3.5 text-zinc-500" />
-                <span>Created at {new Date(order.createdAt).toLocaleTimeString()}</span>
-              </p>
+              <div className="mt-2 space-y-1 text-xs text-zinc-400 font-medium">
+                <p className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-zinc-500" />
+                  <span>
+                    Created at{" "}
+                    {new Date(order.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </p>
+                {hasStarted && (
+                  <p className="flex items-center gap-2">
+                    <Play className="h-3.5 w-3.5 text-zinc-500" />
+                    <span>
+                      Started at{" "}
+                      {new Date(order.updatedAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </p>
+                )}
+                {order.type === "DELIVERY" && order.deliveryAddress && (
+                  <p className="flex items-center gap-2">
+                    <MapPin className="h-3.5 w-3.5 text-zinc-500" />
+                    <span>{order.deliveryAddress}</span>
+                  </p>
+                )}
+              </div>
             </div>
             <button
               onClick={onClose}
@@ -61,8 +91,8 @@ export function OrderDetailSheet({
 
           {/* Ticket Items List */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-              <span>Kitchen Items ({order.items?.length || 0})</span>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+              Kitchen Items ({order.items?.length || 0})
             </h3>
 
             <div className="space-y-3">
@@ -75,12 +105,12 @@ export function OrderDetailSheet({
                     </span>
                   </div>
 
-                  {item.selectedAddons && item.selectedAddons.length > 0 && (
+                  {addonNames(item.selectedAddons, addonMap).length > 0 && (
                     <div className="pl-4 space-y-1 text-xs font-medium text-zinc-300 border-l-2 border-amber-500/30">
-                      {item.selectedAddons.map((addon, aIdx) => (
+                      {addonNames(item.selectedAddons, addonMap).map((addon, aIdx) => (
                         <div key={aIdx} className="flex items-center gap-1">
                           <span className="text-amber-400 font-bold">+</span>
-                          <span>{typeof addon === "string" ? addon : (addon as any).name || addon}</span>
+                          <span>{addon}</span>
                         </div>
                       ))}
                     </div>

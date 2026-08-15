@@ -9,6 +9,8 @@ interface KitchenColumnProps {
   title: string;
   status: "PENDING" | "PREPARING" | "READY";
   orders: Order[];
+  newOrderIds?: Set<string>;
+  addonMap?: Record<string, string>;
   onStartPreparing?: (orderId: string) => void;
   onMarkReady?: (orderId: string) => void;
   onInspect?: (order: Order) => void;
@@ -19,6 +21,8 @@ export function KitchenColumn({
   title,
   status,
   orders,
+  newOrderIds,
+  addonMap,
   onStartPreparing,
   onMarkReady,
   onInspect,
@@ -47,7 +51,7 @@ export function KitchenColumn({
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950/40 border border-zinc-850 rounded-2xl overflow-hidden shadow-xl">
+    <div className="flex flex-col h-full bg-zinc-950/40 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
       {/* Column Header */}
       <div className={`p-4 border-b flex items-center justify-between ${getHeaderColor()}`}>
         <div className="flex items-center gap-2">
@@ -67,6 +71,8 @@ export function KitchenColumn({
           <KitchenOrderCard
             key={order.id}
             order={order}
+            isNew={newOrderIds?.has(order.id)}
+            addonMap={addonMap}
             onStartPreparing={onStartPreparing}
             onMarkReady={onMarkReady}
             onInspect={onInspect}

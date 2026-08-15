@@ -14,22 +14,42 @@ export function KitchenConnectionStatus({
 }: KitchenConnectionStatusProps) {
   const [showReconnected, setShowReconnected] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>("");
+  // Only surface a "RECONNECTED" notice after the connection actually dropped
+  // — never on first load.
+  const [wasDown, setWasDown] = useState(false);
+  const [prevConnected, setPrevConnected] = useState(isConnected);
 
-  useEffect(() => {
+  // Adjust derived state when the connection prop flips (render-phase update,
+  // the documented React pattern — never setState synchronously in an effect).
+  if (prevConnected !== isConnected) {
+    setPrevConnected(isConnected);
     if (isConnected) {
       setLastSyncTime(new Date().toLocaleTimeString());
-      setShowReconnected(true);
-      const timer = setTimeout(() => setShowReconnected(false), 4000);
-      return () => clearTimeout(timer);
+      if (wasDown) {
+        setWasDown(false);
+        setShowReconnected(true);
+      }
+    } else {
+      setWasDown(true);
+      setShowReconnected(false);
     }
-  }, [isConnected]);
+  }
+
+  useEffect(() => {
+    if (!showReconnected) return;
+    const timer = setTimeout(() => setShowReconnected(false), 4000);
+    return () => clearTimeout(timer);
+  }, [showReconnected]);
 
   if (!isConnected) {
     return (
       <div className="bg-red-950/90 border-b border-red-800 text-red-200 px-4 py-2.5 flex items-center justify-between text-xs font-bold animate-pulse shadow-md">
         <div className="flex items-center gap-2">
           <WifiOff className="h-4 w-4 text-red-400 shrink-0" />
-          <span>⚠ CONNECTION LOST — Waiting for connection... Last updated {lastSyncTime}</span>
+          <span>
+            ⚠ CONNECTION LOST — Waiting for connection...
+            {lastSyncTime ? ` Last synced ${lastSyncTime}` : ""}
+          </span>
         </div>
         <button
           onClick={onRefresh}

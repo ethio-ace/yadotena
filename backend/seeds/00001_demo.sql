@@ -18,15 +18,15 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = now();
 
 -- 2. DINING TABLES
-INSERT INTO tables (id, number, capacity, status) VALUES
-('t1', 1, 4, 'AVAILABLE'),
-('t2', 2, 2, 'AVAILABLE'),
-('t3', 3, 6, 'AVAILABLE'),
-('t4', 4, 4, 'AVAILABLE'),
-('t5', 5, 8, 'AVAILABLE'),
-('t6', 6, 2, 'AVAILABLE')
+INSERT INTO tables (id, name, capacity, status, qr_token) VALUES
+('t1', 'Table 1', 4, 'AVAILABLE', 'qr-t1-token'),
+('t2', 'Table 2', 2, 'AVAILABLE', 'qr-t2-token'),
+('t3', 'Table 3', 6, 'AVAILABLE', 'qr-t3-token'),
+('t4', 'Table 4', 4, 'AVAILABLE', 'qr-t4-token'),
+('t5', 'Table 5', 8, 'AVAILABLE', 'qr-t5-token'),
+('t6', 'Table 6', 2, 'AVAILABLE', 'qr-t6-token')
 ON CONFLICT (id) DO UPDATE SET
-  number = EXCLUDED.number,
+  name = EXCLUDED.name,
   capacity = EXCLUDED.capacity,
   status = EXCLUDED.status,
   updated_at = now();

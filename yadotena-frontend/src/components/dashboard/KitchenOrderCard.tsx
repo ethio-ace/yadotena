@@ -18,7 +18,7 @@ export function KitchenOrderCard({
   onAddItems
 }: any) {
   const tableDisplay = order.tableId 
-    ? `Table #${order.tableId.replace('t', '')}` 
+    ? `Table ${order.tableId.replace('t', '')}` 
     : (order.customerName ? `Takeout: ${order.customerName}` : "Takeout / Express");
 
   return (
@@ -36,7 +36,7 @@ export function KitchenOrderCard({
         <div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-black text-foreground">
-              #{order.id.slice(-6).toUpperCase()}
+              {order.id.slice(-6).toUpperCase()}
             </span>
             {isUrgent && (
               <Badge className="bg-primary text-primary-foreground text-[9px] font-black uppercase px-2 py-0.5 animate-pulse">

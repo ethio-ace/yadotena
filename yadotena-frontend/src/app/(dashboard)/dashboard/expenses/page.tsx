@@ -293,7 +293,7 @@ export default function ExpensesPage() {
                 </div>
                 <div>
                   <h3 className="font-black text-base">Expense Record Detail</h3>
-                  <p className="text-[11px] text-muted-foreground font-mono">ID: #{selectedExpense.id}</p>
+                  <p className="text-[11px] text-muted-foreground font-mono">ID: {selectedExpense.id}</p>
                 </div>
               </div>
               <button onClick={() => setSelectedExpense(null)} className="text-muted-foreground hover:text-foreground">✕</button>

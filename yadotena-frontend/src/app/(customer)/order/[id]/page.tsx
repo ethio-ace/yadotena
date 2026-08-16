@@ -140,7 +140,7 @@ export default function OrderTrackingPage() {
             </Link>
             <div>
               <h2 className="text-xl font-black">Live Order Status</h2>
-              <p className="text-xs text-muted-foreground font-mono">Ticket #{order.id.slice(-6).toUpperCase()}</p>
+              <p className="text-xs text-muted-foreground font-mono">Ticket {order.id.slice(-6).toUpperCase()}</p>
             </div>
           </div>
 

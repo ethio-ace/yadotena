@@ -14,9 +14,21 @@ import {
   Plus, Edit, Trash2, Search, Layers, LayoutGrid, List, 
   Clock, Eye, Sparkles, CheckCircle2, AlertCircle, Utensils
 } from "lucide-react";
-import { CategoryManageModal } from "@/components/dashboard/CategoryManageModal";
-import { MenuItemModal } from "@/components/dashboard/MenuItemModal";
-import { DishDetailModal } from "@/components/dashboard/DishDetailModal";
+import dynamic from "next/dynamic";
+
+// Modals are code-split so the menu page loads fast; they only fetch when opened.
+const CategoryManageModal = dynamic(
+  () => import("@/components/dashboard/CategoryManageModal").then((m) => m.CategoryManageModal),
+  { ssr: false }
+);
+const MenuItemModal = dynamic(
+  () => import("@/components/dashboard/MenuItemModal").then((m) => m.MenuItemModal),
+  { ssr: false }
+);
+const DishDetailModal = dynamic(
+  () => import("@/components/dashboard/DishDetailModal").then((m) => m.DishDetailModal),
+  { ssr: false }
+);
 
 export default function MenuManagementPage() {
   const queryClient = useQueryClient();
@@ -504,6 +516,15 @@ export default function MenuManagementPage() {
         }}
       />
 
+      {/* Mobile floating add-dish FAB — the header button stays for desktop */}
+      <button
+        type="button"
+        onClick={handleOpenCreate}
+        className="md:hidden fixed bottom-5 right-4 z-40 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-2xl shadow-primary/30 flex items-center justify-center active:scale-95 transition-all"
+        aria-label="Add new dish"
+      >
+        <Plus className="h-6 w-6" />
+      </button>
     </div>
   );
 }

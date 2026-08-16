@@ -104,7 +104,7 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold">#{o.id.slice(-6).toUpperCase()}</span>
+                    <span className="font-bold">{o.id.slice(-6).toUpperCase()}</span>
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${statusStyle(o.status)}`}>{o.status}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">

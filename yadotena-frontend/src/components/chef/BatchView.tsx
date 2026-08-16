@@ -128,7 +128,7 @@ export function BatchView({ orders }: BatchViewProps) {
                         <div className="flex justify-between font-bold">
                           <span className="text-white">
                             {t.destination}{" "}
-                            <span className="text-zinc-500">#{orderTicketNumber({ id: t.orderId })}</span>
+                            <span className="text-zinc-500">{orderTicketNumber({ id: t.orderId })}</span>
                           </span>
                           <span className="text-amber-400 font-black">{t.quantity}×</span>
                         </div>

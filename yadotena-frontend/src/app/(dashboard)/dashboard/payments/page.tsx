@@ -255,7 +255,7 @@ export default function PaymentsPage() {
             <table className="w-full text-xs text-left">
               <thead className="text-[11px] font-black text-muted-foreground uppercase bg-muted/50 border-b">
                 <tr>
-                  <th className="px-4 py-3">Order Ticket #</th>
+                  <th className="px-4 py-3">Order Ticket</th>
                   <th className="px-4 py-3">Customer / Table</th>
                   <th className="px-4 py-3">Settlement Date</th>
                   <th className="px-4 py-3">Payment Channel</th>
@@ -270,10 +270,10 @@ export default function PaymentsPage() {
                     className="cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-colors"
                   >
                     <td className="px-4 py-3 font-black text-foreground">
-                      #{order.id.slice(-6).toUpperCase()}
+                      {order.id.slice(-6).toUpperCase()}
                     </td>
                     <td className="px-4 py-3 font-bold">
-                      {order.type === "DINE_IN" ? `Table #${order.tableId?.replace('t', '')}` : (order.customerName || "Takeout Guest")}
+                      {order.type === "DINE_IN" ? `Table ${order.tableId?.replace('t', '')}` : (order.customerName || "Takeout Guest")}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground font-medium">
                       {format(new Date(order.updatedAt), "MMM d, yyyy h:mm a")}
@@ -497,7 +497,7 @@ export default function PaymentsPage() {
                   <Receipt className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base">Settlement Receipt #{selectedOrderForDetail.id.slice(-6).toUpperCase()}</h3>
+                  <h3 className="font-black text-base">Settlement Receipt {selectedOrderForDetail.id.slice(-6).toUpperCase()}</h3>
                   <p className="text-[11px] text-muted-foreground font-mono">Order ID: {selectedOrderForDetail.id}</p>
                 </div>
               </div>
@@ -519,7 +519,7 @@ export default function PaymentsPage() {
                 <div className="p-3 bg-muted/30 rounded-xl border">
                   <span className="text-[10px] font-bold block uppercase">Customer / Location</span>
                   <span className="text-xs font-bold text-foreground">
-                    {selectedOrderForDetail.type === "DINE_IN" ? `Table #${selectedOrderForDetail.tableId?.replace('t', '')}` : (selectedOrderForDetail.customerName || "Takeout Guest")}
+                    {selectedOrderForDetail.type === "DINE_IN" ? `Table ${selectedOrderForDetail.tableId?.replace('t', '')}` : (selectedOrderForDetail.customerName || "Takeout Guest")}
                   </span>
                 </div>
                 <div className="p-3 bg-muted/30 rounded-xl border">

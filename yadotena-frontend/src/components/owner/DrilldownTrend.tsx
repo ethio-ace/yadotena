@@ -567,9 +567,10 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
                       onBlur={() => setHoverIdx(null)}
                       aria-label={`${p.label}: revenue ${formatETB(p.revenue)}, ${p.count} orders${drillable ? ", click to drill in" : ""}`}
                       className={cn(
-                        "absolute -translate-x-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full border-2 transition-all focus-visible:outline-2 focus-visible:outline-amber-500",
-                        p.revenue > 0 ? "bg-amber-500 border-background shadow-md" : "bg-muted border-border",
-                        hoverIdx === i && "scale-150 bg-amber-600"
+                        // Invisible by default so the line stays clean; a small dot
+                        // appears only on hover/focus to show the drill target.
+                        "absolute -translate-x-1/2 -translate-y-1/2 h-4 w-4 rounded-full transition-all focus-visible:outline-2 focus-visible:outline-amber-500",
+                        hoverIdx === i ? "bg-amber-500 border-2 border-background shadow-md scale-125" : "bg-transparent border-0"
                       )}
                       style={{ left: `${left}%`, top: `${top}%` }}
                     />
@@ -618,7 +619,7 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
                     <div className="min-w-0">
                       <p className="font-black text-foreground truncate">
                         {new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        <span className="ml-2 font-mono text-[10px] text-muted-foreground">#{o.id.slice(-6).toUpperCase()}</span>
+                        <span className="ml-2 font-mono text-[10px] text-muted-foreground">{o.id.slice(-6).toUpperCase()}</span>
                       </p>
                       <p className="text-[11px] text-muted-foreground truncate">
                         {o.items?.map((i) => `${i.quantity}× ${i.name}`).join(", ") || "No items"}
@@ -675,7 +676,7 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
                               <p className="font-bold text-foreground truncate">
                                 {new Date(o.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}{" "}
                                 {new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                <span className="ml-2 font-mono text-[10px] text-muted-foreground">#{o.id.slice(-6).toUpperCase()}</span>
+                                <span className="ml-2 font-mono text-[10px] text-muted-foreground">{o.id.slice(-6).toUpperCase()}</span>
                               </p>
                               <p className="text-[11px] text-muted-foreground truncate">
                                 {o.items?.map((i) => `${i.quantity}× ${i.name}`).join(", ") || "No items"}

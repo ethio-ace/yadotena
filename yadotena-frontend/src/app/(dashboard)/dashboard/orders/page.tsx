@@ -1,16 +1,45 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShoppingBag, Clock, CheckCircle2, AlertCircle, Plus, Sparkles, ChefHat, Truck } from "lucide-react";
-import { ActiveOrdersTab } from "@/components/dashboard/orders/ActiveOrdersTab";
-import { OrderHistoryTab } from "@/components/dashboard/orders/OrderHistoryTab";
-import { PlaceOrderTab } from "@/components/dashboard/orders/PlaceOrderTab";
-import { ReadyDeliveryPane } from "@/components/dashboard/ReadyDeliveryPane";
+
+// Heavy tab surfaces are code-split so the initial load stays light and each
+// tab's data fetch only starts when the tab is actually opened.
+const ActiveOrdersTab = dynamic(() =>
+  import("@/components/dashboard/orders/ActiveOrdersTab").then((m) => m.ActiveOrdersTab),
+  { ssr: false, loading: () => <OrderTabSkeleton /> }
+);
+const OrderHistoryTab = dynamic(() =>
+  import("@/components/dashboard/orders/OrderHistoryTab").then((m) => m.OrderHistoryTab),
+  { ssr: false, loading: () => <OrderTabSkeleton /> }
+);
+const PlaceOrderTab = dynamic(() =>
+  import("@/components/dashboard/orders/PlaceOrderTab").then((m) => m.PlaceOrderTab),
+  { ssr: false, loading: () => <OrderTabSkeleton /> }
+);
+const ReadyDeliveryPane = dynamic(() =>
+  import("@/components/dashboard/ReadyDeliveryPane").then((m) => m.ReadyDeliveryPane),
+  { ssr: false, loading: () => <OrderTabSkeleton /> }
+);
+
+function OrderTabSkeleton() {
+  return (
+    <div className="space-y-3">
+      <div className="h-10 w-64 bg-muted/40 border rounded-xl animate-pulse" />
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-56 bg-muted/40 border rounded-2xl animate-pulse" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<"ACTIVE" | "HISTORY" | "NEW" | "DISPATCH">("ACTIVE");
@@ -27,7 +56,7 @@ export default function OrdersPage() {
   const completedCount = orders.filter((o) => o.status === "COMPLETED").length;
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in duration-300">
+    <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in duration-300">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

@@ -11,6 +11,7 @@ import { AttentionCenter } from "@/components/owner/AttentionCenter";
 import { DrilldownTrend } from "@/components/owner/DrilldownTrend";
 import { TopProducts } from "@/components/owner/TopProducts";
 import { PaymentMix } from "@/components/owner/PaymentMix";
+import { ExpensesCard } from "@/components/owner/ExpensesCard";
 import { TodayActivity } from "@/components/owner/TodayActivity";
 import { useOwnerOps } from "@/hooks/useOwnerOps";
 import { greetingForHour } from "@/lib/manager";
@@ -107,8 +108,9 @@ export default function OwnerDashboardPage() {
                   <PaymentMix metrics={metrics} />
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid gap-4 lg:grid-cols-3">
                   <TopProducts metrics={metrics} />
+                  <ExpensesCard range={metrics.range} expenses={expenses} />
                   <TodayActivity logs={recentActivity} />
                 </div>
               </>

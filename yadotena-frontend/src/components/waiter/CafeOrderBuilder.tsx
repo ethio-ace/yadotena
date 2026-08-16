@@ -224,7 +224,7 @@ export function CafeOrderBuilder({
         <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent/50"><ArrowLeft className="h-5 w-5" /></button>
         <div className="flex-1 min-w-0">
           <h1 className="text-sm font-bold truncate">
-            {appendToOrder ? `Adding to #${appendToOrder.id.slice(-6).toUpperCase()}` : isShopMode ? "Shop Sale" : "Café Order"}
+            {appendToOrder ? `Adding to ${appendToOrder.id.slice(-6).toUpperCase()}` : isShopMode ? "Shop Sale" : "Café Order"}
           </h1>
           {selectedTable && <p className="text-xs text-muted-foreground">{selectedTable.name || selectedTable.id} · Dine-in</p>}
           {orderType === "TAKEAWAY" && !isShopMode && <p className="text-xs text-muted-foreground">Takeaway</p>}
@@ -363,16 +363,21 @@ export function CafeOrderBuilder({
         </div>
       </div>
 
-      {/* MOBILE CART BAR */}
+      {/* MOBILE FLOATING CART FAB */}
       {cart.length > 0 && (
-        <div className="lg:hidden fixed bottom-16 left-3 right-3 z-30">
-          <button onClick={() => setMobileCartOpen(true)}
-            className={`w-full flex items-center justify-between p-4 rounded-2xl text-white font-bold text-sm shadow-xl active:scale-[0.97] transition-all ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}>
-            <span>{cartCount} item{cartCount !== 1 ? "s" : ""}</span>
-            <span>{formatETB(cartTotal)}</span>
-            <span>View Cart →</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setMobileCartOpen(true)}
+          className={`lg:hidden fixed bottom-5 right-4 z-30 flex items-center gap-2 pl-3.5 pr-4 py-3 rounded-full text-white font-bold text-sm shadow-2xl shadow-black/20 active:scale-95 transition-all ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}
+          aria-label={`Open cart with ${cartCount} items totaling ${formatETB(cartTotal)}`}
+        >
+          <span className="relative">
+            <ShoppingCart className="h-5 w-5" />
+            <span className="absolute -top-2 -right-2 h-4 min-w-4 px-0.5 rounded-full bg-background text-foreground text-[9px] font-black flex items-center justify-center shadow">
+              {cartCount}
+            </span>
+          </span>
+          <span className="border-l border-white/30 pl-2.5">{formatETB(cartTotal)}</span>
+        </button>
       )}
 
       {/* MOBILE CART DRAWER */}

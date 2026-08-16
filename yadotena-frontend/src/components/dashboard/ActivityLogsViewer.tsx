@@ -444,7 +444,7 @@ export function ActivityLogsViewer({
                             <div className="flex items-center gap-2">
                               {getEntityIcon(logItem.entityType)}
                               <span className="font-mono text-xs font-bold text-foreground">
-                                {logItem.entityType}: #{logItem.entityId.slice(-8).toUpperCase()}
+                                {logItem.entityType}: {logItem.entityId.slice(-8).toUpperCase()}
                               </span>
                             </div>
                           </td>

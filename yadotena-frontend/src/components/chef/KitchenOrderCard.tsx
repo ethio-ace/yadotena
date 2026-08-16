@@ -109,7 +109,7 @@ export function KitchenOrderCard({
                 {destination}
               </h3>
               <span className="text-xs font-mono font-bold text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded-md">
-                #{orderNumber}
+                {orderNumber}
               </span>
               {isNew && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500 text-zinc-950 text-[10px] font-black uppercase tracking-wider animate-pulse">

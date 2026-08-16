@@ -48,7 +48,7 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
         <div className="p-5 border-b bg-muted/20 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-black tracking-tight">#{order.id.slice(-6).toUpperCase()}</h2>
+              <h2 className="text-xl font-black tracking-tight">{order.id.slice(-6).toUpperCase()}</h2>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
                 {order.status}
               </span>

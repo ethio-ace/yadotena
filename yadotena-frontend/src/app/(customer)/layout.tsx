@@ -15,9 +15,11 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-md border-b px-4 md:px-8 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
           <Link href="/menu" className="flex items-center gap-2.5 group">
-            <div className="h-10 w-10 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-black text-xl shadow-md shadow-primary/20 group-hover:scale-105 transition-transform">
-              🥛
-            </div>
+            <img
+              src="/icon.svg"
+              alt="Yadotena logo"
+              className="h-10 w-10 rounded-2xl shadow-md shadow-primary/20 group-hover:scale-105 transition-transform"
+            />
             <div>
               <h1 className="font-black text-base md:text-lg text-foreground tracking-tight leading-none group-hover:text-primary transition-colors">
                 Yadotena <span className="text-primary text-xs font-bold block sm:inline">Milk & Foods</span>

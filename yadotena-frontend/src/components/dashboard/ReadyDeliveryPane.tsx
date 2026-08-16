@@ -173,7 +173,7 @@ export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-black text-base text-foreground">
-                          #{order.id.substring(0, 8)}
+                          {order.id.substring(0, 8)}
                         </span>
                         <Badge 
                           variant="outline" 
@@ -191,7 +191,7 @@ export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
 
                       <div className="text-xs font-bold text-muted-foreground mt-0.5">
                         {order.tableId ? (
-                          <span className="text-primary font-black">Table #{order.tableId.substring(0, 6)}</span>
+                          <span className="text-primary font-black">Table {order.tableId.substring(0, 6)}</span>
                         ) : order.customerName ? (
                           <span>Customer: {order.customerName}</span>
                         ) : (

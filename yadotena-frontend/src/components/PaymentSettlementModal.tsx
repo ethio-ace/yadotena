@@ -148,7 +148,7 @@ export function PaymentSettlementModal({
               <span>Settle Payment</span>
             </h3>
             <p className="text-xs text-muted-foreground font-medium">
-              Order #{order.id.slice(-6).toUpperCase()} {order.tableId && `• Table #${order.tableId.replace("t", "")}`}
+              Order {order.id.slice(-6).toUpperCase()} {order.tableId && `• Table ${order.tableId.replace("t", "")}`}
             </p>
           </div>
           <button 

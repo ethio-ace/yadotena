@@ -73,7 +73,7 @@ export function TablesView({
           {activeOrder ? (
             <>
               <div className="border-t pt-4 space-y-2">
-                <p className="text-xs font-bold uppercase text-muted-foreground">Current Order #{activeOrder.id.slice(-6).toUpperCase()}</p>
+                <p className="text-xs font-bold uppercase text-muted-foreground">Current Order {activeOrder.id.slice(-6).toUpperCase()}</p>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {activeOrder.items?.map((item, i) => (
                     <div key={item.id || i} className="flex justify-between text-sm">

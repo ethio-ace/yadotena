@@ -120,7 +120,7 @@ export function ManagerOverview() {
                       <p className="text-sm font-black text-foreground truncate">
                         {orderLabel(order)}
                         <span className="ml-2 font-mono text-[11px] font-bold text-muted-foreground">
-                          #{order.id.slice(-6).toUpperCase()}
+                          {order.id.slice(-6).toUpperCase()}
                         </span>
                       </p>
                       <p className="text-xs text-muted-foreground truncate">

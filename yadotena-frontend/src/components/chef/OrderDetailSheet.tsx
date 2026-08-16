@@ -45,7 +45,7 @@ export function OrderDetailSheet({
           <div className="flex items-start justify-between border-b border-zinc-800 pb-4 mb-6">
             <div>
               <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg uppercase tracking-wide">
-                #{orderTicketNumber(order)}
+                {orderTicketNumber(order)}
               </span>
               <h2 className="text-2xl font-black text-white mt-2 tracking-tight">
                 {destination}

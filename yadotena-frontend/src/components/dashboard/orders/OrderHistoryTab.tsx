@@ -104,7 +104,7 @@ export function OrderHistoryTab() {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
                   <tr>
-                    <th className="px-6 py-3 font-medium">Order #</th>
+                    <th className="px-6 py-3 font-medium">Order</th>
                     <th className="px-6 py-3 font-medium">Type</th>
                     <th className="px-6 py-3 font-medium">Details</th>
                     <th className="px-6 py-3 font-medium">Items</th>
@@ -116,7 +116,7 @@ export function OrderHistoryTab() {
                 <tbody className="divide-y">
                   {filteredHistory?.map((order) => (
                     <tr key={order.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-6 py-4 font-mono font-bold text-xs">{order.id}</td>
+                      <td className="px-6 py-4 font-mono font-bold text-xs">{order.id.slice(-6).toUpperCase()}</td>
                       <td className="px-6 py-4">
                         <Badge variant="outline" className="capitalize">{order.type.replace("_", " ").toLowerCase()}</Badge>
                       </td>

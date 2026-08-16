@@ -256,7 +256,7 @@ export default function KitchenDashboard() {
                     <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
                     <div>
                       <div className="font-black text-sm text-white">
-                        {o.tableId ? `Table ${o.tableId.replace(/^t/i, "")}` : o.type} • #{orderTicketNumber(o)}
+                        {o.tableId ? `Table ${o.tableId.replace(/^t/i, "")}` : o.type} • {orderTicketNumber(o)}
                       </div>
                       <div className="text-xs text-zinc-400 font-medium">
                         {o.items?.map((i) => `${i.quantity}× ${i.name}`).join(", ")}

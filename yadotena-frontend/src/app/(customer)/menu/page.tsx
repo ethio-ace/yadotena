@@ -127,7 +127,7 @@ function MenuContent() {
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block animate-ping" />
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {activeSessionOrder.items.length} items • Ticket #{activeSessionOrder.id.slice(-6).toUpperCase()} is currently in preparation
+                {activeSessionOrder.items.length} items • Ticket {activeSessionOrder.id.slice(-6).toUpperCase()} is currently in preparation
               </p>
             </div>
           </div>
@@ -142,7 +142,7 @@ function MenuContent() {
       )}
 
       {/* Restaurant Hero Banner */}
-      <div className="relative rounded-3xl overflow-hidden border border-muted-foreground/15 shadow-md bg-gradient-to-br from-amber-600/10 via-primary/5 to-background p-6 md:p-8 flex flex-col justify-end min-h-[160px]">
+      <div className="relative rounded-3xl overflow-hidden border border-muted-foreground/15 shadow-md bg-gradient-to-br from-amber-600/10 via-primary/5 to-background p-6 md:p-8 flex flex-col justify-end min-h-[170px]">
         <div className="relative z-10 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold px-3 py-0.5 text-xs">
@@ -155,13 +155,20 @@ function MenuContent() {
             </Badge>
           </div>
 
-          <div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-foreground">
-              Yadotena Digital Menu Showcase
-            </h1>
-            <p className="text-muted-foreground text-xs md:text-sm mt-0.5 font-medium">
-              Explore our farm-fresh dairy, artisanal kitchen meals, coffees, teas & craft beverages.
-            </p>
+          <div className="flex items-start gap-3">
+            <img
+              src="/icon.svg"
+              alt="Yadotena"
+              className="h-12 w-12 md:h-14 md:w-14 rounded-2xl shadow-md shadow-primary/20 shrink-0"
+            />
+            <div>
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-foreground">
+                Explore the Yadotena Café
+              </h1>
+              <p className="text-muted-foreground text-xs md:text-sm mt-0.5 font-medium max-w-xl">
+                Farm-fresh dairy, artisan kitchen meals, coffees &amp; teas, and over-the-counter retail — all in one menu.
+              </p>
+            </div>
           </div>
         </div>
       </div>

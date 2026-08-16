@@ -94,7 +94,7 @@ export function DishDetailModal({ item, isOpen, onClose, onEdit }: DishDetailMod
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-2xl font-black tracking-tight">{item.name}</h2>
-              <span className="text-xs text-muted-foreground font-mono">Item ID: #{item.id}</span>
+              <span className="text-xs text-muted-foreground font-mono">Item ID: {item.id}</span>
             </div>
             <div className="text-right">
               <span className="text-2xl font-black text-primary block">{formatETB(item.price)}</span>

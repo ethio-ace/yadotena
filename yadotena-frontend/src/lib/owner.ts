@@ -696,9 +696,8 @@ export function computePopularityTrend(opts: {
   range: DateRange;
   orders: Order[];
   menuItems: MenuItem[];
-  topN?: number;
 }): { rows: PopularityTrendRow[]; bucketLabel: string } {
-  const { range, orders, menuItems, topN = 8 } = opts;
+  const { range, orders, menuItems } = opts;
   const byId = new Map(menuItems.map((m) => [m.id, m]));
 
   const start = new Date(`${range.from}T00:00:00`);
@@ -790,8 +789,7 @@ export function computePopularityTrend(opts: {
       revenue: p.revenue,
       series: p.series.map((units, i) => ({ label: buckets[i].label, units })),
     }))
-    .sort((a, b) => b.units - a.units || b.revenue - a.revenue)
-    .slice(0, topN);
+    .sort((a, b) => b.units - a.units || b.revenue - a.revenue);
 
   return {
     rows,

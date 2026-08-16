@@ -321,6 +321,7 @@ func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	ordersList := make([]APIOrder, 0)
+	orderMap := make(map[string]*APIOrder)
 	for rows.Next() {
 		var o APIOrder
 		var itemsRaw []byte
@@ -335,8 +336,39 @@ func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
 			if o.Items == nil {
 				o.Items = []APIOrderItem{}
 			}
-			o.Payments = s.loadOrderPayments(r.Context(), o.ID)
+			o.Payments = []PaymentRecord{}
 			ordersList = append(ordersList, o)
+		}
+	}
+	rows.Close()
+
+	if len(ordersList) > 0 {
+		orderIDs := make([]string, len(ordersList))
+		for i := range ordersList {
+			orderIDs[i] = ordersList[i].ID
+			orderMap[ordersList[i].ID] = &ordersList[i]
+		}
+
+		pmtRows, errPmt := s.Pool.Query(r.Context(), `
+			SELECT id, order_id, method, amount::float8, status, COALESCE(transaction_ref, ''), COALESCE(receipt_url, ''), created_at
+			FROM payments WHERE order_id = ANY($1) ORDER BY created_at DESC`, orderIDs)
+		if errPmt == nil {
+			for pmtRows.Next() {
+				var p PaymentRecord
+				var txRef, rcUrl string
+				if errScan := pmtRows.Scan(&p.ID, &p.OrderID, &p.Method, &p.Amount, &p.Status, &txRef, &rcUrl, &p.CreatedAt); errScan == nil {
+					if txRef != "" {
+						p.TransactionRef = &txRef
+					}
+					if rcUrl != "" {
+						p.ReceiptURL = &rcUrl
+					}
+					if oPtr, ok := orderMap[p.OrderID]; ok {
+						oPtr.Payments = append(oPtr.Payments, p)
+					}
+				}
+			}
+			pmtRows.Close()
 		}
 	}
 

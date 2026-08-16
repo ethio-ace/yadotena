@@ -193,11 +193,10 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 				r.Get("/{id}", s.getActivityLog)
 			})
 
-			r.Route("/payment-methods", func(r chi.Router) {
-				r.Post("/", s.createPaymentMethod)
-				r.Patch("/{id}", s.updatePaymentMethod)
-				r.Delete("/{id}", s.deletePaymentMethod)
-			})
+			r.Post("/payment-methods", s.createPaymentMethod)
+			r.Patch("/payment-methods/{id}", s.updatePaymentMethod)
+			r.Put("/payment-methods/{id}", s.updatePaymentMethod)
+			r.Delete("/payment-methods/{id}", s.deletePaymentMethod)
 
 			r.Put("/settings", s.updateSettings)
 			r.Patch("/settings", s.updateSettings)

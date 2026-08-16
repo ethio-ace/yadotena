@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatETB } from "@/lib/currency";
 import { addonNames } from "@/lib/kitchen";
+import { findActiveOrderForTable } from "@/lib/tableUtils";
 import { 
   ArrowLeft, Plus, Minus, Search, Utensils, 
   ShoppingBag, Truck, CheckCircle2, ChevronRight, X, CreditCard, Eye, AlertTriangle 
@@ -61,10 +62,20 @@ export function PlaceOrderTab() {
   const [orderType, setOrderType] = useState<OrderType>("DINE_IN");
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
 
-  const handleTableClick = (table: Table) => {
-    const activeOrder = orders.find(
-      (o) => o.tableId === table.id && o.status !== "COMPLETED" && o.status !== "CANCELLED"
-    );
+  const handleTableClick = async (table: Table) => {
+    let activeOrder = findActiveOrderForTable(table, orders);
+
+    // If order was not in current orders list but table has a currentOrderId, fetch directly
+    if (!activeOrder && table.currentOrderId) {
+      try {
+        const fetched = await api.orders.getById(table.currentOrderId);
+        if (fetched && fetched.status !== "COMPLETED" && fetched.status !== "CANCELLED") {
+          activeOrder = fetched;
+        }
+      } catch (err) {
+        console.warn("Failed to fetch order by currentOrderId:", err);
+      }
+    }
 
     if (activeOrder) {
       setActiveTableModal({ table, order: activeOrder });
@@ -172,9 +183,7 @@ export function PlaceOrderTab() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {tables?.map(table => {
-                const activeOrder = orders.find(
-                  (o) => o.tableId === table.id && o.status !== "COMPLETED" && o.status !== "CANCELLED"
-                );
+                const activeOrder = findActiveOrderForTable(table, orders);
                 const isOccupied = table.status !== "AVAILABLE" || !!activeOrder;
 
                 return (

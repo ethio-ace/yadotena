@@ -1,14 +1,15 @@
-import { useState, useEffect, type ChangeEvent } from "react";
+import { useState, useEffect, useMemo, type ChangeEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { OrderType, MenuItem, OrderItem, Order, AddonItem, MenuItemAddon } from "@/types";
+import { OrderType, MenuItem, OrderItem, Order, AddonItem, MenuItemAddon, Table } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { formatETB } from "@/lib/currency";
-import { ArrowLeft, Plus, Minus, Search, Utensils, ShoppingBag, Truck, CheckCircle2, Sparkles, X, Edit, ShoppingCart } from "lucide-react";
+import { findActiveOrderForTable } from "@/lib/tableUtils";
+import { ArrowLeft, Plus, Minus, Search, Utensils, ShoppingBag, Truck, CheckCircle2, Sparkles, X, Edit, ShoppingCart, AlertCircle } from "lucide-react";
 import { toOrderItemPayload, estimateOrderTotals, getApplicableAddonsForItem } from "@/lib/orderUtils";
 
 interface FullPageMenuPOSProps {
@@ -33,7 +34,7 @@ const KITCHEN_NOTE_PRESETS = [
 export function FullPageMenuPOS({
   orderType = "DINE_IN",
   tableId,
-  existingOrder,
+  existingOrder: propExistingOrder,
   initialCategory = "All",
   onCancel,
   onSuccess
@@ -56,10 +57,29 @@ export function FullPageMenuPOS({
   });
 
   // Real table names (cached by react-query; instant when opened from the floor page).
-  const { data: tables = [] } = useQuery({
+  const { data: tables = [] } = useQuery<Table[]>({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
   });
+
+  // Orders cache for auto-resolving active orders on tables
+  const { data: orders = [] } = useQuery<Order[]>({
+    queryKey: ["orders"],
+    queryFn: api.orders.getAll,
+  });
+
+  const targetTable = useMemo(() => {
+    if (!tableId) return null;
+    return tables.find((t) => t.id === tableId || t.name === tableId) || ({ id: tableId, name: tableId } as Table);
+  }, [tableId, tables]);
+
+  const activeOrder = useMemo(() => {
+    if (propExistingOrder) return propExistingOrder;
+    if (!targetTable) return null;
+    return findActiveOrderForTable(targetTable, orders) || null;
+  }, [propExistingOrder, targetTable, orders]);
+
+  const existingOrder = activeOrder;
 
   // Inline toast for action feedback — POS screens shouldn't block on alert().
   const [toast, setToast] = useState<{ message: string; kind: "error" | "success" } | null>(null);
@@ -515,7 +535,7 @@ export function FullPageMenuPOS({
                 <Card key={item.id} className="rounded-3xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden group">
                   <div className="h-24 bg-muted relative overflow-hidden cursor-pointer" onClick={() => openDishModal(item)}>
                     {item.image ? (
-                      <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <img src={item.image} alt={item.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     ) : (
                       <div className="w-full h-full bg-primary/5 flex items-center justify-center text-primary/20">
                         <Utensils className="h-10 w-10" />

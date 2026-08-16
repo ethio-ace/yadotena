@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { api } from "@/services/api";
@@ -53,12 +53,12 @@ export default function KitchenDashboard() {
     }
   }, [connectionState, queryClient]);
 
-  // --- kitchen data: Ably drives instant updates, polling is a fallback ---
+  // --- kitchen data: Ably drives instant updates, polling is a fallback when disconnected ---
   const { data: orders = [], isLoading, refetch } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
-    // Realtime channel up → slow safety-net poll. Channel down → poll harder.
-    refetchInterval: isConnected ? 15000 : 3000,
+    // Ably channel up → no redundant background polling. Channel down → poll every 3s.
+    refetchInterval: isConnected ? false : 3000,
   });
 
   const pendingOrders = orders.filter((o) => o.status === "PENDING");
@@ -73,7 +73,7 @@ export default function KitchenDashboard() {
     queryKey: ["addons"],
     queryFn: () => api.addons.getAll(),
   });
-  const addonMap = Object.fromEntries(addons.map((a) => [a.id, a.name]));
+  const addonMap = useMemo(() => Object.fromEntries(addons.map((a) => [a.id, a.name])), [addons]);
   const tableLabels = useTableLabels();
 
   // --- new-ticket detection: one chime per ticket + temporary NEW highlight ---

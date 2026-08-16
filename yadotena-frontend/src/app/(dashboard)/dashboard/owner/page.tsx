@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import { useSidebarCollapse } from "@/hooks/useSidebarCollapse";
 import { OwnerSidebar } from "@/components/owner/OwnerSidebar";
@@ -8,7 +9,6 @@ import { OwnerHeader } from "@/components/owner/OwnerHeader";
 import { DateRangeSelector } from "@/components/owner/DateRangeSelector";
 import { BusinessSnapshot } from "@/components/owner/BusinessSnapshot";
 import { AttentionCenter } from "@/components/owner/AttentionCenter";
-import { DrilldownTrend } from "@/components/owner/DrilldownTrend";
 import { TopProducts } from "@/components/owner/TopProducts";
 import { PaymentMix } from "@/components/owner/PaymentMix";
 import { ExpensesCard } from "@/components/owner/ExpensesCard";
@@ -16,6 +16,14 @@ import { TodayActivity } from "@/components/owner/TodayActivity";
 import { useOwnerOps } from "@/hooks/useOwnerOps";
 import { CustomRange } from "@/lib/owner";
 import { greetingForHour } from "@/lib/manager";
+
+const DrilldownTrend = dynamic(
+  () => import("@/components/owner/DrilldownTrend").then((mod) => mod.DrilldownTrend),
+  {
+    loading: () => <div className="h-64 bg-muted/30 border rounded-2xl animate-pulse" />,
+    ssr: false,
+  }
+);
 
 export default function OwnerDashboardPage() {
   const { data: session } = useSession();

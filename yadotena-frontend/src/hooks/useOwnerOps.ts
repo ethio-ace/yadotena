@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Expense, MenuItem, Order, PaymentRecord } from "@/types";
@@ -64,13 +64,17 @@ export function useOwnerOps(rangeOverride?: OwnerRange, customRange?: CustomRang
     refetchInterval: 60_000,
   });
 
-  const metrics: OwnerMetrics = computeOwnerMetrics({
-    range,
-    expenses: (expenses.data ?? []) as Expense[],
-    orders: orders.data ?? [],
-    menuItems: menu.data ?? [],
-    payments: (payments.data ?? []) as PaymentRecord[],
-  });
+  const metrics: OwnerMetrics = useMemo(
+    () =>
+      computeOwnerMetrics({
+        range,
+        expenses: (expenses.data ?? []) as Expense[],
+        orders: orders.data ?? [],
+        menuItems: menu.data ?? [],
+        payments: (payments.data ?? []) as PaymentRecord[],
+      }),
+    [range, expenses.data, orders.data, menu.data, payments.data]
+  );
 
   return {
     rangeKey,

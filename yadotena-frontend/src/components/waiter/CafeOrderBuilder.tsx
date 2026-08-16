@@ -4,7 +4,8 @@ import { useState, useMemo } from "react";
 import { MenuItem, MenuCategory, AddonItem, MenuItemAddon, Table, Order } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { getApplicableAddonsForItem, isShopProductItem } from "@/lib/orderUtils";
-import { ArrowLeft, Search, X, Minus, Plus, MessageSquare, ShoppingCart } from "lucide-react";
+import { findActiveOrderForTable } from "@/lib/tableUtils";
+import { ArrowLeft, Search, X, Minus, Plus, MessageSquare, ShoppingCart, AlertCircle } from "lucide-react";
 
 export interface CartItem {
   id: string;
@@ -33,7 +34,7 @@ const NOTE_PRESETS = ["No Spicy", "Extra Hot", "No Onions", "Well Done", "Extra 
 
 export function CafeOrderBuilder({
   menu, categories, allAddons, tables, orders,
-  isShopMode, preselectedTable, appendToOrder, onBack, onSubmit,
+  isShopMode, preselectedTable, appendToOrder: initialAppendOrder, onBack, onSubmit,
 }: CafeOrderBuilderProps) {
   // Flow state
   const [orderType, setOrderType] = useState<"DINE_IN" | "TAKEAWAY">(
@@ -41,6 +42,13 @@ export function CafeOrderBuilder({
   );
   const [selectedTable, setSelectedTable] = useState<Table | null>(preselectedTable || null);
   const [showTablePicker, setShowTablePicker] = useState(!preselectedTable && !isShopMode);
+
+  // Auto-resolve active order on selected table if not explicitly passed
+  const activeOrderForTable = useMemo(() => {
+    if (initialAppendOrder) return initialAppendOrder;
+    if (!selectedTable || isShopMode) return null;
+    return findActiveOrderForTable(selectedTable, orders) || null;
+  }, [initialAppendOrder, selectedTable, orders, isShopMode]);
 
   // Catalog state
   const [activeCategory, setActiveCategory] = useState("All");
@@ -110,17 +118,25 @@ export function CafeOrderBuilder({
     else updateQty(line.id, -1);
   };
 
+  const cartQuantityMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const c of cart) {
+      map[c.menuItemId] = (map[c.menuItemId] || 0) + c.quantity;
+    }
+    return map;
+  }, [cart]);
+
   const itemTotal = (c: CartItem) => (c.basePrice + c.addons.reduce((s, a) => s + (a.price || 0), 0)) * c.quantity;
   const cartTotal = cart.reduce((s, c) => s + itemTotal(c), 0);
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
 
   const handleSubmit = () => {
     if (cart.length === 0) return;
-    if (!isShopMode && orderType === "DINE_IN" && !selectedTable && !appendToOrder) {
+    if (!isShopMode && orderType === "DINE_IN" && !selectedTable && !activeOrderForTable) {
       setShowTablePicker(true);
       return;
     }
-    onSubmit(cart, selectedTable?.id, isShopMode ? "TAKEAWAY" : orderType, appendToOrder?.id);
+    onSubmit(cart, selectedTable?.id, isShopMode ? "TAKEAWAY" : orderType, activeOrderForTable?.id);
   };
 
   // === TABLE PICKER STEP ===
@@ -144,17 +160,19 @@ export function CafeOrderBuilder({
 
         {orderType === "DINE_IN" && (
           <>
-            <p className="text-sm text-muted-foreground mb-3">Select a table to start the order.</p>
+            <p className="text-sm text-muted-foreground mb-3">Select a table to start or add to an order.</p>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
               {tables.map(t => {
-                const hasOrder = orders.some(o => o.tableId === t.id && o.status !== "COMPLETED" && o.status !== "CANCELLED");
+                const activeOrder = findActiveOrderForTable(t, orders);
                 return (
                   <button key={t.id} onClick={() => { setSelectedTable(t); setShowTablePicker(false); }}
                     className={`p-4 rounded-xl border-2 text-center font-bold text-sm transition-all active:scale-95 ${
-                      t.status === "AVAILABLE" ? "border-emerald-400/50 hover:border-emerald-500" : "border-amber-400/50 hover:border-amber-500"
+                      activeOrder ? "border-amber-500/60 bg-amber-500/10 hover:border-amber-600" : t.status === "AVAILABLE" ? "border-emerald-400/50 hover:border-emerald-500" : "border-amber-400/50 hover:border-amber-500"
                     }`}>
                     <div>{t.name || t.id}</div>
-                    <div className="text-xs font-normal text-muted-foreground mt-1">{t.capacity}p · {t.status === "AVAILABLE" ? "Open" : "Busy"}</div>
+                    <div className="text-xs font-normal text-muted-foreground mt-1">
+                      {t.capacity}p · {activeOrder ? `Order #${activeOrder.id.slice(-4).toUpperCase()}` : t.status === "AVAILABLE" ? "Open" : "Busy"}
+                    </div>
                   </button>
                 );
               })}
@@ -232,7 +250,7 @@ export function CafeOrderBuilder({
         <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent/50"><ArrowLeft className="h-5 w-5" /></button>
         <div className="flex-1 min-w-0">
           <h1 className="text-sm font-bold truncate">
-            {appendToOrder ? `Adding to ${appendToOrder.id.slice(-6).toUpperCase()}` : isShopMode ? "Shop Sale" : "Café Order"}
+            {activeOrderForTable ? `Adding to #${activeOrderForTable.id.slice(-6).toUpperCase()}` : isShopMode ? "Shop Sale" : "Café Order"}
           </h1>
           {selectedTable && <p className="text-xs text-muted-foreground">{selectedTable.name || selectedTable.id} · Dine-in</p>}
           {orderType === "TAKEAWAY" && !isShopMode && <p className="text-xs text-muted-foreground">Takeaway</p>}
@@ -273,7 +291,7 @@ export function CafeOrderBuilder({
           <div className="flex-1 overflow-y-auto p-3">
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
               {catalogItems.map(item => {
-                const inCart = cart.filter(c => c.menuItemId === item.id).reduce((s, c) => s + c.quantity, 0);
+                const inCart = cartQuantityMap[item.id] || 0;
                 return (
                   <div
                     key={item.id}
@@ -299,6 +317,8 @@ export function CafeOrderBuilder({
                           <img
                             src={srcUrl}
                             alt={item.name}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             onError={(e) => {
                               (e.target as HTMLElement).style.display = "none";
@@ -396,7 +416,7 @@ export function CafeOrderBuilder({
               </div>
               <button onClick={handleSubmit}
                 className={`w-full h-14 rounded-xl font-bold text-sm text-white active:scale-[0.97] transition-all ${isShopMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-600 hover:bg-amber-700"}`}>
-                {appendToOrder ? "Add to Order" : isShopMode ? "Pay" : "Send to Kitchen"}
+                {activeOrderForTable ? "Add to Order" : isShopMode ? "Pay" : "Send to Kitchen"}
               </button>
             </div>
           )}
@@ -442,7 +462,7 @@ export function CafeOrderBuilder({
             </div>
             <button onClick={() => { setMobileCartOpen(false); handleSubmit(); }}
               className={`w-full h-14 rounded-xl font-bold text-sm text-white ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}>
-              {appendToOrder ? "Add to Order" : isShopMode ? "Pay" : "Send to Kitchen"}
+              {activeOrderForTable ? "Add to Order" : isShopMode ? "Pay" : "Send to Kitchen"}
             </button>
           </div>
         </div>

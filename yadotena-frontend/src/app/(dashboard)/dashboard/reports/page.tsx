@@ -1,12 +1,20 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/services/api";
 import { useQuery } from "@tanstack/react-query";
 import { DateRangeSelector } from "@/components/owner/DateRangeSelector";
-import { DrilldownTrend } from "@/components/owner/DrilldownTrend";
 import { ReportsTabs, ReportTabKey } from "@/components/owner/reports/ReportsTabs";
+
+const DrilldownTrend = dynamic(
+  () => import("@/components/owner/DrilldownTrend").then((mod) => mod.DrilldownTrend),
+  {
+    loading: () => <div className="h-64 bg-muted/30 border rounded-2xl animate-pulse" />,
+    ssr: false,
+  }
+);
 import { MenuCategoriesReport } from "@/components/owner/reports/MenuCategoriesReport";
 import { AddonsReport } from "@/components/owner/reports/AddonsReport";
 import { PopularityReport } from "@/components/owner/reports/PopularityReport";

@@ -6,6 +6,7 @@ import { api } from "@/services/api";
 import { Table, Order, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { addonNames } from "@/lib/kitchen";
+import { findActiveOrderForTable } from "@/lib/tableUtils";
 import { ArrowLeft, Plus, Users, Eye, CreditCard, AlertTriangle } from "lucide-react";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
 
@@ -41,8 +42,7 @@ export function TablesView({
     return true;
   });
 
-  const getActiveOrder = (tableId: string) =>
-    orders.find(o => o.tableId === tableId && o.status !== "COMPLETED" && o.status !== "CANCELLED");
+  const getActiveOrder = (table: Table) => findActiveOrderForTable(table, orders);
 
   const statusColor = (status: string) => {
     switch (status) {
@@ -65,7 +65,7 @@ export function TablesView({
 
   // Table detail inline view
   if (selectedTable) {
-    const activeOrder = getActiveOrder(selectedTable.id);
+    const activeOrder = getActiveOrder(selectedTable);
     return (
       <div className="p-4 sm:p-6 max-w-lg mx-auto animate-in fade-in duration-200">
         <button onClick={() => setSelectedTable(null)} className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground mb-4 active:scale-95">
@@ -195,7 +195,7 @@ export function TablesView({
       {/* Table grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {filtered.map(table => {
-          const active = getActiveOrder(table.id);
+          const active = getActiveOrder(table);
           return (
             <button
               key={table.id}

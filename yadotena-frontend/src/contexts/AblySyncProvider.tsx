@@ -83,36 +83,49 @@ export function AblySyncProvider({ children }: { children: React.ReactNode }) {
 
           const channel = ably.channels.get("yadotena-realtime");
 
+          let pendingInvalidations = { orders: false, tables: false, serviceRequests: false };
+          let invalidationTimer: NodeJS.Timeout | null = null;
+
+          const scheduleInvalidation = (keys: Array<"orders" | "tables" | "serviceRequests">) => {
+            keys.forEach((k) => (pendingInvalidations[k] = true));
+            if (invalidationTimer) return;
+            invalidationTimer = setTimeout(() => {
+              invalidationTimer = null;
+              const targets = { ...pendingInvalidations };
+              pendingInvalidations = { orders: false, tables: false, serviceRequests: false };
+              if (targets.orders) queryClient.invalidateQueries({ queryKey: ["orders"] });
+              if (targets.tables) queryClient.invalidateQueries({ queryKey: ["tables"] });
+              if (targets.serviceRequests) queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
+            }, 300);
+          };
+
           channel.subscribe("order.created", (message: Ably.Message) => {
             console.log("Real-time event: order.created", message.data);
-            queryClient.invalidateQueries({ queryKey: ["orders"] });
-            if (message.data && message.data.table_id) {
-              queryClient.invalidateQueries({ queryKey: ["tables"] });
-            }
+            const keys: Array<"orders" | "tables"> = ["orders"];
+            if (message.data && message.data.table_id) keys.push("tables");
+            scheduleInvalidation(keys);
           });
 
           channel.subscribe("order.updated", (message: Ably.Message) => {
             console.log("Real-time event: order.updated", message.data);
-            queryClient.invalidateQueries({ queryKey: ["orders"] });
-            if (message.data && message.data.table_id) {
-              queryClient.invalidateQueries({ queryKey: ["tables"] });
-            }
+            const keys: Array<"orders" | "tables"> = ["orders"];
+            if (message.data && message.data.table_id) keys.push("tables");
+            scheduleInvalidation(keys);
           });
 
           channel.subscribe("service_request.created", (message: Ably.Message) => {
             console.log("Real-time event: service_request.created", message.data);
-            queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
+            scheduleInvalidation(["serviceRequests"]);
           });
 
           channel.subscribe("service_request.resolved", (message: Ably.Message) => {
             console.log("Real-time event: service_request.resolved", message.data);
-            queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
-            queryClient.invalidateQueries({ queryKey: ["tables"] });
+            scheduleInvalidation(["serviceRequests", "tables"]);
           });
 
           channel.subscribe("table.updated", (message: Ably.Message) => {
             console.log("Real-time event: table.updated", message.data);
-            queryClient.invalidateQueries({ queryKey: ["tables"] });
+            scheduleInvalidation(["tables"]);
           });
         } catch (err) {
           console.warn("Ably connection error:", err);

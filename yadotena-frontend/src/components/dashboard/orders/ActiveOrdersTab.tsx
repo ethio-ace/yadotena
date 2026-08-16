@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ export function ActiveOrdersTab() {
     queryKey: ["addons"],
     queryFn: () => api.addons.getAll(),
   });
-  const addonMap = Object.fromEntries(addons.map((a) => [a.id, a.name]));
+  const addonMap = useMemo(() => Object.fromEntries(addons.map((a) => [a.id, a.name])), [addons]);
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string, status: OrderStatus }) => 

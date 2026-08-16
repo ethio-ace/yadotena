@@ -38,7 +38,7 @@ type DiningSession struct {
 func (s *Server) listTables(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.Pool.Query(r.Context(), `
 		SELECT t.id, t.name, t.capacity, t.status, t.qr_token,
-		       (SELECT o.id FROM orders o WHERE o.table_id = t.id AND o.status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY o.created_at DESC LIMIT 1) AS current_order_id,
+		       (SELECT o.id FROM orders o WHERE (o.table_id = t.id OR LOWER(o.table_id) = LOWER(t.id) OR LOWER(o.table_id) = LOWER(t.name) OR REPLACE(LOWER(o.table_id), 'table ', 'tbl-') = LOWER(t.id)) AND o.status NOT IN ('COMPLETED', 'CANCELLED') AND o.payment_status != 'PAID' ORDER BY o.created_at DESC LIMIT 1) AS current_order_id,
 		       t.created_at, t.updated_at
 		FROM tables t ORDER BY t.name`)
 	if err != nil {
@@ -62,7 +62,7 @@ func (s *Server) getTable(w http.ResponseWriter, r *http.Request) {
 	var t Table
 	err := s.Pool.QueryRow(r.Context(), `
 		SELECT t.id, t.name, t.capacity, t.status, t.qr_token,
-		       (SELECT o.id FROM orders o WHERE o.table_id = t.id AND o.status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY o.created_at DESC LIMIT 1) AS current_order_id,
+		       (SELECT o.id FROM orders o WHERE (o.table_id = t.id OR LOWER(o.table_id) = LOWER(t.id) OR LOWER(o.table_id) = LOWER(t.name) OR REPLACE(LOWER(o.table_id), 'table ', 'tbl-') = LOWER(t.id)) AND o.status NOT IN ('COMPLETED', 'CANCELLED') AND o.payment_status != 'PAID' ORDER BY o.created_at DESC LIMIT 1) AS current_order_id,
 		       t.created_at, t.updated_at
 		FROM tables t
 		WHERE t.id = $1 OR LOWER(t.id) = LOWER($1) OR LOWER(t.name) = LOWER($1)

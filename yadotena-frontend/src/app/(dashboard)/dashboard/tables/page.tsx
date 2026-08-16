@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,9 +12,11 @@ import {
   CheckCircle2, AlertCircle, Clock, RefreshCw, X, ShoppingBag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatETB } from "@/lib/currency";
+import { findActiveOrderForTable } from "@/lib/tableUtils";
 import { FullPageMenuPOS } from "@/components/dashboard/FullPageMenuPOS";
 import { TableQRModal } from "@/components/dashboard/TableQRModal";
-import { Table, TableStatus } from "@/types";
+import { Table, TableStatus, Order } from "@/types";
 import { soundAlerts } from "@/lib/audioAlerts";
 
 export default function TablesPage() {
@@ -27,11 +29,14 @@ export default function TablesPage() {
   const [shopSaleOpen, setShopSaleOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
-  // All hooks run unconditionally — the POS swap below is an early *return*,
-  // not a conditional hook, so React's hook order never changes.
   const { data: tables = [], isLoading, isRefetching } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
+  });
+
+  const { data: orders = [] } = useQuery<Order[]>({
+    queryKey: ["orders"],
+    queryFn: api.orders.getAll,
   });
 
   const updateStatusMutation = useMutation({
@@ -224,7 +229,8 @@ export default function TablesPage() {
           {filteredTables.map((table) => (
             <TableCard 
               key={table.id} 
-              table={table} 
+              table={table}
+              orders={orders}
               onPunchOrder={() => setSelectedTableForOrder(table.id)}
               onViewQR={() => setSelectedTableForQR(table)}
               onEdit={() => setEditingTable(table)}
@@ -314,6 +320,7 @@ export default function TablesPage() {
 // Table Card Item Component
 function TableCard({ 
   table, 
+  orders,
   onPunchOrder, 
   onViewQR,
   onEdit,
@@ -321,12 +328,15 @@ function TableCard({
   onStatusChange,
 }: { 
   table: Table; 
+  orders: Order[];
   onPunchOrder: () => void; 
   onViewQR: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onStatusChange: (status: TableStatus) => void;
 }) {
+  const activeOrder = useMemo(() => findActiveOrderForTable(table, orders), [table, orders]);
+
   const getStatusConfig = (status: string) => {
     switch (status) {
       case "AVAILABLE": 
@@ -420,6 +430,19 @@ function TableCard({
           </div>
         </div>
 
+        {/* Active Order details if present */}
+        {activeOrder ? (
+          <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
+            <div className="flex justify-between items-center font-bold">
+              <span className="text-amber-600 dark:text-amber-400">Order #{activeOrder.id.slice(-6).toUpperCase()}</span>
+              <span className="font-mono">{formatETB(activeOrder.total)}</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground font-medium">{activeOrder.items?.length || 0} items • Status: {activeOrder.status}</p>
+          </div>
+        ) : (
+          <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Ready for new guests</div>
+        )}
+
         {/* Quick Status Selector */}
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
@@ -456,14 +479,14 @@ function TableCard({
 
           <Button 
             size="sm" 
-            className="rounded-xl text-xs font-black h-8 px-2 flex items-center justify-center gap-1.5 shadow-sm bg-primary text-primary-foreground hover:bg-primary/90"
+            className="rounded-xl text-xs font-black bg-primary text-primary-foreground hover:bg-primary/90 h-8 px-2 flex items-center justify-center gap-1.5 shadow-md shadow-primary/20"
             onClick={(e) => {
               e.stopPropagation();
               onPunchOrder();
             }}
           >
             <Utensils className="h-3.5 w-3.5" />
-            <span>Order</span>
+            <span>{activeOrder ? "Add Extra Items" : "Order / POS"}</span>
           </Button>
         </div>
       </CardContent>

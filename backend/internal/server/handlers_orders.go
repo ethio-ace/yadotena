@@ -249,6 +249,7 @@ func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
 	paymentStatusFilter := r.URL.Query().Get("paymentStatus")
 	tableFilter := r.URL.Query().Get("table")
 	searchFilter := r.URL.Query().Get("search")
+	sinceFilter := r.URL.Query().Get("since")
 
 	q := `
 		SELECT 
@@ -299,6 +300,15 @@ func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
 		q += fmt.Sprintf(" AND (o.id ILIKE $%d OR o.customer_name ILIKE $%d OR o.customer_phone ILIKE $%d)", n, n, n)
 		args = append(args, "%"+searchFilter+"%")
 		n++
+	}
+	// Optional ISO-8601 cutoff (e.g. local midnight) so clients can ask for
+	// "today's orders" instead of the latest 100 across all time.
+	if sinceFilter != "" {
+		if since, err := time.Parse(time.RFC3339, sinceFilter); err == nil {
+			q += fmt.Sprintf(" AND o.created_at >= $%d", n)
+			args = append(args, since)
+			n++
+		}
 	}
 
 	q += " GROUP BY o.id ORDER BY o.created_at DESC LIMIT 100"

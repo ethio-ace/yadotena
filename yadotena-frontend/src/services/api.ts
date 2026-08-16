@@ -228,6 +228,13 @@ export const api = {
     getAll: async (): Promise<Order[]> => {
       return requestApiStrict<Order[]>("/orders", { method: "GET" });
     },
+    /** Orders created at/after an ISO-8601 instant (e.g. local midnight for "today"). */
+    getAllSince: async (since: string): Promise<Order[]> => {
+      return requestApiStrict<Order[]>(
+        `/orders?since=${encodeURIComponent(since)}`,
+        { method: "GET" }
+      );
+    },
     getById: async (id: string): Promise<Order | undefined> => {
       return requestApiStrict<Order>(`/orders/${id}`, { method: "GET" });
     },

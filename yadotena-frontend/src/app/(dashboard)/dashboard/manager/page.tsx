@@ -5,42 +5,28 @@ import { useSession } from "next-auth/react";
 import { ManagerHeader } from "@/components/manager/ManagerHeader";
 import { ManagerSidebar } from "@/components/manager/ManagerSidebar";
 import { ManagerOverview } from "@/components/manager/ManagerOverview";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/services/api";
+import { useManagerOps } from "@/hooks/useManagerOps";
 
 export default function ManagerDashboardPage() {
   const { data: session } = useSession();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-
-  const { data: payments = [] } = useQuery({
-    queryKey: ["payments"],
-    queryFn: api.payments.getAll,
-  });
-
-  const { data: menuItems = [] } = useQuery({
-    queryKey: ["menu"],
-    queryFn: api.menu.getAll,
-  });
-
-  const { data: serviceRequests = [] } = useQuery({
-    queryKey: ["serviceRequests"],
-    queryFn: api.serviceRequests.getAll,
-  });
-
-  const pendingPayments = payments.filter((p: any) => p.status === "PENDING_VERIFICATION" || p.status === "PENDING");
-  const outOfStockItems = menuItems.filter((i) => i.available === false || (i as any).isAvailable === false);
-  const pendingServiceCalls = serviceRequests.filter((r) => r.status === "PENDING");
-
-  const totalAttentionCount = pendingPayments.length + outOfStockItems.length + pendingServiceCalls.length;
+  const { metrics } = useManagerOps();
 
   const userObj = session?.user
     ? {
         name: session.user.name || "Store Manager",
-        role: (session.user as any).role || "MANAGER",
+        role: session.user.role || "MANAGER",
         email: session.user.email || undefined,
       }
     : { name: "Store Manager", role: "MANAGER" };
+
+  // The header bell jumps to the attention section on the overview.
+  const handleOpenAttention = () => {
+    document
+      .getElementById("attention-center")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden -m-3 sm:-m-4 md:-m-6">
@@ -56,7 +42,8 @@ export default function ManagerDashboardPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <ManagerHeader
           user={userObj}
-          attentionCount={totalAttentionCount}
+          attentionCount={metrics.attentionCount}
+          onOpenAttention={handleOpenAttention}
           onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         />
 

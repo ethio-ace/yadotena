@@ -1,10 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Building2, Clock, Bell, LogOut, Menu, X, ShieldCheck, 
-  ChevronRight, Sparkles 
-} from "lucide-react";
+import { Building2, Clock, Bell, LogOut, Menu } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Badge } from "@/components/ui/badge";
 
@@ -89,6 +86,11 @@ export function ManagerHeader({
               : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted"
           }`}
           title="Items requiring manager attention"
+          aria-label={
+            attentionCount > 0
+              ? `${attentionCount} items require attention`
+              : "No items require attention"
+          }
         >
           <Bell className="h-4 w-4" />
           <span className="hidden sm:inline">ATTENTION</span>

@@ -2,10 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, Coffee, ShoppingBag, Layers, Tags, 
-  Grid3X3, EyeOff, ClipboardList, CreditCard, Receipt, 
-  Settings, ChevronLeft, ChevronRight, UtensilsCrossed 
+import {
+  LayoutDashboard,
+  Coffee,
+  ShoppingBag,
+  Layers,
+  Grid3X3,
+  EyeOff,
+  ClipboardList,
+  CreditCard,
+  Receipt,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  UtensilsCrossed,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +45,7 @@ export function ManagerSidebar({
       group: "CATALOG",
       items: [
         { name: "Café Menu", href: "/dashboard/menu", icon: Coffee },
-        { name: "Retail Goods", href: "/dashboard/menu?type=retail", icon: ShoppingBag },
+        { name: "Retail Goods", href: "/dashboard/menu", icon: ShoppingBag },
         { name: "Add-ons", href: "/dashboard/addons", icon: Layers },
       ],
     },
@@ -43,14 +53,14 @@ export function ManagerSidebar({
       group: "OPERATIONS",
       items: [
         { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
-        { name: "Availability", href: "/dashboard/manager?view=availability", icon: EyeOff },
+        { name: "Availability", href: "/dashboard/menu", icon: EyeOff },
         { name: "Order Supervision", href: "/dashboard/orders", icon: ClipboardList },
       ],
     },
     {
       group: "PAYMENTS",
       items: [
-        { name: "Verification", href: "/dashboard/payments", icon: CreditCard },
+        { name: "Payment Verification", href: "/dashboard/payments", icon: CreditCard },
       ],
     },
     {
@@ -60,7 +70,7 @@ export function ManagerSidebar({
       ],
     },
     {
-      group: "SYSTEM",
+      group: "SETTINGS",
       items: [
         { name: "Store Settings", href: "/dashboard/settings", icon: Settings },
       ],
@@ -127,7 +137,7 @@ export function ManagerSidebar({
                   const Icon = item.icon;
                   const isActive =
                     item.href === "/dashboard/manager"
-                      ? pathname === "/dashboard/manager" && !pathname.includes("?")
+                      ? pathname === "/dashboard/manager"
                       : pathname.startsWith(item.href);
 
                   return (

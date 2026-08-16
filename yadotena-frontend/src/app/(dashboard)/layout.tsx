@@ -39,17 +39,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isPureStaffRole = session.user.role === "WAITER" || session.user.role === "KITCHEN";
   const showSidebar = !isPureStaffRole;
 
-  // The chef surface is its own product: the KDS owns the entire screen.
-  // The shared admin header (search, notifications, audio panel) is admin
-  // chrome a chef should never see — the KDS header replaces it entirely.
+  // Staff surfaces own their chrome: the chef KDS and the manager control
+  // center render their own full-screen shell (sidebar + header) instead of
+  // stacking a second one inside the shared layout.
   const isChefKds = session.user.role === "KITCHEN";
+  const isManagerAppRoute =
+    session.user.role === "MANAGER" &&
+    (pathname === "/dashboard/manager" || pathname === "/dashboard");
+  const hideSharedChrome = isChefKds || isManagerAppRoute;
 
   return (
     <SoundNotificationProvider>
       <div className="flex h-screen bg-muted/20 overflow-hidden">
-        {showSidebar && <Sidebar role={session.user.role} />}
+        {showSidebar && !hideSharedChrome && <Sidebar role={session.user.role} />}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {!isChefKds && <Header user={session.user} />}
+          {!hideSharedChrome && <Header user={session.user} />}
           <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
             {children}
           </main>

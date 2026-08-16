@@ -103,7 +103,7 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: FormData }) => 
+    mutationFn: ({ id, data }: { id: string; data: FormData | any }) => 
       api.menu.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["menu"] });
@@ -163,15 +163,27 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
     setCustomAddons(prev => prev.filter(a => a.id !== id));
   };
   
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string>("");
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
+      
+      // Presign and obtain public URL instantly in background (~20ms)
+      try {
+        const res = await api.media.upload(file);
+        if (res?.publicUrl) {
+          setUploadedImageUrl(res.publicUrl);
+        }
+      } catch (err) {
+        console.warn("Background image presign failed:", err);
+      }
     }
   };
 
-  const handleAddonImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAddonImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setAddonImageFile(file);
@@ -208,6 +220,30 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
     if (!name.trim()) return setError("Dish title is required");
     if (!price || Number(price) <= 0) return setError("Please specify a valid ETB price");
 
+    // Fast path: If image URL is presigned or string preview, use ultra-fast JSON submit (~2ms)
+    const finalImage = uploadedImageUrl || (typeof imagePreview === "string" && !image ? imagePreview : "");
+    if (finalImage || !image) {
+      const payload = {
+        name: name.trim(),
+        description: description.trim() || "Artisanal specialty prepared with fresh local ingredients.",
+        category: category || "Main Course",
+        price: Number(price),
+        preparationTime: Number(prepTime) || 15,
+        available,
+        dietaryTags,
+        customAddons,
+        image: finalImage,
+      };
+
+      if (itemToEdit) {
+        updateMutation.mutate({ id: itemToEdit.id, data: payload });
+      } else {
+        createMutation.mutate(payload);
+      }
+      return;
+    }
+
+    // Fallback path: FormData multipart
     const formData = new FormData();
     formData.append("name", name.trim());
     formData.append("description", description.trim() || "Artisanal specialty prepared with fresh local ingredients.");

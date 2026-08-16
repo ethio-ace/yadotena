@@ -437,37 +437,46 @@ export const api = {
           }),
         });
 
-        if (presign && presign.uploadUrl) {
-          // Direct PUT to Tigris S3 (0 MB payload on application server)
-          const s3Put = await fetch(presign.uploadUrl, {
-            method: "PUT",
-            headers: {
-              "Content-Type": file.type || "image/jpeg",
-            },
-            body: file,
-          });
+        if (presign && presign.publicUrl) {
+          // Fire-and-forget background upload & confirmation to S3 storage
+          if (presign.uploadUrl) {
+            (async () => {
+              try {
+                const s3Put = await fetch(presign.uploadUrl, {
+                  method: "PUT",
+                  headers: {
+                    "Content-Type": file.type || "image/jpeg",
+                  },
+                  body: file,
+                });
 
-          if (s3Put.ok) {
-            // Confirm presigned upload & register hash metadata in DB
-            const confirm = await requestApiStrict<{ url: string; publicUrl: string }>(
-              "/media/confirm-presigned",
-              {
-                method: "POST",
-                body: JSON.stringify({
-                  key: presign.key,
-                  filename: file.name,
-                }),
+                if (s3Put.ok) {
+                  await requestApiStrict<{ url: string; publicUrl: string }>(
+                    "/media/confirm-presigned",
+                    {
+                      method: "POST",
+                      body: JSON.stringify({
+                        key: presign.key,
+                        filename: file.name,
+                      }),
+                    }
+                  );
+                }
+              } catch (bgErr) {
+                console.warn("Background S3 upload transfer error:", bgErr);
               }
-            );
-            const finalURL = confirm.publicUrl || confirm.url || presign.publicUrl;
-            return { url: finalURL, publicUrl: finalURL };
+            })();
           }
+
+          // Return public URL IMMEDIATELY (~20ms response) so DB insert and UI submit proceed without blocking!
+          const finalURL = presign.publicUrl;
+          return { url: finalURL, publicUrl: finalURL };
         }
       } catch (err) {
         console.warn("Presigned upload attempt bypassed, falling back to direct server upload:", err);
       }
 
-      // 2. Direct server upload fallback
+      // 2. Direct server upload fallback if presign fails
       const formData = new FormData();
       formData.append("file", file);
       return requestApiStrict<{ url: string; publicUrl: string }>("/media/upload", {

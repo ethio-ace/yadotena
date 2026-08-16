@@ -14,9 +14,11 @@ import { Input } from "@/components/ui/input";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
 import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import Link from "next/link";
 
 function MenuContent() {
+  const tableLabels = useTableLabels();
   const { data: menu, isLoading: isMenuLoading } = useQuery({
     queryKey: ["menu"],
     queryFn: api.menu.getAll,
@@ -122,7 +124,7 @@ function MenuContent() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base text-foreground">
-                  {tableId ? `Table ${tableId.replace("t", "")} Session` : "Your Active Order"}: <span className="text-primary">{activeSessionOrder.status}</span>
+                  {tableId ? `${formatTableRef(tableId, tableLabels)} Session` : "Your Active Order"}: <span className="text-primary">{activeSessionOrder.status}</span>
                 </span>
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block animate-ping" />
               </div>

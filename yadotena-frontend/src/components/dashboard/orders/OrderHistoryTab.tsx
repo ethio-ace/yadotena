@@ -8,8 +8,10 @@ import { Search, DollarSign, ListOrdered, CheckCircle2, XCircle } from "lucide-r
 import { formatETB } from "@/lib/currency";
 import { format } from "date-fns";
 import { OrderStatus } from "@/types";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 
 export function OrderHistoryTab() {
+  const tableLabels = useTableLabels();
   const [search, setSearch] = useState("");
 
   const { data: orders = [], isLoading } = useQuery({
@@ -122,7 +124,7 @@ export function OrderHistoryTab() {
                       </td>
                       <td className="px-6 py-4 font-semibold">
                         {order.type === "DINE_IN" ? (
-                          <span className="font-bold text-primary">Table {order.tableId?.replace("t", "")}</span>
+                          <span className="font-bold text-primary">{formatTableRef(order.tableId, tableLabels)}</span>
                         ) : (
                           <span>{order.customerName || "Guest"}</span>
                         )}

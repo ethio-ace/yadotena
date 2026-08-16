@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatETB } from "@/lib/currency";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { Order, OrderStatus } from "@/types";
 import { 
   Truck, CheckCircle, Clock, ShoppingBag, Phone, MapPin, 
@@ -19,6 +20,7 @@ interface ReadyDeliveryPaneProps {
 
 export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
   const queryClient = useQueryClient();
+  const tableLabels = useTableLabels();
   const [filterType, setFilterType] = useState<"ALL" | "DINE_IN" | "TAKEAWAY" | "DELIVERY">("ALL");
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
@@ -173,7 +175,7 @@ export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-black text-base text-foreground">
-                          {order.id.substring(0, 8)}
+                          {order.id.slice(-6).toUpperCase()}
                         </span>
                         <Badge 
                           variant="outline" 
@@ -191,7 +193,7 @@ export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
 
                       <div className="text-xs font-bold text-muted-foreground mt-0.5">
                         {order.tableId ? (
-                          <span className="text-primary font-black">Table {order.tableId.substring(0, 6)}</span>
+                          <span className="text-primary font-black">{formatTableRef(order.tableId, tableLabels)}</span>
                         ) : order.customerName ? (
                           <span>Customer: {order.customerName}</span>
                         ) : (

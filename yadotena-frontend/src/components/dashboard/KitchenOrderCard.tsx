@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, Flame, Check, UtensilsCrossed, AlertTriangle, ChevronRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { formatETB } from "@/lib/currency";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 
 export function KitchenOrderCard({ 
   order, 
@@ -17,8 +18,9 @@ export function KitchenOrderCard({
   isUrgent,
   onAddItems
 }: any) {
-  const tableDisplay = order.tableId 
-    ? `Table ${order.tableId.replace('t', '')}` 
+  const tableLabels = useTableLabels();
+  const tableDisplay = order.tableId
+    ? formatTableRef(order.tableId, tableLabels)
     : (order.customerName ? `Takeout: ${order.customerName}` : "Takeout / Express");
 
   return (

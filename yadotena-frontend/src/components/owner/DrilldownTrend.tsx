@@ -5,6 +5,7 @@ import { Order } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { DateRange } from "@/lib/owner";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 
 /**
  * Drillable revenue analytics.
@@ -224,15 +225,16 @@ interface DrilldownTrendProps {
 }
 
 /** Stable customer identity for an order (same rule the Customers dimension uses). */
-function customerKeyOf(o: Order): string {
+function customerKeyOf(o: Order, labels: Record<string, string>): string {
   const isDineIn = o.type === "DINE_IN";
   return (
     o.customerName?.trim() ||
-    (isDineIn ? (o.tableName || (o.tableId ? `Table ${o.tableId}` : "Dine-in")) : "Walk-in")
+    (isDineIn ? (o.tableName || formatTableRef(o.tableId, labels) || "Dine-in") : "Walk-in")
   );
 }
 
 export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps) {
+  const tableLabels = useTableLabels();
   const [dimension, setDimension] = useState<"time" | "customers">("time");
   const [customerKey, setCustomerKey] = useState<string>("all");
   const [focus, setFocus] = useState<{ start: Date; end: Date } | null>(null);
@@ -256,7 +258,7 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
   const customers: CustomerRow[] = useMemo(() => {
     const map = new Map<string, CustomerRow>();
     for (const o of paidOrders) {
-      const key = customerKeyOf(o);
+      const key = customerKeyOf(o, tableLabels);
       const cur = map.get(key) ?? { key, name: key, revenue: 0, count: 0, orders: [] as Order[] };
       cur.revenue += o.total || 0;
       cur.count += 1;
@@ -269,7 +271,7 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
   // Customer range: when a specific customer is selected, scope every chart to
   // their orders only (still drillable through time).
   const scopedOrders = useMemo(
-    () => (customerKey === "all" ? paidOrders : paidOrders.filter((o) => customerKeyOf(o) === customerKey)),
+    () => (customerKey === "all" ? paidOrders : paidOrders.filter((o) => customerKeyOf(o, tableLabels) === customerKey)),
     [paidOrders, customerKey]
   );
 

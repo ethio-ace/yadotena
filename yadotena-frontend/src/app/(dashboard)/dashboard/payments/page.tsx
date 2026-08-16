@@ -14,6 +14,7 @@ import {
   Receipt, BarChart3, Clock, CreditCard
 } from "lucide-react";
 import { format } from "date-fns";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 
 interface PaymentMethod {
   id: string;
@@ -28,6 +29,7 @@ interface PaymentMethod {
 
 export default function PaymentsPage() {
   const queryClient = useQueryClient();
+  const tableLabels = useTableLabels();
   const [activeTab, setActiveTab] = useState<"TRANSACTIONS" | "GATEWAYS">("TRANSACTIONS");
   const [search, setSearch] = useState("");
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<any | null>(null);
@@ -273,7 +275,7 @@ export default function PaymentsPage() {
                       {order.id.slice(-6).toUpperCase()}
                     </td>
                     <td className="px-4 py-3 font-bold">
-                      {order.type === "DINE_IN" ? `Table ${order.tableId?.replace('t', '')}` : (order.customerName || "Takeout Guest")}
+                      {order.type === "DINE_IN" ? (formatTableRef(order.tableId, tableLabels) || "Table") : (order.customerName || "Takeout Guest")}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground font-medium">
                       {format(new Date(order.updatedAt), "MMM d, yyyy h:mm a")}
@@ -519,7 +521,7 @@ export default function PaymentsPage() {
                 <div className="p-3 bg-muted/30 rounded-xl border">
                   <span className="text-[10px] font-bold block uppercase">Customer / Location</span>
                   <span className="text-xs font-bold text-foreground">
-                    {selectedOrderForDetail.type === "DINE_IN" ? `Table ${selectedOrderForDetail.tableId?.replace('t', '')}` : (selectedOrderForDetail.customerName || "Takeout Guest")}
+                    {selectedOrderForDetail.type === "DINE_IN" ? (formatTableRef(selectedOrderForDetail.tableId, tableLabels) || "Table") : (selectedOrderForDetail.customerName || "Takeout Guest")}
                   </span>
                 </div>
                 <div className="p-3 bg-muted/30 rounded-xl border">

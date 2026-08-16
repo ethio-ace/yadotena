@@ -71,6 +71,8 @@ export function useOwnerOps(rangeOverride?: OwnerRange) {
     orders: (orders.data ?? []) as Order[],
     /** Live menu (used to join order items back to category / retail channel). */
     menuItems: (menu.data ?? []) as MenuItem[],
+    /** Recorded expenses (date + amount) — drawn as the second analytics series. */
+    expenses: (expenses.data ?? []) as Expense[],
     recentActivity: activity.data ?? [],
     isLoading: orders.isLoading || expenses.isLoading || menu.isLoading,
     isError:

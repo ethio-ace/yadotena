@@ -29,7 +29,7 @@ import {
   Pencil,
 } from "lucide-react";
 
-const RANGE_KEYS: OwnerRange[] = ["today", "yesterday", "week", "month", "quarter", "year", "all"];
+const RANGE_KEYS: OwnerRange[] = ["today", "yesterday", "week", "month", "quarter", "year"];
 
 function SalesReports() {
   const router = useRouter();
@@ -37,7 +37,7 @@ function SalesReports() {
   const qRange = searchParams.get("range") as OwnerRange | null;
   const rangeKey: OwnerRange = qRange && RANGE_KEYS.includes(qRange) ? qRange : "today";
 
-  const { metrics, orders, menuItems, isLoading } = useOwnerOps(rangeKey);
+  const { metrics, orders, menuItems, expenses, isLoading } = useOwnerOps(rangeKey);
 
   const [editingProduct, setEditingProduct] = useState<MenuItem | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
@@ -172,6 +172,7 @@ function SalesReports() {
               <DrilldownTrend
                 key={`${metrics.range.from}-${metrics.range.to}`}
                 orders={orders}
+                expenses={expenses}
                 range={metrics.range}
               />
             </div>

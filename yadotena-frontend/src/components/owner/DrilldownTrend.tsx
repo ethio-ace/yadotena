@@ -12,8 +12,10 @@ import { DateRange } from "@/lib/owner";
  * Buckets PAID orders by exact local `createdAt` instants — no server math —
  * and lets the owner drill from the whole period down through
  * YEAR → MONTH → WEEK → DAY → HOUR → MINUTE by clicking a point, rendered as
- * a line graph. A separate "Customers" dimension ranks the same orders by who
- * placed them. Every figure is real; nothing is invented.
+ * a line graph. Expenses (recorded per day) are drawn as a second line at day
+ * granularity and coarser. A "Customers" dimension ranks the same orders by
+ * who placed them, and a customer selector scopes the whole chart to one
+ * customer ("customer range"). Every figure is real; nothing is invented.
  */
 
 type Granularity = "YEAR" | "MONTH" | "WEEK" | "DAY" | "HOUR" | "MINUTE";
@@ -49,6 +51,12 @@ function startOfWeek(d: Date): Date {
   return r;
 }
 
+function fmtDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
 function buildBuckets(start: Date, end: Date, g: Granularity): BucketDef[] {
   const buckets: BucketDef[] = [];
   const cursor = new Date(start);
@@ -61,7 +69,8 @@ function buildBuckets(start: Date, end: Date, g: Granularity): BucketDef[] {
           key: `y${y}`,
           label: String(y),
           start: new Date(y, 0, 1),
-          end: new Date(y, 11, 31),
+          // End of the last day (not midnight), so Dec 31 orders are included.
+          end: new Date(y, 11, 31, 23, 59, 59),
         });
         y++;
       }
@@ -72,7 +81,8 @@ function buildBuckets(start: Date, end: Date, g: Granularity): BucketDef[] {
       let guard = 0;
       while (c <= end && guard < 200) {
         const s = c;
-        const e = new Date(c.getFullYear(), c.getMonth() + 1, 0);
+        // End of the last day of the month (not midnight).
+        const e = new Date(c.getFullYear(), c.getMonth() + 1, 0, 23, 59, 59);
         const showYear = c.getFullYear() !== end.getFullYear();
         buckets.push({
           key: `m${c.getFullYear()}-${c.getMonth()}`,
@@ -92,7 +102,8 @@ function buildBuckets(start: Date, end: Date, g: Granularity): BucketDef[] {
       let guard = 0;
       while (c <= end && guard < 60) {
         const s = c;
-        const e = new Date(c.getFullYear(), c.getMonth(), c.getDate() + 6);
+        // End of the last day of the week (not midnight), so Sunday orders count.
+        const e = new Date(c.getFullYear(), c.getMonth(), c.getDate() + 6, 23, 59, 59);
         const fromLabel = s.toLocaleDateString("en-US", { month: "short", day: "numeric" });
         const toLabel =
           e.getFullYear() !== s.getFullYear() || e.getMonth() !== s.getMonth()
@@ -162,16 +173,35 @@ function defaultGranularity(start: Date, end: Date): Granularity {
 }
 
 function fmtFocus(start: Date, end: Date): string {
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const s = start.toLocaleDateString("en-US", opts);
+  const s = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const e = end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   return start.getTime() === end.getTime() ? e : `${s} – ${e}`;
+}
+
+/** Catmull-Rom → cubic Bézier smoothing so the line reads as a curve, not a zigzag. */
+function smoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return "";
+  if (pts.length === 1) return `M${pts[0].x},${pts[0].y}`;
+  let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
+  }
+  return d;
 }
 
 interface TrendPoint {
   key: string;
   label: string;
   revenue: number;
+  expense: number;
   count: number;
   orders: Order[];
   start: Date;
@@ -188,11 +218,23 @@ interface CustomerRow {
 
 interface DrilldownTrendProps {
   orders: Order[];
+  /** Recorded expenses (date + amount) — drawn as a second series at day level and coarser. */
+  expenses: { date: string; amount: number }[];
   range: DateRange;
 }
 
-export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
+/** Stable customer identity for an order (same rule the Customers dimension uses). */
+function customerKeyOf(o: Order): string {
+  const isDineIn = o.type === "DINE_IN";
+  return (
+    o.customerName?.trim() ||
+    (isDineIn ? (o.tableName || (o.tableId ? `Table ${o.tableId}` : "Dine-in")) : "Walk-in")
+  );
+}
+
+export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps) {
   const [dimension, setDimension] = useState<"time" | "customers">("time");
+  const [customerKey, setCustomerKey] = useState<string>("all");
   const [focus, setFocus] = useState<{ start: Date; end: Date } | null>(null);
   const [granularity, setGranularity] = useState<Granularity | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -211,16 +253,37 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
     [orders, range.fromInstant]
   );
 
-  const rangeStart = useMemo(() => {
-    const d = new Date(`${range.from}T00:00:00`);
-    // For "All Time" start from the earliest order, not the sentinel year.
-    if (range.label === "All Time" && paidOrders.length > 0) {
-      const earliest = new Date(Math.min(...paidOrders.map((o) => new Date(o.createdAt).getTime())));
-      return new Date(earliest.getFullYear(), earliest.getMonth(), 1);
+  const customers: CustomerRow[] = useMemo(() => {
+    const map = new Map<string, CustomerRow>();
+    for (const o of paidOrders) {
+      const key = customerKeyOf(o);
+      const cur = map.get(key) ?? { key, name: key, revenue: 0, count: 0, orders: [] as Order[] };
+      cur.revenue += o.total || 0;
+      cur.count += 1;
+      cur.orders.push(o);
+      map.set(key, cur);
     }
-    return d;
-  }, [range.from, range.label, paidOrders]);
+    return [...map.values()].sort((a, b) => b.revenue - a.revenue);
+  }, [paidOrders]);
 
+  // Customer range: when a specific customer is selected, scope every chart to
+  // their orders only (still drillable through time).
+  const scopedOrders = useMemo(
+    () => (customerKey === "all" ? paidOrders : paidOrders.filter((o) => customerKeyOf(o) === customerKey)),
+    [paidOrders, customerKey]
+  );
+
+  // Expenses are recorded per day, so they only resolve at DAY granularity and
+  // coarser — at HOUR/MINUTE we drop the expense line rather than invent one.
+  const expenseByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of expenses) {
+      if (!e.date) continue;
+      map.set(e.date, (map.get(e.date) ?? 0) + (e.amount || 0));
+    }
+    return map;
+  }, [expenses]);
+  const rangeStart = useMemo(() => new Date(`${range.from}T00:00:00`), [range.from]);
   const rangeEnd = useMemo(() => new Date(`${range.to}T23:59:59`), [range.to]);
 
   // NOTE: the parent keys this component by the reporting period, so a range
@@ -231,6 +294,17 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
   const activeEnd = activeFocus.end;
   const activeGranularity = granularity ?? defaultGranularity(activeStart, activeEnd);
 
+  // Expenses resolve at day granularity and coarser; at HOUR/MINUTE they have
+  // no time precision, so the expense line is hidden rather than invented.
+  // When scoped to a single customer, expenses are hidden too — recorded costs
+  // are café-wide and cannot be attributed to one customer.
+  const scopedToCustomer = customerKey !== "all";
+  const showExpenses =
+    !scopedToCustomer &&
+    activeGranularity !== "HOUR" &&
+    activeGranularity !== "MINUTE" &&
+    expenseByDate.size > 0;
+
   const focusStart = activeStart.getTime();
   const focusEnd = activeEnd.getTime();
 
@@ -239,10 +313,11 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
     const filled = defs.map((b) => ({
       ...b,
       revenue: 0,
+      expense: 0,
       count: 0,
       orders: [] as Order[],
     }));
-    for (const o of paidOrders) {
+    for (const o of scopedOrders) {
       const t = new Date(o.createdAt).getTime();
       for (const b of filled) {
         if (t >= b.start.getTime() && t <= b.end.getTime()) {
@@ -253,27 +328,27 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
         }
       }
     }
-    return filled;
-  }, [paidOrders, focusStart, focusEnd, activeGranularity]);
-
-  const customers: CustomerRow[] = useMemo(() => {
-    const map = new Map<string, CustomerRow>();
-    for (const o of paidOrders) {
-      const isDineIn = o.type === "DINE_IN";
-      const key =
-        o.customerName?.trim() ||
-        (isDineIn ? (o.tableName || (o.tableId ? `Table ${o.tableId}` : "Dine-in")) : "Walk-in");
-      const cur = map.get(key) ?? { key, name: key, revenue: 0, count: 0, orders: [] as Order[] };
-      cur.revenue += o.total || 0;
-      cur.count += 1;
-      cur.orders.push(o);
-      map.set(key, cur);
+    // Expenses by recorded date (day level and coarser only). The first week
+    // bucket can start before the selected period (start-of-week), so the
+    // expense window is clamped to the focus range — no out-of-range costs.
+    if (activeGranularity === "DAY" || activeGranularity === "WEEK" || activeGranularity === "MONTH" || activeGranularity === "YEAR") {
+      const range0 = fmtDate(new Date(focusStart));
+      const range1 = fmtDate(new Date(focusEnd));
+      for (const b of filled) {
+        const d0 = fmtDate(b.start) < range0 ? range0 : fmtDate(b.start);
+        const d1 = fmtDate(b.end) > range1 ? range1 : fmtDate(b.end);
+        for (const [date, amount] of expenseByDate) {
+          if (date >= d0 && date <= d1) b.expense += amount;
+        }
+      }
     }
-    return [...map.values()].sort((a, b) => b.revenue - a.revenue);
-  }, [paidOrders]);
+    return filled;
+  }, [scopedOrders, focusStart, focusEnd, activeGranularity, expenseByDate]);
 
   const maxRevenue = Math.max(...points.map((p) => p.revenue), 0);
+  const maxExpense = Math.max(...points.map((p) => p.expense), 0);
   const totalRevenue = points.reduce((s, p) => s + p.revenue, 0);
+  const totalExpense = points.reduce((s, p) => s + p.expense, 0);
   const peak = points.reduce((best, p) => (p.revenue > best.revenue ? p : best), points[0] ?? { label: "—", revenue: 0 });
   const totalOrders = points.reduce((s, p) => s + p.count, 0);
   const avgBucket = points.length > 0 ? totalRevenue / points.length : 0;
@@ -281,20 +356,27 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
   const drillable = NEXT_LEVEL[activeGranularity] !== null;
   const hasData = points.some((p) => p.revenue > 0);
 
-  // Chart geometry (% coordinates). Top is 100 - ... we position with `bottom`.
+  // Chart geometry — SVG y grows downward, so the same percentage value is
+  // used for the polyline y AND the hit-dot `top` offset. They now line up.
+  // Revenue and expenses scale independently (dual axis): the two series often
+  // differ by orders of magnitude, and a shared axis would flatten one to a
+  // straight line. Each scale's max is labeled in the legend so the reader
+  // knows the axes differ.
   const TOP = 8;
   const BOTTOM = 86;
-  const yFor = (revenue: number) =>
-    maxRevenue > 0 ? BOTTOM - (revenue / maxRevenue) * (BOTTOM - TOP) : BOTTOM;
-  const linePoints = points
-    .map((p, i) => `${((i + 0.5) / Math.max(points.length, 1)) * 100},${yFor(p.revenue)}`)
-    .join(" ");
-  const areaPath =
-    points.length > 0
-      ? `M0,${BOTTOM} L${points
-          .map((p, i) => `${((i + 0.5) / points.length) * 100},${yFor(p.revenue)}`)
-          .join(" L")} L100,${BOTTOM} Z`
-      : "";
+  const scale = (max: number) => (value: number) =>
+    max > 0 ? BOTTOM - (value / max) * (BOTTOM - TOP) : BOTTOM;
+  const yRev = scale(maxRevenue);
+  const yExp = scale(maxExpense);
+
+  const xFor = (i: number) => ((i + 0.5) / Math.max(points.length, 1)) * 100;
+
+  const revLine = smoothPath(points.map((p, i) => ({ x: xFor(i), y: yRev(p.revenue) })));
+  const expLine = showExpenses
+    ? smoothPath(points.map((p, i) => ({ x: xFor(i), y: yExp(p.expense) })))
+    : "";
+  const revArea = revLine ? `${revLine} L100,${BOTTOM} L0,${BOTTOM} Z` : "";
+  const expArea = expLine ? `${expLine} L100,${BOTTOM} L0,${BOTTOM} Z` : "";
 
   // X-axis tick labels: show up to 8, evenly spaced.
   const tickEvery = Math.max(1, Math.ceil(points.length / 8));
@@ -310,6 +392,9 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
     setHoverIdx(null);
   };
 
+  const selectedCustomerName =
+    customerKey === "all" ? null : customers.find((c) => c.key === customerKey)?.name ?? customerKey;
+
   return (
     <div className="bg-card border rounded-2xl p-5 shadow-sm">
       {/* Header */}
@@ -317,13 +402,32 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
         <div>
           <h3 className="font-black text-sm text-foreground">Revenue Analytics</h3>
           <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+            {selectedCustomerName ? `${selectedCustomerName} · ` : ""}
             {focus
               ? `${LEVEL_LABEL[activeGranularity]} · ${fmtFocus(activeStart, activeEnd)}`
               : `${LEVEL_LABEL[activeGranularity]} · ${range.display}`}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Customer range */}
+          <select
+            value={customerKey}
+            onChange={(e) => {
+              setCustomerKey(e.target.value);
+              setExpandedCustomer(e.target.value === "all" ? null : e.target.value);
+            }}
+            className="h-8 rounded-xl border bg-background px-2 text-[11px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 max-w-[150px]"
+            aria-label="Customer range"
+          >
+            <option value="all">All customers</option>
+            {customers.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
           {/* Dimension toggle */}
           <div className="flex items-center gap-1 p-1 bg-muted/50 border rounded-xl">
             {(["time", "customers"] as const).map((d) => (
@@ -360,16 +464,23 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
           {/* Summary strip */}
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div className="rounded-xl border bg-muted/20 px-3 py-2">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase block">Total</span>
-              <span className="text-sm font-black text-foreground">{formatETB(totalRevenue)}</span>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase block">Revenue</span>
+              <span className="text-sm font-black text-amber-600 dark:text-amber-400">{formatETB(totalRevenue)}</span>
             </div>
+            {showExpenses ? (
+              <div className="rounded-xl border bg-muted/20 px-3 py-2">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">Expenses</span>
+                <span className="text-sm font-black text-rose-600 dark:text-rose-400">{formatETB(totalExpense)}</span>
+              </div>
+            ) : (
+              <div className="rounded-xl border bg-muted/20 px-3 py-2">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase block">Avg / {LEVEL_LABEL[activeGranularity].toLowerCase().slice(0, -1)}</span>
+                <span className="text-sm font-black text-foreground">{formatETB(avgBucket)}</span>
+              </div>
+            )}
             <div className="rounded-xl border bg-muted/20 px-3 py-2">
               <span className="text-[10px] font-bold text-muted-foreground uppercase block">Peak {peak.label}</span>
               <span className="text-sm font-black text-foreground">{formatETB(peak.revenue)}</span>
-            </div>
-            <div className="rounded-xl border bg-muted/20 px-3 py-2">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase block">Avg / {LEVEL_LABEL[activeGranularity].toLowerCase().slice(0, -1)}</span>
-              <span className="text-sm font-black text-foreground">{formatETB(avgBucket)}</span>
             </div>
             <div className="rounded-xl border bg-muted/20 px-3 py-2">
               <span className="text-[10px] font-bold text-muted-foreground uppercase block">Paid Orders</span>
@@ -384,7 +495,25 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
             </div>
           ) : (
             <div className="mt-4">
-              <div className="relative h-52">
+              {/* Legend — each series labels its own scale max (dual axis). */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-bold text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" /> Revenue
+                  <span className="text-[9px] font-semibold opacity-70">max {formatETB(maxRevenue)}</span>
+                </span>
+                {showExpenses ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-rose-500" /> Expenses
+                    <span className="text-[9px] font-semibold opacity-70">max {formatETB(maxExpense)}</span>
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-semibold opacity-70">
+                    Expenses are recorded per day
+                  </span>
+                )}
+              </div>
+
+              <div className="relative h-52 mt-2">
                 {/* Grid lines */}
                 <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
                   {[0, 1, 2, 3].map((i) => (
@@ -392,7 +521,7 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
                   ))}
                 </div>
 
-                {/* Line + area */}
+                {/* Lines + areas */}
                 <svg
                   className="absolute inset-0 w-full h-full pointer-events-none"
                   viewBox="0 0 100 100"
@@ -400,29 +529,29 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
                   aria-hidden="true"
                 >
                   <defs>
-                    <linearGradient id="drillArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
+                    <linearGradient id="revArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.22} />
+                      <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.01} />
+                    </linearGradient>
+                    <linearGradient id="expArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.16} />
+                      <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.01} />
                     </linearGradient>
                   </defs>
-                  {areaPath && <path d={areaPath} fill="url(#drillArea)" />}
-                  {linePoints && (
-                    <polyline
-                      points={linePoints}
-                      fill="none"
-                      stroke="#f59e0b"
-                      strokeWidth="2.2"
-                      vectorEffect="non-scaling-stroke"
-                      strokeLinejoin="round"
-                      strokeLinecap="round"
-                    />
+                  {expArea && <path d={expArea} fill="url(#expArea)" />}
+                  {revArea && <path d={revArea} fill="url(#revArea)" />}
+                  {expLine && (
+                    <path d={expLine} fill="none" stroke="#f43f5e" strokeWidth="1.8" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+                  )}
+                  {revLine && (
+                    <path d={revLine} fill="none" stroke="#f59e0b" strokeWidth="2.4" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
                   )}
                 </svg>
 
                 {/* Hit targets + tooltip */}
                 {points.map((p, i) => {
-                  const left = ((i + 0.5) / points.length) * 100;
-                  const bottom = yFor(p.revenue);
+                  const left = xFor(i);
+                  const top = yRev(p.revenue);
                   return (
                     <button
                       key={p.key}
@@ -436,15 +565,13 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
                       onMouseLeave={() => setHoverIdx(null)}
                       onFocus={() => setHoverIdx(i)}
                       onBlur={() => setHoverIdx(null)}
-                      aria-label={`${p.label}: ${formatETB(p.revenue)}, ${p.count} orders${drillable ? ", click to drill in" : ""}`}
+                      aria-label={`${p.label}: revenue ${formatETB(p.revenue)}, ${p.count} orders${drillable ? ", click to drill in" : ""}`}
                       className={cn(
-                        "absolute -translate-x-1/2 translate-y-1/2 h-3.5 w-3.5 rounded-full border-2 transition-all focus-visible:outline-2 focus-visible:outline-amber-500",
-                        p.revenue > 0
-                          ? "bg-amber-500 border-background shadow-md"
-                          : "bg-muted border-border",
+                        "absolute -translate-x-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full border-2 transition-all focus-visible:outline-2 focus-visible:outline-amber-500",
+                        p.revenue > 0 ? "bg-amber-500 border-background shadow-md" : "bg-muted border-border",
                         hoverIdx === i && "scale-150 bg-amber-600"
                       )}
-                      style={{ left: `${left}%`, bottom: `${bottom}%` }}
+                      style={{ left: `${left}%`, top: `${top}%` }}
                     />
                   );
                 })}
@@ -453,10 +580,13 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
                 {hovered && (
                   <div
                     className="absolute z-10 -translate-x-1/2 -translate-y-full bg-foreground text-background text-[11px] font-bold rounded-xl px-3 py-2 shadow-xl whitespace-nowrap pointer-events-none"
-                    style={{ left: `${((hoverIdx! + 0.5) / points.length) * 100}%`, bottom: `${yFor(hovered.revenue) + 8}%` }}
+                    style={{ left: `${xFor(hoverIdx!)}%`, top: `${Math.max(yRev(hovered.revenue) - 6, 2)}%` }}
                   >
                     <span className="block">{hovered.label}</span>
                     <span className="block text-amber-500">{formatETB(hovered.revenue)}</span>
+                    {showExpenses && hovered.expense > 0 && (
+                      <span className="block text-rose-400">{formatETB(hovered.expense)} exp.</span>
+                    )}
                     <span className="block text-[10px] opacity-70">
                       {hovered.count} order{hovered.count !== 1 ? "s" : ""}
                       {drillable ? " · click to drill" : ""}
@@ -514,48 +644,50 @@ export function DrilldownTrend({ orders, range }: DrilldownTrendProps) {
               No paid customers in this period.
             </p>
           ) : (
-            customers.map((c) => (
-              <div key={c.key} className="rounded-xl border overflow-hidden">
-                <button
-                  onClick={() => setExpandedCustomer(expandedCustomer === c.key ? null : c.key)}
-                  className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-muted/40 transition-colors text-left"
-                  aria-expanded={expandedCustomer === c.key}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black text-foreground truncate">{c.name}</p>
-                    <p className="text-[11px] text-muted-foreground font-semibold">
-                      {c.count} order{c.count !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-black text-primary">{formatETB(c.revenue)}</span>
-                    <span className={cn("text-muted-foreground transition-transform", expandedCustomer === c.key && "rotate-90")}>›</span>
-                  </div>
-                </button>
-                {expandedCustomer === c.key && (
-                  <div className="px-3.5 pb-3 space-y-1.5 border-t bg-muted/20">
-                    {c.orders
-                      .slice()
-                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                      .map((o) => (
-                        <div key={o.id} className="flex items-center justify-between gap-3 py-1.5 text-xs">
-                          <div className="min-w-0">
-                            <p className="font-bold text-foreground truncate">
-                              {new Date(o.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}{" "}
-                              {new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                              <span className="ml-2 font-mono text-[10px] text-muted-foreground">#{o.id.slice(-6).toUpperCase()}</span>
-                            </p>
-                            <p className="text-[11px] text-muted-foreground truncate">
-                              {o.items?.map((i) => `${i.quantity}× ${i.name}`).join(", ") || "No items"}
-                            </p>
+            customers
+              .filter((c) => customerKey === "all" || c.key === customerKey)
+              .map((c) => (
+                <div key={c.key} className="rounded-xl border overflow-hidden">
+                  <button
+                    onClick={() => setExpandedCustomer(expandedCustomer === c.key ? null : c.key)}
+                    className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-muted/40 transition-colors text-left"
+                    aria-expanded={expandedCustomer === c.key}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-black text-foreground truncate">{c.name}</p>
+                      <p className="text-[11px] text-muted-foreground font-semibold">
+                        {c.count} order{c.count !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-sm font-black text-primary">{formatETB(c.revenue)}</span>
+                      <span className={cn("text-muted-foreground transition-transform", expandedCustomer === c.key && "rotate-90")}>›</span>
+                    </div>
+                  </button>
+                  {expandedCustomer === c.key && (
+                    <div className="px-3.5 pb-3 space-y-1.5 border-t bg-muted/20">
+                      {c.orders
+                        .slice()
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                        .map((o) => (
+                          <div key={o.id} className="flex items-center justify-between gap-3 py-1.5 text-xs">
+                            <div className="min-w-0">
+                              <p className="font-bold text-foreground truncate">
+                                {new Date(o.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}{" "}
+                                {new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                <span className="ml-2 font-mono text-[10px] text-muted-foreground">#{o.id.slice(-6).toUpperCase()}</span>
+                              </p>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {o.items?.map((i) => `${i.quantity}× ${i.name}`).join(", ") || "No items"}
+                              </p>
+                            </div>
+                            <span className="font-black text-foreground shrink-0">{formatETB(o.total || 0)}</span>
                           </div>
-                          <span className="font-black text-foreground shrink-0">{formatETB(o.total || 0)}</span>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            ))
+                        ))}
+                    </div>
+                  )}
+                </div>
+              ))
           )}
         </div>
       )}

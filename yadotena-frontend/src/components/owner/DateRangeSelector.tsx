@@ -10,7 +10,6 @@ const OPTIONS: { key: OwnerRange; label: string }[] = [
   { key: "month", label: "This Month" },
   { key: "quarter", label: "3 Months" },
   { key: "year", label: "This Year" },
-  { key: "all", label: "All Time" },
 ];
 
 interface DateRangeSelectorProps {

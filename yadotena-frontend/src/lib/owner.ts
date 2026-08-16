@@ -24,10 +24,7 @@ import { isRetailProduct } from "./orderUtils";
  *   verification) come from real order / menu / payment records.
  */
 
-export type OwnerRange = "today" | "yesterday" | "week" | "month" | "quarter" | "year" | "all";
-
-/** Sentinels for the "All Time" range — used by the analytics drill-down. */
-export const ALL_TIME_START = "2020-01-01";
+export type OwnerRange = "today" | "yesterday" | "week" | "month" | "quarter" | "year";
 
 export interface DateRange {
   /** YYYY-MM-DD, inclusive lower bound (server date range). */
@@ -124,16 +121,6 @@ export function getDateRange(range: OwnerRange, now: Date = new Date()): DateRan
         fromInstant: localMidnightISO(first),
         label: "This Year",
         display: displayRange(fmtDate(first), fmtDate(today)),
-      };
-    }
-    case "all": {
-      const first = new Date(2020, 0, 1);
-      return {
-        from: ALL_TIME_START,
-        to: fmtDate(today),
-        fromInstant: localMidnightISO(first),
-        label: "All Time",
-        display: "All time",
       };
     }
   }

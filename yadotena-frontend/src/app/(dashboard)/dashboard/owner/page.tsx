@@ -25,6 +25,7 @@ export default function OwnerDashboardPage() {
     setRangeKey,
     metrics,
     orders,
+    expenses,
     recentActivity,
     isLoading,
   } = useOwnerOps();
@@ -99,6 +100,7 @@ export default function OwnerDashboardPage() {
                     <DrilldownTrend
                       key={`${metrics.range.from}-${metrics.range.to}`}
                       orders={orders}
+                      expenses={expenses}
                       range={metrics.range}
                     />
                   </div>

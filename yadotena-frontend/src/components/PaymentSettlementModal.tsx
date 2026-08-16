@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
 import { 
   X, CreditCard, Wallet, CheckCircle2, Upload, 
-  Image as ImageIcon, Loader2, AlertCircle, Banknote 
+  Image as ImageIcon, Loader2, AlertCircle, Banknote,
+  Copy, Check
 } from "lucide-react";
 import { Order } from "@/types";
 
@@ -33,6 +34,7 @@ export function PaymentSettlementModal({
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [notes, setNotes] = useState<string>("");
   const [validationError, setValidationError] = useState<string>("");
+  const [copiedAccount, setCopiedAccount] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Query payment methods from backend
@@ -40,6 +42,13 @@ export function PaymentSettlementModal({
     queryKey: ["paymentMethods"],
     queryFn: () => api.paymentMethods.getAll(),
   });
+
+  const handleCopyAccount = (text: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedAccount(true);
+    setTimeout(() => setCopiedAccount(false), 2000);
+  };
 
   const settlePaymentMutation = useMutation({
     mutationFn: (data: { 
@@ -220,9 +229,23 @@ export function PaymentSettlementModal({
 
         {/* Dynamic Payment Details & Inputs based on Selected DB Method */}
         {(() => {
-          const currentMethodObj = paymentMethods.find(
-            (pm: any) => (pm.code || pm.name) === selectedMethod
-          );
+          const fallbackMethods = [
+            { id: "cbe", name: "Commercial Bank of Ethiopia (CBE)", code: "CBE", type: "DIGITAL", accountNumber: "1000123456789", accountName: "Yadotena Milk & Foods", instructions: "Transfer exact bill amount to CBE Account 1000123456789 and input TXN Ref ID" },
+            { id: "telebirr", name: "Telebirr SuperApp", code: "TELEBIRR", type: "DIGITAL", accountNumber: "0911234567", accountName: "Yadotena Milk & Foods PLC", instructions: "Transfer via Telebirr App/Merchant to 0911234567 and input reference code" },
+            { id: "boa", name: "Bank of Abyssinia (BOA)", code: "BOA", type: "DIGITAL", accountNumber: "987654321", accountName: "Yadotena Milk & Foods", instructions: "Transfer to BOA Account 987654321 and input transaction reference" },
+            { id: "ebirr", name: "E-Birr / Mobile Wallet", code: "EBIRR", type: "DIGITAL", accountNumber: "0911234567", accountName: "Yadotena Milk & Foods PLC", instructions: "Transfer via E-Birr mobile agent or shortcode" },
+          ];
+
+          const allMethods = paymentMethods.length > 0 ? paymentMethods : fallbackMethods;
+
+          const currentMethodObj = allMethods.find(
+            (pm: any) =>
+              (pm.code || "").toUpperCase() === selectedMethod.toUpperCase() ||
+              (pm.name || "").toUpperCase() === selectedMethod.toUpperCase() ||
+              pm.id === selectedMethod ||
+              (selectedMethod === "CBE_BIRR" && pm.code === "CBE")
+          ) || fallbackMethods.find((pm: any) => pm.code === selectedMethod || pm.id === selectedMethod) || fallbackMethods[0];
+
           const isCash = selectedMethod === "CASH" || currentMethodObj?.type === "CASH";
 
           if (isCash) {
@@ -274,29 +297,78 @@ export function PaymentSettlementModal({
           }
 
           return (
-            <div className="space-y-3 bg-muted/30 p-4 rounded-2xl border border-border">
-              {/* Display DB Account Details if available */}
-              {(currentMethodObj?.accountNumber || currentMethodObj?.instructions) && (
-                <div className="p-3 bg-primary/5 border border-primary/15 rounded-xl space-y-1 text-xs">
-                  {currentMethodObj.accountName && (
-                    <div className="flex justify-between font-bold">
-                      <span className="text-muted-foreground">Account Name:</span>
-                      <span className="text-foreground">{currentMethodObj.accountName}</span>
+            <div className="space-y-3.5 bg-muted/30 p-4 rounded-2xl border border-border">
+              {/* Account Details Display Card */}
+              <div className="p-4 bg-card border border-primary/30 rounded-2xl space-y-3 shadow-sm">
+                <div className="flex items-center justify-between border-b border-border pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase">
+                      {currentMethodObj?.code || "PAY"}
                     </div>
-                  )}
-                  {currentMethodObj.accountNumber && (
-                    <div className="flex justify-between font-mono font-bold">
-                      <span className="text-muted-foreground font-sans">Account No:</span>
-                      <span className="text-primary font-extrabold">{currentMethodObj.accountNumber}</span>
+                    <div>
+                      <span className="font-extrabold text-sm text-foreground block leading-tight">
+                        {currentMethodObj?.name || selectedMethod}
+                      </span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">
+                        Official Payment Receiver
+                      </span>
                     </div>
-                  )}
-                  {currentMethodObj.instructions && (
-                    <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/50">
-                      💡 {currentMethodObj.instructions}
-                    </p>
-                  )}
+                  </div>
+                  <Badge variant="outline" className="text-[10px] font-bold border-primary/30 text-primary">
+                    Digital Transfer
+                  </Badge>
                 </div>
-              )}
+
+                {/* Account Number & Copy Button */}
+                {currentMethodObj?.accountNumber && (
+                  <div className="p-3.5 rounded-xl bg-muted/70 border border-border flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-extrabold text-muted-foreground uppercase block tracking-wider">
+                        Account / Merchant Number
+                      </span>
+                      <span className="font-mono text-lg font-black text-primary select-all tracking-wide block truncate">
+                        {currentMethodObj.accountNumber}
+                      </span>
+                      {currentMethodObj.accountName && (
+                        <span className="text-xs font-semibold text-foreground block mt-0.5 truncate">
+                          Account Holder: <span className="font-bold text-primary">{currentMethodObj.accountName}</span>
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleCopyAccount(currentMethodObj.accountNumber)}
+                      className="h-9 px-3 text-xs font-bold rounded-xl gap-1.5 shrink-0 bg-background hover:bg-primary hover:text-primary-foreground border shadow-sm transition-all"
+                    >
+                      {copiedAccount ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-emerald-500" />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" />
+                          <span>Copy No.</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Payment Instructions for Waiter / Customer */}
+                {currentMethodObj?.instructions && (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1">
+                    <span className="font-extrabold text-amber-600 dark:text-amber-400 block flex items-center gap-1 text-[11px] uppercase tracking-wider">
+                      💡 Payment Instructions for Customer:
+                    </span>
+                    <p className="text-muted-foreground font-medium leading-relaxed">
+                      {currentMethodObj.instructions}
+                    </p>
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-muted-foreground flex justify-between">

@@ -18,6 +18,7 @@ Non-obvious facts that reading the code won't reveal. Keep entries terse.
 - `DrilldownTrend` buckets YEAR/MONTH/WEEK up to the last bucket's **end-of-day** (23:59:59), not midnight, or final-day orders silently drop out of the chart.
 - Analytics Hub tabs live in `src/components/owner/reports/`; the reports page itself is a thin tabbed shell. Staff report derives activity from `api.activityLogs.getAll` (limit 500) merged with `/users`.
 - Orders carry `tableId` codes (`tbl-04`, legacy `t1`) but **no `tableName`** — display names come only from the `/tables` roster via `hooks/useTableLabels.ts`. Resolve ids lazily; if a component memoizes a customer/key map, the table labels must be in the memo deps or raw fallbacks ("Table bl-04") persist forever (this bit us in the drill dropdown). `useTableLabels` memoizes its map so the identity is stable across renders.
+- Order item `selectedAddons` are raw string ids (`addon-gl-01`, UUIDs) with **no names attached** — resolve them through the `['addons']` query map with the `addonNames(addons, map)` helper in `lib/kitchen.ts` (tolerant of string[] and object[] shapes). Every ticket surface that renders addons without the map leaks raw ids (chef BatchView and dashboard KitchenOrderCard both had this bug).
 
 ## Tooling quirks
 

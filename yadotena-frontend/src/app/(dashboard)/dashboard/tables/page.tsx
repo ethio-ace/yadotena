@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
   Users, Plus, Utensils, QrCode, Sparkles, Edit3, Trash2, 
-  CheckCircle2, AlertCircle, Clock, RefreshCw, X
+  CheckCircle2, AlertCircle, Clock, RefreshCw, X, ShoppingBag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FullPageMenuPOS } from "@/components/dashboard/FullPageMenuPOS";
@@ -24,6 +24,7 @@ export default function TablesPage() {
   const [editingTable, setEditingTable] = useState<Table | null>(null);
   const [deletingTable, setDeletingTable] = useState<Table | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [shopSaleOpen, setShopSaleOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   // All hooks run unconditionally — the POS swap below is an early *return*,
@@ -51,14 +52,15 @@ export default function TablesPage() {
     },
   });
 
-  if (selectedTableForOrder) {
+  if (selectedTableForOrder || shopSaleOpen) {
     return (
       <div className="h-full w-full">
         <FullPageMenuPOS 
-          orderType="DINE_IN"
-          tableId={selectedTableForOrder}
-          onCancel={() => setSelectedTableForOrder(null)}
-          onSuccess={() => setSelectedTableForOrder(null)}
+          orderType={shopSaleOpen ? "TAKEAWAY" : "DINE_IN"}
+          tableId={shopSaleOpen ? null : selectedTableForOrder}
+          initialCategory={shopSaleOpen ? "🛒 Retail Shop Store" : "All"}
+          onCancel={() => { setSelectedTableForOrder(null); setShopSaleOpen(false); }}
+          onSuccess={() => { setSelectedTableForOrder(null); setShopSaleOpen(false); }}
         />
       </div>
     );
@@ -98,6 +100,16 @@ export default function TablesPage() {
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
+          </Button>
+
+          <Button 
+            variant="outline" 
+            className="rounded-xl h-10 px-3 text-xs font-bold gap-1.5"
+            onClick={() => setShopSaleOpen(true)}
+            title="Punch a counter retail-shop sale (no table)"
+          >
+            <ShoppingBag className="h-3.5 w-3.5 text-primary" />
+            <span>Shop Sale</span>
           </Button>
 
           <Button 

@@ -29,6 +29,7 @@ export function PlaceOrderTab() {
 
   // Wizard State
   const [step, setStep] = useState<1 | 2>(1);
+  const [retailOpen, setRetailOpen] = useState(false);
 
   // Inline success feedback — no blocking alert() on a busy admin screen.
   const [toast, setToast] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function PlaceOrderTab() {
   // -------------------------------------------------------------
   // STEP 1: Table & Type Selection
   // -------------------------------------------------------------
-  if (step === 1) {
+  if (step === 1 && !retailOpen) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         {toast && (
@@ -105,6 +106,25 @@ export function PlaceOrderTab() {
           </Button>
         </div>
 
+        <Button
+          variant="outline"
+          className="w-full max-w-4xl mx-auto mb-8 h-16 justify-center px-6 rounded-2xl border-dashed hover:bg-emerald-500/10 hover:border-emerald-500/40 transition-all group"
+          onClick={() => {
+            setOrderType("TAKEAWAY");
+            setSelectedTable(null);
+            setRetailOpen(true);
+          }}
+        >
+          <div className="bg-emerald-500/15 p-3 rounded-full mr-4 group-hover:scale-110 transition-transform">
+            <ShoppingBag className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div className="text-left">
+            <div className="font-bold text-lg text-foreground">Retail Shop Sale</div>
+            <div className="text-xs text-muted-foreground font-medium">Dairy, bakery & pantry over the counter</div>
+          </div>
+          <ChevronRight className="ml-auto text-muted-foreground opacity-50" />
+        </Button>
+
         <div className="max-w-4xl mx-auto">
           <h4 className="font-bold text-muted-foreground mb-4 flex items-center gap-2">
             <Utensils className="h-4 w-4" /> Dine-In Tables
@@ -133,15 +153,20 @@ export function PlaceOrderTab() {
     );
   }
 
-  if (step === 2) {
+  if (step === 2 || retailOpen) {
     return (
       <FullPageMenuPOS 
         orderType={orderType}
         tableId={selectedTable}
-        onCancel={() => setStep(1)}
+        initialCategory={retailOpen ? "🛒 Retail Shop Store" : "All"}
+        onCancel={() => {
+          setStep(1);
+          setRetailOpen(false);
+        }}
         onSuccess={() => {
           setStep(1);
           setSelectedTable(null);
+          setRetailOpen(false);
           setToast("Order placed successfully!");
         }}
       />

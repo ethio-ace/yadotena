@@ -12,7 +12,7 @@ import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
 import { 
   Plus, Edit, Trash2, Search, Layers, LayoutGrid, List, 
-  Clock, Eye, Sparkles, CheckCircle2, AlertCircle, Utensils
+  Clock, Eye, Sparkles, CheckCircle2, AlertCircle, Utensils, ShoppingBag
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -29,6 +29,10 @@ const DishDetailModal = dynamic(
   () => import("@/components/dashboard/DishDetailModal").then((m) => m.DishDetailModal),
   { ssr: false }
 );
+const FullPageMenuPOS = dynamic(
+  () => import("@/components/dashboard/FullPageMenuPOS").then((m) => m.FullPageMenuPOS),
+  { ssr: false }
+);
 
 export default function MenuManagementPage() {
   const queryClient = useQueryClient();
@@ -43,6 +47,7 @@ export default function MenuManagementPage() {
     queryFn: api.categories.getAll,
   });
 
+  const [isPosOpen, setIsPosOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [availabilityFilter, setAvailabilityFilter] = useState<"ALL" | "AVAILABLE" | "UNAVAILABLE">("ALL");
@@ -116,6 +121,18 @@ export default function MenuManagementPage() {
     ? menu.reduce((acc, curr) => acc + curr.price, 0) / totalItems 
     : 0;
 
+  // Punch an order straight from the catalog — café, takeaway, delivery,
+  // or the retail shop (the POS has the 🛒 Retail Shop Store filter).
+  if (isPosOpen) {
+    return (
+      <FullPageMenuPOS
+        orderType="TAKEAWAY"
+        onCancel={() => setIsPosOpen(false)}
+        onSuccess={() => setIsPosOpen(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       
@@ -129,6 +146,15 @@ export default function MenuManagementPage() {
         </div>
 
         <div className="flex flex-wrap gap-2.5">
+          <Button 
+            variant="outline" 
+            className="rounded-2xl font-bold gap-2 shadow-sm"
+            onClick={() => setIsPosOpen(true)}
+          >
+            <ShoppingBag className="h-4 w-4 text-primary" />
+            <span>Place Order</span>
+          </Button>
+
           <Button 
             variant="outline" 
             className="rounded-2xl font-bold gap-2 shadow-sm"

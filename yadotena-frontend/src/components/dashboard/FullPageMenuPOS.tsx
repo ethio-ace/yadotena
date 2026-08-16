@@ -280,7 +280,7 @@ export function FullPageMenuPOS({
   });
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 animate-in slide-in-from-right-4 duration-300">
+    <div className="flex flex-col lg:flex-row gap-6 animate-in slide-in-from-right-4 duration-300 w-full max-w-7xl mx-auto">
       {/* Non-blocking action feedback */}
       {toast && (
         <div
@@ -321,7 +321,7 @@ export function FullPageMenuPOS({
           </div>
         </div>
 
-        <div className="flex overflow-x-auto pb-2 gap-2 scrollbar-hide">
+        <div className="flex overflow-x-auto pb-2 pr-3 gap-2 scrollbar-hide">
           {categories.map(cat => (
             <Button
               key={cat}

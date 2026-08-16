@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ChangeEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { OrderType, MenuItem, OrderItem, Order, AddonItem, MenuItemAddon } from "@/types";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { formatETB } from "@/lib/currency";
-import { ArrowLeft, Plus, Minus, Search, Utensils, ShoppingBag, Truck, CheckCircle2, Sparkles, X, Edit } from "lucide-react";
+import { ArrowLeft, Plus, Minus, Search, Utensils, ShoppingBag, Truck, CheckCircle2, Sparkles, X, Edit, ShoppingCart } from "lucide-react";
 import { toOrderItemPayload, estimateOrderTotals, getApplicableAddonsForItem } from "@/lib/orderUtils";
 
 interface FullPageMenuPOSProps {
@@ -74,11 +74,6 @@ export function FullPageMenuPOS({
   const [menuSearch, setMenuSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   
-  // Update category if modal passed a new one
-  useEffect(() => {
-    if (initialCategory) setSelectedCategory(initialCategory);
-  }, [initialCategory]);
-
   const [customerName, setCustomerName] = useState(existingOrder?.customerName || "");
   const [customerPhone, setCustomerPhone] = useState(existingOrder?.customerPhone || "");
   const [deliveryAddress, setDeliveryAddress] = useState(existingOrder?.deliveryAddress || "");
@@ -93,6 +88,7 @@ export function FullPageMenuPOS({
     selectedAddons: MenuItemAddon[];
     specialInstructions?: string;
   }>>([]);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
   // Dish customization modal state
   const [configuringDish, setConfiguringDish] = useState<MenuItem | null>(null);
@@ -191,6 +187,17 @@ export function FullPageMenuPOS({
     });
   };
 
+  const cartCount = orderItems.reduce((s, i) => s + i.quantity, 0);
+  const countInCart = (menuItemId: string) =>
+    orderItems.filter(i => i.menuItemId === menuItemId).reduce((s, i) => s + i.quantity, 0);
+
+  // Quick-decrement: removes the most recently added line of an item.
+  const quickDecItem = (menuItemId: string) => {
+    const line = [...orderItems].reverse().find(i => i.menuItemId === menuItemId);
+    if (!line) return;
+    handleUpdateQuantity(line.cartItemId, -1);
+  };
+
   const { subtotal, tax, serviceCharge, deliveryFee, total } = estimateOrderTotals(
     orderItems,
     activeOrderType,
@@ -225,7 +232,9 @@ export function FullPageMenuPOS({
         type: orderType,
         status: "PENDING",
         paymentStatus: isPaid ? "PAID" : "PENDING",
-        items: payloadItems as any,
+        // The create type declares selectedAddons as string[] while OrderItem snapshots carry
+        // { id, name, price } — payloadItems (from toOrderItemPayload) is what the API accepts.
+        items: payloadItems as unknown as Parameters<typeof api.orders.create>[0]["items"],
         tableId: orderType === "DINE_IN" ? tableId || undefined : undefined,
         customerName: orderType !== "DINE_IN" ? customerName : undefined,
         customerPhone: orderType !== "DINE_IN" ? customerPhone : undefined,
@@ -278,6 +287,132 @@ export function FullPageMenuPOS({
     const descMatch = (a.description || "").toLowerCase().includes((menuSearch || "").toLowerCase());
     return (nameMatch || descMatch) && a.isActive !== false;
   });
+
+  // Shared cart panel — rendered as the desktop sticky column and inside the mobile drawer.
+  const renderCart = (sticky: boolean) => (
+    <Card className={`rounded-3xl border-muted-foreground/15 shadow-xl bg-card flex flex-col overflow-hidden ${sticky ? "flex-1 sticky top-6 max-h-[85vh]" : ""}`}>
+      <div className="p-5 border-b bg-muted/30">
+        <h3 className="font-black text-lg flex items-center gap-2">
+          <CheckCircle2 className="h-5 w-5 text-primary" />
+          {existingOrder ? "New Extra Items" : "Order Summary"}
+        </h3>
+      </div>
+
+      {/* Customer Details (If Delivery/Takeaway and not appending) */}
+      {!existingOrder && activeOrderType !== "DINE_IN" && (
+        <div className="p-5 border-b space-y-3 bg-card/50">
+          <Input
+            placeholder="Customer Name"
+            className="h-10 rounded-xl"
+            value={customerName}
+            onChange={e => setCustomerName(e.target.value)}
+          />
+          <Input
+            placeholder="Phone Number"
+            className="h-10 rounded-xl"
+            value={customerPhone}
+            onChange={e => setCustomerPhone(e.target.value)}
+          />
+          {activeOrderType === "DELIVERY" && (
+            <Input
+              placeholder="Delivery Address"
+              className="h-10 rounded-xl"
+              value={deliveryAddress}
+              onChange={e => setDeliveryAddress(e.target.value)}
+            />
+          )}
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto p-5">
+        {orderItems.length === 0 ? (
+          <div className="text-center text-muted-foreground text-sm py-8 font-medium">
+            No new items selected. Add items from the menu.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {orderItems.map((item) => (
+              <div key={item.cartItemId} className="p-3 rounded-2xl bg-muted/20 border space-y-2">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm truncate">{item.name}</div>
+                    <div className="text-xs text-primary font-bold">{formatETB(item.price)} each</div>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-card p-1 rounded-full border shadow-sm">
+                    <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full" onClick={() => handleUpdateQuantity(item.cartItemId, -1)} aria-label={`Decrease ${item.name} quantity`}>
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full" onClick={() => handleUpdateQuantity(item.cartItemId, 1)} aria-label={`Increase ${item.name} quantity`}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Selected Addons */}
+                {item.selectedAddons && item.selectedAddons.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1 border-t">
+                    {item.selectedAddons.map((addon) => (
+                      <Badge key={addon.id} variant="secondary" className="text-[10px] bg-primary/10 text-primary border border-primary/20 font-bold">
+                        + {addon.name} ({formatETB(addon.price)})
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Special Instructions */}
+                {item.specialInstructions && (
+                  <p className="text-[11px] italic text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg">
+                    Note: {item.specialInstructions}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="p-5 border-t bg-muted/10 space-y-3">
+        <div className="space-y-1 text-sm">
+          <div className="flex justify-between text-muted-foreground">
+            <span>Subtotal (New items)</span>
+            <span className="font-medium text-foreground">{formatETB(subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground">
+            <span>Tax (15%)</span>
+            <span>{formatETB(tax)}</span>
+          </div>
+          {activeOrderType === "DINE_IN" && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>Service (10%)</span>
+              <span>{formatETB(serviceCharge)}</span>
+            </div>
+          )}
+          {activeOrderType === "DELIVERY" && !existingOrder && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>Delivery Fee</span>
+              <span>{formatETB(deliveryFee)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-lg font-black pt-2 border-t mt-2">
+            <span>Total Additional</span>
+            <span className="text-primary">{formatETB(total)}</span>
+          </div>
+        </div>
+
+        <Button
+          className="w-full h-14 rounded-2xl text-base font-black shadow-lg shadow-primary/25 hover:scale-[1.02] transition-transform"
+          onClick={handleSubmit}
+          disabled={createOrder.isPending || addItemsToOrder.isPending || orderItems.length === 0}
+        >
+          {existingOrder
+            ? (addItemsToOrder.isPending ? "Adding..." : `Add to Ticket • ${formatETB(total)}`)
+            : (createOrder.isPending ? "Placing Order..." : `Place Order • ${formatETB(total)}`)
+          }
+        </Button>
+      </div>
+    </Card>
+  );
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 animate-in slide-in-from-right-4 duration-300 w-full max-w-7xl mx-auto">
@@ -337,13 +472,13 @@ export function FullPageMenuPOS({
         </div>
 
         {isLoadingMenu ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-40 bg-muted/60 animate-pulse rounded-3xl"></div>)}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-24 bg-muted/60 animate-pulse rounded-3xl"></div>)}
           </div>
         ) : selectedCategory === "✨ Standalone Add-ons" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 pb-24">
             {filteredAddons.map(addon => (
-              <Card key={addon.id} className="rounded-3xl border-primary/20 bg-card shadow-sm hover:shadow-md transition-all overflow-hidden p-4 space-y-3 flex flex-col justify-between">
+              <Card key={addon.id} className="rounded-3xl border-primary/20 bg-card shadow-sm hover:shadow-md transition-all overflow-hidden p-3 space-y-2 flex flex-col justify-between">
                 <div className="flex items-start justify-between">
                   <div>
                     <Badge className="bg-primary/10 text-primary border-primary/30 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1">
@@ -358,7 +493,7 @@ export function FullPageMenuPOS({
                 </div>
 
                 <Button 
-                  className="w-full rounded-xl h-9 font-bold text-xs bg-primary text-primary-foreground gap-1"
+                  className="w-full rounded-xl h-8 font-bold text-[11px] bg-primary text-primary-foreground gap-1"
                   onClick={() => handleQuickAddAddon(addon)}
                 >
                   <Plus className="h-3.5 w-3.5" /> Add Extra to Order Ticket
@@ -372,13 +507,13 @@ export function FullPageMenuPOS({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 pb-24">
             {filteredMenu?.map(item => {
               const applicableAddons = getApplicableAddonsForItem(item, allAddons);
 
               return (
                 <Card key={item.id} className="rounded-3xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden group">
-                  <div className="h-32 bg-muted relative overflow-hidden cursor-pointer" onClick={() => openDishModal(item)}>
+                  <div className="h-24 bg-muted relative overflow-hidden cursor-pointer" onClick={() => openDishModal(item)}>
                     {item.image ? (
                       <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     ) : (
@@ -401,28 +536,46 @@ export function FullPageMenuPOS({
                     )}
                   </div>
 
-                  <CardContent className="p-4 space-y-2">
+                  <CardContent className="p-3 space-y-2">
                     <div className="flex justify-between items-start gap-2 cursor-pointer" onClick={() => openDishModal(item)}>
                       <h3 className="font-bold text-sm leading-tight line-clamp-1">{item.name}</h3>
                       <span className="font-black text-primary text-sm whitespace-nowrap">{formatETB(item.price)}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{item.description}</p>
-                    
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline"
-                        className="flex-1 rounded-xl h-9 font-bold text-xs bg-card hover:bg-muted"
-                        onClick={() => openDishModal(item)}
-                      >
-                        <Sparkles className="h-3 w-3 mr-1 text-primary" /> Customize
-                      </Button>
-                      <Button 
-                        className="flex-1 rounded-xl h-9 font-bold text-xs bg-primary text-primary-foreground"
-                        onClick={() => handleQuickAddItem(item)}
-                      >
-                        <Plus className="h-3 w-3 mr-1" /> Add Dish
-                      </Button>
-                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
+
+                    {(() => {
+                      const inCart = countInCart(item.id);
+                      return (
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 rounded-lg px-2 text-[11px] font-bold text-muted-foreground hover:text-foreground"
+                            onClick={() => openDishModal(item)}
+                          >
+                            <Sparkles className="h-3 w-3 mr-1 text-primary" /> Customize
+                          </Button>
+                          {inCart > 0 ? (
+                            <div className="flex items-center gap-1 bg-primary/10 border border-primary/30 rounded-full p-0.5">
+                              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-full" onClick={() => quickDecItem(item.id)} aria-label={`Decrease ${item.name} quantity`}>
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <span className="text-xs font-black w-5 text-center">{inCart}</span>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-full" onClick={() => handleQuickAddItem(item)} aria-label={`Increase ${item.name} quantity`}>
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              className="h-8 rounded-lg px-3 font-bold text-[11px] bg-primary text-primary-foreground"
+                              onClick={() => handleQuickAddItem(item)}
+                            >
+                              <Plus className="h-3 w-3 mr-1" /> Add
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               );
@@ -436,131 +589,37 @@ export function FullPageMenuPOS({
         )}
       </div>
 
-      {/* Right side: Cart & Details */}
-      <div className="w-full lg:w-96 flex flex-col gap-4">
-        <Card className="rounded-3xl border-muted-foreground/15 shadow-xl bg-card flex-1 sticky top-6 max-h-[85vh] flex flex-col overflow-hidden">
-          <div className="p-5 border-b bg-muted/30">
-            <h3 className="font-black text-lg flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-              {existingOrder ? "New Extra Items" : "Order Summary"}
-            </h3>
-          </div>
-
-          {/* Customer Details (If Delivery/Takeaway and not appending) */}
-          {!existingOrder && activeOrderType !== "DINE_IN" && (
-            <div className="p-5 border-b space-y-3 bg-card/50">
-              <Input 
-                placeholder="Customer Name" 
-                className="h-10 rounded-xl"
-                value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
-              />
-              <Input 
-                placeholder="Phone Number" 
-                className="h-10 rounded-xl"
-                value={customerPhone}
-                onChange={e => setCustomerPhone(e.target.value)}
-              />
-              {activeOrderType === "DELIVERY" && (
-                <Input 
-                  placeholder="Delivery Address" 
-                  className="h-10 rounded-xl"
-                  value={deliveryAddress}
-                  onChange={e => setDeliveryAddress(e.target.value)}
-                />
-              )}
-            </div>
-          )}
-
-          <div className="flex-1 overflow-y-auto p-5">
-            {orderItems.length === 0 ? (
-              <div className="text-center text-muted-foreground text-sm py-8 font-medium">
-                No new items selected. Add items from the menu.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {orderItems.map((item) => (
-                  <div key={item.cartItemId} className="p-3 rounded-2xl bg-muted/20 border space-y-2">
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-sm truncate">{item.name}</div>
-                        <div className="text-xs text-primary font-bold">{formatETB(item.price)} each</div>
-                      </div>
-                      <div className="flex items-center gap-1.5 bg-card p-1 rounded-full border shadow-sm">
-                        <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full" onClick={() => handleUpdateQuantity(item.cartItemId, -1)}>
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full" onClick={() => handleUpdateQuantity(item.cartItemId, 1)}>
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Selected Addons */}
-                    {item.selectedAddons && item.selectedAddons.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1 border-t">
-                        {item.selectedAddons.map((addon) => (
-                          <Badge key={addon.id} variant="secondary" className="text-[10px] bg-primary/10 text-primary border border-primary/20 font-bold">
-                            + {addon.name} ({formatETB(addon.price)})
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Special Instructions */}
-                    {item.specialInstructions && (
-                      <p className="text-[11px] italic text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg">
-                        Note: {item.specialInstructions}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="p-5 border-t bg-muted/10 space-y-3">
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between text-muted-foreground">
-                <span>Subtotal (New items)</span>
-                <span className="font-medium text-foreground">{formatETB(subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>Tax (15%)</span>
-                <span>{formatETB(tax)}</span>
-              </div>
-              {activeOrderType === "DINE_IN" && (
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Service (10%)</span>
-                  <span>{formatETB(serviceCharge)}</span>
-                </div>
-              )}
-              {activeOrderType === "DELIVERY" && !existingOrder && (
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Delivery Fee</span>
-                  <span>{formatETB(deliveryFee)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-lg font-black pt-2 border-t mt-2">
-                <span>Total Additional</span>
-                <span className="text-primary">{formatETB(total)}</span>
-              </div>
-            </div>
-
-            <Button 
-              className="w-full h-14 rounded-2xl text-base font-black shadow-lg shadow-primary/25 hover:scale-[1.02] transition-transform"
-              onClick={handleSubmit}
-              disabled={createOrder.isPending || addItemsToOrder.isPending || orderItems.length === 0}
-            >
-              {existingOrder 
-                ? (addItemsToOrder.isPending ? "Adding..." : `Add to Ticket • ${formatETB(total)}`) 
-                : (createOrder.isPending ? "Placing Order..." : `Place Order • ${formatETB(total)}`)
-              }
-            </Button>
-          </div>
-        </Card>
+      {/* Right side: Cart & Details (desktop sticky column) */}
+      <div className="hidden lg:flex w-96 shrink-0 flex-col gap-4">
+        {renderCart(true)}
       </div>
+
+      {/* MOBILE FLOATING CART FAB */}
+      {cartCount > 0 && (
+        <button
+          onClick={() => setMobileCartOpen(true)}
+          className="lg:hidden fixed bottom-5 right-4 z-40 flex items-center gap-2 pl-3.5 pr-4 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm shadow-2xl shadow-black/25 active:scale-95 transition-all"
+          aria-label={`Open cart with ${cartCount} items totaling ${formatETB(total)}`}
+        >
+          <span className="relative">
+            <ShoppingCart className="h-5 w-5" />
+            <span className="absolute -top-2 -right-2 h-4 min-w-4 px-0.5 rounded-full bg-background text-foreground text-[9px] font-black flex items-center justify-center shadow">
+              {cartCount}
+            </span>
+          </span>
+          <span className="border-l border-white/30 pl-2.5">{formatETB(total)}</span>
+        </button>
+      )}
+
+      {/* MOBILE CART DRAWER */}
+      {mobileCartOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/40 flex items-end" onClick={() => setMobileCartOpen(false)}>
+          <div className="bg-card w-full rounded-t-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/20 mx-auto mt-2.5 mb-1 shrink-0" />
+            <div className="overflow-y-auto flex-1">{renderCart(false)}</div>
+          </div>
+        </div>
+      )}
 
       {/* Dish Addon & Presets Configuration Modal */}
       {configuringDish && (
@@ -650,7 +709,7 @@ export function FullPageMenuPOS({
               <Textarea
                 placeholder="Type custom instructions (e.g. Extra hot pepper on side)..."
                 value={modalNote}
-                onChange={(e: any) => setModalNote(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setModalNote(e.target.value)}
                 className="text-xs h-16 rounded-2xl bg-muted/20 resize-none"
               />
             </div>

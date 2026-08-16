@@ -454,53 +454,66 @@ export default function MenuManagementPage() {
       ) : (
 
         /* Grid View */
-        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {filteredMenu.map((item) => (
             <Card
               key={item.id}
               onClick={() => setSelectedItemForDetail(item)}
-              className="rounded-3xl border-muted-foreground/15 bg-card/80 overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col group"
+              className="rounded-2xl border-muted-foreground/15 bg-card/80 overflow-hidden cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col group"
             >
-              <div className="relative h-44 w-full bg-muted overflow-hidden">
+              <div className="relative h-28 sm:h-32 w-full bg-muted overflow-hidden">
                 <img 
                   src={getImageUrl(item.image)} 
                   alt={item.name} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                 />
-                <Badge variant="secondary" className="absolute top-3 left-3 bg-background/85 backdrop-blur-md font-bold text-xs">
+                <Badge variant="secondary" className="absolute top-2 left-2 bg-background/85 backdrop-blur-md font-bold text-[10px] px-2 py-0.5">
                   {item.category}
                 </Badge>
-                <div className="absolute bottom-3 right-3">
-                  <Badge variant="secondary" className="bg-background/85 backdrop-blur-md text-[11px] font-semibold flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={(e) => handleToggle(item.id, e)}
+                  className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-black backdrop-blur-md shadow-sm border transition-colors ${
+                    item.available
+                      ? "bg-emerald-500/90 text-white border-emerald-400"
+                      : "bg-zinc-900/90 text-zinc-300 border-zinc-700"
+                  }`}
+                >
+                  {item.available ? "✓ Available" : "Sold Out"}
+                </button>
+                <div className="absolute bottom-2 right-2">
+                  <Badge variant="secondary" className="bg-background/85 backdrop-blur-md text-[10px] font-semibold flex items-center gap-1">
                     <Clock className="h-3 w-3 text-primary" />
                     {item.preparationTime || 15}m
                   </Badge>
                 </div>
               </div>
 
-              <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                <div className="space-y-1">
-                  <h4 className="font-bold text-base group-hover:text-primary transition-colors truncate">{item.name}</h4>
-                  <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{item.description}</p>
+              <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+                <div className="space-y-0.5">
+                  <h4 className="font-bold text-sm group-hover:text-primary transition-colors truncate">{item.name}</h4>
+                  <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">{item.description}</p>
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-muted/50">
-                  <span className="font-black text-primary text-lg">{formatETB(item.price)}</span>
+                  <span className="font-black text-primary text-base">{formatETB(item.price)}</span>
                   
                   <div className="flex items-center gap-1">
                     <Button 
                       size="icon" 
                       variant="ghost" 
-                      className="h-8 w-8 text-blue-500 rounded-xl"
+                      className="h-7 w-7 text-blue-500 rounded-lg hover:bg-blue-500/10"
                       onClick={(e) => handleOpenEdit(item, e)}
+                      title="Edit item"
                     >
                       <Edit className="h-3.5 w-3.5" />
                     </Button>
                     <Button 
                       size="icon" 
                       variant="ghost" 
-                      className="h-8 w-8 text-destructive rounded-xl"
+                      className="h-7 w-7 text-destructive rounded-lg hover:bg-destructive/10"
                       onClick={(e) => handleDelete(item, e)}
+                      title="Delete item"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>

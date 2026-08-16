@@ -102,6 +102,14 @@ export function CafeOrderBuilder({
 
   const removeItem = (id: string) => setCart(cart.filter(c => c.id !== id));
 
+  // Quick-decrement from a card stepper: removes the most recently added line of an item.
+  const decItem = (menuItemId: string) => {
+    const line = [...cart].reverse().find(c => c.menuItemId === menuItemId);
+    if (!line) return;
+    if (line.quantity <= 1) removeItem(line.id);
+    else updateQty(line.id, -1);
+  };
+
   const itemTotal = (c: CartItem) => (c.basePrice + c.addons.reduce((s, a) => s + (a.price || 0), 0)) * c.quantity;
   const cartTotal = cart.reduce((s, c) => s + itemTotal(c), 0);
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
@@ -263,20 +271,26 @@ export function CafeOrderBuilder({
 
           {/* Product grid */}
           <div className="flex-1 overflow-y-auto p-3">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
               {catalogItems.map(item => {
                 const inCart = cart.filter(c => c.menuItemId === item.id).reduce((s, c) => s + c.quantity, 0);
                 return (
-                  <button key={item.id} onClick={() => addToCart(item)}
-                    className="group relative flex flex-col rounded-2xl border bg-card text-left overflow-hidden hover:shadow-lg hover:border-amber-500/50 dark:hover:border-amber-500/40 active:scale-[0.97] transition-all">
+                  <div
+                    key={item.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => addToCart(item)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addToCart(item); } }}
+                    className="group relative flex flex-col rounded-xl border bg-card text-left overflow-hidden cursor-pointer hover:shadow-md hover:border-amber-500/50 dark:hover:border-amber-500/40 active:scale-[0.98] transition-all"
+                  >
                     {/* Image / Thumbnail */}
-                    <div className="relative w-full h-28 sm:h-32 bg-muted/40 overflow-hidden flex items-center justify-center">
+                    <div className="relative w-full h-16 sm:h-20 bg-muted/40 overflow-hidden flex items-center justify-center">
                       {(() => {
                         const imgPath = item.imageUrl || item.image;
                         if (!imgPath) {
                           return (
                             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent text-amber-600/60 dark:text-amber-400/60">
-                              <ShoppingCart className="h-8 w-8 opacity-40" />
+                              <ShoppingCart className="h-6 w-6 opacity-40" />
                             </div>
                           );
                         }
@@ -292,22 +306,48 @@ export function CafeOrderBuilder({
                           />
                         );
                       })()}
-                      {inCart > 0 && (
-                        <span className={`absolute top-2 right-2 h-6 w-6 rounded-full shadow-md text-white text-xs font-bold flex items-center justify-center ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}>
-                          {inCart}
-                        </span>
+
+                      {inCart > 0 ? (
+                        <div
+                          className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 bg-background/95 backdrop-blur rounded-full p-0.5 shadow-md border"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={(e) => { e.stopPropagation(); decItem(item.id); }}
+                            className={`h-5 w-5 rounded-full flex items-center justify-center hover:bg-muted ${isShopMode ? "text-emerald-600" : "text-amber-600"}`}
+                            aria-label={`Decrease ${item.name} quantity`}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <span className="text-xs font-black w-4 text-center">{inCart}</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); addToCart(item); }}
+                            className={`h-5 w-5 rounded-full flex items-center justify-center text-white ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}
+                            aria-label={`Increase ${item.name} quantity`}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); addToCart(item); }}
+                          className={`absolute bottom-1.5 right-1.5 h-6 w-6 rounded-full flex items-center justify-center text-white shadow-md active:scale-95 transition-transform ${isShopMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-600 hover:bg-amber-700"}`}
+                          aria-label={`Add ${item.name} to cart`}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </div>
 
-                    <div className="p-3 flex flex-col justify-between flex-1">
-                      <div className="font-bold text-sm leading-tight text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                    <div className="p-2.5 flex flex-col justify-between flex-1 space-y-1">
+                      <div className="font-bold text-xs leading-tight text-foreground line-clamp-1 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                         {item.name}
                       </div>
-                      <div className="text-base font-black text-foreground mt-2">
+                      <div className="text-sm font-black text-foreground">
                         {formatETB(item.price)}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -336,7 +376,7 @@ export function CafeOrderBuilder({
                   <button onClick={() => removeItem(c.id)} className="text-muted-foreground hover:text-red-500"><X className="h-4 w-4" /></button>
                 </div>
                 {c.addons.length > 0 && <p className="text-xs text-muted-foreground">+ {c.addons.map(a => a.name).join(", ")}</p>}
-                {c.note && <p className="text-xs text-amber-600 dark:text-amber-400 italic">"{c.note}"</p>}
+                {c.note && <p className="text-xs text-amber-600 dark:text-amber-400 italic">“{c.note}”</p>}
                 <div className="flex items-center justify-between pt-1">
                   <div className="flex items-center gap-2">
                     <button onClick={() => c.quantity <= 1 ? removeItem(c.id) : updateQty(c.id, -1)} className="h-7 w-7 rounded-md border flex items-center justify-center text-muted-foreground hover:text-foreground"><Minus className="h-3 w-3" /></button>

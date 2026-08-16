@@ -40,7 +40,7 @@ export function PaymentMix({ metrics }: PaymentMixProps) {
         {paymentMix.map((p) => (
           <li key={p.method}>
             <div className="flex items-baseline justify-between text-xs">
-              <span className="font-bold text-foreground capitalize">{p.method.toLowerCase()}</span>
+              <span className="font-bold text-foreground">{p.label}</span>
               <span className="font-black text-foreground">
                 {p.percent}% <span className="text-[10px] font-semibold text-muted-foreground">· {p.count}</span>
               </span>

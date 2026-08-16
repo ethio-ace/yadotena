@@ -4,8 +4,20 @@ import { MenuItem, Order, PaymentRecord } from "@/types";
  * Owner business metrics, computed from one shared view of server state.
  * Every number has a real source — nothing is invented or padded:
  *
- * - Revenue / paid orders / top items / payment mix / daily trend come from
- *   the backend's date-ranged `/staff/analytics` aggregation (PAID orders).
+ * Every figure is derived from the range-filtered order list using the exact
+ * `createdAt` instants bucketed in local (café) time. This is deliberate:
+ * the backend's `/staff/analytics` aggregation date-casts in the database's
+ * UTC session timezone, which would misclassify early-morning Addis orders
+ * into the wrong day. Local-instant bucketing keeps the whole snapshot
+ * internally consistent against any backend. (The aggregation endpoint stays
+ * for Phase 2's heavier Sales surfaces.)
+ *
+ * - Revenue / paid orders / avg ticket: sum of PAID order totals in range.
+ * - Daily trend: PAID totals grouped by local day, zero-filled over the range.
+ * - Top products: item quantities & snapshot prices aggregated over PAID
+ *   orders. No profitability claim — no cost data exists (spec §39).
+ * - Payment mix: method of each PAID payment record, as a share of paid
+ *   orders with a recorded settlement.
  * - Expenses are filtered by their recorded `date` within the same range.
  * - Attention items (unpaid orders, out-of-stock products, pending
  *   verification) come from real order / menu / payment records.
@@ -106,11 +118,36 @@ export interface OwnerAnalytics {
 }
 
 export interface PaymentMixEntry {
+  /** Raw method string as recorded by the backend. */
   method: string;
+  /** Human label for known aliases (Cbe_birr → CBE Birr), raw otherwise. */
+  label: string;
   /** Count of PAID orders paid via this method. */
   count: number;
   /** Share of paid orders (0–100). */
   percent: number;
+}
+
+/** Normalize common payment-method aliases for display; unknown → title case. */
+export function formatPaymentMethod(method: string): string {
+  const key = method.trim().toLowerCase().replace(/[\s_-]+/g, " ");
+  const known: Record<string, string> = {
+    cash: "Cash",
+    cbe: "CBE Birr",
+    "cbe birr": "CBE Birr",
+    cbebirr: "CBE Birr",
+    telebirr: "Telebirr",
+    boa: "Bank of Abyssinia",
+    "bank of abyssinia": "Bank of Abyssinia",
+    ebirr: "eBirr",
+    "e birr": "eBirr",
+    "bank transfer": "Bank Transfer",
+  };
+  if (known[key]) return known[key];
+  return key
+    .split(" ")
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
 }
 
 export interface OwnerMetrics {
@@ -147,25 +184,29 @@ export interface OwnerMetrics {
 
 export function computeOwnerMetrics(opts: {
   range: DateRange;
-  analytics: OwnerAnalytics | undefined;
   expenses: { date: string; amount: number }[];
   orders: Order[];
   menuItems: MenuItem[];
   payments: PaymentRecord[];
 }): OwnerMetrics {
-  const { range, analytics, expenses, orders, menuItems, payments } = opts;
+  const { range, expenses, orders, menuItems, payments } = opts;
 
-  const revenue = analytics?.revenue_etb ?? 0;
-  const paidOrders = analytics?.paid_order_count ?? 0;
+  const rangeOrders = orders.filter(
+    (o) => o.createdAt && new Date(o.createdAt) >= new Date(range.fromInstant)
+  );
+
+  // Revenue / paid orders: PAID order totals within the range. (The backend
+  // `since` filter trims payloads once deployed; older backends ignore it, so
+  // the client instant filter below is the source of truth.)
+  const paidRangeOrders = rangeOrders.filter((o) => o.paymentStatus === "PAID");
+  const revenue = paidRangeOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const paidOrders = paidRangeOrders.length;
   const averageTicket = paidOrders > 0 ? revenue / paidOrders : 0;
 
   const expensesInRange = expenses
     .filter((e) => e.date >= range.from && e.date <= range.to)
     .reduce((sum, e) => sum + (e.amount || 0), 0);
 
-  const rangeOrders = orders.filter(
-    (o) => o.createdAt && new Date(o.createdAt) >= new Date(range.fromInstant)
-  );
   const unpaidOrders = rangeOrders.filter(
     (o) => o.paymentStatus !== "PAID" && o.status !== "CANCELLED"
   ).length;
@@ -173,22 +214,53 @@ export function computeOwnerMetrics(opts: {
   const outOfStock = menuItems.filter((i) => i.available === false).length;
   const pendingVerification = payments.filter((p) => p.status === "PENDING_VERIFICATION").length;
 
-  const topProducts = (analytics?.top_items ?? []).map((t) => ({
-    name: t.name,
-    qty: t.qty,
-    revenue: t.revenue_etb,
-  }));
+  // Top products: aggregate item snapshots across PAID orders in range.
+  const productMap = new Map<string, { qty: number; revenue: number }>();
+  for (const o of paidRangeOrders) {
+    for (const item of o.items ?? []) {
+      const cur = productMap.get(item.name) ?? { qty: 0, revenue: 0 };
+      cur.qty += item.quantity || 0;
+      cur.revenue += (item.price || 0) * (item.quantity || 0);
+      productMap.set(item.name, cur);
+    }
+  }
+  const topProducts = [...productMap.entries()]
+    .map(([name, v]) => ({ name, qty: v.qty, revenue: v.revenue }))
+    .sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
 
-  const mixTotal = Object.values(analytics?.payment_mix ?? {}).reduce((a, b) => a + b, 0);
-  const paymentMix: PaymentMixEntry[] = Object.entries(analytics?.payment_mix ?? {})
+  // Payment mix: the method of each PAID payment record on PAID orders. Only
+  // orders with a recorded settlement count — nothing is assumed.
+  const mixMap = new Map<string, number>();
+  for (const o of paidRangeOrders) {
+    const paidPayment = (o.payments ?? []).find((p) => p.status === "PAID");
+    if (!paidPayment?.method) continue;
+    mixMap.set(paidPayment.method, (mixMap.get(paidPayment.method) ?? 0) + 1);
+  }
+  const mixTotal = [...mixMap.values()].reduce((a, b) => a + b, 0);
+  const paymentMix: PaymentMixEntry[] = [...mixMap.entries()]
     .map(([method, count]) => ({
       method,
+      label: formatPaymentMethod(method),
       count,
       percent: mixTotal > 0 ? Math.round((count / mixTotal) * 100) : 0,
     }))
     .sort((a, b) => b.count - a.count);
 
-  const daily = (analytics?.daily ?? []).map((d) => ({ date: d.date, revenue: d.revenue }));
+  // Daily trend: PAID totals bucketed by local day, zero-filled over the
+  // range so quiet days still render honest bars.
+  const dailyByDay = new Map<string, number>();
+  for (const o of paidRangeOrders) {
+    const key = fmtDate(new Date(o.createdAt));
+    dailyByDay.set(key, (dailyByDay.get(key) ?? 0) + (o.total || 0));
+  }
+  const daily: { date: string; revenue: number }[] = [];
+  const cursor = new Date(`${range.from}T00:00:00`);
+  const end = new Date(`${range.to}T00:00:00`);
+  while (cursor <= end) {
+    const key = fmtDate(cursor);
+    daily.push({ date: key, revenue: dailyByDay.get(key) ?? 0 });
+    cursor.setDate(cursor.getDate() + 1);
+  }
 
   return {
     range,

@@ -188,7 +188,7 @@ export default function KitchenDashboard() {
   const chefName = session?.user?.name || "Kitchen Station";
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans -m-3 sm:-m-4 md:-m-6 selection:bg-amber-500 selection:text-zinc-950">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-amber-500 selection:text-zinc-950">
       {/* Realtime Connection Banner */}
       <KitchenConnectionStatus isConnected={!connectionDown} onRefresh={handleResync} />
 

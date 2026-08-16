@@ -61,9 +61,6 @@ export function ManagerHeader({
                 Manager Control Center
               </Badge>
             </div>
-            <p className="text-[11px] text-muted-foreground hidden sm:block">
-              Daily Operational & Inventory Supervision
-            </p>
           </div>
         </div>
       </div>
@@ -74,7 +71,7 @@ export function ManagerHeader({
         {/* Live Shift Clock */}
         <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-muted/40 border rounded-xl text-xs font-bold text-muted-foreground">
           <Clock className="h-3.5 w-3.5 text-amber-500" />
-          <span className="font-mono text-foreground">{timeStr || "10:42 AM"}</span>
+          <span className="font-mono text-foreground">{timeStr || "—"}</span>
         </div>
 
         {/* Attention Badge Trigger */}

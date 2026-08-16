@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CreditCard, EyeOff, ClipboardList, BellRing, ArrowRight } from "lucide-react";
+import { CheckCircle2, CreditCard, EyeOff, ClipboardList, BellRing, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 interface AttentionCenterProps {
@@ -97,7 +97,6 @@ export function AttentionCenter({
         <h2 className="font-black text-sm uppercase tracking-wider text-foreground">
           Needs attention ({totalAttentionItems})
         </h2>
-        <span className="text-xs font-bold text-muted-foreground">Action required</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -105,12 +104,15 @@ export function AttentionCenter({
           const Icon = card.icon;
           const isRose = card.tone === "rose";
           return (
-            <div
+            // The whole card is the action — one big touch target, no
+            // separate button to hunt for during a rush.
+            <Link
               key={card.key}
-              className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-xs ${
+              href={card.href}
+              className={`group p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-xs transition-all active:scale-[0.99] ${
                 isRose
-                  ? "border-rose-500/25 bg-rose-500/5"
-                  : "border-amber-500/25 bg-amber-500/5"
+                  ? "border-rose-500/25 bg-rose-500/5 hover:border-rose-500/50"
+                  : "border-amber-500/25 bg-amber-500/5 hover:border-amber-500/50"
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -130,19 +132,15 @@ export function AttentionCenter({
                   <p className="text-xs text-muted-foreground mt-0.5">{card.description}</p>
                 </div>
               </div>
-              <Link href={card.href}>
-                <button
-                  className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 border transition-all active:scale-95 ${
-                    isRose
-                      ? "bg-rose-600 hover:bg-rose-700 text-white border-rose-600"
-                      : "bg-amber-500 hover:bg-amber-600 text-zinc-950 border-amber-500"
-                  }`}
-                >
-                  <span>{card.action}</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </button>
-              </Link>
-            </div>
+              <span
+                className={`shrink-0 flex items-center gap-0.5 text-xs font-black transition-transform group-hover:translate-x-0.5 ${
+                  isRose ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"
+                }`}
+              >
+                {card.action}
+                <ChevronRight className="h-3.5 w-3.5" />
+              </span>
+            </Link>
           );
         })}
       </div>

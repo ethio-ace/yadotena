@@ -44,9 +44,6 @@ export function OwnerHeader({
                 Owner Control Center
               </Badge>
             </div>
-            <p className="text-[11px] text-muted-foreground hidden sm:block">
-              Financial Performance & Business Governance
-            </p>
           </div>
         </div>
       </div>

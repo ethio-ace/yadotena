@@ -7,12 +7,19 @@ import { greetingForHour } from "@/lib/manager";
 import { AttentionCenter } from "./AttentionCenter";
 import { QuickActions } from "./QuickActions";
 import { TodaySummary } from "./TodaySummary";
-import { AlertTriangle, CalendarDays, CheckCircle2, ChevronRight, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, RefreshCw } from "lucide-react";
 import { formatETB } from "@/lib/currency";
 
 export function ManagerOverview() {
   const { data: session } = useSession();
-  const { metrics, isLoading, isError, refetchAll } = useManagerOps();
+  const { metrics, tableNameById, isLoading, isError, refetchAll } = useManagerOps();
+
+  const orderLabel = (order: { tableId?: string; type: string }) => {
+    if (order.tableId) {
+      return tableNameById[order.tableId] || (order.type === "DINE_IN" ? "Table" : order.type);
+    }
+    return order.type || "Takeaway";
+  };
 
   const firstName = (session?.user?.name || "Manager").trim().split(" ")[0];
   const greeting = greetingForHour(new Date().getHours());
@@ -25,19 +32,11 @@ export function ManagerOverview() {
   return (
     <div className="space-y-6 animate-in fade-in duration-200 max-w-[1400px] mx-auto">
       {/* GREETING — the manager's first question: "Is everything okay today?" */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-            {greeting}, {firstName}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1 font-medium">
-            Here’s what needs your attention today.
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
-          <CalendarDays className="h-4 w-4" />
-          {todayLabel}
-        </div>
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+          {greeting}, {firstName}
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1 font-medium">Today · {todayLabel}</p>
       </div>
 
       {/* ACTIONABLE ERROR STATE */}
@@ -117,20 +116,9 @@ export function ManagerOverview() {
                   className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/40 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span
-                      className={`h-2 w-2 rounded-full shrink-0 ${
-                        order.status === "READY"
-                          ? "bg-emerald-500"
-                          : order.status === "PREPARING"
-                            ? "bg-amber-500"
-                            : "bg-blue-500"
-                      }`}
-                    />
                     <div className="min-w-0">
                       <p className="text-sm font-black text-foreground truncate">
-                        {order.tableId
-                          ? `Table ${order.tableId.replace(/^t/i, "")}`
-                          : order.type || "Takeaway"}
+                        {orderLabel(order)}
                         <span className="ml-2 font-mono text-[11px] font-bold text-muted-foreground">
                           #{order.id.slice(-6).toUpperCase()}
                         </span>

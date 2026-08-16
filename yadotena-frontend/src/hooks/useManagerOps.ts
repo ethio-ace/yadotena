@@ -62,8 +62,14 @@ export function useManagerOps() {
     payments: payments.data ?? [],
   });
 
+  // Map raw table ids ("bl-04") to human table names for display.
+  const tableNameById: Record<string, string> = Object.fromEntries(
+    (tables.data ?? []).map((t) => [t.id, t.name])
+  );
+
   return {
     metrics,
+    tableNameById,
     isLoading:
       orders.isLoading || menu.isLoading || tables.isLoading || payments.isLoading,
     isError:

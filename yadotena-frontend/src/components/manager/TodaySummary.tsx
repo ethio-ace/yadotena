@@ -56,7 +56,6 @@ export function TodaySummary({
       sub: unpaidOrdersCount > 0 ? "Awaiting settlement" : "All settled",
       icon: AlertCircle,
       tone: "amber" as const,
-      attention: unpaidOrdersCount > 0,
     },
     {
       label: "Pending Verification",
@@ -64,7 +63,6 @@ export function TodaySummary({
       sub: pendingVerificationCount > 0 ? "Digital payments to verify" : "All verified",
       icon: CreditCard,
       tone: "amber" as const,
-      attention: pendingVerificationCount > 0,
     },
     {
       label: "Out of Stock",
@@ -72,7 +70,6 @@ export function TodaySummary({
       sub: outOfStockCount > 0 ? "Unavailable items" : "Full catalog",
       icon: EyeOff,
       tone: "rose" as const,
-      attention: outOfStockCount > 0,
     },
   ];
 
@@ -85,10 +82,7 @@ export function TodaySummary({
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-black text-sm uppercase tracking-wider text-foreground">Today</h2>
-        <span className="text-xs font-bold text-muted-foreground">Live shift totals</span>
-      </div>
+      <h2 className="font-black text-sm uppercase tracking-wider text-foreground">Today</h2>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {metrics.map((m) => {
@@ -96,9 +90,7 @@ export function TodaySummary({
           return (
             <div
               key={m.label}
-              className={`p-4 rounded-2xl border flex flex-col justify-between shadow-xs transition-colors ${
-                m.attention ? "border-amber-500/40 bg-amber-500/5" : "border bg-card"
-              }`}
+              className="p-4 rounded-2xl border bg-card flex flex-col justify-between shadow-xs"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">

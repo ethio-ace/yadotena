@@ -29,7 +29,7 @@ export default function ManagerDashboardPage() {
   };
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden -m-3 sm:-m-4 md:-m-6">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
       {/* MANAGER SIDEBAR */}
       <ManagerSidebar
         isCollapsed={isSidebarCollapsed}

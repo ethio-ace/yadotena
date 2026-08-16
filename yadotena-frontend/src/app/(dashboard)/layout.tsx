@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { SoundNotificationProvider } from "@/contexts/SoundNotificationContext";
+import { cn } from "@/lib/utils";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -57,7 +58,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {showSidebar && !hideSharedChrome && <Sidebar role={session.user.role} />}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {!hideSharedChrome && <Header user={session.user} />}
-          <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
+          {/* Shell routes (chef/manager/owner) own their full-screen chrome and
+              padding; shared-chrome pages keep the standard inset padding. */}
+          <main
+            className={cn(
+              "flex-1 overflow-y-auto",
+              !hideSharedChrome && "p-3 sm:p-4 md:p-6"
+            )}
+          >
             {children}
           </main>
         </div>

@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Table, Order } from "@/types";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/services/api";
+import { Table, Order, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { ArrowLeft, Plus, Users, Eye, CreditCard } from "lucide-react";
+import { addonNames } from "@/lib/kitchen";
+import { ArrowLeft, Plus, Users, Eye, CreditCard, AlertTriangle } from "lucide-react";
+import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
 
 interface TablesViewProps {
   tables: Table[];
@@ -23,6 +27,13 @@ export function TablesView({
 }: TablesViewProps) {
   const [filter, setFilter] = useState<TabFilter>("ALL");
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+
+  // Addon name mapper
+  const { data: addons = [] } = useQuery<AddonItem[]>({
+    queryKey: ["addons"],
+    queryFn: () => api.addons.getAll(),
+  });
+  const addonMap = useMemo(() => Object.fromEntries(addons.map(a => [a.id, a.name])), [addons]);
 
   const filtered = tables.filter(t => {
     if (filter === "AVAILABLE") return t.status === "AVAILABLE";
@@ -58,52 +69,100 @@ export function TablesView({
     return (
       <div className="p-4 sm:p-6 max-w-lg mx-auto animate-in fade-in duration-200">
         <button onClick={() => setSelectedTable(null)} className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground mb-4 active:scale-95">
-          <ArrowLeft className="h-4 w-4" /> Tables
+          <ArrowLeft className="h-4 w-4" /> Back to Tables
         </button>
 
-        <div className="bg-card border rounded-2xl p-5 space-y-4">
+        <div className="bg-card border rounded-3xl p-5 space-y-4 shadow-xl">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold">{selectedTable.name || `Table ${selectedTable.id}`}</h2>
-              <p className="text-sm text-muted-foreground">{selectedTable.capacity} seats · {statusLabel(selectedTable.status)}</p>
+              <h2 className="text-xl font-black">{selectedTable.name || `Table ${selectedTable.id}`}</h2>
+              <p className="text-xs text-muted-foreground font-medium">{selectedTable.capacity} seats · {statusLabel(selectedTable.status)}</p>
             </div>
             <div className={`h-3 w-3 rounded-full ${selectedTable.status === "AVAILABLE" ? "bg-emerald-500" : "bg-amber-500"}`} />
           </div>
 
           {activeOrder ? (
             <>
-              <div className="border-t pt-4 space-y-2">
-                <p className="text-xs font-bold uppercase text-muted-foreground">Current Order {activeOrder.id.slice(-6).toUpperCase()}</p>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {activeOrder.items?.map((item, i) => (
-                    <div key={item.id || i} className="flex justify-between text-sm">
-                      <span>{item.quantity}× {item.name}</span>
-                      <span className="font-mono text-muted-foreground">{formatETB(item.price * item.quantity)}</span>
-                    </div>
-                  ))}
+              {/* Order Stepper */}
+              <div className="border-t pt-4">
+                <OrderProgressStepper status={activeOrder.status} />
+              </div>
+
+              {/* Items & Resolved Addons */}
+              <div className="space-y-2 pt-2">
+                <div className="flex justify-between items-center text-xs font-bold uppercase text-muted-foreground">
+                  <span>Current Order #{activeOrder.id.slice(-6).toUpperCase()}</span>
+                  <span>{activeOrder.items?.length || 0} items</span>
                 </div>
-                <div className="flex justify-between font-bold text-base pt-2 border-t">
-                  <span>Total</span>
-                  <span>{formatETB(activeOrder.total)}</span>
+
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  {activeOrder.items?.map((item, i) => {
+                    const aNames = addonNames(item.selectedAddons, addonMap);
+                    return (
+                      <div key={item.id || i} className="p-3 rounded-2xl border bg-background/60 space-y-1 text-sm">
+                        <div className="flex justify-between font-bold">
+                          <span>
+                            <span className="text-amber-500 font-extrabold mr-1.5">{item.quantity}×</span>
+                            {item.name}
+                          </span>
+                          <span className="font-mono text-xs text-muted-foreground">{formatETB(item.price * item.quantity)}</span>
+                        </div>
+
+                        {/* Resolved Add-ons */}
+                        {aNames.length > 0 && (
+                          <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
+                            {aNames.map((aName, aIdx) => (
+                              <div key={aIdx} className="flex items-center gap-1 text-foreground">
+                                <span className="text-amber-500 font-bold">+</span>
+                                <span>{aName}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Special Instructions */}
+                        {item.specialInstructions && (
+                          <div className="mt-1 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" />
+                            <span>⚠ {item.specialInstructions}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex justify-between font-black text-base pt-3 border-t">
+                  <span>Total Amount</span>
+                  <span className="text-amber-600 dark:text-amber-400">{formatETB(activeOrder.total)}</span>
                 </div>
               </div>
+
+              {/* Action Buttons */}
               <div className="grid grid-cols-2 gap-2 pt-2">
-                <button onClick={() => onAddItemsToOrder(activeOrder, selectedTable)} className="h-12 rounded-xl border-2 border-amber-600 text-amber-700 dark:text-amber-400 font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-950/30 active:scale-95 transition-all">
-                  <Plus className="h-4 w-4" /> Add Items
+                <button 
+                  onClick={() => onAddItemsToOrder(activeOrder, selectedTable)} 
+                  className="h-13 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-amber-600/20"
+                >
+                  <Plus className="h-5 w-5" /> Add Extra Items
                 </button>
-                <button onClick={() => onSettleOrder(activeOrder)} className="h-12 rounded-xl bg-emerald-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-700 active:scale-95 transition-all">
-                  <CreditCard className="h-4 w-4" /> Settle Bill
+                <button 
+                  onClick={() => onSettleOrder(activeOrder)} 
+                  className="h-13 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-emerald-600/20"
+                >
+                  <CreditCard className="h-5 w-5" /> Settle Bill
                 </button>
               </div>
-              <button onClick={() => onViewOrder(activeOrder)} className="w-full h-10 rounded-xl border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 flex items-center justify-center gap-2 transition-colors">
-                <Eye className="h-4 w-4" /> View Full Order
+
+              <button onClick={() => onViewOrder(activeOrder)} className="w-full h-11 rounded-xl border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-accent/50 flex items-center justify-center gap-2 transition-colors">
+                <Eye className="h-4 w-4" /> View Full Ticket Details
               </button>
             </>
           ) : (
             <div className="border-t pt-4 text-center space-y-3">
               <p className="text-sm text-muted-foreground">No active order on this table.</p>
-              <button onClick={() => onNewOrderForTable(selectedTable)} className="w-full h-12 rounded-xl bg-amber-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-700 active:scale-95 transition-all">
-                <Plus className="h-4 w-4" /> New Café Order
+              <button onClick={() => onNewOrderForTable(selectedTable)} className="w-full h-13 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-amber-600/20">
+                <Plus className="h-5 w-5" /> New Café Order
               </button>
             </div>
           )}

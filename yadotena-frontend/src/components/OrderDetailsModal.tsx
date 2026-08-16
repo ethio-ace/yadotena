@@ -1,9 +1,11 @@
-"use client";
-
-import { useState } from "react";
-import { Order, MenuItem } from "@/types";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/services/api";
+import { Order, MenuItem, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
+import { addonNames } from "@/lib/kitchen";
 import { X, CreditCard, CheckCircle2, Receipt, Eye, ExternalLink, Image as ImageIcon } from "lucide-react";
+import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
 
 interface OrderDetailsModalProps {
   order: Order | null;
@@ -15,6 +17,13 @@ interface OrderDetailsModalProps {
 
 export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle }: OrderDetailsModalProps) {
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
+
+  const { data: addons = [] } = useQuery<AddonItem[]>({
+    queryKey: ["addons"],
+    queryFn: () => api.addons.getAll(),
+    enabled: isOpen && !!order,
+  });
+  const addonMap = useMemo(() => Object.fromEntries(addons.map(a => [a.id, a.name])), [addons]);
 
   if (!isOpen || !order) return null;
 
@@ -62,9 +71,15 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
               <span>{new Date(order.createdAt).toLocaleString()}</span>
             </p>
           </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         <div className="p-5 space-y-6 max-h-[70vh] overflow-y-auto">
+          {/* Live Stepper */}
+          <OrderProgressStepper status={order.status} />
+
           {/* Order Items */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
@@ -73,28 +88,44 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
             <div className="space-y-2.5">
               {order.items?.map((item, idx) => {
                 const img = getItemImage(item.menuItemId);
+                const aNames = addonNames(item.selectedAddons, addonMap);
+
                 return (
-                  <div key={item.id || idx} className="flex items-center justify-between p-3 rounded-xl border bg-background/50 hover:bg-background transition-colors gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      {img ? (
-                        <img src={img} alt={item.name} className="h-10 w-10 rounded-lg object-cover shrink-0 border" />
-                      ) : (
-                        <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center text-xs shrink-0 border border-amber-500/20">
-                          {item.quantity}×
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="font-bold text-sm truncate">{item.quantity}× {item.name}</div>
-                        {item.specialInstructions && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">
-                            &ldquo;{item.specialInstructions}&rdquo;
-                          </p>
+                  <div key={item.id || idx} className="p-3 rounded-xl border bg-background/50 space-y-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {img ? (
+                          <img src={img} alt={item.name} className="h-10 w-10 rounded-lg object-cover shrink-0 border" />
+                        ) : (
+                          <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center text-xs shrink-0 border border-amber-500/20">
+                            {item.quantity}×
+                          </div>
                         )}
+                        <div className="min-w-0">
+                          <div className="font-bold text-sm truncate">{item.quantity}× {item.name}</div>
+                          {item.specialInstructions && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">
+                              &ldquo;{item.specialInstructions}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="font-mono font-bold text-sm shrink-0">
+                        {formatETB(item.price * item.quantity)}
                       </div>
                     </div>
-                    <div className="font-mono font-bold text-sm shrink-0">
-                      {formatETB(item.price * item.quantity)}
-                    </div>
+
+                    {/* Add-ons */}
+                    {aNames.length > 0 && (
+                      <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
+                        {aNames.map((aName, aIdx) => (
+                          <div key={aIdx} className="flex items-center gap-1 text-foreground">
+                            <span className="text-amber-500 font-bold">+</span>
+                            <span>{aName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}

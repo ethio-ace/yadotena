@@ -10,7 +10,7 @@ interface OrderDetailSheetProps {
   onClose: () => void;
   onStartPreparing?: (orderId: string) => void;
   onMarkReady?: (orderId: string) => void;
-  isLoading?: boolean;
+  updatingOrderId?: string | null;
   addonMap?: Record<string, string>;
   tableLabels?: Record<string, string>;
 }
@@ -21,7 +21,7 @@ export function OrderDetailSheet({
   onClose,
   onStartPreparing,
   onMarkReady,
-  isLoading,
+  updatingOrderId,
   addonMap,
   tableLabels,
 }: OrderDetailSheetProps) {
@@ -32,6 +32,7 @@ export function OrderDetailSheet({
   const isReady = order.status === "READY";
   const destination = orderDestination(order, tableLabels);
   const hasStarted = order.status !== "PENDING";
+  const isThisItemUpdating = updatingOrderId === order.id;
 
   return (
     <div
@@ -128,12 +129,12 @@ export function OrderDetailSheet({
         <div className="pt-6 border-t border-zinc-800 space-y-3">
           {isPending && (
             <button
-              disabled={isLoading}
+              disabled={isThisItemUpdating}
               onClick={() => {
                 onStartPreparing?.(order.id);
                 onClose();
               }}
-              className="w-full h-14 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-base tracking-wide flex items-center justify-center gap-2 shadow-xl shadow-blue-900/40 active:scale-[0.98] transition-all"
+              className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
             >
               <Play className="h-5 w-5 fill-current" />
               <span>START PREPARING TICKET</span>
@@ -142,12 +143,12 @@ export function OrderDetailSheet({
 
           {isPreparing && (
             <button
-              disabled={isLoading}
+              disabled={isThisItemUpdating}
               onClick={() => {
                 onMarkReady?.(order.id);
                 onClose();
               }}
-              className="w-full h-14 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-base tracking-wide flex items-center justify-center gap-2 shadow-xl shadow-emerald-900/40 active:scale-[0.98] transition-all"
+              className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
             >
               <CheckCircle2 className="h-5 w-5" />
               <span>MARK TICKET AS READY</span>
@@ -155,7 +156,7 @@ export function OrderDetailSheet({
           )}
 
           {isReady && (
-            <div className="w-full p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-center text-sm flex items-center justify-center gap-2">
+            <div className="w-full p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-center text-sm flex items-center justify-center gap-2">
               <CheckCircle2 className="h-5 w-5" />
               <span>Ticket is READY & awaiting waiter service</span>
             </div>

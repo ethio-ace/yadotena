@@ -40,6 +40,7 @@ export default function KitchenDashboard() {
   const [inspectOrder, setInspectOrder] = useState<Order | null>(null);
   const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
   // --- connection lifecycle: resync authoritative state after a real drop ---
   const prevConnectionStateRef = useRef<AblyConnectionState | null>(null);
@@ -143,6 +144,7 @@ export default function KitchenDashboard() {
     mutationFn: ({ id, status }: { id: string; status: OrderStatus }) =>
       api.orders.updateStatus(id, status),
     onMutate: async ({ id, status }) => {
+      setUpdatingOrderId(id);
       await queryClient.cancelQueries({ queryKey: ["orders"] });
       const previous = queryClient.getQueryData<Order[]>(["orders"]);
       queryClient.setQueryData<Order[]>(["orders"], (old) =>
@@ -153,6 +155,7 @@ export default function KitchenDashboard() {
       return { previous };
     },
     onError: (err, _vars, ctx) => {
+      setUpdatingOrderId(null);
       if (ctx?.previous) queryClient.setQueryData(["orders"], ctx.previous);
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       const message = (err as Error)?.message || "";
@@ -163,11 +166,11 @@ export default function KitchenDashboard() {
       );
     },
     onSuccess: () => {
+      setUpdatingOrderId(null);
       if (soundEnabled) soundAlerts.playActionPing();
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["tables"] });
+      setUpdatingOrderId(null);
     },
   });
 
@@ -229,7 +232,7 @@ export default function KitchenDashboard() {
             onStartPreparing={handleStartPreparing}
             onMarkReady={handleMarkReady}
             onInspectOrder={setInspectOrder}
-            isLoading={updateStatusMutation.isPending}
+            updatingOrderId={updatingOrderId}
           />
         ) : viewMode === "BATCH" ? (
           <BatchView orders={orders} addonMap={addonMap} tableLabels={tableLabels} />
@@ -289,7 +292,7 @@ export default function KitchenDashboard() {
         onClose={() => setInspectOrder(null)}
         onStartPreparing={handleStartPreparing}
         onMarkReady={handleMarkReady}
-        isLoading={updateStatusMutation.isPending}
+        updatingOrderId={updatingOrderId}
         addonMap={addonMap}
         tableLabels={tableLabels}
       />

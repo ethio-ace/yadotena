@@ -48,13 +48,13 @@ export function ChefHeader({
         {/* Left: Branding, Chef Identity & Connection */}
         <div className="flex items-center gap-4 w-full lg:w-auto justify-between lg:justify-start">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20 text-zinc-950 shrink-0">
-              <UtensilsCrossed className="h-6 w-6" />
+            <div className="h-9 w-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-amber-400 shrink-0">
+              <UtensilsCrossed className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-black text-lg tracking-tight text-white uppercase leading-none">
-                  Yadotena <span className="text-amber-500">Kitchen</span>
+                <h1 className="font-extrabold text-base tracking-tight text-white uppercase leading-none">
+                  Yadotena <span className="text-amber-400">Kitchen</span>
                 </h1>
               </div>
               <p className="text-[11px] font-medium text-zinc-400 mt-0.5">
@@ -64,15 +64,15 @@ export function ChefHeader({
           </div>
 
           <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors ${
               isConnected
                 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                : "bg-red-500/10 text-red-400 border-red-500/30 animate-pulse"
+                : "bg-red-500/10 text-red-400 border-red-500/30"
             }`}
           >
             {isConnected ? (
               <>
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
                 <Wifi className="h-3 w-3" /> CONNECTED
               </>
             ) : (

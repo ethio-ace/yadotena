@@ -23,8 +23,8 @@ export function KitchenStats({
       sublabel: "Waiting for chef",
       count: pendingCount,
       icon: Flame,
-      color: "border-blue-500/40 bg-blue-950/20 text-blue-400",
-      badgeColor: "bg-blue-500 text-zinc-950",
+      iconColor: "text-blue-400",
+      badgeColor: "bg-blue-600 text-white font-black",
     },
     {
       id: "PREPARING",
@@ -32,8 +32,8 @@ export function KitchenStats({
       sublabel: "On the line",
       count: preparingCount,
       icon: Clock,
-      color: "border-amber-500/40 bg-amber-950/20 text-amber-400",
-      badgeColor: "bg-amber-400 text-zinc-950",
+      iconColor: "text-amber-400",
+      badgeColor: "bg-amber-500 text-zinc-950 font-black",
     },
     {
       id: "READY",
@@ -41,8 +41,8 @@ export function KitchenStats({
       sublabel: "Waiting for waiter",
       count: readyCount,
       icon: CheckCircle2,
-      color: "border-emerald-500/40 bg-emerald-950/20 text-emerald-400",
-      badgeColor: "bg-emerald-400 text-zinc-950",
+      iconColor: "text-emerald-400",
+      badgeColor: "bg-emerald-600 text-white font-black",
     },
     {
       id: "OVERDUE",
@@ -50,29 +50,29 @@ export function KitchenStats({
       sublabel: `> ${KITCHEN_URGENT_MIN} mins elapsed`,
       count: overdueCount,
       icon: AlertTriangle,
-      color: "border-red-500/40 bg-red-950/20 text-red-400",
-      badgeColor: "bg-red-500 text-white animate-pulse",
+      iconColor: "text-red-400",
+      badgeColor: "bg-red-600 text-white font-black",
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-zinc-950/90 border-b border-zinc-800">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-zinc-950 border-b border-zinc-800">
       {items.map((item) => {
         const Icon = item.icon;
         return (
           <div
             key={item.id}
-            className={`p-3.5 rounded-2xl border text-left relative overflow-hidden flex items-center justify-between shadow-md ${item.color}`}
+            className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-900 text-left flex items-center justify-between shadow-sm"
           >
             <div>
-              <div className="flex items-center gap-1.5 font-black text-xs tracking-wider uppercase opacity-90">
-                <Icon className="h-4 w-4 shrink-0" />
+              <div className="flex items-center gap-1.5 font-bold text-xs tracking-wider uppercase text-zinc-300">
+                <Icon className={`h-4 w-4 shrink-0 ${item.iconColor}`} />
                 <span>{item.label}</span>
               </div>
-              <p className="text-[11px] font-medium opacity-70 mt-0.5">{item.sublabel}</p>
+              <p className="text-[11px] font-medium text-zinc-400 mt-0.5">{item.sublabel}</p>
             </div>
 
-            <div className={`h-9 min-w-9 px-2 rounded-xl font-black text-lg flex items-center justify-center shadow-inner ${item.badgeColor}`}>
+            <div className={`h-8 min-w-8 px-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm ${item.badgeColor}`}>
               {item.count}
             </div>
           </div>

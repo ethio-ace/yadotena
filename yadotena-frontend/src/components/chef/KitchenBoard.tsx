@@ -13,7 +13,7 @@ interface KitchenBoardProps {
   onStartPreparing: (orderId: string) => void;
   onMarkReady: (orderId: string) => void;
   onInspectOrder: (order: Order) => void;
-  isLoading?: boolean;
+  updatingOrderId?: string | null;
 }
 
 export function KitchenBoard({
@@ -24,7 +24,7 @@ export function KitchenBoard({
   onStartPreparing,
   onMarkReady,
   onInspectOrder,
-  isLoading,
+  updatingOrderId,
 }: KitchenBoardProps) {
   const [mobileTab, setMobileTab] = useState<"PENDING" | "PREPARING" | "READY">("PENDING");
 
@@ -90,7 +90,7 @@ export function KitchenBoard({
             tableLabels={tableLabels}
             onStartPreparing={onStartPreparing}
             onInspect={onInspectOrder}
-            isLoading={isLoading}
+            updatingOrderId={updatingOrderId}
           />
         )}
         {mobileTab === "PREPARING" && (
@@ -102,7 +102,7 @@ export function KitchenBoard({
             tableLabels={tableLabels}
             onMarkReady={onMarkReady}
             onInspect={onInspectOrder}
-            isLoading={isLoading}
+            updatingOrderId={updatingOrderId}
           />
         )}
         {mobileTab === "READY" && (
@@ -113,7 +113,7 @@ export function KitchenBoard({
             addonMap={addonMap}
             tableLabels={tableLabels}
             onInspect={onInspectOrder}
-            isLoading={isLoading}
+            updatingOrderId={updatingOrderId}
           />
         )}
       </div>
@@ -129,7 +129,7 @@ export function KitchenBoard({
           tableLabels={tableLabels}
           onStartPreparing={onStartPreparing}
           onInspect={onInspectOrder}
-          isLoading={isLoading}
+          updatingOrderId={updatingOrderId}
         />
 
         <KitchenColumn
@@ -140,7 +140,7 @@ export function KitchenBoard({
           tableLabels={tableLabels}
           onMarkReady={onMarkReady}
           onInspect={onInspectOrder}
-          isLoading={isLoading}
+          updatingOrderId={updatingOrderId}
         />
 
         <KitchenColumn
@@ -150,7 +150,7 @@ export function KitchenBoard({
           addonMap={addonMap}
           tableLabels={tableLabels}
           onInspect={onInspectOrder}
-          isLoading={isLoading}
+          updatingOrderId={updatingOrderId}
         />
       </div>
     </div>

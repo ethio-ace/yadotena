@@ -16,14 +16,11 @@ import {
   Settings,
   ShieldCheck,
   Briefcase,
+  Wallet,
   Utensils,
   CreditCard,
   Activity,
-  Sparkles,
-  Coffee,
-  ShoppingBag,
-  EyeOff,
-  ClipboardList
+  Sparkles
 } from "lucide-react";
 
 interface NavItem {
@@ -40,50 +37,38 @@ interface NavSection {
 
 export const navSections: NavSection[] = [
   {
-    title: "OVERVIEW",
+    title: "OPERATIONS & TERMINALS",
     items: [
-      { name: "Today's Command", href: "/dashboard/manager", icon: LayoutDashboard, roles: ["OWNER", "MANAGER"] },
-      { name: "Overview Dashboard", href: "/dashboard", icon: BarChart3, roles: ["OWNER", "MANAGER"] },
-    ]
-  },
-  {
-    title: "CATALOG",
-    items: [
-      { name: "Café Menu", href: "/dashboard/menu", icon: Coffee, roles: ["OWNER", "MANAGER", "KITCHEN"] },
-      { name: "Retail Goods", href: "/shop", icon: ShoppingBag, roles: ["OWNER", "MANAGER", "WAITER"] },
-      { name: "Add-ons", href: "/dashboard/addons", icon: Sparkles, roles: ["OWNER", "MANAGER", "KITCHEN"] },
-    ]
-  },
-  {
-    title: "OPERATIONS",
-    items: [
-      { name: "Floor Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER", "WAITER"] },
-      { name: "Availability", href: "/dashboard/menu", icon: EyeOff, roles: ["OWNER", "MANAGER", "KITCHEN"] },
-      { name: "Order Supervision", href: "/dashboard/orders", icon: ClipboardList, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN"] },
+      { name: "Shift Operations", href: "/dashboard/manager", icon: Briefcase, roles: ["OWNER", "MANAGER"] },
       { name: "Waiter Floor POS", href: "/dashboard/waiter", icon: Utensils, roles: ["OWNER", "MANAGER", "WAITER"] },
       { name: "Kitchen Display (KDS)", href: "/dashboard/kitchen", icon: ChefHat, roles: ["OWNER", "MANAGER", "KITCHEN"] },
     ]
   },
   {
-    title: "PAYMENTS",
+    title: "RESTAURANT MANAGEMENT",
     items: [
-      { name: "Payment Verification", href: "/dashboard/payments", icon: CreditCard, roles: ["OWNER", "MANAGER"] },
-    ]
-  },
-  {
-    title: "EXPENSES",
-    items: [
-      { name: "Expense Ledger", href: "/dashboard/expenses", icon: Receipt, roles: ["OWNER", "MANAGER"] },
-    ]
-  },
-  {
-    title: "SETTINGS",
-    items: [
-      { name: "Store Settings", href: "/dashboard/settings", icon: Settings, roles: ["OWNER", "MANAGER"] },
-      { name: "Staff & Roster", href: "/dashboard/employees", icon: UserSquare2, roles: ["OWNER", "MANAGER"] },
+      { name: "Overview Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER", "MANAGER"] },
+      { name: "Live Orders & Tickets", href: "/dashboard/orders", icon: ShoppingCart, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN"] },
+      { name: "Floor Tables", href: "/dashboard/tables", icon: Grid, roles: ["OWNER", "MANAGER", "WAITER"] },
+      { name: "Menu & Catalog", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER", "KITCHEN"] },
+      { name: "Add-ons & Modifiers", href: "/dashboard/addons", icon: Sparkles, roles: ["OWNER", "MANAGER", "KITCHEN"] },
       { name: "Activity Logs", href: "/dashboard/logs", icon: Activity, roles: ["OWNER", "MANAGER"] },
+    ]
+  },
+  {
+    title: "FINANCE & STAFF",
+    items: [
+      { name: "Payments & Gateways", href: "/dashboard/payments", icon: CreditCard, roles: ["OWNER", "MANAGER"] },
+      { name: "Expenses Ledger", href: "/dashboard/expenses", icon: Receipt, roles: ["OWNER", "MANAGER"] },
+      { name: "Staff & Roster", href: "/dashboard/employees", icon: UserSquare2, roles: ["OWNER", "MANAGER"] },
       { name: "Analytics & Reports", href: "/dashboard/reports", icon: BarChart3, roles: ["OWNER", "MANAGER"] },
+    ]
+  },
+  {
+    title: "ADMINISTRATION",
+    items: [
       { name: "Owner Console", href: "/dashboard/owner", icon: ShieldCheck, roles: ["OWNER"] },
+      { name: "System Settings", href: "/dashboard/settings", icon: Settings, roles: ["OWNER"] },
     ]
   }
 ];

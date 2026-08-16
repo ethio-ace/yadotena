@@ -43,7 +43,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // center render their own full-screen shell (sidebar + header) instead of
   // stacking a second one inside the shared layout.
   const isChefKds = session.user.role === "KITCHEN";
-  const hideSharedChrome = isChefKds;
+  const isManagerAppRoute =
+    session.user.role === "MANAGER" &&
+    (pathname === "/dashboard/manager" || pathname === "/dashboard");
+  const hideSharedChrome = isChefKds || isManagerAppRoute;
 
   return (
     <SoundNotificationProvider>

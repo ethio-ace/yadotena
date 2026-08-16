@@ -45,7 +45,7 @@ export function ManagerSidebar({
       group: "CATALOG",
       items: [
         { name: "Café Menu", href: "/dashboard/menu", icon: Coffee },
-        { name: "Retail Goods", href: "/dashboard/menu", icon: ShoppingBag },
+        { name: "Retail Goods", href: "/shop", icon: ShoppingBag },
         { name: "Add-ons", href: "/dashboard/addons", icon: Layers },
       ],
     },

@@ -425,3 +425,376 @@ export function computeSalesBreakdown(opts: {
 
   return { menuVsRetail, products, categories, orderTypeMix };
 }
+
+/* ------------------------------------------------------------------ */
+/* Analytics Hub report helpers                                        */
+/* ------------------------------------------------------------------ */
+
+/** How often each add-on was sold (units + add-on revenue) in the range. */
+export interface AddonPopularityRow {
+  id: string;
+  name: string;
+  units: number;
+  revenue: number;
+  orderCount: number;
+}
+
+export function computeAddonPopularity(opts: {
+  range: DateRange;
+  orders: Order[];
+}): AddonPopularityRow[] {
+  const { range, orders } = opts;
+  const paidRangeOrders = orders.filter(
+    (o) => o.paymentStatus === "PAID" && o.createdAt && new Date(o.createdAt) >= new Date(range.fromInstant)
+  );
+  const map = new Map<string, AddonPopularityRow>();
+  for (const o of paidRangeOrders) {
+    for (const item of o.items ?? []) {
+      for (const a of item.selectedAddons ?? []) {
+        const cur =
+          map.get(a.id || a.name) ?? {
+            id: a.id || a.name,
+            name: a.name,
+            units: 0,
+            revenue: 0,
+            orderCount: 0,
+          };
+        cur.units += item.quantity || 1;
+        cur.revenue += (a.price || 0) * (item.quantity || 1);
+        cur.orderCount += 1;
+        map.set(a.id || a.name, cur);
+      }
+    }
+  }
+  return [...map.values()].sort((a, b) => b.units - a.units || b.revenue - a.revenue);
+}
+
+/** One ranked customer row (grouped from PAID orders in the range). */
+export interface CustomerReportRow {
+  name: string;
+  phone: string;
+  orders: number;
+  revenue: number;
+}
+
+export function computeCustomers(opts: { range: DateRange; orders: Order[] }): CustomerReportRow[] {
+  const { range, orders } = opts;
+  const paidRangeOrders = orders.filter(
+    (o) => o.paymentStatus === "PAID" && o.createdAt && new Date(o.createdAt) >= new Date(range.fromInstant)
+  );
+  const map = new Map<string, CustomerReportRow>();
+  for (const o of paidRangeOrders) {
+    const name = o.customerName?.trim() || "Walk-in";
+    const cur =
+      map.get(name) ?? { name, phone: o.customerPhone || "", orders: 0, revenue: 0 };
+    cur.orders += 1;
+    cur.revenue += o.total || 0;
+    if (o.customerPhone && !cur.phone) cur.phone = o.customerPhone;
+    map.set(name, cur);
+  }
+  return [...map.values()].sort((a, b) => b.revenue - a.revenue || b.orders - a.orders);
+}
+
+/** Expense report: category rollups + the individual entries in the range. */
+export interface ExpenseReportCategory {
+  category: string;
+  total: number;
+  count: number;
+}
+
+export interface ExpenseReportEntry {
+  id: string;
+  amount: number;
+  category: string;
+  description: string;
+  date: string;
+  paymentMethod: string;
+  recordedByName: string;
+}
+
+export function computeExpenseReport(opts: {
+  range: DateRange;
+  expenses: { id: string; amount: number; category: string; description: string; date: string; paymentMethod?: string; recordedByName?: string }[];
+}): { total: number; count: number; categories: ExpenseReportCategory[]; entries: ExpenseReportEntry[] } {
+  const { range, expenses } = opts;
+  const entries: ExpenseReportEntry[] = expenses
+    .filter((e) => e.date >= range.from && e.date <= range.to)
+    .map((e) => ({
+      id: e.id,
+      amount: e.amount || 0,
+      category: e.category || "Other",
+      description: e.description || "",
+      date: e.date,
+      paymentMethod: e.paymentMethod || "",
+      recordedByName: e.recordedByName || "",
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.amount - a.amount);
+
+  const catMap = new Map<string, { total: number; count: number }>();
+  for (const e of entries) {
+    const cur = catMap.get(e.category) ?? { total: 0, count: 0 };
+    cur.total += e.amount;
+    cur.count += 1;
+    catMap.set(e.category, cur);
+  }
+  const categories: ExpenseReportCategory[] = [...catMap.entries()]
+    .map(([category, v]) => ({ category, total: v.total, count: v.count }))
+    .sort((a, b) => b.total - a.total);
+
+  return {
+    total: entries.reduce((s, e) => s + e.amount, 0),
+    count: entries.length,
+    categories,
+    entries,
+  };
+}
+
+/** Staff activity categories used by the Staff & Roles report. */
+export type StaffActivityCategory = "ORDERS" | "PAYMENTS" | "MENU" | "EXPENSES" | "STAFF" | "OTHER";
+
+export const STAFF_ACTIVITY_CATEGORIES: StaffActivityCategory[] = [
+  "ORDERS",
+  "PAYMENTS",
+  "MENU",
+  "EXPENSES",
+  "STAFF",
+  "OTHER",
+];
+
+/** Map a backend activity record (UPPER_SNAKE action + entity type) to a bucket. */
+export function staffActionCategory(action: string, entityType: string): StaffActivityCategory {
+  const a = (action || "").toUpperCase();
+  const e = (entityType || "").toUpperCase();
+  if (a.includes("ORDER") || e === "ORDER") return "ORDERS";
+  if (
+    a.includes("PAYMENT") ||
+    a.includes("SETTLE") ||
+    a.includes("VERIF") ||
+    a.includes("REFUND") ||
+    e.includes("PAYMENT")
+  )
+    return "PAYMENTS";
+  if (
+    a.includes("MENU") ||
+    a.includes("DISH") ||
+    a.includes("PRICE") ||
+    a.includes("CATEGOR") ||
+    a.includes("ADDON") ||
+    a.includes("AVAILAB") ||
+    e.includes("MENU") ||
+    e.includes("PRODUCT") ||
+    e.includes("CATEGOR") ||
+    e.includes("ADDON")
+  )
+    return "MENU";
+  if (a.includes("EXPENSE") || e.includes("EXPENSE")) return "EXPENSES";
+  if (
+    a.includes("STAFF") ||
+    a.includes("USER") ||
+    a.includes("ROLE") ||
+    a.includes("SUSPEND") ||
+    a.includes("CREDENTIAL") ||
+    e.includes("USER") ||
+    e.includes("STAFF") ||
+    e.includes("EMPLOYEE")
+  )
+    return "STAFF";
+  return "OTHER";
+}
+
+/** One staff member's activity rollup for the period. */
+export interface StaffMemberPerformance {
+  userId: string;
+  name: string;
+  role: string;
+  active: boolean;
+  actions: number;
+  byCategory: Record<StaffActivityCategory, number>;
+  lastActiveAt?: string;
+}
+
+/**
+ * Staff & Roles report: merges the staff roster (/users) with real activity
+ * log records in the period. Nothing is invented — action counts are the
+ * number of backend audit records attributed to that user.
+ */
+export function computeStaffReport(opts: {
+  employees: { id: string; name?: string; role?: string; active?: boolean }[];
+  logs: { userId?: string; userName?: string; userRole?: string; action?: string; entityType?: string; createdAt?: string }[];
+}): { members: StaffMemberPerformance[]; roleRollup: { role: string; members: number; actions: number }[] } {
+  const { employees, logs } = opts;
+  const byUser = new Map<string, StaffMemberPerformance>();
+
+  const ensure = (userId: string, name: string, role: string, active: boolean) => {
+    const key = userId || name;
+    let m = byUser.get(key);
+    if (!m) {
+      m = {
+        userId: key,
+        name: name || "Unknown",
+        role: role || "STAFF",
+        active,
+        actions: 0,
+        byCategory: { ORDERS: 0, PAYMENTS: 0, MENU: 0, EXPENSES: 0, STAFF: 0, OTHER: 0 },
+      };
+      byUser.set(key, m);
+    }
+    if (name && !m.name.includes(name)) m.name = name;
+    if (role && m.role === "STAFF") m.role = role;
+    return m;
+  };
+
+  for (const emp of employees ?? []) {
+    ensure(emp.id, emp.name || "", emp.role || "STAFF", emp.active !== false);
+  }
+
+  for (const log of logs ?? []) {
+    const m = ensure(log.userId || "", log.userName || "", log.userRole || "STAFF", true);
+    m.actions += 1;
+    const cat = staffActionCategory(log.action || "", log.entityType || "");
+    m.byCategory[cat] += 1;
+    if (log.createdAt && (!m.lastActiveAt || log.createdAt > m.lastActiveAt)) {
+      m.lastActiveAt = log.createdAt;
+    }
+  }
+
+  const members = [...byUser.values()].sort(
+    (a, b) => b.actions - a.actions || a.name.localeCompare(b.name)
+  );
+
+  const roleMap = new Map<string, { members: number; actions: number }>();
+  for (const m of members) {
+    const cur = roleMap.get(m.role) ?? { members: 0, actions: 0 };
+    cur.members += 1;
+    cur.actions += m.actions;
+    roleMap.set(m.role, cur);
+  }
+  const roleRollup = [...roleMap.entries()]
+    .map(([role, v]) => ({ role, members: v.members, actions: v.actions }))
+    .sort((a, b) => b.actions - a.actions);
+
+  return { members, roleRollup };
+}
+
+/** One product's popularity series across the period. */
+export interface PopularityTrendRow {
+  menuItemId: string;
+  name: string;
+  category: string;
+  isRetail: boolean;
+  units: number;
+  revenue: number;
+  series: { label: string; units: number }[];
+}
+
+/**
+ * Per-product units over time. Bucket width adapts to the range: daily for
+ * short periods, weekly for months, monthly for long periods — so a year of
+ * data still renders as a readable trend without a thousand points.
+ */
+export function computePopularityTrend(opts: {
+  range: DateRange;
+  orders: Order[];
+  menuItems: MenuItem[];
+  topN?: number;
+}): { rows: PopularityTrendRow[]; bucketLabel: string } {
+  const { range, orders, menuItems, topN = 8 } = opts;
+  const byId = new Map(menuItems.map((m) => [m.id, m]));
+
+  const start = new Date(`${range.from}T00:00:00`);
+  const end = new Date(`${range.to}T23:59:59`);
+  const dayCount = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
+
+  // Build bucket boundaries.
+  const buckets: { start: Date; label: string }[] = [];
+  const bucketOf = (d: Date): number => {
+    if (dayCount <= 62) {
+      const idx = Math.floor((d.getTime() - start.getTime()) / 86_400_000);
+      return idx >= 0 && idx < buckets.length ? idx : -1;
+    }
+    if (dayCount <= 400) {
+      const weekIdx = Math.floor((d.getTime() - start.getTime()) / (7 * 86_400_000));
+      return weekIdx >= 0 && weekIdx < buckets.length ? weekIdx : -1;
+    }
+    const monthIdx = (d.getFullYear() - start.getFullYear()) * 12 + (d.getMonth() - start.getMonth());
+    return monthIdx >= 0 && monthIdx < buckets.length ? monthIdx : -1;
+  };
+
+  const labelFmt: Intl.DateTimeFormatOptions =
+    dayCount <= 62 ? { month: "short", day: "numeric" } : dayCount <= 400 ? { month: "short", day: "numeric" } : { month: "short" };
+
+  const cursor = new Date(start);
+  if (dayCount <= 62) {
+    while (cursor <= end) {
+      buckets.push({ start: new Date(cursor), label: cursor.toLocaleDateString("en-US", labelFmt) });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  } else if (dayCount <= 400) {
+    // Align to the range start, stepping by 7 days.
+    while (cursor <= end) {
+      const bStart = new Date(cursor);
+      const bEnd = new Date(cursor);
+      bEnd.setDate(bEnd.getDate() + 6);
+      buckets.push({
+        start: bStart,
+        label: `${bStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+      });
+      cursor.setDate(cursor.getDate() + 7);
+    }
+  } else {
+    while (cursor <= end) {
+      buckets.push({ start: new Date(cursor), label: cursor.toLocaleDateString("en-US", labelFmt) });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+  }
+
+  const paidRangeOrders = orders.filter(
+    (o) => o.paymentStatus === "PAID" && o.createdAt && new Date(o.createdAt) >= start && new Date(o.createdAt) <= end
+  );
+
+  const prodMap = new Map<string, { menuItemId: string; name: string; category: string; isRetail: boolean; units: number; revenue: number; series: number[] }>();
+  for (const o of paidRangeOrders) {
+    const bi = bucketOf(new Date(o.createdAt));
+    if (bi < 0) continue;
+    for (const item of o.items ?? []) {
+      const mi = item.menuItemId ? byId.get(item.menuItemId) : undefined;
+      const key = mi?.id || item.name;
+      let p = prodMap.get(key);
+      if (!p) {
+        const retailHeuristic = { id: item.menuItemId || "", category: item.name } as MenuItem;
+        p = {
+          menuItemId: mi?.id ?? item.menuItemId ?? item.name,
+          name: item.name,
+          category: mi?.category || "Other",
+          isRetail: mi ? isRetailProduct(mi) : isRetailProduct(retailHeuristic),
+          units: 0,
+          revenue: 0,
+          series: new Array(buckets.length).fill(0),
+        };
+        prodMap.set(key, p);
+      }
+      const qty = item.quantity || 1;
+      p.units += qty;
+      p.revenue += (item.price || 0) * qty;
+      p.series[bi] += qty;
+    }
+  }
+
+  const rows: PopularityTrendRow[] = [...prodMap.values()]
+    .map((p) => ({
+      menuItemId: p.menuItemId,
+      name: p.name,
+      category: p.category,
+      isRetail: p.isRetail,
+      units: p.units,
+      revenue: p.revenue,
+      series: p.series.map((units, i) => ({ label: buckets[i].label, units })),
+    }))
+    .sort((a, b) => b.units - a.units || b.revenue - a.revenue)
+    .slice(0, topN);
+
+  return {
+    rows,
+    bucketLabel: dayCount <= 62 ? "Daily" : dayCount <= 400 ? "Weekly" : "Monthly",
+  };
+}

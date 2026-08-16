@@ -72,9 +72,15 @@ export const ownerNavGroups: NavGroup[] = [
     items: [{ name: "Business Overview", href: "/dashboard/owner", icon: LayoutDashboard }],
   },
   {
-    group: "SALES",
+    group: "ANALYTICS & REPORTS",
+    items: [{ name: "Analytics Hub", href: "/dashboard/reports", icon: BarChart3 }],
+  },
+  {
+    group: "OPERATIONS",
     items: [
-      { name: "Sales & Products", href: "/dashboard/reports", icon: BarChart3 },
+      { name: "Café Menu", href: "/dashboard/menu", icon: Coffee },
+      { name: "Add-ons", href: "/dashboard/addons", icon: Layers },
+      { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
       { name: "Orders", href: "/dashboard/orders", icon: ClipboardList },
     ],
   },

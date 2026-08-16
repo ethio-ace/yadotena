@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight, Landmark } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ownerNavGroups as navGroups } from "@/lib/nav";
 
@@ -47,9 +47,11 @@ export function OwnerSidebar({
               href="/dashboard/owner"
               className={cn("flex items-center gap-3 transition-opacity", isCollapsed && "md:justify-center w-full")}
             >
-              <div className="h-9 w-9 rounded-xl bg-amber-500 text-zinc-950 flex items-center justify-center font-black shadow-md shrink-0">
-                <Landmark className="h-5 w-5" />
-              </div>
+              <img
+                src="/icon.svg"
+                alt="Yadotena logo"
+                className="h-9 w-9 rounded-xl shrink-0 shadow-md"
+              />
               {(!isCollapsed || isOpenMobile) && (
                 <span className="font-black text-lg tracking-tight text-foreground">
                   YADOTENA

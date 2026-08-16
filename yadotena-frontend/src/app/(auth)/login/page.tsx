@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Lock, Mail, AlertCircle, ArrowRight, ShieldCheck, UserCheck, ChefHat, Wallet, Briefcase, ShoppingBag } from "lucide-react";
+import { Lock, Mail, AlertCircle, ArrowRight, UserCheck, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -34,8 +34,8 @@ export default function LoginPage() {
         setError("Invalid staff credentials. Default PIN/Password is '1234'.");
       } else {
         const session = await getSession();
-        const role = (session?.user as any)?.role;
-        const accessToken = (session as any)?.accessToken;
+        const role = (session?.user as { role?: string } | undefined)?.role;
+        const accessToken = (session as { accessToken?: string } | null)?.accessToken;
         if (accessToken) {
           localStorage.setItem("token", accessToken);
         }
@@ -52,8 +52,8 @@ export default function LoginPage() {
           router.push("/dashboard/owner");
         }
       }
-    } catch (err: any) {
-      setError(err.message || "An unexpected authentication error occurred.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unexpected authentication error occurred.");
     } finally {
       setLoading(false);
     }
@@ -68,8 +68,15 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-4 animate-in fade-in duration-500">
       <Card className="w-full max-w-lg border border-slate-800 shadow-2xl rounded-3xl overflow-hidden bg-slate-900/90 text-slate-50 backdrop-blur-md">
         <CardHeader className="text-center pb-2 pt-8 space-y-2">
-          <div className="mx-auto h-16 w-16 rounded-3xl bg-primary flex items-center justify-center text-primary-foreground text-3xl font-black shadow-xl shadow-primary/30 animate-bounce duration-1000">
-            🥛
+          <div className="mx-auto h-16 w-16 rounded-3xl bg-amber-500 flex items-center justify-center shadow-xl shadow-amber-500/30">
+            <svg viewBox="0 0 64 64" className="h-11 w-11" aria-hidden="true">
+              <path d="M21 10c0-3.2 4-3.2 4-6.4" stroke="#fff" strokeWidth="2.6" fill="none" strokeLinecap="round"/>
+              <path d="M33 10c0-3.2 4-3.2 4-6.4" stroke="#fff" strokeWidth="2.6" fill="none" strokeLinecap="round"/>
+              <rect x="15" y="22" width="34" height="4.5" rx="2.25" fill="#fff"/>
+              <path d="M17 25.5h30v6.5a11 11 0 0 1-11 11H28a11 11 0 0 1-11-11z" fill="#fff"/>
+              <path d="M47 28.5h3.2a4.4 4.4 0 0 1 0 8.8H47" stroke="#fff" strokeWidth="3.2" fill="none" strokeLinecap="round"/>
+              <rect x="13" y="46.5" width="38" height="4.5" rx="2.25" fill="#fff" opacity="0.92"/>
+            </svg>
           </div>
           <CardTitle className="text-2xl sm:text-3xl font-black tracking-tight">
             Yadotena Staff & Operations Console

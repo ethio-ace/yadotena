@@ -250,9 +250,10 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
         (o) =>
           o.paymentStatus === "PAID" &&
           o.createdAt &&
-          new Date(o.createdAt) >= new Date(range.fromInstant)
+          new Date(o.createdAt) >= new Date(range.fromInstant) &&
+          new Date(o.createdAt) <= new Date(range.toInstant)
       ),
-    [orders, range.fromInstant]
+    [orders, range.fromInstant, range.toInstant]
   );
 
   const customers: CustomerRow[] = useMemo(() => {

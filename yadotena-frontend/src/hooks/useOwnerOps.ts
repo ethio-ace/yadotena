@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Expense, MenuItem, Order, PaymentRecord } from "@/types";
-import { computeOwnerMetrics, getDateRange, OwnerMetrics, OwnerRange } from "@/lib/owner";
+import { computeOwnerMetrics, CustomRange, getDateRange, OwnerMetrics, OwnerRange } from "@/lib/owner";
 
 /**
  * Single source of truth for the owner's business snapshot.
@@ -20,12 +20,22 @@ import { computeOwnerMetrics, getDateRange, OwnerMetrics, OwnerRange } from "@/l
  * ["expenses"]) so existing mutations and realtime events invalidate them;
  * the intervals are only a low-intensity safety net for the owner.
  */
-export function useOwnerOps(rangeOverride?: OwnerRange) {
-  const [rangeKey, setRangeKey] = useState<OwnerRange>(rangeOverride ?? "today");
-  const range = getDateRange(rangeKey);
+export function useOwnerOps(rangeOverride?: OwnerRange, customRange?: CustomRange) {
+  // Controlled mode: when the caller owns the range (e.g. the Analytics Hub
+  // keeps it in the URL), the override is authoritative and must stay in sync
+  // on every render. Otherwise fall back to internal state (owner overview).
+  const isControlled = rangeOverride !== undefined;
+  const [internalRangeKey, setInternalRangeKey] = useState<OwnerRange>(
+    rangeOverride ?? "today"
+  );
+  const rangeKey = isControlled ? rangeOverride : internalRangeKey;
+  const setRangeKey = (r: OwnerRange) => setInternalRangeKey(r);
+  const range = getDateRange(rangeKey, new Date(), customRange);
 
   const orders = useQuery({
-    queryKey: ["orders", "owner"],
+    // The cutoff is part of the key so switching ranges actually refetches
+    // instead of serving the previously-fetched window.
+    queryKey: ["orders", "owner", range.fromInstant],
     queryFn: () => api.orders.getAllSince(range.fromInstant),
     refetchInterval: 60_000,
   });

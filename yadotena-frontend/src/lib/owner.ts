@@ -24,7 +24,7 @@ import { isRetailProduct } from "./orderUtils";
  *   verification) come from real order / menu / payment records.
  */
 
-export type OwnerRange = "today" | "yesterday" | "week" | "month" | "quarter" | "year";
+export type OwnerRange = "today" | "yesterday" | "week" | "month" | "quarter" | "year" | "custom";
 
 export interface DateRange {
   /** YYYY-MM-DD, inclusive lower bound (server date range). */
@@ -33,6 +33,8 @@ export interface DateRange {
   to: string;
   /** ISO instant cutoff for client-side order filtering (local midnight). */
   fromInstant: string;
+  /** ISO instant upper bound for client-side order filtering (local end of day). */
+  toInstant: string;
   /** Human label, e.g. "This Month". */
   label: string;
   /** e.g. "August 1 – August 16, 2026" for display. */
@@ -49,6 +51,10 @@ function localMidnightISO(date: Date): string {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).toISOString();
 }
 
+function localEndOfDayISO(date: Date): string {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999).toISOString();
+}
+
 function displayRange(from: string, to: string): string {
   const opts: Intl.DateTimeFormatOptions = { month: "long", day: "numeric", year: "numeric" };
   const fromDate = new Date(`${from}T00:00:00`);
@@ -57,8 +63,32 @@ function displayRange(from: string, to: string): string {
   return `${fromDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${toDate.toLocaleDateString("en-US", opts)}`;
 }
 
-export function getDateRange(range: OwnerRange, now: Date = new Date()): DateRange {
+export interface CustomRange {
+  /** YYYY-MM-DD inclusive lower bound. */
+  from: string;
+  /** YYYY-MM-DD inclusive upper bound. */
+  to: string;
+}
+
+export function getDateRange(
+  range: OwnerRange,
+  now: Date = new Date(),
+  custom?: CustomRange
+): DateRange {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (range === "custom") {
+    const from = custom?.from ?? fmtDate(today);
+    const to = custom?.to && custom.to >= from ? custom.to : from;
+    return {
+      from,
+      to,
+      fromInstant: localMidnightISO(new Date(`${from}T00:00:00`)),
+      toInstant: localEndOfDayISO(new Date(`${to}T00:00:00`)),
+      label: "Custom Range",
+      display: displayRange(from, to),
+    };
+  }
 
   switch (range) {
     case "today":
@@ -66,6 +96,7 @@ export function getDateRange(range: OwnerRange, now: Date = new Date()): DateRan
         from: fmtDate(today),
         to: fmtDate(today),
         fromInstant: localMidnightISO(today),
+        toInstant: localEndOfDayISO(today),
         label: "Today",
         display: displayRange(fmtDate(today), fmtDate(today)),
       };
@@ -76,6 +107,7 @@ export function getDateRange(range: OwnerRange, now: Date = new Date()): DateRan
         from: fmtDate(yesterday),
         to: fmtDate(yesterday),
         fromInstant: localMidnightISO(yesterday),
+        toInstant: localEndOfDayISO(yesterday),
         label: "Yesterday",
         display: displayRange(fmtDate(yesterday), fmtDate(yesterday)),
       };
@@ -88,6 +120,7 @@ export function getDateRange(range: OwnerRange, now: Date = new Date()): DateRan
         from: fmtDate(monday),
         to: fmtDate(today),
         fromInstant: localMidnightISO(monday),
+        toInstant: localEndOfDayISO(today),
         label: "This Week",
         display: displayRange(fmtDate(monday), fmtDate(today)),
       };
@@ -98,6 +131,7 @@ export function getDateRange(range: OwnerRange, now: Date = new Date()): DateRan
         from: fmtDate(first),
         to: fmtDate(today),
         fromInstant: localMidnightISO(first),
+        toInstant: localEndOfDayISO(today),
         label: "This Month",
         display: displayRange(fmtDate(first), fmtDate(today)),
       };
@@ -109,6 +143,7 @@ export function getDateRange(range: OwnerRange, now: Date = new Date()): DateRan
         from: fmtDate(first),
         to: fmtDate(today),
         fromInstant: localMidnightISO(first),
+        toInstant: localEndOfDayISO(today),
         label: "3 Months",
         display: displayRange(fmtDate(first), fmtDate(today)),
       };
@@ -119,6 +154,7 @@ export function getDateRange(range: OwnerRange, now: Date = new Date()): DateRan
         from: fmtDate(first),
         to: fmtDate(today),
         fromInstant: localMidnightISO(first),
+        toInstant: localEndOfDayISO(today),
         label: "This Year",
         display: displayRange(fmtDate(first), fmtDate(today)),
       };
@@ -214,7 +250,10 @@ export function computeOwnerMetrics(opts: {
   const { range, expenses, orders, menuItems, payments } = opts;
 
   const rangeOrders = orders.filter(
-    (o) => o.createdAt && new Date(o.createdAt) >= new Date(range.fromInstant)
+    (o) =>
+      o.createdAt &&
+      new Date(o.createdAt) >= new Date(range.fromInstant) &&
+      new Date(o.createdAt) <= new Date(range.toInstant)
   );
 
   // Revenue / paid orders: PAID order totals within the range. (The backend
@@ -354,7 +393,10 @@ export function computeSalesBreakdown(opts: {
   const byId = new Map(menuItems.map((m) => [m.id, m]));
 
   const rangeOrders = orders.filter(
-    (o) => o.createdAt && new Date(o.createdAt) >= new Date(range.fromInstant)
+    (o) =>
+      o.createdAt &&
+      new Date(o.createdAt) >= new Date(range.fromInstant) &&
+      new Date(o.createdAt) <= new Date(range.toInstant)
   );
   const paidRangeOrders = rangeOrders.filter((o) => o.paymentStatus === "PAID");
 
@@ -445,7 +487,11 @@ export function computeAddonPopularity(opts: {
 }): AddonPopularityRow[] {
   const { range, orders } = opts;
   const paidRangeOrders = orders.filter(
-    (o) => o.paymentStatus === "PAID" && o.createdAt && new Date(o.createdAt) >= new Date(range.fromInstant)
+    (o) =>
+      o.paymentStatus === "PAID" &&
+      o.createdAt &&
+      new Date(o.createdAt) >= new Date(range.fromInstant) &&
+      new Date(o.createdAt) <= new Date(range.toInstant)
   );
   const map = new Map<string, AddonPopularityRow>();
   for (const o of paidRangeOrders) {
@@ -480,7 +526,11 @@ export interface CustomerReportRow {
 export function computeCustomers(opts: { range: DateRange; orders: Order[] }): CustomerReportRow[] {
   const { range, orders } = opts;
   const paidRangeOrders = orders.filter(
-    (o) => o.paymentStatus === "PAID" && o.createdAt && new Date(o.createdAt) >= new Date(range.fromInstant)
+    (o) =>
+      o.paymentStatus === "PAID" &&
+      o.createdAt &&
+      new Date(o.createdAt) >= new Date(range.fromInstant) &&
+      new Date(o.createdAt) <= new Date(range.toInstant)
   );
   const map = new Map<string, CustomerReportRow>();
   for (const o of paidRangeOrders) {

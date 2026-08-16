@@ -14,7 +14,7 @@ import { StaffReport } from "@/components/owner/reports/StaffReport";
 import { ExpensesReport } from "@/components/owner/reports/ExpensesReport";
 import { CustomersReport } from "@/components/owner/reports/CustomersReport";
 import { useOwnerOps } from "@/hooks/useOwnerOps";
-import { computeSalesBreakdown, OwnerRange } from "@/lib/owner";
+import { computeSalesBreakdown, CustomRange, OwnerRange } from "@/lib/owner";
 import { formatETB } from "@/lib/currency";
 import {
   Wallet,
@@ -29,15 +29,22 @@ import {
   Sparkles,
 } from "lucide-react";
 
-const RANGE_KEYS: OwnerRange[] = ["today", "yesterday", "week", "month", "quarter", "year"];
+const RANGE_KEYS: OwnerRange[] = ["today", "yesterday", "week", "month", "quarter", "year", "custom"];
 
 function AnalyticsHub() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const qRange = searchParams.get("range") as OwnerRange | null;
   const rangeKey: OwnerRange = qRange && RANGE_KEYS.includes(qRange) ? qRange : "today";
+  const customRange: CustomRange | undefined =
+    rangeKey === "custom" && searchParams.get("from")
+      ? {
+          from: searchParams.get("from")!,
+          to: searchParams.get("to") || searchParams.get("from")!,
+        }
+      : undefined;
 
-  const { metrics, orders, menuItems, expenses, isLoading } = useOwnerOps(rangeKey);
+  const { metrics, orders, menuItems, expenses, isLoading } = useOwnerOps(rangeKey, customRange);
 
   const [tab, setTab] = useState<ReportTabKey>("revenue");
 
@@ -58,8 +65,12 @@ function AnalyticsHub() {
     queryFn: api.categories.getAll,
   });
 
-  const setRange = (r: OwnerRange) => {
-    router.replace(`/dashboard/reports?range=${r}`);
+  const setRange = (r: OwnerRange, custom?: CustomRange) => {
+    if (r === "custom" && custom) {
+      router.replace(`/dashboard/reports?range=custom&from=${custom.from}&to=${custom.to}`);
+    } else {
+      router.replace(`/dashboard/reports?range=${r}`);
+    }
   };
 
   const { menuVsRetail } = breakdown;
@@ -82,7 +93,7 @@ function AnalyticsHub() {
             Reports for the period · {metrics.range.display}
           </p>
         </div>
-        <DateRangeSelector value={rangeKey} onChange={setRange} />
+        <DateRangeSelector value={rangeKey} onChange={setRange} custom={customRange} />
       </div>
 
       {/* Report tabs */}

@@ -14,12 +14,14 @@ import { PaymentMix } from "@/components/owner/PaymentMix";
 import { ExpensesCard } from "@/components/owner/ExpensesCard";
 import { TodayActivity } from "@/components/owner/TodayActivity";
 import { useOwnerOps } from "@/hooks/useOwnerOps";
+import { CustomRange } from "@/lib/owner";
 import { greetingForHour } from "@/lib/manager";
 
 export default function OwnerDashboardPage() {
   const { data: session } = useSession();
   const { isCollapsed: isSidebarCollapsed, toggle: toggleSidebarCollapse } = useSidebarCollapse();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [customRange, setCustomRange] = useState<CustomRange | undefined>();
 
   const {
     rangeKey,
@@ -29,7 +31,12 @@ export default function OwnerDashboardPage() {
     expenses,
     recentActivity,
     isLoading,
-  } = useOwnerOps();
+  } = useOwnerOps(undefined, customRange);
+
+  const handleRangeChange = (r: Parameters<typeof setRangeKey>[0], custom?: CustomRange) => {
+    setRangeKey(r);
+    if (r === "custom" && custom) setCustomRange(custom);
+  };
 
   const userObj = session?.user
     ? {
@@ -78,7 +85,7 @@ export default function OwnerDashboardPage() {
                   {metrics.range.label} · {metrics.range.display}
                 </p>
               </div>
-              <DateRangeSelector value={rangeKey} onChange={setRangeKey} />
+              <DateRangeSelector value={rangeKey} onChange={handleRangeChange} custom={customRange} />
             </div>
 
             {isLoading && metrics.paidOrders === 0 && metrics.revenue === 0 ? (

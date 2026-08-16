@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Order } from "@/types";
 import { formatETB } from "@/lib/currency";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { ArrowLeft, Check, CreditCard } from "lucide-react";
 
 interface OrdersBoardProps {
@@ -17,6 +18,7 @@ interface OrdersBoardProps {
 type Tab = "ACTIVE" | "READY" | "UNPAID" | "HISTORY";
 
 export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onViewOrder }: OrdersBoardProps) {
+  const tableLabels = useTableLabels();
   const [tab, setTab] = useState<Tab>((defaultTab as Tab) || "ACTIVE");
 
   const filtered = orders.filter(o => {
@@ -108,7 +110,7 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${statusStyle(o.status)}`}>{o.status}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {o.tableId ? `Table ${o.tableId}` : o.type || "Takeaway"} · {ago(o.createdAt)}
+                    {o.tableId ? formatTableRef(o.tableId, tableLabels) : o.type || "Takeaway"} · {ago(o.createdAt)}
                   </p>
                 </div>
                 <span className="text-base font-bold">{formatETB(o.total)}</span>

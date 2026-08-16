@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Order, MenuItem, Table, ServiceRequest, AddonItem } from "@/types";
@@ -33,13 +33,25 @@ export default function WaiterWorkspacePage() {
   // Order detail modal
   const [inspectOrder, setInspectOrder] = useState<Order | null>(null);
 
-  // Data
+  // Data — categories/addons are only needed inside the order builder, so they
+  // are fetched lazily when that view opens (react-query keeps them cached after
+  // the first visit). The other queries serve home/tables/orders/alerts.
+  const builderOpen = view === "cafe-order" || view === "shop-sale";
   const { data: tables = [] } = useQuery<Table[]>({ queryKey: ["tables"], queryFn: api.tables.getAll });
   const { data: orders = [] } = useQuery<Order[]>({ queryKey: ["orders"], queryFn: api.orders.getAll });
   const { data: menu = [] } = useQuery<MenuItem[]>({ queryKey: ["menu"], queryFn: api.menu.getAll });
-  const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: api.categories.getAll });
-  const { data: allAddons = [] } = useQuery<AddonItem[]>({ queryKey: ["addons"], queryFn: () => api.addons.getAll() });
+  const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: api.categories.getAll, enabled: builderOpen });
+  const { data: allAddons = [] } = useQuery<AddonItem[]>({ queryKey: ["addons"], queryFn: () => api.addons.getAll(), enabled: builderOpen });
   const { data: serviceRequests = [] } = useQuery<ServiceRequest[]>({ queryKey: ["serviceRequests"], queryFn: api.serviceRequests.getAll });
+
+  // Inline toast for action feedback — POS screens shouldn't block on alert().
+  const [toast, setToast] = useState<{ message: string; kind: "error" | "success" } | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+  const showToast = (message: string, kind: "error" | "success" = "error") => setToast({ message, kind });
 
   const pendingAlerts = serviceRequests.filter(r => r.status === "PENDING").length;
 
@@ -58,7 +70,7 @@ export default function WaiterWorkspacePage() {
         setView("orders");
       }
     },
-    onError: (err: any) => alert(err.message || "Order creation failed"),
+    onError: (err: any) => showToast(err?.message || "We couldn't create the order. Please try again."),
   });
 
   const appendItemsMutation = useMutation({
@@ -68,7 +80,7 @@ export default function WaiterWorkspacePage() {
       soundAlerts.playActionPing();
       setView("orders");
     },
-    onError: (err: any) => alert(err.message || "Failed to add items"),
+    onError: (err: any) => showToast(err?.message || "We couldn't add those items. Please try again."),
   });
 
   const updateStatusMutation = useMutation({
@@ -137,6 +149,20 @@ export default function WaiterWorkspacePage() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
+      {/* Action feedback toast */}
+      {toast && (
+        <div
+          role="status"
+          className={`fixed top-3 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] rounded-xl border px-4 py-2.5 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 ${
+            toast.kind === "error"
+              ? "bg-red-600 border-red-700 text-white"
+              : "bg-emerald-600 border-emerald-700 text-white"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       {/* MAIN CONTENT */}
       {view === "home" && (
         <WaiterHome

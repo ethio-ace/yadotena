@@ -1,6 +1,7 @@
 "use client";
 
 import { ServiceRequest } from "@/types";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { ArrowLeft, Bell, CheckCircle } from "lucide-react";
 
 interface AlertsViewProps {
@@ -10,6 +11,8 @@ interface AlertsViewProps {
 }
 
 export function AlertsView({ serviceRequests, onBack, onResolve }: AlertsViewProps) {
+  const tableLabels = useTableLabels();
+  const tableRef = (r: ServiceRequest) => r.tableName || formatTableRef(r.tableId, tableLabels) || "Table";
   const pending = serviceRequests.filter(r => r.status === "PENDING");
   const resolved = serviceRequests.filter(r => r.status === "RESOLVED").slice(0, 10);
 
@@ -58,7 +61,7 @@ export function AlertsView({ serviceRequests, onBack, onResolve }: AlertsViewPro
               <div>
                 <div className="flex items-center gap-2">
                   <Bell className="h-4 w-4 text-red-500 animate-pulse" />
-                  <span className="font-bold">{r.tableName || `Table ${r.tableId}`}</span>
+                  <span className="font-bold">{tableRef(r)}</span>
                 </div>
                 <p className="text-sm text-foreground mt-1">{typeLabel(r.type)}</p>
                 {r.notes && <p className="text-xs text-muted-foreground mt-0.5 italic">"{r.notes}"</p>}
@@ -81,7 +84,7 @@ export function AlertsView({ serviceRequests, onBack, onResolve }: AlertsViewPro
           <div className="space-y-2">
             {resolved.map(r => (
               <div key={r.id} className="flex items-center justify-between p-3 rounded-xl border text-sm text-muted-foreground">
-                <span>{r.tableName || `Table ${r.tableId}`} · {typeLabel(r.type)}</span>
+                <span>{tableRef(r)} · {typeLabel(r.type)}</span>
                 <span className="text-xs">{ago(r.createdAt)}</span>
               </div>
             ))}

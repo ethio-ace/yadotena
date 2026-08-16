@@ -25,7 +25,7 @@ func (s *Server) analytics(w http.ResponseWriter, r *http.Request) {
 	_ = s.Pool.QueryRow(r.Context(), `
 		SELECT COUNT(*), COALESCE(SUM(total),0)::float8
 		FROM orders
-		WHERE payment_status='PAID' OR payment_status='paid'
+		WHERE (payment_status='PAID' OR payment_status='paid')
 		  AND created_at::date >= $1::date AND created_at::date <= $2::date`, from, to).
 		Scan(&orderCount, &revenue)
 
@@ -54,7 +54,7 @@ func (s *Server) analytics(w http.ResponseWriter, r *http.Request) {
 		SELECT oi.name, SUM(oi.quantity)::int, SUM(oi.quantity*oi.price)::float8
 		FROM order_items oi
 		JOIN orders o ON o.id=oi.order_id
-		WHERE o.payment_status='PAID' OR o.payment_status='paid'
+		WHERE (o.payment_status='PAID' OR o.payment_status='paid')
 		  AND o.created_at::date >= $1::date AND o.created_at::date <= $2::date
 		GROUP BY oi.name ORDER BY SUM(oi.quantity) DESC LIMIT 10`, from, to)
 	if err == nil {
@@ -70,7 +70,7 @@ func (s *Server) analytics(w http.ResponseWriter, r *http.Request) {
 	rows3, err := s.Pool.Query(r.Context(), `
 		SELECT p.method, COUNT(*) FROM payments p
 		JOIN orders o ON o.id=p.order_id
-		WHERE o.payment_status='PAID' OR o.payment_status='paid'
+		WHERE (o.payment_status='PAID' OR o.payment_status='paid')
 		  AND o.created_at::date >= $1::date AND o.created_at::date <= $2::date
 		GROUP BY p.method`, from, to)
 	if err == nil {
@@ -96,7 +96,7 @@ func (s *Server) analytics(w http.ResponseWriter, r *http.Request) {
 		       COALESCE(SUM(total) FILTER (WHERE type='DELIVERY' OR type='delivery'),0)::float8,
 		       COALESCE(SUM(total),0)::float8
 		FROM orders
-		WHERE payment_status='PAID' OR payment_status='paid'
+		WHERE (payment_status='PAID' OR payment_status='paid')
 		  AND created_at::date >= $1::date AND created_at::date <= $2::date
 		GROUP BY 1 ORDER BY 1`, from, to)
 	if err == nil {

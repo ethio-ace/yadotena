@@ -46,7 +46,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isManagerAppRoute =
     session.user.role === "MANAGER" &&
     (pathname === "/dashboard/manager" || pathname === "/dashboard");
-  const hideSharedChrome = isChefKds || isManagerAppRoute;
+  const isOwnerAppRoute =
+    session.user.role === "OWNER" &&
+    (pathname === "/dashboard/owner" || pathname === "/dashboard");
+  const hideSharedChrome = isChefKds || isManagerAppRoute || isOwnerAppRoute;
 
   return (
     <SoundNotificationProvider>

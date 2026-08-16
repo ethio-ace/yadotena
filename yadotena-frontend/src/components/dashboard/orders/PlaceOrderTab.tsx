@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { OrderType, MenuItem, OrderItem, Table } from "@/types";
@@ -30,6 +30,14 @@ export function PlaceOrderTab() {
   // Wizard State
   const [step, setStep] = useState<1 | 2>(1);
 
+  // Inline success feedback — no blocking alert() on a busy admin screen.
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   // Form State
   const [orderType, setOrderType] = useState<OrderType>("DINE_IN");
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
@@ -51,6 +59,15 @@ export function PlaceOrderTab() {
   if (step === 1) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
+        {toast && (
+          <div
+            role="status"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-xl animate-in fade-in slide-in-from-top-2 flex items-center gap-2"
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {toast}
+          </div>
+        )}
         <div className="text-center max-w-lg mx-auto mt-4 mb-8">
           <h3 className="text-2xl font-black mb-2">Select a Table or Order Type</h3>
           <p className="text-muted-foreground text-sm">Choose where to place this order to begin selecting items.</p>
@@ -103,7 +120,7 @@ export function PlaceOrderTab() {
                   className={`h-24 flex-col gap-2 rounded-2xl border-2 transition-all hover:bg-primary/5 hover:border-primary/30 ${table.status !== 'AVAILABLE' ? 'opacity-60 grayscale' : ''}`}
                   onClick={() => handleTableSelect(table.id)}
                 >
-                  <span className="text-2xl font-black text-foreground">Table {table.id.replace('t', '')}</span>
+                  <span className="text-2xl font-black text-foreground">{table.name}</span>
                   <Badge variant={table.status === 'AVAILABLE' ? 'success' : 'secondary'} className="text-[10px]">
                     {table.status}
                   </Badge>
@@ -125,7 +142,7 @@ export function PlaceOrderTab() {
         onSuccess={() => {
           setStep(1);
           setSelectedTable(null);
-          alert("Order placed successfully!");
+          setToast("Order placed successfully!");
         }}
       />
     );

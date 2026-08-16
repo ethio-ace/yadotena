@@ -7,6 +7,7 @@ import { Clock, Flame, Check, UtensilsCrossed, AlertTriangle, ChevronRight } fro
 import { formatDistanceToNow } from "date-fns";
 import { formatETB } from "@/lib/currency";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
+import { addonNames } from "@/lib/kitchen";
 
 export function KitchenOrderCard({ 
   order, 
@@ -16,7 +17,8 @@ export function KitchenOrderCard({
   isLoading,
   hideAction,
   isUrgent,
-  onAddItems
+  onAddItems,
+  addonMap
 }: any) {
   const tableLabels = useTableLabels();
   const tableDisplay = order.tableId
@@ -72,12 +74,12 @@ export function KitchenOrderCard({
                       {item.name}
                     </span>
                     
-                    {/* Addons List */}
-                    {item.selectedAddons && item.selectedAddons.length > 0 && (
+                    {/* Addons List — raw string ids resolve through the addon map */}
+                    {addonNames(item.selectedAddons, addonMap).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {item.selectedAddons.map((addon: any, aIdx: number) => (
+                        {addonNames(item.selectedAddons, addonMap).map((addon, aIdx) => (
                           <span key={aIdx} className="bg-muted text-muted-foreground text-[10px] font-bold px-1.5 py-0.5 rounded border">
-                            +{typeof addon === "string" ? addon : addon.name}
+                            +{addon}
                           </span>
                         ))}
                       </div>

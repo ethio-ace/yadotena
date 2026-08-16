@@ -55,6 +55,21 @@ export function FullPageMenuPOS({
     queryFn: api.categories.getAll,
   });
 
+  // Real table names (cached by react-query; instant when opened from the floor page).
+  const { data: tables = [] } = useQuery({
+    queryKey: ["tables"],
+    queryFn: api.tables.getAll,
+  });
+
+  // Inline toast for action feedback — POS screens shouldn't block on alert().
+  const [toast, setToast] = useState<{ message: string; kind: "error" | "success" } | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+  const showToast = (message: string, kind: "error" | "success" = "error") => setToast({ message, kind });
+
   // State
   const [menuSearch, setMenuSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
@@ -87,6 +102,7 @@ export function FullPageMenuPOS({
 
   const activeOrderType = existingOrder?.type || orderType;
   const activeTableId = existingOrder?.tableId || tableId;
+  const activeTableName = tables.find((t) => t.id === activeTableId)?.name;
 
   // Mutations
   const createOrder = useMutation({
@@ -96,7 +112,7 @@ export function FullPageMenuPOS({
       queryClient.invalidateQueries({ queryKey: ["tables"] });
       onSuccess();
     },
-    onError: (err: Error) => alert(err.message || "Failed to place order"),
+    onError: (err: Error) => showToast(err.message || "Failed to place order"),
   });
 
   const addItemsToOrder = useMutation({
@@ -106,7 +122,7 @@ export function FullPageMenuPOS({
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       onSuccess();
     },
-    onError: (err: Error) => alert(err.message || "Failed to add items"),
+    onError: (err: Error) => showToast(err.message || "Failed to add items"),
   });
 
   const openDishModal = (item: MenuItem) => {
@@ -182,7 +198,7 @@ export function FullPageMenuPOS({
   );
 
   const handleSubmit = () => {
-    if (orderItems.length === 0) return alert("Please select at least one item.");
+    if (orderItems.length === 0) return showToast("Please select at least one item.");
 
     const payloadItems = toOrderItemPayload(
       orderItems.map((item) => ({
@@ -202,8 +218,8 @@ export function FullPageMenuPOS({
         items: payloadItems,
       });
     } else {
-      if (orderType === "TAKEAWAY" && (!customerName || !customerPhone)) return alert("Please enter customer name and phone.");
-      if (orderType === "DELIVERY" && (!customerName || !customerPhone || !deliveryAddress)) return alert("Please enter delivery details.");
+      if (orderType === "TAKEAWAY" && (!customerName || !customerPhone)) return showToast("Please enter customer name and phone.");
+      if (orderType === "DELIVERY" && (!customerName || !customerPhone || !deliveryAddress)) return showToast("Please enter delivery details.");
 
       createOrder.mutate({
         type: orderType,
@@ -265,6 +281,20 @@ export function FullPageMenuPOS({
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 animate-in slide-in-from-right-4 duration-300">
+      {/* Non-blocking action feedback */}
+      {toast && (
+        <div
+          role="alert"
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl border text-xs font-bold shadow-xl animate-in fade-in slide-in-from-top-2 flex items-center gap-2 ${
+            toast.kind === "error"
+              ? "bg-destructive/10 border-destructive/30 text-destructive"
+              : "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       {/* Left side: Menu Selection */}
       <div className="flex-1 space-y-6">
         <div className="flex items-center justify-between">
@@ -273,8 +303,8 @@ export function FullPageMenuPOS({
           </Button>
           <div className="font-bold bg-muted px-4 py-1.5 rounded-full text-sm flex items-center gap-2">
             {activeOrderType === "DINE_IN" ? <Utensils className="w-4 h-4"/> : activeOrderType === "TAKEAWAY" ? <ShoppingBag className="w-4 h-4"/> : <Truck className="w-4 h-4"/>}
-            {existingOrder ? `Adding to #${(existingOrder?.id || '').slice(-6).toUpperCase()}` : 
-             activeOrderType === "DINE_IN" ? `Table ${String(activeTableId || '').replace('t','')}` : 
+            {existingOrder ? `Adding to ${(existingOrder?.id || '').slice(-6).toUpperCase()}` : 
+             activeOrderType === "DINE_IN" ? (activeTableName || "Dine-in") : 
              activeOrderType === "TAKEAWAY" ? "Takeaway" : "Delivery"}
           </div>
         </div>

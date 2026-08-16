@@ -21,6 +21,13 @@ export function ActiveOrdersTab() {
     queryFn: api.orders.getAll,
   });
 
+  // Resolve raw addon ids on tickets to human names (cached by react-query).
+  const { data: addons = [] } = useQuery({
+    queryKey: ["addons"],
+    queryFn: () => api.addons.getAll(),
+  });
+  const addonMap = Object.fromEntries(addons.map((a) => [a.id, a.name]));
+
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string, status: OrderStatus }) => 
       api.orders.updateStatus(id, status),
@@ -94,7 +101,8 @@ export function ActiveOrdersTab() {
                 onAction={() => updateStatus.mutate({ id: order.id, status: nextStatus })}
                 isLoading={updateStatus.isPending}
                 isUrgent={order.status === "PENDING"}
-                onAddItems={() => setShowExtraSelectionForOrder(order as any)}
+                addonMap={addonMap}
+                onAddItems={() => setShowExtraSelectionForOrder(order)}
               />
             );
           })}

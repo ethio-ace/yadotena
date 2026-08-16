@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
-import { CheckCircle2, ShieldCheck, Wifi, Lock, Store } from "lucide-react";
+import { CheckCircle2, ShieldCheck, Wifi, Lock, Store, AlertTriangle } from "lucide-react";
 import { api } from "@/services/api";
 import { PaymentMethodsManager } from "@/components/owner/PaymentMethodsManager";
 
@@ -28,6 +28,8 @@ export default function SettingsPage() {
 
   const [isSaved, setIsSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const formik = useFormik({
     initialValues: {
@@ -43,10 +45,11 @@ export default function SettingsPage() {
     onSubmit: async (values) => {
       try {
         await api.settings.update(values);
+        setSaveError(null);
         setIsSaved(true);
         setTimeout(() => setIsSaved(false), 3000);
       } catch (err) {
-        alert("Failed to update settings: " + (err instanceof Error ? err.message : "Error"));
+        setSaveError(err instanceof Error ? err.message : "Failed to update settings");
       }
     },
   });
@@ -67,7 +70,7 @@ export default function SettingsPage() {
           });
         }
       })
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -75,6 +78,14 @@ export default function SettingsPage() {
     return (
       <div className="p-8 text-center animate-pulse font-bold text-muted-foreground">
         Loading System Settings...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-6 rounded-2xl border border-destructive/30 bg-destructive/5 text-destructive text-xs font-bold max-w-xl animate-in fade-in duration-200">
+Couldn’t load store settings. Check your connection and refresh to try again.
       </div>
     );
   }
@@ -193,7 +204,13 @@ export default function SettingsPage() {
           </div>
         </CardContent>
         <CardFooter className="flex justify-end border-t p-6">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-4">
+            {saveError && (
+              <span className="text-destructive text-xs font-bold flex items-center animate-in fade-in">
+                <AlertTriangle className="h-4 w-4 mr-1 shrink-0" />
+                {saveError}
+              </span>
+            )}
             {isSaved && (
               <span className="text-emerald-500 text-sm font-bold flex items-center animate-in fade-in">
                 <CheckCircle2 className="h-4 w-4 mr-1" />

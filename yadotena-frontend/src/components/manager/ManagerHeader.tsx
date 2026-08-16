@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, Clock, Bell, LogOut, Menu } from "lucide-react";
+import { Clock, Bell, LogOut, Menu } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Badge } from "@/components/ui/badge";
 
@@ -49,9 +49,11 @@ export function ManagerHeader({
         </button>
 
         <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center justify-center font-black shrink-0">
-            <Building2 className="h-5 w-5" />
-          </div>
+          <img
+            src="/icon.svg"
+            alt="Yadotena logo"
+            className="h-9 w-9 rounded-xl shrink-0 shadow-sm border border-amber-500/20"
+          />
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-black text-base tracking-tight text-foreground">

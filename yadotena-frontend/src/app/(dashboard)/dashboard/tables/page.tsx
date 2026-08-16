@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
   Users, Plus, Utensils, QrCode, Sparkles, Edit3, Trash2, 
-  CheckCircle2, AlertCircle, Clock, RefreshCw, X, Shield, Eye
+  CheckCircle2, AlertCircle, Clock, RefreshCw, X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FullPageMenuPOS } from "@/components/dashboard/FullPageMenuPOS";
@@ -26,19 +26,8 @@ export default function TablesPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
-  if (selectedTableForOrder) {
-    return (
-      <div className="h-full w-full">
-        <FullPageMenuPOS 
-          orderType="DINE_IN"
-          tableId={selectedTableForOrder}
-          onCancel={() => setSelectedTableForOrder(null)}
-          onSuccess={() => setSelectedTableForOrder(null)}
-        />
-      </div>
-    );
-  }
-
+  // All hooks run unconditionally — the POS swap below is an early *return*,
+  // not a conditional hook, so React's hook order never changes.
   const { data: tables = [], isLoading, isRefetching } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
@@ -61,6 +50,19 @@ export default function TablesPage() {
       queryClient.invalidateQueries({ queryKey: ["tables"] });
     },
   });
+
+  if (selectedTableForOrder) {
+    return (
+      <div className="h-full w-full">
+        <FullPageMenuPOS 
+          orderType="DINE_IN"
+          tableId={selectedTableForOrder}
+          onCancel={() => setSelectedTableForOrder(null)}
+          onSuccess={() => setSelectedTableForOrder(null)}
+        />
+      </div>
+    );
+  }
 
   // Filtered tables
   const filteredTables = tables.filter((t) => {
@@ -203,7 +205,7 @@ export default function TablesPage() {
         <div className="py-16 text-center space-y-2 bg-card rounded-3xl border">
           <Utensils className="h-10 w-10 mx-auto text-muted-foreground opacity-40" />
           <p className="text-sm font-bold text-foreground">No tables found</p>
-          <p className="text-xs text-muted-foreground">Try clearing the status filter or click "Add Dining Table" to add one.</p>
+          <p className="text-xs text-muted-foreground">Try clearing the status filter or click “Add Dining Table” to add one.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -372,7 +374,6 @@ function TableCard({
           <div>
             <div className="flex items-center gap-1.5">
               <h3 className="font-black text-lg tracking-tight text-foreground">{table.name}</h3>
-              <span className="text-[10px] font-mono text-muted-foreground">({table.id})</span>
             </div>
             
             <div className="mt-1 flex items-center gap-1.5">
@@ -481,7 +482,7 @@ function AddTableModal({
       soundAlerts.playActionPing();
       onSuccess();
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message || "Failed to create table.");
     },
   });
@@ -620,7 +621,7 @@ function EditTableModal({
       soundAlerts.playActionPing();
       onSuccess();
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setError(err.message || "Failed to update table.");
     },
   });
@@ -645,7 +646,7 @@ function EditTableModal({
             </div>
             <div>
               <h3 className="font-black text-base">Edit Dining Table</h3>
-              <p className="text-[11px] text-muted-foreground">{table.id}</p>
+              <p className="text-[11px] text-muted-foreground">{table.capacity} seats · update name, capacity, or floor state</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">

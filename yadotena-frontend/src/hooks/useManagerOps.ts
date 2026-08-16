@@ -71,7 +71,11 @@ export function useManagerOps() {
     metrics,
     tableNameById,
     isLoading:
-      orders.isLoading || menu.isLoading || tables.isLoading || payments.isLoading,
+      orders.isLoading ||
+      menu.isLoading ||
+      tables.isLoading ||
+      serviceRequests.isLoading ||
+      payments.isLoading,
     isError:
       orders.isError ||
       menu.isError ||

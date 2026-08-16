@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatETB } from "@/lib/currency";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
+import { addonNames } from "@/lib/kitchen";
 import { Order, OrderStatus } from "@/types";
 import { 
   Truck, CheckCircle, Clock, ShoppingBag, Phone, MapPin, 
@@ -29,6 +30,21 @@ export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
     refetchInterval: 10000,
   });
 
+  // Resolve raw addon ids on ready tickets to human names.
+  const { data: addons = [] } = useQuery({
+    queryKey: ["addons"],
+    queryFn: () => api.addons.getAll(),
+  });
+  const addonMap = Object.fromEntries(addons.map((a) => [a.id, a.name]));
+
+  // Inline toast — a busy dispatch screen shouldn't block on alert().
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: OrderStatus }) => 
       api.orders.updateStatus(id, status),
@@ -36,7 +52,7 @@ export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
     },
-    onError: (err: any) => alert(err.message || "Status update failed"),
+    onError: (err: Error) => setToast(err.message || "Status update failed"),
   });
 
   const readyOrders = orders.filter((o) => o.status === "READY");
@@ -53,7 +69,15 @@ export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
 
   return (
     <Card className="rounded-3xl border-primary/20 bg-card shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-      
+      {toast && (
+        <div
+          role="alert"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl border bg-destructive/10 border-destructive/30 text-destructive text-xs font-bold shadow-xl animate-in fade-in slide-in-from-top-2"
+        >
+          {toast}
+        </div>
+      )}
+
       {/* Pane Header */}
       <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-5 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -237,9 +261,9 @@ export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
                             <span className="font-bold text-foreground">
                               {item.quantity || (item as any).qty || 1}x {item.name || item.menuItemId}
                             </span>
-                            {item.selectedAddons && item.selectedAddons.length > 0 && (
+                            {addonNames(item.selectedAddons, addonMap).length > 0 && (
                               <div className="text-[10px] font-semibold text-primary/90 mt-0.5">
-                                + {item.selectedAddons.map(a => typeof a === 'string' ? a : (a as any).name).join(", ")}
+                                + {addonNames(item.selectedAddons, addonMap).join(", ")}
                               </div>
                             )}
                             {item.specialInstructions && (

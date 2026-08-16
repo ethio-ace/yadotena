@@ -267,13 +267,13 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
       map.set(key, cur);
     }
     return [...map.values()].sort((a, b) => b.revenue - a.revenue);
-  }, [paidOrders]);
+  }, [paidOrders, tableLabels]);
 
   // Customer range: when a specific customer is selected, scope every chart to
   // their orders only (still drillable through time).
   const scopedOrders = useMemo(
     () => (customerKey === "all" ? paidOrders : paidOrders.filter((o) => customerKeyOf(o, tableLabels) === customerKey)),
-    [paidOrders, customerKey]
+    [paidOrders, customerKey, tableLabels]
   );
 
   // Expenses are recorded per day, so they only resolve at DAY granularity and

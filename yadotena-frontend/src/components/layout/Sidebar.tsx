@@ -4,140 +4,105 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Role } from "@/types";
-import { 
-  LayoutDashboard, 
-  Coffee,
-  ShoppingBag,
-  Layers,
-  Grid3X3,
-  EyeOff,
-  ClipboardList,
-  CreditCard, 
-  Receipt, 
-  Settings,
-} from "lucide-react";
+import { navGroupsForRole } from "@/lib/nav";
+import { useSidebarCollapse } from "@/hooks/useSidebarCollapse";
+import { ChevronLeft, ChevronRight, UtensilsCrossed, Landmark } from "lucide-react";
 
-interface NavItem {
-  name: string;
-  href: string;
-  icon: React.ElementType;
-  roles: Role[];
-}
-
-interface NavSection {
-  title: string;
-  items: NavItem[];
-}
-
-export const navSections: NavSection[] = [
-  {
-    title: "OVERVIEW",
-    items: [
-      { name: "Today's Command", href: "/dashboard/manager", icon: LayoutDashboard, roles: ["OWNER", "MANAGER"] },
-    ]
-  },
-  {
-    title: "CATALOG",
-    items: [
-      { name: "Café Menu", href: "/dashboard/menu", icon: Coffee, roles: ["OWNER", "MANAGER", "KITCHEN"] },
-      { name: "Retail Goods", href: "/dashboard/menu", icon: ShoppingBag, roles: ["OWNER", "MANAGER", "WAITER"] },
-      { name: "Add-ons", href: "/dashboard/addons", icon: Layers, roles: ["OWNER", "MANAGER", "KITCHEN"] },
-    ]
-  },
-  {
-    title: "OPERATIONS",
-    items: [
-      { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3, roles: ["OWNER", "MANAGER", "WAITER"] },
-      { name: "Availability", href: "/dashboard/menu", icon: EyeOff, roles: ["OWNER", "MANAGER", "KITCHEN"] },
-      { name: "Order Supervision", href: "/dashboard/orders", icon: ClipboardList, roles: ["OWNER", "MANAGER", "WAITER", "KITCHEN"] },
-    ]
-  },
-  {
-    title: "PAYMENTS",
-    items: [
-      { name: "Payment Verification", href: "/dashboard/payments", icon: CreditCard, roles: ["OWNER", "MANAGER"] },
-    ]
-  },
-  {
-    title: "EXPENSES",
-    items: [
-      { name: "Expense Ledger", href: "/dashboard/expenses", icon: Receipt, roles: ["OWNER", "MANAGER"] },
-    ]
-  },
-  {
-    title: "SETTINGS",
-    items: [
-      { name: "Store Settings", href: "/dashboard/settings", icon: Settings, roles: ["OWNER", "MANAGER"] },
-    ]
-  }
-];
-
-// Flat export of all nav items for role checking in Header or Layout
-export const navItems = navSections.flatMap(s => s.items);
-
+/**
+ * Shared sidebar for pages rendered in the common chrome. It renders the same
+ * role-based navigation (lib/nav) and the same visual language as the role
+ * shells, so a manager or owner sees one consistent sidebar everywhere.
+ */
 export default function Sidebar({ role }: Readonly<{ role: Role }>) {
   const pathname = usePathname();
+  const { isCollapsed, toggle } = useSidebarCollapse();
 
-  // Filter sections and items based on role
-  const filteredSections = navSections
-    .map(section => ({
-      ...section,
-      items: section.items.filter(item => item.roles.includes(role))
-    }))
-    .filter(section => section.items.length > 0);
+  const navGroups = navGroupsForRole(role);
+  const BrandIcon = role === "OWNER" ? Landmark : UtensilsCrossed;
 
-  if (filteredSections.length === 0) return null;
+  if (navGroups.length === 0) return null;
 
   return (
-    <aside className="w-64 bg-card border-r flex-shrink-0 hidden md:flex flex-col">
-      {/* Brand Header */}
-      <div className="h-16 flex items-center px-6 border-b gap-3">
-        <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-lg tracking-tighter shadow-sm">
-          Y
-        </div>
-        <div>
-          <h1 className="text-lg font-black text-primary tracking-tight leading-none">Yadotena</h1>
-          <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase">Milk & Foods</span>
-        </div>
-      </div>
+    <aside
+      className={cn(
+        "bg-card border-r flex-col justify-between transition-all duration-300",
+        "hidden md:flex h-full shrink-0",
+        isCollapsed ? "w-20" : "w-64"
+      )}
+    >
+      <div>
+        {/* Brand Header */}
+        <div className="h-16 border-b px-4 flex items-center justify-between">
+          <Link
+            href={role === "OWNER" ? "/dashboard/owner" : "/dashboard/manager"}
+            className={cn("flex items-center gap-3", isCollapsed && "md:justify-center w-full")}
+          >
+            <div className="h-9 w-9 rounded-xl bg-amber-500 text-zinc-950 flex items-center justify-center font-black shadow-md shrink-0">
+              <BrandIcon className="h-5 w-5" />
+            </div>
+            {!isCollapsed && (
+              <span className="font-black text-lg tracking-tight text-foreground">YADOTENA</span>
+            )}
+          </Link>
 
-      {/* Nav Sections Feed */}
-      <div className="flex-1 overflow-y-auto py-3 space-y-4">
-        {filteredSections.map((section) => (
-          <div key={section.title} className="px-3 space-y-1">
-            <span className="px-3 text-[10px] font-black text-muted-foreground/70 uppercase tracking-widest block">
-              {section.title}
-            </span>
-            <nav className="space-y-0.5">
-              {section.items.map((item) => {
-                const isActive = 
-                  item.href === "/dashboard" 
-                    ? pathname === "/dashboard" 
-                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+          {/* Collapse Toggle */}
+          <button
+            onClick={toggle}
+            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        </div>
+
+        {/* Navigation Items */}
+        <nav className="p-3 space-y-4 overflow-y-auto max-h-[calc(100vh-8rem)] scrollbar-none">
+          {navGroups.map((group) => (
+            <div key={group.group} className="space-y-1">
+              {!isCollapsed && (
+                <p className="px-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground/70 mb-1">
+                  {group.group}
+                </p>
+              )}
+
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
                     className={cn(
-                      "flex items-center px-3 py-2 rounded-xl text-xs font-bold transition-all",
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all group relative",
                       isActive
-                        ? "bg-primary text-primary-foreground shadow-sm"
+                        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black border border-amber-500/20 shadow-sm"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
+                    title={isCollapsed ? item.name : undefined}
                   >
-                    <item.icon
+                    <Icon
                       className={cn(
-                        "mr-2.5 h-4 w-4 flex-shrink-0 transition-colors",
-                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                        "h-4 w-4 shrink-0 transition-colors",
+                        isActive
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-muted-foreground group-hover:text-foreground"
                       )}
                     />
-                    {item.name}
+
+                    {!isCollapsed && <span>{item.name}</span>}
+
+                    {isCollapsed && (
+                      <div className="absolute left-full ml-2 px-2.5 py-1 bg-zinc-900 text-white rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap shadow-xl z-50">
+                        {item.name}
+                      </div>
+                    )}
                   </Link>
                 );
               })}
-            </nav>
-          </div>
-        ))}
+            </div>
+          ))}
+        </nav>
       </div>
     </aside>
   );

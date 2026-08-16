@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Order } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { ArrowLeft, Check, CreditCard, Eye } from "lucide-react";
+import { ArrowLeft, Check, CreditCard } from "lucide-react";
 
 interface OrdersBoardProps {
   orders: Order[];
@@ -48,8 +48,15 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
     return null;
   };
 
+  // "Now" lives in state (lazy init runs once) and refreshes every 30s so
+  // relative timestamps stay honest without impure calls during render.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
   const ago = (d: string) => {
-    const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
+    const mins = Math.floor((now - new Date(d).getTime()) / 60000);
     if (mins < 1) return "Just now";
     if (mins < 60) return `${mins}m ago`;
     return `${Math.floor(mins / 60)}h ago`;
@@ -89,7 +96,11 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
         {filtered.map(o => {
           const action = nextAction(o);
           return (
-            <div key={o.id} className="p-4 rounded-xl border bg-card space-y-3">
+            <div
+              key={o.id}
+              onClick={() => onViewOrder(o)}
+              className="p-4 rounded-xl border bg-card space-y-3 cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all active:scale-[0.995]"
+            >
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2">
@@ -106,17 +117,14 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
                 {o.items?.slice(0, 3).map(i => `${i.quantity}× ${i.name}`).join(", ")}
                 {(o.items?.length || 0) > 3 && ` +${(o.items?.length || 0) - 3} more`}
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => onViewOrder(o)} className="h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 hover:bg-accent/50">
-                  <Eye className="h-3.5 w-3.5" /> Details
-                </button>
-                {action && (
+              {action && (
+                <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                   <button onClick={action.action} className={`h-9 px-4 rounded-lg text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all ${action.color}`}>
                     {action.label === "Mark Served" ? <Check className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
                     {action.label}
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           );
         })}

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { 
-  Bell, Search, LogOut, Check, Utensils, Receipt, BellRing, 
-  Volume2, VolumeX, Flame, ChevronRight, SlidersHorizontal, Sparkles, Menu, X
+  Bell, Search, LogOut, Check, BellRing, 
+  Volume2, VolumeX, ChevronRight, SlidersHorizontal, Menu, X
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { useSoundNotifications } from "@/contexts/SoundNotificationContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { navItems } from "@/components/layout/Sidebar";
+import { navItemsForRole } from "@/lib/nav";
 
 export default function Header({ user = { name: "Staff Member", role: "WAITER" } }: { user?: any }) {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -48,7 +48,7 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
   const userRole = user?.role || "WAITER";
   const showPendingOrders = pendingOrders.length > 0 && userRole !== "WAITER";
   const totalUrgentCount = (showPendingOrders ? pendingOrders.length : 0) + pendingServiceRequests.length;
-  const allowedItems = navItems.filter((item) => item.roles.includes(userRole));
+  const allowedItems = navItemsForRole(userRole);
 
   return (
     <div className="flex flex-col shrink-0 z-30 relative">

@@ -6,10 +6,11 @@ import { ManagerHeader } from "@/components/manager/ManagerHeader";
 import { ManagerSidebar } from "@/components/manager/ManagerSidebar";
 import { ManagerOverview } from "@/components/manager/ManagerOverview";
 import { useManagerOps } from "@/hooks/useManagerOps";
+import { useSidebarCollapse } from "@/hooks/useSidebarCollapse";
 
 export default function ManagerDashboardPage() {
   const { data: session } = useSession();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const { isCollapsed: isSidebarCollapsed, toggle: toggleSidebarCollapse } = useSidebarCollapse();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const { metrics } = useManagerOps();
 
@@ -33,7 +34,7 @@ export default function ManagerDashboardPage() {
       {/* MANAGER SIDEBAR */}
       <ManagerSidebar
         isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        onToggleCollapse={toggleSidebarCollapse}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />

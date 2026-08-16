@@ -2,20 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  BarChart3,
-  ClipboardList,
-  CreditCard,
-  Receipt,
-  Users,
-  ScrollText,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  Landmark,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Landmark } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ownerNavGroups as navGroups } from "@/lib/nav";
 
 interface OwnerSidebarProps {
   isCollapsed?: boolean;
@@ -31,39 +20,6 @@ export function OwnerSidebar({
   onCloseMobile,
 }: OwnerSidebarProps) {
   const pathname = usePathname();
-
-  const navGroups = [
-    {
-      group: "OVERVIEW",
-      items: [{ name: "Business Overview", href: "/dashboard/owner", icon: LayoutDashboard }],
-    },
-    {
-      group: "SALES",
-      items: [
-        { name: "Sales & Products", href: "/dashboard/reports", icon: BarChart3 },
-        { name: "Orders", href: "/dashboard/orders", icon: ClipboardList },
-      ],
-    },
-    {
-      group: "FINANCE",
-      items: [
-        { name: "Payments", href: "/dashboard/payments", icon: CreditCard },
-        { name: "Expenses", href: "/dashboard/expenses", icon: Receipt },
-      ],
-    },
-    {
-      group: "PEOPLE",
-      items: [{ name: "Staff & Access", href: "/dashboard/employees", icon: Users }],
-    },
-    {
-      group: "AUDIT",
-      items: [{ name: "Audit Log", href: "/dashboard/logs", icon: ScrollText }],
-    },
-    {
-      group: "SETTINGS",
-      items: [{ name: "Business Settings", href: "/dashboard/settings", icon: Settings }],
-    },
-  ];
 
   return (
     <>

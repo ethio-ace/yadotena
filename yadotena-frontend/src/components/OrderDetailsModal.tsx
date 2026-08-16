@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Order, MenuItem } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { X, CreditCard, CheckCircle2, Clock, MapPin, Receipt, Eye, ExternalLink, Image as ImageIcon } from "lucide-react";
+import { X, CreditCard, CheckCircle2, Receipt, Eye, ExternalLink, Image as ImageIcon } from "lucide-react";
 
 interface OrderDetailsModalProps {
   order: Order | null;
@@ -62,9 +62,6 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
               <span>{new Date(order.createdAt).toLocaleString()}</span>
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <div className="p-5 space-y-6 max-h-[70vh] overflow-y-auto">
@@ -89,7 +86,9 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
                       <div className="min-w-0">
                         <div className="font-bold text-sm truncate">{item.quantity}× {item.name}</div>
                         {item.specialInstructions && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">"{item.specialInstructions}"</p>
+                          <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">
+                            &ldquo;{item.specialInstructions}&rdquo;
+                          </p>
                         )}
                       </div>
                     </div>
@@ -214,10 +213,8 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t bg-muted/20 flex justify-end">
-          <button onClick={onClose} className="px-5 py-2.5 rounded-xl border font-bold text-sm hover:bg-accent/50 transition-colors">
-            Close
-          </button>
+        <div className="p-3 border-t bg-muted/20 text-center">
+          <span className="text-[11px] text-muted-foreground font-medium">Tap outside to close</span>
         </div>
       </div>
 

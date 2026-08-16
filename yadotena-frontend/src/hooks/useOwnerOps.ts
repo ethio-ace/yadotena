@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { Expense, PaymentRecord } from "@/types";
+import { Expense, MenuItem, Order, PaymentRecord } from "@/types";
 import { computeOwnerMetrics, getDateRange, OwnerMetrics, OwnerRange } from "@/lib/owner";
 
 /**
@@ -20,8 +20,8 @@ import { computeOwnerMetrics, getDateRange, OwnerMetrics, OwnerRange } from "@/l
  * ["expenses"]) so existing mutations and realtime events invalidate them;
  * the intervals are only a low-intensity safety net for the owner.
  */
-export function useOwnerOps() {
-  const [rangeKey, setRangeKey] = useState<OwnerRange>("today");
+export function useOwnerOps(rangeOverride?: OwnerRange) {
+  const [rangeKey, setRangeKey] = useState<OwnerRange>(rangeOverride ?? "today");
   const range = getDateRange(rangeKey);
 
   const orders = useQuery({
@@ -65,7 +65,12 @@ export function useOwnerOps() {
   return {
     rangeKey,
     setRangeKey,
+    range,
     metrics,
+    /** Raw range-filtered orders (shared query — same cache the overview uses). */
+    orders: (orders.data ?? []) as Order[],
+    /** Live menu (used to join order items back to category / retail channel). */
+    menuItems: (menu.data ?? []) as MenuItem[],
     recentActivity: activity.data ?? [],
     isLoading: orders.isLoading || expenses.isLoading || menu.isLoading,
     isError:

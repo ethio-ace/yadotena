@@ -1,4 +1,5 @@
 import { MenuItem, Order, PaymentRecord } from "@/types";
+import { isRetailProduct } from "./orderUtils";
 
 /**
  * Owner business metrics, computed from one shared view of server state.
@@ -23,7 +24,10 @@ import { MenuItem, Order, PaymentRecord } from "@/types";
  *   verification) come from real order / menu / payment records.
  */
 
-export type OwnerRange = "today" | "yesterday" | "week" | "month";
+export type OwnerRange = "today" | "yesterday" | "week" | "month" | "quarter" | "year" | "all";
+
+/** Sentinels for the "All Time" range — used by the analytics drill-down. */
+export const ALL_TIME_START = "2020-01-01";
 
 export interface DateRange {
   /** YYYY-MM-DD, inclusive lower bound (server date range). */
@@ -99,6 +103,37 @@ export function getDateRange(range: OwnerRange, now: Date = new Date()): DateRan
         fromInstant: localMidnightISO(first),
         label: "This Month",
         display: displayRange(fmtDate(first), fmtDate(today)),
+      };
+    }
+    case "quarter": {
+      // Rolling 3 calendar months: first day of the month two months back.
+      const first = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+      return {
+        from: fmtDate(first),
+        to: fmtDate(today),
+        fromInstant: localMidnightISO(first),
+        label: "3 Months",
+        display: displayRange(fmtDate(first), fmtDate(today)),
+      };
+    }
+    case "year": {
+      const first = new Date(today.getFullYear(), 0, 1);
+      return {
+        from: fmtDate(first),
+        to: fmtDate(today),
+        fromInstant: localMidnightISO(first),
+        label: "This Year",
+        display: displayRange(fmtDate(first), fmtDate(today)),
+      };
+    }
+    case "all": {
+      const first = new Date(2020, 0, 1);
+      return {
+        from: ALL_TIME_START,
+        to: fmtDate(today),
+        fromInstant: localMidnightISO(first),
+        label: "All Time",
+        display: "All time",
       };
     }
   }
@@ -229,18 +264,21 @@ export function computeOwnerMetrics(opts: {
     .sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
 
   // Payment mix: the method of each PAID payment record on PAID orders. Only
-  // orders with a recorded settlement count — nothing is assumed.
+  // orders with a recorded settlement count — nothing is assumed. Raw method
+  // strings vary per record ("cbe_birr", "cbe", "CBE Birr"), so entries are
+  // merged by their normalized display label first — one chip per method.
   const mixMap = new Map<string, number>();
   for (const o of paidRangeOrders) {
     const paidPayment = (o.payments ?? []).find((p) => p.status === "PAID");
     if (!paidPayment?.method) continue;
-    mixMap.set(paidPayment.method, (mixMap.get(paidPayment.method) ?? 0) + 1);
+    const label = formatPaymentMethod(paidPayment.method);
+    mixMap.set(label, (mixMap.get(label) ?? 0) + 1);
   }
   const mixTotal = [...mixMap.values()].reduce((a, b) => a + b, 0);
   const paymentMix: PaymentMixEntry[] = [...mixMap.entries()]
-    .map(([method, count]) => ({
-      method,
-      label: formatPaymentMethod(method),
+    .map(([label, count]) => ({
+      method: label,
+      label,
       count,
       percent: mixTotal > 0 ? Math.round((count / mixTotal) * 100) : 0,
     }))
@@ -256,10 +294,14 @@ export function computeOwnerMetrics(opts: {
   const daily: { date: string; revenue: number }[] = [];
   const cursor = new Date(`${range.from}T00:00:00`);
   const end = new Date(`${range.to}T00:00:00`);
-  while (cursor <= end) {
+  // Cap the zero-filled series — multi-year spans are bucketed on demand by
+  // the drill-down trend instead of materializing thousands of day entries.
+  let guard = 0;
+  while (cursor <= end && guard < 400) {
     const key = fmtDate(cursor);
     daily.push({ date: key, revenue: dailyByDay.get(key) ?? 0 });
     cursor.setDate(cursor.getDate() + 1);
+    guard++;
   }
 
   return {
@@ -277,4 +319,122 @@ export function computeOwnerMetrics(opts: {
     paymentMix,
     daily,
   };
+}
+
+export interface ProductPerformanceRow {
+  /** Menu item id (for stable identity), or the snapshot name when unmatched. */
+  menuItemId: string;
+  name: string;
+  category: string;
+  /** True for over-the-counter packaged goods (menu vs retail split). */
+  isRetail: boolean;
+  units: number;
+  revenue: number;
+  /** Number of PAID orders that contained this product. */
+  orderCount: number;
+}
+
+export interface CategoryPerformance {
+  category: string;
+  units: number;
+  revenue: number;
+}
+
+export interface SalesBreakdown {
+  /** Revenue split between kitchen-prepared menu items and packaged retail. */
+  menuVsRetail: { menu: number; retail: number };
+  /** Product-level performance, ranked by units sold. */
+  products: ProductPerformanceRow[];
+  /** Category-level performance, ranked by revenue. */
+  categories: CategoryPerformance[];
+  /** Paid order counts by order type (DINE_IN / TAKEAWAY / DELIVERY). */
+  orderTypeMix: { type: string; count: number; revenue: number }[];
+}
+
+/**
+ * Sales drill-down for the Owner Sales page — all derived from the same
+ * range-filtered PAID orders used by the overview snapshot, joined against the
+ * live menu to recover category and retail channel. Nothing is invented:
+ * units/revenue come from order item snapshots; categories come from the
+ * current menu (items no longer on the menu fall into "Other").
+ */
+export function computeSalesBreakdown(opts: {
+  range: DateRange;
+  orders: Order[];
+  menuItems: MenuItem[];
+}): SalesBreakdown {
+  const { range, orders, menuItems } = opts;
+  const byId = new Map(menuItems.map((m) => [m.id, m]));
+
+  const rangeOrders = orders.filter(
+    (o) => o.createdAt && new Date(o.createdAt) >= new Date(range.fromInstant)
+  );
+  const paidRangeOrders = rangeOrders.filter((o) => o.paymentStatus === "PAID");
+
+  const productMap = new Map<
+    string,
+    { menuItemId: string; name: string; category: string; isRetail: boolean; units: number; revenue: number; orders: Set<string> }
+  >();
+
+  for (const o of paidRangeOrders) {
+    for (const item of o.items ?? []) {
+      const menuItem = item.menuItemId ? byId.get(item.menuItemId) : undefined;
+      const key = menuItem?.id || item.name;
+      // When the item no longer exists on the menu, infer the retail channel
+      // from the snapshot's id/name (the shop heuristic only needs those).
+      const retailHeuristic = { id: item.menuItemId || "", category: item.name } as MenuItem;
+      const cur =
+        productMap.get(key) ?? {
+          menuItemId: menuItem?.id ?? item.menuItemId ?? item.name,
+          name: item.name,
+          category: menuItem?.category || "Other",
+          isRetail: menuItem ? isRetailProduct(menuItem) : isRetailProduct(retailHeuristic),
+          units: 0,
+          revenue: 0,
+          orders: new Set<string>(),
+        };
+      cur.units += item.quantity || 0;
+      cur.revenue += (item.price || 0) * (item.quantity || 0);
+      cur.orders.add(o.id);
+      productMap.set(key, cur);
+    }
+  }
+
+  const products: ProductPerformanceRow[] = [...productMap.values()]
+    .map((p) => ({ menuItemId: p.menuItemId, name: p.name, category: p.category, isRetail: p.isRetail, units: p.units, revenue: p.revenue, orderCount: p.orders.size }))
+    .sort((a, b) => b.units - a.units || b.revenue - a.revenue);
+
+  const catMap = new Map<string, { units: number; revenue: number }>();
+  for (const p of products) {
+    const cur = catMap.get(p.category) ?? { units: 0, revenue: 0 };
+    cur.units += p.units;
+    cur.revenue += p.revenue;
+    catMap.set(p.category, cur);
+  }
+  const categories: CategoryPerformance[] = [...catMap.entries()]
+    .map(([category, v]) => ({ category, units: v.units, revenue: v.revenue }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  const menuVsRetail = products.reduce(
+    (acc, p) => {
+      if (p.isRetail) acc.retail += p.revenue;
+      else acc.menu += p.revenue;
+      return acc;
+    },
+    { menu: 0, retail: 0 }
+  );
+
+  const typeMap = new Map<string, { count: number; revenue: number }>();
+  for (const o of paidRangeOrders) {
+    const key = o.type || "OTHER";
+    const cur = typeMap.get(key) ?? { count: 0, revenue: 0 };
+    cur.count += 1;
+    cur.revenue += o.total || 0;
+    typeMap.set(key, cur);
+  }
+  const orderTypeMix = [...typeMap.entries()]
+    .map(([type, v]) => ({ type, count: v.count, revenue: v.revenue }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  return { menuVsRetail, products, categories, orderTypeMix };
 }

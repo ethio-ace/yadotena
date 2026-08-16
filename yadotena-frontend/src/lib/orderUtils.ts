@@ -1,5 +1,31 @@
 import { OrderItem, MenuItem, AddonItem, MenuItemAddon } from "@/types";
 
+/**
+ * Is this menu item an over-the-counter packaged retail product (beans, powder,
+ * butter jars, honey, spices) rather than a kitchen-prepared dish?
+ *
+ * Same heuristic the customer shop storefront uses — the backend has no
+ * dedicated "retail" flag on items, so channel identity is inferred from the
+ * item/category naming scheme.
+ */
+export function isRetailProduct(item: MenuItem | null | undefined): boolean {
+  if (!item) return false;
+  const cat = (item.category || "").toLowerCase();
+  const catId = item.categoryId || "";
+  return (
+    item.id.startsWith("shop-") ||
+    catId.startsWith("cat-shop") ||
+    cat.includes("shop") ||
+    cat.includes("tomoca") ||
+    cat.includes("pack") ||
+    cat.includes("butter") ||
+    cat.includes("honey") ||
+    cat.includes("spice") ||
+    cat.includes("powder") ||
+    cat.includes("retail")
+  );
+}
+
 export function isShopProductItem(item: MenuItem | null | undefined): boolean {
   if (!item) return false;
   const cat = (item.category || "").toLowerCase();

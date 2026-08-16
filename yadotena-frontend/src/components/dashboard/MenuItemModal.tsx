@@ -111,6 +111,14 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: api.menu.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["menu"] });
+      onClose();
+    },
+  });
+
   const createAddonMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       const token = localStorage.getItem("token") || localStorage.getItem("access_token");
@@ -641,6 +649,21 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
               >
                 {isSaving ? "Saving Dish..." : itemToEdit ? "Update Dish Changes" : "Create & Publish Dish"}
               </Button>
+              {itemToEdit && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={deleteMutation.isPending}
+                  onClick={() => {
+                    if (window.confirm(`Delete \u201c${itemToEdit.name}\u201d? Customers will no longer be able to order it.`)) {
+                      deleteMutation.mutate(itemToEdit.id);
+                    }
+                  }}
+                  className="w-full rounded-2xl font-semibold text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                >
+                  {deleteMutation.isPending ? "Deleting..." : "Delete Item"}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"

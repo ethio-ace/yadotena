@@ -2,20 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Coffee,
-  Layers,
-  Grid3X3,
-  ClipboardList,
-  CreditCard,
-  Receipt,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  UtensilsCrossed,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, UtensilsCrossed } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { managerNavGroups as navGroups } from "@/lib/nav";
 
 interface ManagerSidebarProps {
   isCollapsed?: boolean;
@@ -31,42 +20,6 @@ export function ManagerSidebar({
   onCloseMobile,
 }: ManagerSidebarProps) {
   const pathname = usePathname();
-
-  // Every item points at a real surface — no duplicate destinations.
-  // Retail goods and availability live inside the Café Menu page, so they are
-  // not given separate (misleading) navigation entries.
-  const navGroups = [
-    {
-      group: "OVERVIEW",
-      items: [{ name: "Overview", href: "/dashboard/manager", icon: LayoutDashboard }],
-    },
-    {
-      group: "CATALOG",
-      items: [
-        { name: "Café Menu", href: "/dashboard/menu", icon: Coffee },
-        { name: "Add-ons", href: "/dashboard/addons", icon: Layers },
-      ],
-    },
-    {
-      group: "OPERATIONS",
-      items: [
-        { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
-        { name: "Order Supervision", href: "/dashboard/orders", icon: ClipboardList },
-      ],
-    },
-    {
-      group: "PAYMENTS",
-      items: [{ name: "Payment Verification", href: "/dashboard/payments", icon: CreditCard }],
-    },
-    {
-      group: "EXPENSES",
-      items: [{ name: "Expense Ledger", href: "/dashboard/expenses", icon: Receipt }],
-    },
-    {
-      group: "SETTINGS",
-      items: [{ name: "Store Settings", href: "/dashboard/settings", icon: Settings }],
-    },
-  ];
 
   return (
     <>

@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { useSidebarCollapse } from "@/hooks/useSidebarCollapse";
 import { OwnerSidebar } from "@/components/owner/OwnerSidebar";
 import { OwnerHeader } from "@/components/owner/OwnerHeader";
 import { DateRangeSelector } from "@/components/owner/DateRangeSelector";
 import { BusinessSnapshot } from "@/components/owner/BusinessSnapshot";
 import { AttentionCenter } from "@/components/owner/AttentionCenter";
-import { RevenueTrend } from "@/components/owner/RevenueTrend";
+import { DrilldownTrend } from "@/components/owner/DrilldownTrend";
 import { TopProducts } from "@/components/owner/TopProducts";
 import { PaymentMix } from "@/components/owner/PaymentMix";
 import { TodayActivity } from "@/components/owner/TodayActivity";
@@ -16,13 +17,14 @@ import { greetingForHour } from "@/lib/manager";
 
 export default function OwnerDashboardPage() {
   const { data: session } = useSession();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const { isCollapsed: isSidebarCollapsed, toggle: toggleSidebarCollapse } = useSidebarCollapse();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const {
     rangeKey,
     setRangeKey,
     metrics,
+    orders,
     recentActivity,
     isLoading,
   } = useOwnerOps();
@@ -47,7 +49,7 @@ export default function OwnerDashboardPage() {
       {/* OWNER SIDEBAR */}
       <OwnerSidebar
         isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        onToggleCollapse={toggleSidebarCollapse}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
@@ -94,7 +96,11 @@ export default function OwnerDashboardPage() {
 
                 <div className="grid gap-4 lg:grid-cols-3">
                   <div className="lg:col-span-2">
-                    <RevenueTrend metrics={metrics} />
+                    <DrilldownTrend
+                      key={`${metrics.range.from}-${metrics.range.to}`}
+                      orders={orders}
+                      range={metrics.range}
+                    />
                   </div>
                   <PaymentMix metrics={metrics} />
                 </div>

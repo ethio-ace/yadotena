@@ -1,805 +1,564 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { Suspense, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { MenuItem } from "@/types";
+import { DateRangeSelector } from "@/components/owner/DateRangeSelector";
+import { DrilldownTrend } from "@/components/owner/DrilldownTrend";
+import { MenuItemModal } from "@/components/dashboard/MenuItemModal";
+import { CategoryManageModal } from "@/components/dashboard/CategoryManageModal";
+import { useOwnerOps } from "@/hooks/useOwnerOps";
+import { computeSalesBreakdown, OwnerRange } from "@/lib/owner";
 import { formatETB } from "@/lib/currency";
-import { 
-  Area, AreaChart, Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell 
-} from "recharts";
-import { 
-  Download, Printer, TrendingUp, DollarSign, Receipt, ShoppingBag, 
-  ArrowUpRight, Sparkles, Calendar, Utensils, CheckCircle2, ChevronRight,
-  Maximize2, X, Filter, Users, Clock, ShieldCheck, Flame, Layers, Eye, BarChart3, CreditCard,
-  Building2, Wallet, Tag
+import { cn } from "@/lib/utils";
+import {
+  Wallet,
+  Receipt,
+  TrendingUp,
+  Banknote,
+  Coffee,
+  ShoppingBag,
+  Search,
+  BarChart3,
+  Tag,
+  Layers,
+  Store,
+  Plus,
+  Pencil,
 } from "lucide-react";
 
-// Parameterized sales datasets
-const rangeDatasets: Record<string, { label: string; gross: number; expenses: number; ordersCount: number; data: any[] }> = {
-  today: {
-    label: "Today (Sunday)",
-    gross: 42800,
-    expenses: 12400,
-    ordersCount: 48,
-    data: [
-      { name: "08:00", dineIn: 3200, delivery: 800, cash: 2400, digital: 1600 },
-      { name: "10:00", dineIn: 4800, delivery: 1200, cash: 3600, digital: 2400 },
-      { name: "12:00", dineIn: 9800, delivery: 3400, cash: 7200, digital: 6000 },
-      { name: "14:00", dineIn: 8400, delivery: 2600, cash: 6000, digital: 5000 },
-      { name: "16:00", dineIn: 4100, delivery: 1500, cash: 3100, digital: 2500 },
-      { name: "18:00", dineIn: 10500, delivery: 3800, cash: 8500, digital: 5800 },
-      { name: "20:00", dineIn: 7200, delivery: 2200, cash: 5400, digital: 4000 },
-    ],
-  },
-  week: {
-    label: "Last 7 Days",
-    gross: 298400,
-    expenses: 84500,
-    ordersCount: 342,
-    data: [
-      { name: "Mon", dineIn: 28000, delivery: 9500, cash: 22000, digital: 15500 },
-      { name: "Tue", dineIn: 32000, delivery: 11000, cash: 25000, digital: 18000 },
-      { name: "Wed", dineIn: 26500, delivery: 8200, cash: 20000, digital: 14700 },
-      { name: "Thu", dineIn: 38000, delivery: 14000, cash: 30000, digital: 22000 },
-      { name: "Fri", dineIn: 58000, delivery: 21000, cash: 45000, digital: 34000 },
-      { name: "Sat", dineIn: 72000, delivery: 26000, cash: 56000, digital: 42000 },
-      { name: "Sun", dineIn: 64000, delivery: 22000, cash: 50000, digital: 36000 },
-    ],
-  },
-  month: {
-    label: "This Month (30 Days)",
-    gross: 1245000,
-    expenses: 395000,
-    ordersCount: 1480,
-    data: [
-      { name: "Week 1", dineIn: 220000, delivery: 75000, cash: 170000, digital: 125000 },
-      { name: "Week 2", dineIn: 245000, delivery: 82000, cash: 190000, digital: 137000 },
-      { name: "Week 3", dineIn: 280000, delivery: 94000, cash: 215000, digital: 159000 },
-      { name: "Week 4", dineIn: 310000, delivery: 105000, cash: 240000, digital: 175000 },
-    ],
-  },
-  ytd: {
-    label: "Year to Date (2026)",
-    gross: 9850000,
-    expenses: 3150000,
-    ordersCount: 11840,
-    data: [
-      { name: "Jan", dineIn: 880000, delivery: 290000, cash: 680000, digital: 490000 },
-      { name: "Feb", dineIn: 920000, delivery: 310000, cash: 710000, digital: 520000 },
-      { name: "Mar", dineIn: 1050000, delivery: 340000, cash: 800000, digital: 590000 },
-      { name: "Apr", dineIn: 1120000, delivery: 360000, cash: 850000, digital: 630000 },
-      { name: "May", dineIn: 1250000, delivery: 410000, cash: 960000, digital: 700000 },
-      { name: "Jun", dineIn: 1380000, delivery: 440000, cash: 1050000, digital: 770000 },
-      { name: "Jul", dineIn: 1420000, delivery: 460000, cash: 1080000, digital: 800000 },
-      { name: "Aug", dineIn: 1510000, delivery: 490000, cash: 1150000, digital: 850000 },
-    ],
-  },
-};
+const RANGE_KEYS: OwnerRange[] = ["today", "yesterday", "week", "month", "quarter", "year", "all"];
 
-const topSellers = [
-  { id: "d1", name: "Pasteurized Whole Milk (1L)", category: "Fresh Dairy", price: 120, cost: 70, unitProfit: 50, unitsSold: 420, revenue: 50400, totalCost: 29400, profitMargin: "41.6%", prepTime: "1 min" },
-  { id: "d2", name: "Traditional Ergo Yogurt", category: "Fresh Dairy", price: 180, cost: 95, unitProfit: 85, unitsSold: 310, revenue: 55800, totalCost: 29450, profitMargin: "47.2%", prepTime: "2 mins" },
-  { id: "d3", name: "Clarified Niter Kibbeh (1kg)", category: "Dairy Butter", price: 850, cost: 480, unitProfit: 370, unitsSold: 142, revenue: 120700, totalCost: 68160, profitMargin: "43.5%", prepTime: "3 mins" },
-  { id: "d4", name: "Special Chechebsa with Honey", category: "Breakfast", price: 350, cost: 160, unitProfit: 190, unitsSold: 210, revenue: 73500, totalCost: 33600, profitMargin: "54.2%", prepTime: "8 mins" },
-  { id: "d5", name: "Raw Highland Honey (1kg Jar)", category: "Artisanal", price: 650, cost: 380, unitProfit: 270, unitsSold: 115, revenue: 74750, totalCost: 43700, profitMargin: "41.5%", prepTime: "1 min" },
-];
+function SalesReports() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const qRange = searchParams.get("range") as OwnerRange | null;
+  const rangeKey: OwnerRange = qRange && RANGE_KEYS.includes(qRange) ? qRange : "today";
 
-const channelBreakdownData = [
-  { channel: "Dine-In Tables", count: 248, revenue: 214800, share: "72.0%", avgTicket: 866.1 },
-  { channel: "Takeaway & Pick Up", count: 62, revenue: 52400, share: "17.6%", avgTicket: 845.1 },
-  { channel: "Express Delivery", count: 32, revenue: 31200, share: "10.4%", avgTicket: 975.0 },
-];
+  const { metrics, orders, menuItems, isLoading } = useOwnerOps(rangeKey);
 
-const paymentMethodBreakdownData = [
-  { method: "CBE Bank Transfer", type: "Digital", count: 128, amount: 118400, share: "39.7%", avgTime: "< 1 min", verified: true },
-  { method: "Telebirr Merchant", type: "Digital", count: 114, amount: 96200, share: "32.2%", avgTime: "Instant", verified: true },
-  { method: "Register Cash Drawer", type: "Cash", count: 68, amount: 54800, share: "18.4%", avgTime: "Shift End", verified: true },
-  { method: "Awash Birr / Bank", type: "Digital", count: 22, amount: 18600, share: "6.2%", avgTime: "< 2 mins", verified: true },
-  { method: "BOA Bank Transfer", type: "Digital", count: 10, amount: 10400, share: "3.5%", avgTime: "< 2 mins", verified: true },
-];
+  const [editingProduct, setEditingProduct] = useState<MenuItem | null>(null);
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
 
-const staffLeaderboard = [
-  { name: "Tigist Haile", role: "WAITER", status: "Active", tablesServed: 84, revenueGenerated: 68400, avgFulfillment: "11 mins", accuracy: "99.2%", rating: "4.9 / 5" },
-  { name: "Dawit Worku", role: "WAITER", status: "Active", tablesServed: 76, revenueGenerated: 59200, avgFulfillment: "12 mins", accuracy: "98.5%", rating: "4.8 / 5" },
-  { name: "Chef Solomon", role: "KITCHEN", status: "Active", ordersCooked: 194, avgPrepSpeed: "7.5 mins", accuracy: "99.8%", rating: "5.0 / 5" },
-  { name: "Helen Assefa", role: "WAITER", status: "Active", tablesServed: 68, revenueGenerated: 54500, avgFulfillment: "10 mins", accuracy: "99.0%", rating: "5.0 / 5" },
-];
+  const queryClient = useQueryClient();
+  const menuItemById = useMemo(
+    () => new Map(menuItems.map((m) => [m.id, m])),
+    [menuItems]
+  );
 
-const expenseAuditList = [
-  { id: "EXP-8821", date: "2026-08-13", category: "Dairy Supplies", description: "300 Liters Raw Milk Delivery from Debre Birhan", amount: 14500, method: "Telebirr Merchant", ref: "TXN-88492019", status: "VERIFIED" },
-  { id: "EXP-8822", date: "2026-08-12", category: "Utilities & Power", description: "Electricity & Cold Room Generator Fuel", amount: 6200, method: "CBE Bank Transfer", ref: "FT2408139820", status: "VERIFIED" },
-  { id: "EXP-8823", date: "2026-08-11", category: "Kitchen Hardware", description: "Stainless Steel Cheese Mold Press", amount: 8400, method: "Register Cash Drawer", ref: "CASH-REC-041", status: "AUDITED" },
-  { id: "EXP-8824", date: "2026-08-10", category: "Staff Salaries", description: "Weekly Waiter & Kitchen Staff Payroll", amount: 32000, method: "CBE Bank Transfer", ref: "FT2408110042", status: "VERIFIED" },
-];
+  const toggleAvailability = useMutation({
+    mutationFn: api.menu.toggleAvailability,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["menu"] }),
+  });
 
-export default function ReportsPage() {
-  const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "ytd">("week");
-  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "CHANNELS" | "DISHES" | "STAFF" | "EXPENSES">("OVERVIEW");
-  const [activeDetailModal, setActiveDetailModal] = useState<string | null>(null);
-
-  const currentSet = rangeDatasets[dateRange];
-  const netProfit = currentSet.gross - currentSet.expenses;
-  const profitMargin = ((netProfit / currentSet.gross) * 100).toFixed(1);
-  const avgTicket = currentSet.gross / currentSet.ordersCount;
-
-  const handleExportCSV = () => {
-    const headers = "Period,DineIn_Revenue_ETB,Takeaway_Delivery_Revenue_ETB,Total_Revenue_ETB\n";
-    const rows = currentSet.data
-      .map(d => `${d.name},${d.dineIn},${d.delivery},${d.dineIn + d.delivery}`)
-      .join("\n");
-    const summary = `\n\nSummary for ${currentSet.label}\nGross Revenue,${currentSet.gross} ETB\nOperating Expenses,${currentSet.expenses} ETB\nNet Operating Profit,${netProfit} ETB\nTotal Orders,${currentSet.ordersCount}\nAverage Ticket,${avgTicket.toFixed(2)} ETB`;
-    
-    const blob = new Blob([headers + rows + summary], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `Yadotena_Financial_Report_${dateRange}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
+  const openProductEditor = (item: MenuItem | null) => {
+    setEditingProduct(item);
+    setShowProductModal(true);
   };
 
+  const breakdown = useMemo(
+    () => computeSalesBreakdown({ range: metrics.range, orders, menuItems }),
+    // metrics.range is rebuilt each render; key on the stable pieces instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rangeKey, orders, menuItems]
+  );
+
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState<string>("All");
+  const [channel, setChannel] = useState<"ALL" | "MENU" | "RETAIL">("ALL");
+
+  const setRange = (r: OwnerRange) => {
+    router.replace(`/dashboard/reports?range=${r}`);
+  };
+
+  const filteredProducts = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return breakdown.products.filter((p) => {
+      if (category !== "All" && p.category !== category) return false;
+      if (channel === "MENU" && p.isRetail) return false;
+      if (channel === "RETAIL" && !p.isRetail) return false;
+      if (term && !p.name.toLowerCase().includes(term)) return false;
+      return true;
+    });
+  }, [breakdown.products, search, category, channel]);
+
+  const { menuVsRetail } = breakdown;
+  const mixTotal = menuVsRetail.menu + menuVsRetail.retail;
+  const menuPct = mixTotal > 0 ? Math.round((menuVsRetail.menu / mixTotal) * 100) : 0;
+  const retailPct = 100 - menuPct;
+
+  const loading = isLoading && metrics.revenue === 0 && metrics.paidOrders === 0;
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 pb-20">
-      
-      {/* Header Bar */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-card p-5 rounded-2xl border shadow-sm">
+    <div className="space-y-6 animate-in fade-in duration-200 pb-16">
+      {/* Page header */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-primary" />
-              <span>Financial & Operational Analytics</span>
-            </h2>
-            <Badge className="bg-primary text-primary-foreground font-black text-xs px-2.5 py-0.5">
-              ETB Currency
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Click any metric card to expand in-depth audit breakdowns, item margins, channel splits, and staff shift metrics.
+          <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-amber-500" />
+            Sales &amp; Products
+          </h1>
+          <p className="text-xs text-muted-foreground font-medium mt-1">
+            What sold in this period · {metrics.range.display}
           </p>
         </div>
+        <DateRangeSelector value={rangeKey} onChange={setRange} />
+      </div>
 
-        {/* Date Filter & Export Actions */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="bg-muted/50 p-1 rounded-xl flex items-center gap-1 border text-xs">
-            {(["today", "week", "month", "ytd"] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => setDateRange(r)}
-                className={`px-3 py-1.5 rounded-lg font-black transition-all ${
-                  dateRange === r
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {r === "today" ? "Today" : r === "week" ? "Last 7D" : r === "month" ? "30 Days" : "YTD 2026"}
-              </button>
+      {loading ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-28 bg-muted/40 border rounded-2xl animate-pulse" />
             ))}
           </div>
-
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="rounded-xl font-bold text-xs gap-1.5 h-9"
-            onClick={handleExportCSV}
-          >
-            <Download className="h-4 w-4" />
-            <span>Export CSV</span>
-          </Button>
-
-          <Button 
-            size="sm" 
-            className="rounded-xl font-black text-xs gap-1.5 h-9 bg-primary text-primary-foreground shadow-sm"
-            onClick={() => window.print()}
-          >
-            <Printer className="h-4 w-4" />
-            <span>Print Report</span>
-          </Button>
+          <div className="h-72 bg-muted/40 border rounded-2xl animate-pulse" />
         </div>
-      </div>
-
-      {/* Analytics Sub-Nav Tabs */}
-      <div className="bg-card border p-3 rounded-2xl flex flex-wrap items-center justify-between gap-2 shadow-sm">
-        <div className="flex items-center gap-2 overflow-x-auto text-xs pb-0.5 scrollbar-none">
-          <button
-            onClick={() => setActiveTab("OVERVIEW")}
-            className={`px-3.5 py-2 rounded-xl font-black transition-all border flex items-center gap-2 ${
-              activeTab === "OVERVIEW"
-                ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <BarChart3 className="h-4 w-4" />
-            <span>Executive Overview</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("CHANNELS")}
-            className={`px-3.5 py-2 rounded-xl font-black transition-all border flex items-center gap-2 ${
-              activeTab === "CHANNELS"
-                ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <CreditCard className="h-4 w-4" />
-            <span>Channels & Payments</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("DISHES")}
-            className={`px-3.5 py-2 rounded-xl font-black transition-all border flex items-center gap-2 ${
-              activeTab === "DISHES"
-                ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <Utensils className="h-4 w-4" />
-            <span>Dish & Menu Profitability</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("STAFF")}
-            className={`px-3.5 py-2 rounded-xl font-black transition-all border flex items-center gap-2 ${
-              activeTab === "STAFF"
-                ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <Users className="h-4 w-4" />
-            <span>Staff Performance</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("EXPENSES")}
-            className={`px-3.5 py-2 rounded-xl font-black transition-all border flex items-center gap-2 ${
-              activeTab === "EXPENSES"
-                ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <Receipt className="h-4 w-4" />
-            <span>Expenses & Ledger Audit</span>
-          </button>
-        </div>
-      </div>
-
-      {/* CLICKABLE INTERACTIVE METRICS ROW */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        
-        {/* Gross Revenue (Clickable) */}
-        <Card 
-          onClick={() => setActiveDetailModal("GROSS_REVENUE")}
-          className="rounded-2xl shadow-sm border bg-card hover:border-primary/50 transition-all cursor-pointer group"
-        >
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Gross Revenue</span>
-              <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-xs group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                <Maximize2 className="h-4 w-4" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-2xl font-black text-foreground">{formatETB(currentSet.gross)}</h3>
-              <p className="text-[11px] text-primary font-bold flex items-center justify-between">
-                <span>+14.8% vs last period</span>
-                <span className="text-muted-foreground group-hover:text-primary underline">Tap to Expand</span>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Operating Expenses (Clickable) */}
-        <Card 
-          onClick={() => setActiveDetailModal("EXPENSES")}
-          className="rounded-2xl shadow-sm border bg-card hover:border-primary/50 transition-all cursor-pointer group"
-        >
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Operating Expenses</span>
-              <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-xs group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                <Receipt className="h-4 w-4" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-2xl font-black text-foreground">{formatETB(currentSet.expenses)}</h3>
-              <p className="text-[11px] text-muted-foreground font-bold flex items-center justify-between">
-                <span>Ingredients & Overhead</span>
-                <span className="text-muted-foreground group-hover:text-primary underline">Breakdown</span>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Net Profit (Clickable) */}
-        <Card 
-          onClick={() => setActiveDetailModal("NET_PROFIT")}
-          className="rounded-2xl shadow-sm border bg-card hover:border-primary/50 transition-all cursor-pointer group"
-        >
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-primary uppercase tracking-wider">Net Operating Profit</span>
-              <Badge className="bg-primary text-primary-foreground font-black text-[10px] px-2 py-0.5">
-                {profitMargin}% Margin
-              </Badge>
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-2xl font-black text-primary">{formatETB(netProfit)}</h3>
-              <p className="text-[11px] text-muted-foreground font-bold flex items-center justify-between">
-                <span>Net Earnings</span>
-                <span className="text-muted-foreground group-hover:text-primary underline">Details</span>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Order Volume (Clickable) */}
-        <Card 
-          onClick={() => setActiveDetailModal("ORDER_VOLUME")}
-          className="rounded-2xl shadow-sm border bg-card hover:border-primary/50 transition-all cursor-pointer group"
-        >
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Order Volume & Check</span>
-              <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-xs group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                <ShoppingBag className="h-4 w-4" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-2xl font-black text-foreground">{currentSet.ordersCount} Tickets</h3>
-              <p className="text-[11px] text-muted-foreground font-bold flex items-center justify-between">
-                <span>Avg Ticket: {formatETB(avgTicket)}</span>
-                <span className="text-muted-foreground group-hover:text-primary underline">Expand</span>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-      </div>
-
-      {/* VISUAL CHARTS & TABBED ANALYTICS */}
-      {(activeTab === "OVERVIEW" || activeTab === "CHANNELS") && (
-        <div className="grid gap-5 md:grid-cols-2">
-          
-          {/* Revenue Channel Distribution */}
-          <Card className="rounded-2xl shadow-sm border bg-card p-5 space-y-3">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="font-black text-base">Revenue by Order Channel</h3>
-                <p className="text-xs text-muted-foreground">Dine-In Seated vs Takeaway & Express</p>
-              </div>
-              <Badge variant="outline" className="font-bold text-xs">
-                {currentSet.label}
-              </Badge>
-            </div>
-
-            <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={currentSet.data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                  <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${val / 1000}k`} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))" }}
-                    formatter={(value: any, name: any) => [`${formatETB(Number(value))}`, name === "dineIn" ? "Dine-In" : "Takeaway/Express"]}
-                  />
-                  <Bar dataKey="dineIn" stackId="a" fill="var(--primary)" radius={[0, 0, 4, 4]} />
-                  <Bar dataKey="delivery" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          {/* Continuous Sales Trajectory */}
-          <Card className="rounded-2xl shadow-sm border bg-card p-5 space-y-3">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="font-black text-base">Continuous Revenue Trajectory</h3>
-                <p className="text-xs text-muted-foreground">Gross sales curve across {currentSet.label}</p>
-              </div>
-              <Badge variant="outline" className="font-bold text-xs">
-                Sales Velocity
-              </Badge>
-            </div>
-
-            <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={currentSet.data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorTotalETB" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                  <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${val / 1000}k`} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: "12px", border: "1px solid hsl(var(--border))" }}
-                    formatter={(value: any) => [`${formatETB(Number(value))}`, "Gross Revenue"]}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey={(data) => data.dineIn + data.delivery}
-                    stroke="var(--primary)"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorTotalETB)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-        </div>
-      )}
-
-      {/* CHANNELS & PAYMENTS DETAILED BREAKDOWN TAB */}
-      {activeTab === "CHANNELS" && (
-        <div className="space-y-6">
-          <Card className="rounded-2xl border bg-card p-5 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="font-black text-lg flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" />
-                  <span>Order Channels & Sales Volume</span>
-                </h3>
-                <p className="text-xs text-muted-foreground">Transaction count, total ETB revenue, and average ticket per channel</p>
-              </div>
-              <Badge className="bg-primary text-primary-foreground font-black text-xs">
-                Channel Performance
-              </Badge>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {channelBreakdownData.map((ch, idx) => (
-                <div key={idx} className="p-4 rounded-xl bg-muted/20 border space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-sm text-foreground">{ch.channel}</span>
-                    <Badge variant="outline" className="font-bold text-[10px]">{ch.share}</Badge>
-                  </div>
-                  <div className="text-2xl font-black text-primary">{formatETB(ch.revenue)}</div>
-                  <div className="flex justify-between text-[11px] text-muted-foreground pt-2 border-t font-semibold">
-                    <span>{ch.count} Transactions</span>
-                    <span>Avg: {formatETB(ch.avgTicket)}</span>
-                  </div>
+      ) : (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+            <div className="bg-card border rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Revenue</span>
+                <div className="h-8 w-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <Wallet className="h-4 w-4" />
                 </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="rounded-2xl border bg-card p-5 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="font-black text-lg flex items-center gap-2">
-                  <Wallet className="h-5 w-5 text-primary" />
-                  <span>Payment Gateway & Settlement Mix</span>
-                </h3>
-                <p className="text-xs text-muted-foreground">Digital wallet transfers (CBE, Telebirr, Awash, BOA) vs Register Cash Drawer</p>
               </div>
-              <Badge variant="outline" className="font-bold text-xs">Verified Gateway</Badge>
+              <h2 className="mt-2 text-2xl font-black text-foreground">{formatETB(metrics.revenue)}</h2>
+              <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">Paid orders only</p>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border">
-              <table className="w-full text-xs text-left">
-                <thead className="text-[11px] font-black text-muted-foreground uppercase bg-muted/50 border-b">
-                  <tr>
-                    <th className="px-4 py-3">Payment Method</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Transactions</th>
-                    <th className="px-4 py-3">Volume Share</th>
-                    <th className="px-4 py-3">Settlement Speed</th>
-                    <th className="px-4 py-3 text-right">Total ETB Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {paymentMethodBreakdownData.map((pm, idx) => (
-                    <tr key={idx} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-black text-foreground flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        <span>{pm.method}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="outline" className="font-bold text-[10px] uppercase">
-                          {pm.type}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 font-bold">{pm.count} Payments</td>
-                      <td className="px-4 py-3 font-black">{pm.share}</td>
-                      <td className="px-4 py-3 text-muted-foreground font-mono">{pm.avgTime}</td>
-                      <td className="px-4 py-3 text-right font-black text-primary text-sm">
-                        {formatETB(pm.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="bg-card border rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Paid Orders</span>
+                <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <Receipt className="h-4 w-4" />
+                </div>
+              </div>
+              <h2 className="mt-2 text-2xl font-black text-foreground">{metrics.paidOrders}</h2>
+              <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">In this period</p>
             </div>
-          </Card>
-        </div>
-      )}
 
-      {/* DISH PROFITABILITY & MARGINS TAB */}
-      {(activeTab === "OVERVIEW" || activeTab === "DISHES") && (
-        <Card className="rounded-2xl border bg-card p-5 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between border-b pb-3">
-            <div>
-              <h3 className="font-black text-lg flex items-center gap-2">
-                <Utensils className="h-5 w-5 text-primary" />
-                <span>Dish Profitability & Sales Contribution</span>
-              </h3>
-              <p className="text-xs text-muted-foreground">Item unit margins, unit costs, reorder velocity, and preparation speed</p>
+            <div className="bg-card border rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Avg Order</span>
+                <div className="h-8 w-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                  <TrendingUp className="h-4 w-4" />
+                </div>
+              </div>
+              <h2 className="mt-2 text-2xl font-black text-foreground">{formatETB(metrics.averageTicket)}</h2>
+              <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">Revenue ÷ orders</p>
             </div>
-            <Badge className="bg-primary text-primary-foreground font-black text-xs">
-              Menu Financials
-            </Badge>
+
+            <div className="bg-card border rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Recorded Expenses</span>
+                <div className="h-8 w-8 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                  <Banknote className="h-4 w-4" />
+                </div>
+              </div>
+              <h2 className="mt-2 text-2xl font-black text-foreground">{formatETB(metrics.expenses)}</h2>
+              <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">Recorded this period</p>
+            </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full text-xs text-left">
-              <thead className="text-[11px] font-black text-muted-foreground uppercase bg-muted/50 border-b">
-                <tr>
-                  <th className="px-4 py-3">Menu Item</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Selling Price</th>
-                  <th className="px-4 py-3">Unit Cost</th>
-                  <th className="px-4 py-3">Unit Profit</th>
-                  <th className="px-4 py-3">Margin %</th>
-                  <th className="px-4 py-3">Units Sold</th>
-                  <th className="px-4 py-3 text-right">Total Gross Revenue</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {topSellers.map((dish) => (
-                  <tr key={dish.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-black text-foreground">{dish.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground font-medium">{dish.category}</td>
-                    <td className="px-4 py-3 font-bold">{formatETB(dish.price)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatETB(dish.cost)}</td>
-                    <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">+{formatETB(dish.unitProfit)}</td>
-                    <td className="px-4 py-3">
-                      <Badge className="bg-primary/10 text-primary font-black border border-primary/20 text-[10px]">
-                        {dish.profitMargin}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 font-black">{dish.unitsSold} orders</td>
-                    <td className="px-4 py-3 text-right font-black text-primary text-sm">
-                      {formatETB(dish.revenue)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* STAFF & SHIFT PERFORMANCE TAB */}
-      {(activeTab === "OVERVIEW" || activeTab === "STAFF") && (
-        <Card className="rounded-2xl border bg-card p-5 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between border-b pb-3">
-            <div>
-              <h3 className="font-black text-lg flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                <span>Staff Shift Performance & Throughput</span>
-              </h3>
-              <p className="text-xs text-muted-foreground">Order volume, fulfillment speed, and service accuracy per employee</p>
+          {/* Trend + mix */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <DrilldownTrend
+                key={`${metrics.range.from}-${metrics.range.to}`}
+                orders={orders}
+                range={metrics.range}
+              />
             </div>
-            <Badge variant="outline" className="font-bold text-xs">Shift Roster</Badge>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {staffLeaderboard.map((staff, idx) => (
-              <div key={idx} className="p-4 rounded-xl bg-muted/20 border flex items-center justify-between text-xs">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-sm text-foreground">{staff.name}</span>
-                    <Badge variant="outline" className="font-mono text-[9px] uppercase">{staff.role}</Badge>
+            <div className="space-y-4">
+              {/* Menu vs Retail */}
+              <div className="bg-card border rounded-2xl p-5 shadow-sm">
+                <h3 className="font-black text-sm text-foreground flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-amber-500" /> Sales Mix
+                </h3>
+                <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                  Café menu vs over-the-counter retail
+                </p>
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="flex items-center gap-1.5 text-foreground">
+                        <Coffee className="h-3.5 w-3.5" /> Café Menu
+                      </span>
+                      <span className="text-muted-foreground">{formatETB(menuVsRetail.menu)} · {menuPct}%</span>
+                    </div>
+                    <div className="mt-1.5 h-2.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-amber-500/80 rounded-full transition-all" style={{ width: `${mixTotal > 0 ? menuPct : 0}%` }} />
+                    </div>
                   </div>
-                  <p className="text-muted-foreground font-medium">
-                    {staff.tablesServed ? `${staff.tablesServed} Tables Served` : `${staff.ordersCooked || 0} Dishes Prepared`}
-                    <span className="ml-2 text-emerald-600 dark:text-emerald-400 font-bold">• {staff.accuracy} Accuracy</span>
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="flex items-center gap-1.5 text-foreground">
+                        <ShoppingBag className="h-3.5 w-3.5" /> Retail
+                      </span>
+                      <span className="text-muted-foreground">{formatETB(menuVsRetail.retail)} · {retailPct}%</span>
+                    </div>
+                    <div className="mt-1.5 h-2.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-emerald-500/80 rounded-full transition-all" style={{ width: `${mixTotal > 0 ? retailPct : 0}%` }} />
+                    </div>
+                  </div>
+                  {mixTotal === 0 && (
+                    <p className="text-[11px] text-muted-foreground">No paid sales to split yet.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Order channels */}
+              <div className="bg-card border rounded-2xl p-5 shadow-sm">
+                <h3 className="font-black text-sm text-foreground flex items-center gap-1.5">
+                  <Store className="h-4 w-4 text-amber-500" /> Order Channels
+                </h3>
+                <div className="mt-3 space-y-2">
+                  {breakdown.orderTypeMix.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground">No paid orders in this period.</p>
+                  )}
+                  {breakdown.orderTypeMix.map((t) => (
+                    <div key={t.type} className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-foreground capitalize">
+                        {t.type.toLowerCase().replace("_", " ")}
+                      </span>
+                      <span className="text-muted-foreground font-semibold">
+                        {t.count} · {formatETB(t.revenue)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Product performance */}
+          <div className="bg-card border rounded-2xl p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div>
+                  <h3 className="font-black text-sm text-foreground">Product Performance</h3>
+                  <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                    Units sold and revenue per product — click a row to edit
                   </p>
                 </div>
-
-                <div className="text-right space-y-0.5">
-                  <span className="font-black text-primary text-sm block">
-                    {staff.revenueGenerated ? formatETB(staff.revenueGenerated) : staff.avgPrepSpeed}
-                  </span>
-                  <span className="text-[10px] font-bold text-muted-foreground block">{staff.rating}</span>
-                </div>
+                <button
+                  onClick={() => openProductEditor(null)}
+                  className="h-9 px-3.5 rounded-xl bg-amber-500 text-white font-black text-xs flex items-center gap-1.5 hover:bg-amber-600 transition-colors shadow-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Product
+                </button>
               </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
-      {/* EXPENSES & LEDGER AUDIT TAB */}
-      {(activeTab === "OVERVIEW" || activeTab === "EXPENSES") && (
-        <Card className="rounded-2xl border bg-card p-5 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between border-b pb-3">
-            <div>
-              <h3 className="font-black text-lg flex items-center gap-2">
-                <Receipt className="h-5 w-5 text-primary" />
-                <span>Expenses & Ledger Audit Summary</span>
-              </h3>
-              <p className="text-xs text-muted-foreground">Digital non-cash payments vs cash register expense settlements with reference verification</p>
-            </div>
-            <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-black text-xs">
-              Audit Verified
-            </Badge>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full text-xs text-left">
-              <thead className="text-[11px] font-black text-muted-foreground uppercase bg-muted/50 border-b">
-                <tr>
-                  <th className="px-4 py-3">Expense ID & Date</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Description</th>
-                  <th className="px-4 py-3">Payment Method & Ref</th>
-                  <th className="px-4 py-3">Audit Status</th>
-                  <th className="px-4 py-3 text-right">Amount (ETB)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {expenseAuditList.map((exp) => (
-                  <tr key={exp.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-mono font-bold text-foreground">
-                      <div>{exp.id}</div>
-                      <div className="text-[10px] text-muted-foreground">{exp.date}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant="outline" className="font-bold text-[10px]">
-                        {exp.category}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-foreground">{exp.description}</td>
-                    <td className="px-4 py-3 font-medium text-muted-foreground">
-                      <div>{exp.method}</div>
-                      <div className="text-[10px] font-mono text-primary font-bold">Ref: {exp.ref}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black border border-emerald-500/20 text-[10px]">
-                        {exp.status}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-right font-black text-rose-600 dark:text-rose-400 text-sm">
-                      -{formatETB(exp.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* EXPANDABLE IN-DEPTH DETAIL MODAL */}
-      {activeDetailModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative w-full max-w-2xl bg-card border rounded-2xl shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
-            
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b pb-4">
-              <div>
-                <h3 className="text-xl font-black text-foreground flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-primary" />
-                  <span>
-                    {activeDetailModal === "GROSS_REVENUE" && "Gross Revenue Audit Breakdown"}
-                    {activeDetailModal === "EXPENSES" && "Operating Expenses Audit Breakdown"}
-                    {activeDetailModal === "NET_PROFIT" && "Net Operating Profitability Breakdown"}
-                    {activeDetailModal === "ORDER_VOLUME" && "Order Volume & Ticket Audit"}
-                  </span>
-                </h3>
-                <p className="text-xs text-muted-foreground">In-depth financial details for {currentSet.label}</p>
-              </div>
-              <button 
-                onClick={() => setActiveDetailModal(null)}
-                className="h-8 w-8 rounded-xl bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Modal Content depending on clicked metric */}
-            {activeDetailModal === "GROSS_REVENUE" && (
-              <div className="space-y-4 text-xs">
-                <div className="grid grid-cols-2 gap-3 p-4 bg-muted/30 rounded-xl border">
-                  <div>
-                    <span className="text-muted-foreground font-bold block">Total Gross Revenue:</span>
-                    <span className="text-xl font-black text-primary">{formatETB(currentSet.gross)}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground font-bold block">Total Tickets Settled:</span>
-                    <span className="text-xl font-black text-foreground">{currentSet.ordersCount} Orders</span>
-                  </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search products…"
+                    className="h-9 w-44 rounded-xl border bg-background pl-8 pr-3 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+                  />
                 </div>
 
-                <div className="space-y-2">
-                  <h4 className="font-black text-sm">Hourly / Daily Revenue Stream</h4>
-                  <div className="space-y-1.5">
-                    {currentSet.data.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center p-2.5 bg-card border rounded-lg">
-                        <span className="font-bold">{item.name}</span>
-                        <div className="space-x-4">
-                          <span className="text-muted-foreground">Dine-In: {formatETB(item.dineIn)}</span>
-                          <span className="text-muted-foreground">Takeaway: {formatETB(item.delivery)}</span>
-                          <span className="font-black text-primary">Total: {formatETB(item.dineIn + item.delivery)}</span>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="h-9 rounded-xl border bg-background px-2.5 text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+                  aria-label="Filter by category"
+                >
+                  <option value="All">All categories</option>
+                  {breakdown.categories.map((c) => (
+                    <option key={c.category} value={c.category}>
+                      {c.category}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="flex items-center gap-1 p-1 bg-muted/50 border rounded-xl">
+                  {(["ALL", "MENU", "RETAIL"] as const).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setChannel(c)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all",
+                        channel === c ? "bg-card text-foreground border shadow-sm" : "text-muted-foreground border border-transparent"
+                      )}
+                    >
+                      {c === "ALL" ? "All" : c === "MENU" ? "Menu" : "Retail"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {filteredProducts.length === 0 ? (
+              <div className="py-14 text-center space-y-1.5">
+                <Tag className="h-6 w-6 mx-auto text-muted-foreground opacity-50" />
+                <p className="text-xs font-bold text-muted-foreground">
+                  No products match{breakdown.products.length === 0 ? " — no paid sales in this period" : ""}.
+                </p>
+                {breakdown.products.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setSearch("");
+                      setCategory("All");
+                      setChannel("ALL");
+                    }}
+                    className="text-[11px] font-bold text-primary underline"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Desktop table */}
+                <div className="mt-4 hidden md:block overflow-x-auto rounded-xl border">
+                  <table className="w-full text-xs text-left">
+                    <thead className="text-[10px] font-black text-muted-foreground uppercase bg-muted/50 border-b">
+                      <tr>
+                        <th className="px-4 py-3">#</th>
+                        <th className="px-4 py-3">Product</th>
+                        <th className="px-4 py-3">Category</th>
+                        <th className="px-4 py-3">Channel</th>
+                        <th className="px-4 py-3 text-right">Units Sold</th>
+                        <th className="px-4 py-3 text-right">Orders</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {filteredProducts.map((p, idx) => {
+                        const mi = menuItemById.get(p.menuItemId);
+                        const isToggling = toggleAvailability.isPending && toggleAvailability.variables === mi?.id;
+                        return (
+                          <tr
+                            key={p.menuItemId}
+                            onClick={() => mi && openProductEditor(mi)}
+                            className={cn(
+                              "transition-colors",
+                              mi ? "cursor-pointer hover:bg-muted/40" : "hover:bg-muted/20"
+                            )}
+                          >
+                            <td className="px-4 py-3 text-muted-foreground font-bold">{idx + 1}</td>
+                            <td className="px-4 py-3 font-black text-foreground flex items-center gap-2">
+                              <span className="truncate">{p.name}</span>
+                              {mi && <Pencil className="h-3 w-3 text-muted-foreground opacity-40 shrink-0" />}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground font-medium">{p.category}</td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-black border",
+                                  p.isRetail
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                )}
+                              >
+                                {p.isRetail ? "Retail" : "Menu"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-black">{p.units}</td>
+                            <td className="px-4 py-3 text-right text-muted-foreground font-semibold">{p.orderCount}</td>
+                            <td className="px-4 py-3">
+                              {mi && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleAvailability.mutate(mi.id);
+                                  }}
+                                  disabled={isToggling}
+                                  className={cn(
+                                    "px-2 py-1 rounded-full text-[10px] font-black border flex items-center gap-1.5 transition-colors",
+                                    mi.available
+                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                                      : "bg-muted text-muted-foreground border-border hover:text-foreground"
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "h-1.5 w-1.5 rounded-full",
+                                      mi.available ? "bg-emerald-500" : "bg-muted-foreground"
+                                    )}
+                                  />
+                                  {isToggling ? "…" : mi.available ? "Available" : "Out"}
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right font-black text-primary text-sm">{formatETB(p.revenue)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile cards */}
+                <div className="mt-4 space-y-2 md:hidden">
+                  {filteredProducts.map((p, idx) => {
+                    const mi = menuItemById.get(p.menuItemId);
+                    const isToggling = toggleAvailability.isPending && toggleAvailability.variables === mi?.id;
+                    return (
+                      <div
+                        key={p.menuItemId}
+                        onClick={() => mi && openProductEditor(mi)}
+                        className={cn(
+                          "flex items-center justify-between gap-3 p-3.5 rounded-xl border bg-background/50",
+                          mi && "cursor-pointer active:scale-[0.995] transition-transform"
+                        )}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-foreground truncate">
+                            {idx + 1}. {p.name}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                            {p.category} · {p.units} sold · {p.orderCount} orders
+                          </p>
+                          {mi && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleAvailability.mutate(mi.id);
+                              }}
+                              disabled={isToggling}
+                              className={cn(
+                                "mt-1.5 px-2 py-0.5 rounded-full text-[9px] font-black border flex items-center gap-1.5",
+                                mi.available
+                                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                  : "bg-muted text-muted-foreground border-border"
+                              )}
+                            >
+                              <span className={cn("h-1.5 w-1.5 rounded-full", mi.available ? "bg-emerald-500" : "bg-muted-foreground")} />
+                              {isToggling ? "…" : mi.available ? "Available" : "Out"}
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="block text-sm font-black text-primary">{formatETB(p.revenue)}</span>
+                          <span
+                            className={cn(
+                              "px-1.5 py-0.5 rounded-full text-[9px] font-black border",
+                              p.isRetail
+                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                            )}
+                          >
+                            {p.isRetail ? "Retail" : "Menu"}
+                          </span>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              </div>
+              </>
             )}
-
-            {activeDetailModal === "EXPENSES" && (
-              <div className="space-y-4 text-xs">
-                <div className="p-4 bg-muted/30 rounded-xl border">
-                  <span className="text-muted-foreground font-bold block">Total Operating Expenses:</span>
-                  <span className="text-xl font-black text-foreground">{formatETB(currentSet.expenses)}</span>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-black text-sm">Expense Categories & Ingredient Costs</h4>
-                  <div className="space-y-1.5">
-                    {[
-                      { cat: "Raw Whole Milk & Dairy Supplies", amount: Math.round(currentSet.expenses * 0.45) },
-                      { cat: "Fresh Meat, Produce & Ingredients", amount: Math.round(currentSet.expenses * 0.30) },
-                      { cat: "Utilities, Power & Water", amount: Math.round(currentSet.expenses * 0.15) },
-                      { cat: "Kitchen Equipment & Maintenance", amount: Math.round(currentSet.expenses * 0.10) },
-                    ].map((exp, idx) => (
-                      <div key={idx} className="flex justify-between items-center p-2.5 bg-card border rounded-lg">
-                        <span className="font-bold">{exp.cat}</span>
-                        <span className="font-black text-foreground">{formatETB(exp.amount)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeDetailModal === "NET_PROFIT" && (
-              <div className="space-y-4 text-xs">
-                <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl space-y-1">
-                  <span className="text-primary font-bold block">Net Profit:</span>
-                  <span className="text-2xl font-black text-primary">{formatETB(netProfit)}</span>
-                  <span className="text-muted-foreground block text-[11px]">Net Profit Margin: {profitMargin}%</span>
-                </div>
-              </div>
-            )}
-
-            {activeDetailModal === "ORDER_VOLUME" && (
-              <div className="space-y-4 text-xs">
-                <div className="grid grid-cols-2 gap-3 p-4 bg-muted/30 rounded-xl border">
-                  <div>
-                    <span className="text-muted-foreground font-bold block">Total Orders:</span>
-                    <span className="text-xl font-black text-foreground">{currentSet.ordersCount} Tickets</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground font-bold block">Average Ticket Size:</span>
-                    <span className="text-xl font-black text-primary">{formatETB(avgTicket)}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Modal Footer */}
-            <div className="flex justify-end pt-3 border-t">
-              <Button 
-                onClick={() => setActiveDetailModal(null)}
-                className="rounded-xl font-black bg-primary text-primary-foreground text-xs"
-              >
-                Close Audit View
-              </Button>
-            </div>
-
           </div>
-        </div>
+
+          {/* Category performance */}
+          <div className="bg-card border rounded-2xl p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-black text-sm text-foreground">Category Performance</h3>
+                <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                  Revenue per category for the period
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCategoryModal(true)}
+                className="h-8 px-3 rounded-xl border text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors flex items-center gap-1.5"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Manage Categories
+              </button>
+            </div>
+            {breakdown.categories.length === 0 ? (
+              <p className="text-xs text-muted-foreground mt-5">No sales to rank in this period.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {breakdown.categories.map((c) => {
+                  const pct = breakdown.categories[0].revenue > 0 ? (c.revenue / breakdown.categories[0].revenue) * 100 : 0;
+                  return (
+                    <div key={c.category}>
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="text-foreground">{c.category}</span>
+                        <span className="text-muted-foreground">
+                          {c.units} units · {formatETB(c.revenue)}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-2 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full bg-amber-500/70 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Payment mix footnote strip */}
+          {metrics.paymentMix.length > 0 && (
+            <div className="bg-card border rounded-2xl p-5 shadow-sm">
+              <h3 className="font-black text-sm text-foreground">Payment Methods</h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {metrics.paymentMix.map((m) => (
+                  <span
+                    key={m.method}
+                    className="px-3 py-1.5 rounded-xl border bg-background text-xs font-bold text-foreground flex items-center gap-2"
+                  >
+                    {m.label}
+                    <span className="text-muted-foreground">{m.count} · {m.percent}%</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
+      {/* Product editor (create + edit) */}
+      {showProductModal && (
+        <MenuItemModal
+          isOpen={showProductModal}
+          onClose={() => {
+            setShowProductModal(false);
+            setEditingProduct(null);
+          }}
+          itemToEdit={editingProduct}
+        />
+      )}
+
+      {/* Category manager */}
+      {showCategoryModal && (
+        <CategoryManageModal isOpen onClose={() => setShowCategoryModal(false)} />
+      )}
     </div>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4 pb-16">
+          <div className="h-10 bg-muted/40 border rounded-2xl animate-pulse" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-28 bg-muted/40 border rounded-2xl animate-pulse" />
+            ))}
+          </div>
+          <div className="h-72 bg-muted/40 border rounded-2xl animate-pulse" />
+        </div>
+      }
+    >
+      <SalesReports />
+    </Suspense>
   );
 }

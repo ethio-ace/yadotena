@@ -1,7 +1,7 @@
 "use client";
 
 import { Order } from "@/types";
-import { X, Play, CheckCircle2, Clock, AlertTriangle, MapPin } from "lucide-react";
+import { Play, CheckCircle2, Clock, AlertTriangle, MapPin } from "lucide-react";
 import { orderDestination, orderTicketNumber, addonNames } from "@/lib/kitchen";
 
 interface OrderDetailSheetProps {
@@ -81,12 +81,6 @@ export function OrderDetailSheet({
                 )}
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
           </div>
 
           {/* Ticket Items List */}
@@ -165,12 +159,9 @@ export function OrderDetailSheet({
             </div>
           )}
 
-          <button
-            onClick={onClose}
-            className="w-full py-3 rounded-xl border border-zinc-800 text-zinc-400 font-bold text-xs hover:text-white hover:bg-zinc-900 transition-colors"
-          >
-            Close Sheet
-          </button>
+          <p className="text-center text-[11px] text-zinc-600 font-medium">
+            Tap outside to close
+          </p>
         </div>
       </div>
     </div>

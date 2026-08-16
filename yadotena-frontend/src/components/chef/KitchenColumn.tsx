@@ -11,6 +11,7 @@ interface KitchenColumnProps {
   orders: Order[];
   newOrderIds?: Set<string>;
   addonMap?: Record<string, string>;
+  tableLabels?: Record<string, string>;
   onStartPreparing?: (orderId: string) => void;
   onMarkReady?: (orderId: string) => void;
   onInspect?: (order: Order) => void;
@@ -23,6 +24,7 @@ export function KitchenColumn({
   orders,
   newOrderIds,
   addonMap,
+  tableLabels,
   onStartPreparing,
   onMarkReady,
   onInspect,
@@ -73,6 +75,7 @@ export function KitchenColumn({
             order={order}
             isNew={newOrderIds?.has(order.id)}
             addonMap={addonMap}
+            tableLabels={tableLabels}
             onStartPreparing={onStartPreparing}
             onMarkReady={onMarkReady}
             onInspect={onInspect}

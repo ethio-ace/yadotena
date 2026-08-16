@@ -15,6 +15,7 @@ interface KitchenOrderCardProps {
   order: Order;
   isNew?: boolean;
   addonMap?: Record<string, string>;
+  tableLabels?: Record<string, string>;
   onStartPreparing?: (orderId: string) => void;
   onMarkReady?: (orderId: string) => void;
   onInspect?: (order: Order) => void;
@@ -25,6 +26,7 @@ export function KitchenOrderCard({
   order,
   isNew = false,
   addonMap,
+  tableLabels,
   onStartPreparing,
   onMarkReady,
   onInspect,
@@ -90,7 +92,7 @@ export function KitchenOrderCard({
   const isPreparing = order.status === "PREPARING";
   const isReady = order.status === "READY";
 
-  const destination = orderDestination(order);
+  const destination = orderDestination(order, tableLabels);
   const orderNumber = orderTicketNumber(order);
 
   return (

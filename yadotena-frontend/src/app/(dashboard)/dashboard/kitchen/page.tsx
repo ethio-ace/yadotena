@@ -7,6 +7,7 @@ import { api } from "@/services/api";
 import { Order, OrderStatus } from "@/types";
 import { soundAlerts } from "@/lib/audioAlerts";
 import { isOrderOverdue, orderTicketNumber } from "@/lib/kitchen";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { useAblySync, AblyConnectionState } from "@/contexts/AblySyncProvider";
 
 import { ChefHeader } from "@/components/chef/ChefHeader";
@@ -72,6 +73,7 @@ export default function KitchenDashboard() {
     queryFn: () => api.addons.getAll(),
   });
   const addonMap = Object.fromEntries(addons.map((a) => [a.id, a.name]));
+  const tableLabels = useTableLabels();
 
   // --- new-ticket detection: one chime per ticket + temporary NEW highlight ---
   const seenPendingIdsRef = useRef<Set<string>>(new Set());
@@ -223,13 +225,14 @@ export default function KitchenDashboard() {
             orders={orders}
             newOrderIds={newOrderIds}
             addonMap={addonMap}
+            tableLabels={tableLabels}
             onStartPreparing={handleStartPreparing}
             onMarkReady={handleMarkReady}
             onInspectOrder={setInspectOrder}
             isLoading={updateStatusMutation.isPending}
           />
         ) : viewMode === "BATCH" ? (
-          <BatchView orders={orders} />
+          <BatchView orders={orders} addonMap={addonMap} tableLabels={tableLabels} />
         ) : (
           /* TODAY'S COMPLETED HISTORY VIEW */
           <div className="p-4 sm:p-6 max-w-5xl mx-auto w-full space-y-4 animate-in fade-in duration-200">
@@ -256,7 +259,7 @@ export default function KitchenDashboard() {
                     <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
                     <div>
                       <div className="font-black text-sm text-white">
-                        {o.tableId ? `Table ${o.tableId.replace(/^t/i, "")}` : o.type} • {orderTicketNumber(o)}
+                        {o.tableId ? formatTableRef(o.tableId, tableLabels) : o.type} • {orderTicketNumber(o)}
                       </div>
                       <div className="text-xs text-zinc-400 font-medium">
                         {o.items?.map((i) => `${i.quantity}× ${i.name}`).join(", ")}
@@ -288,6 +291,7 @@ export default function KitchenDashboard() {
         onMarkReady={handleMarkReady}
         isLoading={updateStatusMutation.isPending}
         addonMap={addonMap}
+        tableLabels={tableLabels}
       />
 
       {/* TRANSIENT OPERATIONAL NOTICE */}

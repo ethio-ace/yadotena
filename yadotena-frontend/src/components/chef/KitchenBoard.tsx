@@ -9,6 +9,7 @@ interface KitchenBoardProps {
   orders: Order[];
   newOrderIds?: Set<string>;
   addonMap?: Record<string, string>;
+  tableLabels?: Record<string, string>;
   onStartPreparing: (orderId: string) => void;
   onMarkReady: (orderId: string) => void;
   onInspectOrder: (order: Order) => void;
@@ -19,6 +20,7 @@ export function KitchenBoard({
   orders,
   newOrderIds,
   addonMap,
+  tableLabels,
   onStartPreparing,
   onMarkReady,
   onInspectOrder,
@@ -85,6 +87,7 @@ export function KitchenBoard({
             orders={pendingOrders}
             newOrderIds={newOrderIds}
             addonMap={addonMap}
+            tableLabels={tableLabels}
             onStartPreparing={onStartPreparing}
             onInspect={onInspectOrder}
             isLoading={isLoading}
@@ -96,6 +99,7 @@ export function KitchenBoard({
             status="PREPARING"
             orders={preparingOrders}
             addonMap={addonMap}
+            tableLabels={tableLabels}
             onMarkReady={onMarkReady}
             onInspect={onInspectOrder}
             isLoading={isLoading}
@@ -107,6 +111,7 @@ export function KitchenBoard({
             status="READY"
             orders={readyOrders}
             addonMap={addonMap}
+            tableLabels={tableLabels}
             onInspect={onInspectOrder}
             isLoading={isLoading}
           />
@@ -121,6 +126,7 @@ export function KitchenBoard({
           orders={pendingOrders}
           newOrderIds={newOrderIds}
           addonMap={addonMap}
+          tableLabels={tableLabels}
           onStartPreparing={onStartPreparing}
           onInspect={onInspectOrder}
           isLoading={isLoading}
@@ -131,6 +137,7 @@ export function KitchenBoard({
           status="PREPARING"
           orders={preparingOrders}
           addonMap={addonMap}
+          tableLabels={tableLabels}
           onMarkReady={onMarkReady}
           onInspect={onInspectOrder}
           isLoading={isLoading}
@@ -141,6 +148,7 @@ export function KitchenBoard({
           status="READY"
           orders={readyOrders}
           addonMap={addonMap}
+          tableLabels={tableLabels}
           onInspect={onInspectOrder}
           isLoading={isLoading}
         />

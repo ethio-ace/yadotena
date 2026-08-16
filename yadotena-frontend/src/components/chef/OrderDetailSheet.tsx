@@ -12,6 +12,7 @@ interface OrderDetailSheetProps {
   onMarkReady?: (orderId: string) => void;
   isLoading?: boolean;
   addonMap?: Record<string, string>;
+  tableLabels?: Record<string, string>;
 }
 
 export function OrderDetailSheet({
@@ -22,13 +23,14 @@ export function OrderDetailSheet({
   onMarkReady,
   isLoading,
   addonMap,
+  tableLabels,
 }: OrderDetailSheetProps) {
   if (!isOpen || !order) return null;
 
   const isPending = order.status === "PENDING";
   const isPreparing = order.status === "PREPARING";
   const isReady = order.status === "READY";
-  const destination = orderDestination(order);
+  const destination = orderDestination(order, tableLabels);
   const hasStarted = order.status !== "PENDING";
 
   return (

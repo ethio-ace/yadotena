@@ -7,9 +7,11 @@ import { orderDestination, orderTicketNumber, addonNames } from "@/lib/kitchen";
 
 interface BatchViewProps {
   orders: Order[];
+  addonMap?: Record<string, string>;
+  tableLabels?: Record<string, string>;
 }
 
-export function BatchView({ orders }: BatchViewProps) {
+export function BatchView({ orders, addonMap, tableLabels }: BatchViewProps) {
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
 
   const activeOrders = orders.filter((o) => ["PENDING", "PREPARING"].includes(o.status));
@@ -28,7 +30,7 @@ export function BatchView({ orders }: BatchViewProps) {
   }>();
 
   activeOrders.forEach((o) => {
-    const dest = orderDestination(o);
+    const dest = orderDestination(o, tableLabels);
     o.items?.forEach((item) => {
       const key = item.name.toLowerCase();
       const existing = itemMap.get(key) || { name: item.name, totalQuantity: 0, tickets: [] };
@@ -38,7 +40,7 @@ export function BatchView({ orders }: BatchViewProps) {
         orderId: o.id,
         destination: dest,
         quantity: item.quantity,
-        addons: addonNames(item.selectedAddons),
+        addons: addonNames(item.selectedAddons, addonMap),
         specialInstructions: item.specialInstructions,
       });
 

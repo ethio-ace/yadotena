@@ -29,9 +29,16 @@ export function formatElapsed(totalSeconds: number): string {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-/** Human destination label for a kitchen ticket. */
-export function orderDestination(order: Order): string {
-  if (order.tableId) return `TABLE ${order.tableId.replace(/^t/i, "")}`;
+/**
+ * Human destination label for a kitchen ticket. Prefers the real table name
+ * (e.g. "Table 04 (VIP Lounge)") via `tableLabels` when available, falling
+ * back to a cleaned code so staff never see raw database ids.
+ */
+export function orderDestination(order: Order, tableLabels?: Record<string, string>): string {
+  if (order.tableId) {
+    const label = tableLabels?.[order.tableId];
+    return label ? label.toUpperCase() : `TABLE ${order.tableId.replace(/^t/i, "")}`;
+  }
   if (order.type === "DELIVERY") return "DELIVERY";
   return "TAKEAWAY";
 }

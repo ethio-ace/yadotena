@@ -1,4 +1,31 @@
-import { Order } from "@/types";
+import { Order, OrderItem } from "@/types";
+
+/**
+ * Groups a ticket's items by kitchen round. Round 1 is the original order;
+ * rounds 2+ are items a waiter appended later via add-items / auto-merge
+ * (the backend stamps `round_number` on every order item). The KDS uses this
+ * so an extended ticket shows exactly what's new instead of a mixed blob.
+ */
+export interface RoundGroup {
+  round: number;
+  items: OrderItem[];
+}
+
+export function groupItemsByRound(items?: OrderItem[]): RoundGroup[] {
+  const map = new Map<number, OrderItem[]>();
+  (items || []).forEach((item) => {
+    const r = item.roundNumber || 1;
+    if (!map.has(r)) map.set(r, []);
+    map.get(r)!.push(item);
+  });
+  return Array.from(map.entries())
+    .map(([round, grouped]) => ({ round, items: grouped }))
+    .sort((a, b) => a.round - b.round);
+}
+
+export function hasAddedRounds(order: { items?: OrderItem[] }): boolean {
+  return (order.items || []).some((i) => (i.roundNumber || 1) > 1);
+}
 
 /**
  * Kitchen production thresholds (minutes since order creation).

@@ -90,14 +90,16 @@ export function ChefHeader({
             <span className="font-mono text-zinc-200 text-sm">{timeStr || "10:42 AM"}</span>
           </div>
 
-          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl px-3 py-1.5">
-            <span className="font-black text-sm">{activeCount}</span>
-            <span className="text-[10px] uppercase tracking-wider text-amber-300/80">Active</span>
+          <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 rounded-xl px-3 py-1.5">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            <span className="font-black text-sm text-zinc-100">{activeCount}</span>
+            <span className="text-[10px] uppercase tracking-wider text-zinc-400">Active</span>
           </div>
 
-          <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl px-3 py-1.5">
-            <span className="font-black text-sm">{readyCount}</span>
-            <span className="text-[10px] uppercase tracking-wider text-emerald-300/80">Ready</span>
+          <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 rounded-xl px-3 py-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="font-black text-sm text-zinc-100">{readyCount}</span>
+            <span className="text-[10px] uppercase tracking-wider text-zinc-400">Ready</span>
           </div>
         </div>
 
@@ -109,7 +111,7 @@ export function ChefHeader({
               onClick={() => onViewModeChange("QUEUE")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 viewMode === "QUEUE"
-                  ? "bg-amber-500 text-zinc-950 shadow-md font-black"
+                  ? "bg-amber-500 text-amber-950 shadow-md font-black"
                   : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
               }`}
             >
@@ -120,7 +122,7 @@ export function ChefHeader({
               onClick={() => onViewModeChange("BATCH")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 viewMode === "BATCH"
-                  ? "bg-amber-500 text-zinc-950 shadow-md font-black"
+                  ? "bg-amber-500 text-amber-950 shadow-md font-black"
                   : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
               }`}
             >
@@ -172,7 +174,7 @@ export function ChefHeader({
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
               title="Sign out"
-              className="h-8 px-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              className="h-8 px-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-[#dc2626]/10 transition-colors"
             >
               <LogOut className="h-4 w-4" />
             </button>

@@ -1,8 +1,40 @@
 "use client";
 
-import { Order } from "@/types";
-import { Play, CheckCircle2, Clock, AlertTriangle, MapPin } from "lucide-react";
-import { orderDestination, orderTicketNumber, addonNames } from "@/lib/kitchen";
+import { Order, OrderItem } from "@/types";
+import { Play, CheckCircle2, Clock, AlertTriangle, MapPin, RotateCcw } from "lucide-react";
+import { orderDestination, orderTicketNumber, addonNames, groupItemsByRound, hasAddedRounds } from "@/lib/kitchen";
+
+function ItemCard({ item, addonMap }: { item: OrderItem; addonMap?: Record<string, string> }) {
+  const aNames = addonNames(item.selectedAddons, addonMap);
+  return (
+    <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 space-y-2">
+      <div className="flex items-start justify-between text-base font-black text-white">
+        <span>
+          <span className="text-amber-500 font-extrabold mr-2">{item.quantity} ×</span>
+          {item.name}
+        </span>
+      </div>
+
+      {aNames.length > 0 && (
+        <div className="pl-4 space-y-1 text-xs font-medium text-zinc-300 border-l-2 border-amber-500/30">
+          {aNames.map((addon, aIdx) => (
+            <div key={aIdx} className="flex items-center gap-1">
+              <span className="text-amber-500 font-bold">+</span>
+              <span>{addon}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {item.specialInstructions && (
+        <div className="mt-2 bg-amber-500/10 border border-amber-500/30 text-amber-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+          <span>⚠ {item.specialInstructions.toUpperCase()}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface OrderDetailSheetProps {
   order: Order | null;
@@ -33,6 +65,10 @@ export function OrderDetailSheet({
   const destination = orderDestination(order, tableLabels);
   const hasStarted = order.status !== "PENDING";
   const isThisItemUpdating = updatingOrderId === order.id;
+
+  const rounds = groupItemsByRound(order.items);
+  const latestRound = rounds.length;
+  const extended = hasAddedRounds(order);
 
   return (
     <div
@@ -86,39 +122,35 @@ export function OrderDetailSheet({
             </div>
           </div>
 
-          {/* Ticket Items List */}
+          {/* Ticket Items List — grouped by kitchen round */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
               Kitchen Items ({order.items?.length || 0})
             </h3>
 
-            <div className="space-y-3">
-              {order.items?.map((item, idx) => (
-                <div key={item.id || idx} className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 space-y-2">
-                  <div className="flex items-start justify-between text-base font-black text-white">
-                    <span>
-                      <span className="text-amber-400 font-extrabold mr-2">{item.quantity} ×</span>
-                      {item.name}
-                    </span>
+            {extended && (
+              <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/25 px-3 py-2 text-[11px] font-black text-amber-400 uppercase tracking-wide">
+                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                <span>Ticket extended — Round {latestRound} added later</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {rounds.map(({ round, items }) => (
+                <div key={round}>
+                  {rounds.length > 1 && (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${round > 1 ? "text-amber-500" : "text-zinc-500"}`}>
+                        {round > 1 ? `Round ${round} · Added later` : "Original order"}
+                      </span>
+                      <span className="h-px flex-1 bg-zinc-800" />
+                    </div>
+                  )}
+                  <div className="space-y-3">
+                    {items.map((item, idx) => (
+                      <ItemCard key={item.id || idx} item={item} addonMap={addonMap} />
+                    ))}
                   </div>
-
-                  {addonNames(item.selectedAddons, addonMap).length > 0 && (
-                    <div className="pl-4 space-y-1 text-xs font-medium text-zinc-300 border-l-2 border-amber-500/30">
-                      {addonNames(item.selectedAddons, addonMap).map((addon, aIdx) => (
-                        <div key={aIdx} className="flex items-center gap-1">
-                          <span className="text-amber-400 font-bold">+</span>
-                          <span>{addon}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {item.specialInstructions && (
-                    <div className="mt-2 bg-amber-500/10 border border-amber-500/30 text-amber-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
-                      <span>⚠ {item.specialInstructions.toUpperCase()}</span>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -134,7 +166,7 @@ export function OrderDetailSheet({
                 onStartPreparing?.(order.id);
                 onClose();
               }}
-              className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
+              className="w-full h-12 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
             >
               <Play className="h-5 w-5 fill-current" />
               <span>START PREPARING TICKET</span>

@@ -45,7 +45,7 @@ export function KitchenBoard({
           onClick={() => setMobileTab("PENDING")}
           className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
             mobileTab === "PENDING"
-              ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
+              ? "bg-amber-500 text-amber-950"
               : "text-zinc-400 hover:text-white"
           }`}
         >
@@ -57,7 +57,7 @@ export function KitchenBoard({
           onClick={() => setMobileTab("PREPARING")}
           className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
             mobileTab === "PREPARING"
-              ? "bg-amber-500 text-zinc-950 shadow-lg shadow-amber-900/40"
+              ? "bg-zinc-200 text-zinc-950"
               : "text-zinc-400 hover:text-white"
           }`}
         >
@@ -69,7 +69,7 @@ export function KitchenBoard({
           onClick={() => setMobileTab("READY")}
           className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
             mobileTab === "READY"
-              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/40"
+              ? "bg-emerald-600 text-white"
               : "text-zinc-400 hover:text-white"
           }`}
         >

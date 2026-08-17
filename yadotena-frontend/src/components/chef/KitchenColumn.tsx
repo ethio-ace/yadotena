@@ -30,14 +30,25 @@ export function KitchenColumn({
   onInspect,
   updatingOrderId,
 }: KitchenColumnProps) {
+  const headerDot = () => {
+    switch (status) {
+      case "PENDING":
+        return "bg-amber-500";
+      case "PREPARING":
+        return "bg-zinc-500";
+      case "READY":
+        return "bg-emerald-500";
+    }
+  };
+
   const getHeaderIcon = () => {
     switch (status) {
       case "PENDING":
-        return <Flame className="h-4 w-4 text-blue-400" />;
+        return <Flame className="h-4 w-4 text-amber-500" />;
       case "PREPARING":
-        return <Clock className="h-4 w-4 text-amber-400" />;
+        return <Clock className="h-4 w-4 text-zinc-500" />;
       case "READY":
-        return <CheckCircle2 className="h-4 w-4 text-emerald-400" />;
+        return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
     }
   };
 
@@ -46,6 +57,7 @@ export function KitchenColumn({
       {/* Column Header */}
       <div className="p-3.5 border-b border-zinc-800 bg-zinc-900/80 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${headerDot()}`} />
           {getHeaderIcon()}
           <h2 className="font-bold text-xs uppercase tracking-wider text-zinc-200">
             {title}

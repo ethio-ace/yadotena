@@ -23,8 +23,8 @@ export function KitchenStats({
       sublabel: "Waiting for chef",
       count: pendingCount,
       icon: Flame,
-      iconColor: "text-blue-400",
-      badgeColor: "bg-blue-600 text-white font-black",
+      iconColor: "text-amber-500",
+      badgeColor: "bg-amber-500/15 text-amber-400 border border-amber-500/25 font-black",
     },
     {
       id: "PREPARING",
@@ -32,8 +32,8 @@ export function KitchenStats({
       sublabel: "On the line",
       count: preparingCount,
       icon: Clock,
-      iconColor: "text-amber-400",
-      badgeColor: "bg-amber-500 text-zinc-950 font-black",
+      iconColor: "text-zinc-400",
+      badgeColor: "bg-zinc-800 text-zinc-200 border border-zinc-700 font-black",
     },
     {
       id: "READY",
@@ -41,8 +41,8 @@ export function KitchenStats({
       sublabel: "Waiting for waiter",
       count: readyCount,
       icon: CheckCircle2,
-      iconColor: "text-emerald-400",
-      badgeColor: "bg-emerald-600 text-white font-black",
+      iconColor: "text-emerald-500",
+      badgeColor: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-black",
     },
     {
       id: "OVERDUE",
@@ -51,7 +51,7 @@ export function KitchenStats({
       count: overdueCount,
       icon: AlertTriangle,
       iconColor: "text-red-400",
-      badgeColor: "bg-red-600 text-white font-black",
+      badgeColor: "bg-red-500/10 text-red-400 border border-red-500/30 font-black",
     },
   ];
 

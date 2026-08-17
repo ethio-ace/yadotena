@@ -606,6 +606,11 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.recalculateOrderFinancialsTx(ctx, tx, targetOrderID, orderType)
+		// New items merged into an order that was already past the queue
+		// (PREPARING/READY) must return it to PENDING so the fresh round gets
+		// kitchen attention — mirrors addOrderItemsEndpoint. If it's already
+		// PENDING the conditional update is a no-op.
+		_, _ = tx.Exec(ctx, `UPDATE orders SET status = 'PENDING', updated_at = now() WHERE id = $1 AND status <> 'PENDING'`, targetOrderID)
 		if errCommit := tx.Commit(ctx); errCommit != nil {
 			writeErr(w, 500, errCommit.Error())
 			return

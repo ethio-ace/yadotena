@@ -15,7 +15,7 @@ export function KitchenEmptyState({ type }: KitchenEmptyStateProps) {
           message: "No orders waiting in queue.",
           sub: "New incoming orders will appear here automatically.",
           icon: CheckCircle2,
-          color: "text-blue-400/60 border-blue-900/30 bg-blue-950/10",
+          color: "text-amber-500/50 border-amber-900/30 bg-amber-950/10",
         };
       case "PREPARING":
         return {

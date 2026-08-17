@@ -50,6 +50,35 @@ export function itemStatus(item: OrderItem): ItemKitchenStatus {
   return item.status || "PENDING";
 }
 
+/** Tailwind chip classes for a kitchen status (light-theme waiter surfaces). */
+export function statusChipClass(status: string): string {
+  switch (status) {
+    case "READY": return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400";
+    case "PREPARING": return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400";
+    case "SERVED": return "bg-muted text-muted-foreground";
+    case "CANCELLED": return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400";
+    default: return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+  }
+}
+
+/** Tailwind dot color for a kitchen status (used in round summary chips). */
+export function statusDotClass(status: string): string {
+  switch (status) {
+    case "READY": return "bg-emerald-500";
+    case "PREPARING": return "bg-amber-500";
+    case "SERVED": return "bg-muted-foreground/50";
+    case "CANCELLED": return "bg-red-500";
+    default: return "bg-zinc-400";
+  }
+}
+
+/** Human label for a kitchen status ("Waiting" for PENDING). */
+export function statusLabel(status: string): string {
+  if (status === "PENDING") return "Waiting";
+  if (status === "PREPARING") return "In Preparation";
+  return status.charAt(0) + status.slice(1).toLowerCase();
+}
+
 /**
  * True once any item on the order carries an explicit kitchen status. Until
  * the backend exposes per-item status (migration 000016), orders fall back to

@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { Order } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
-import { readyItems, hasItemStatuses, groupItemsByRound, roundStatus, roundLabel, roundTotal, roundCount } from "@/lib/kitchen";
-import { ArrowLeft, Check, CreditCard, UtensilsCrossed, ShoppingBag, Bike, Clock3 } from "lucide-react";
+import { readyItems, hasItemStatuses, groupItemsByRound, roundStatus, roundLabel, roundTotal, roundCount, statusChipClass, statusLabel } from "@/lib/kitchen";
+import { ArrowLeft, Check, CheckCircle2, CreditCard, UtensilsCrossed, ShoppingBag, Bike, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface OrdersBoardProps {
@@ -13,6 +13,7 @@ interface OrdersBoardProps {
   defaultTab?: string;
   onBack: () => void;
   onServe: (orderId: string) => void;
+  onComplete: (orderId: string) => void;
   onSettle: (order: Order) => void;
   onViewOrder: (order: Order) => void;
 }
@@ -25,7 +26,7 @@ const TYPE_META: Record<string, { label: string; icon: React.ElementType; cls: s
   DELIVERY: { label: "Delivery", icon: Bike, cls: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20" },
 };
 
-export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onViewOrder }: OrdersBoardProps) {
+export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, onSettle, onViewOrder }: OrdersBoardProps) {
   const tableLabels = useTableLabels();
   const [tab, setTab] = useState<Tab>((defaultTab as Tab) || "ACTIVE");
 
@@ -53,22 +54,14 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
     }
   };
 
-  const roundChip = (s: string) => {
-    switch (s) {
-      case "READY": return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400";
-      case "PREPARING": return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400";
-      case "SERVED": return "bg-muted text-muted-foreground";
-      case "CANCELLED": return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400";
-      default: return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
-    }
-  };
-  const roundChipLabel = (s: string) => (s === "PENDING" ? "Waiting" : s.charAt(0) + s.slice(1).toLowerCase());
-
   const nextAction = (o: Order) => {
     const ready = readyItems(o).length || (o.status === "READY" && !hasItemStatuses(o.items) ? (o.items?.length || 0) : 0);
     if (ready > 0) return { label: `Serve Ready (${ready})`, action: () => onServe(o.id), color: "bg-emerald-600 hover:bg-emerald-700 text-white" };
     if (o.paymentStatus !== "PAID" && ["SERVED", "COMPLETED"].includes(o.status)) return { label: "Settle Bill", action: () => onSettle(o), color: "bg-amber-600 hover:bg-amber-700 text-white" };
     if (o.paymentStatus !== "PAID" && o.status !== "CANCELLED") return { label: "Settle", action: () => onSettle(o), color: "bg-amber-600 hover:bg-amber-700 text-white" };
+    // Paid tickets that finished kitchen work close themselves on the backend;
+    // this is the manual escape hatch for orders stuck before that logic shipped.
+    if (o.paymentStatus === "PAID" && o.status === "SERVED") return { label: "Complete Order", action: () => onComplete(o.id), color: "bg-zinc-800 hover:bg-zinc-900 text-white" };
     return null;
   };
 
@@ -194,8 +187,8 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
                         </span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide ${roundChip(rStatus)}`}>
-                          {roundChipLabel(rStatus)}
+                        <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide ${statusChipClass(rStatus)}`}>
+                          {statusLabel(rStatus)}
                         </span>
                         <span className="font-mono text-xs font-bold text-muted-foreground">
                           {formatETB(roundTotal(items))}
@@ -208,7 +201,7 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
               {action && (
                 <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                   <button onClick={action.action} className={`h-9 px-4 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all ${action.color}`}>
-                    {action.label.startsWith("Serve Ready") ? <Check className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
+                    {action.label.startsWith("Serve Ready") ? <Check className="h-3.5 w-3.5" /> : action.label === "Complete Order" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
                     {action.label}
                   </button>
                 </div>

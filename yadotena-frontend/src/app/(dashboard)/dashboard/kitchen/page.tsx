@@ -175,8 +175,8 @@ export default function KitchenDashboard() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       const message = (err as Error)?.message || "";
       setNotice(
-        /transition|eligible|already/i.test(message)
-          ? "Round was already updated by another station — kitchen state refreshed."
+        /transition|eligible|already|completed|cancelled/i.test(message)
+          ? "That ticket was already moved by another station (completed or cancelled) — kitchen state refreshed."
           : `${message} — Kitchen state refreshed.`
       );
     },

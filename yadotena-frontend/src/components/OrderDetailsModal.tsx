@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Order, MenuItem, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount, hasItemStatuses } from "@/lib/kitchen";
+import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount, hasItemStatuses, statusChipClass, statusLabel } from "@/lib/kitchen";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { X, CreditCard, CheckCircle2, Receipt, Eye, ExternalLink, Image as ImageIcon, RotateCcw } from "lucide-react";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
@@ -98,16 +98,6 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
                 const fallback = hasItemStatuses(order.items) ? undefined : order.status;
                 const rStatus = roundStatus(items, fallback);
                 const extended = round > 1;
-                const rStatusChip =
-                  rStatus === "READY"
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-                    : rStatus === "PREPARING"
-                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
-                      : rStatus === "SERVED"
-                        ? "bg-muted text-muted-foreground"
-                        : rStatus === "CANCELLED"
-                          ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
-                          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
                 return (
                   <div key={round} className="rounded-2xl border overflow-hidden">
                     {/* Ticket header */}
@@ -122,8 +112,8 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
                         </span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide ${rStatusChip}`}>
-                          {rStatus === "PENDING" ? "Waiting" : rStatus.charAt(0) + rStatus.slice(1).toLowerCase()}
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide ${statusChipClass(rStatus)}`}>
+                          {statusLabel(rStatus)}
                         </span>
                         <span className="font-mono text-xs font-bold text-muted-foreground">{formatETB(roundTotal(items))}</span>
                       </div>

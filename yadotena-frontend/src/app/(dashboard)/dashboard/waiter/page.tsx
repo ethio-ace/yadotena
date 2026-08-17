@@ -166,6 +166,9 @@ export default function WaiterWorkspacePage() {
   };
 
   const handleServe = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "SERVED" });
+  // Escape hatch for paid tickets that finished kitchen work before the backend
+  // started auto-completing them — closes the order and frees the table.
+  const handleComplete = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "COMPLETED" });
 
   const openTable = (table: Table) => {
     setActiveTable({ table, source: view === "home" ? "home" : "tables" });
@@ -262,6 +265,7 @@ export default function WaiterWorkspacePage() {
               defaultTab={ordersDefaultTab}
               onBack={() => setView("home")}
               onServe={handleServe}
+              onComplete={handleComplete}
               onSettle={(o) => setPaymentOrder(o)}
               onViewOrder={(o) => setInspectOrder(o)}
             />

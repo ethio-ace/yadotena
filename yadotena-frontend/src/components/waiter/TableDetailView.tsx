@@ -3,8 +3,8 @@
 import { useMemo } from "react";
 import { Table, Order, MenuItem, MenuCategory, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount, itemStatus, hasItemStatuses } from "@/lib/kitchen";
-import { ArrowLeft, Plus, Eye, CreditCard, AlertTriangle, CircleCheck } from "lucide-react";
+import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount, itemStatus, hasItemStatuses, statusChipClass, statusLabel, statusDotClass } from "@/lib/kitchen";
+import { ArrowLeft, Plus, Eye, CreditCard, AlertTriangle, CircleCheck, RotateCcw } from "lucide-react";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
 import { TableAddItemsPanel } from "@/components/waiter/TableAddItemsPanel";
 import type { CartItem } from "@/components/waiter/CafeOrderBuilder";
@@ -52,9 +52,15 @@ export function TableDetailView({
               <p className="text-xs text-muted-foreground font-medium">
                 {table.capacity} seats · {displayStatus}
                 {activeOrder && (
-                  <span className="ml-1.5 font-bold text-amber-600 dark:text-amber-400">
-                    · #{activeOrder.id.slice(-6).toUpperCase()}
-                  </span>
+                  <>
+                    <span className="ml-1.5 font-bold text-amber-600 dark:text-amber-400">
+                      · #{activeOrder.id.slice(-6).toUpperCase()}
+                    </span>
+                    <span className="ml-1.5 inline-flex items-center gap-1">
+                      <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(activeOrder.status)}`} />
+                      {statusLabel(activeOrder.status)}
+                    </span>
+                  </>
                 )}
               </p>
             </div>
@@ -80,41 +86,69 @@ export function TableDetailView({
                   </span>
                 </div>
 
+                {/* Every round's status at a glance — R1 and R2 never blend together */}
+                <div className="flex flex-wrap gap-1.5">
+                  {groupItemsByRound(activeOrder.items).map(({ round, items }) => {
+                    const fallback = hasItemStatuses(activeOrder.items) ? undefined : activeOrder.status;
+                    const rStatus = roundStatus(items, fallback);
+                    const extended = round > 1;
+                    return (
+                      <span
+                        key={round}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wide ${
+                          extended
+                            ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                            : "border-border bg-muted/50 text-muted-foreground"
+                        }`}
+                      >
+                        <span className={`h-2 w-2 rounded-full ${statusDotClass(rStatus)}`} />
+                        R{round} · {statusLabel(rStatus)}
+                      </span>
+                    );
+                  })}
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-foreground/15 bg-background text-[10px] font-black uppercase tracking-wide text-foreground">
+                    {formatETB(activeOrder.total)}
+                  </span>
+                </div>
+
                 <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                   {groupItemsByRound(activeOrder.items).map(({ round, items }) => {
                     // Legacy orders (pre per-item status) inherit the order status.
                     const fallback = hasItemStatuses(activeOrder.items) ? undefined : activeOrder.status;
                     const rStatus = roundStatus(items, fallback);
                     const extended = round > 1;
-                    const statusChip =
-                      rStatus === "READY"
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-                        : rStatus === "PREPARING"
-                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
-                          : rStatus === "SERVED"
-                            ? "bg-muted text-muted-foreground"
-                            : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
                     return (
-                      <div key={round}>
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className={`text-[10px] font-black uppercase tracking-wider ${extended ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
-                            {extended ? `Added later · Round ${round}` : "Original order"}
-                          </span>
-                          <span className="h-px flex-1 bg-border" />
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide ${statusChip}`}>
-                            {rStatus === "PENDING" ? "Waiting" : rStatus === "PREPARING" ? "Preparing" : rStatus === "READY" ? "Ready" : rStatus === "SERVED" ? "Served" : rStatus}
-                          </span>
-                          <span className="font-mono text-[11px] font-bold text-muted-foreground shrink-0">
-                            {formatETB(roundTotal(items))}
-                          </span>
+                      <div
+                        key={round}
+                        className={`rounded-2xl border overflow-hidden ${extended ? "border-amber-500/40" : "border-border"}`}
+                      >
+                        {/* Round ticket header */}
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/40 border-b">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {extended && <RotateCcw className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${extended ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                              {extended ? `Round ${round} · Added later` : "Round 1 · Original"}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+                              {items.length} item{items.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide ${statusChipClass(rStatus)}`}>
+                              {statusLabel(rStatus)}
+                            </span>
+                            <span className="font-mono text-[11px] font-bold text-muted-foreground">
+                              {formatETB(roundTotal(items))}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="p-3 space-y-2 bg-background/40">
                           {items.map((item, i) => {
                             const aNames = addonNames(item.selectedAddons, addonMap);
                             const itStatus = hasItemStatuses(activeOrder.items) ? itemStatus(item) : activeOrder.status;
                             return (
-                              <div key={item.id || i} className="p-3 rounded-2xl border bg-background/60 space-y-1 text-sm">
+                              <div key={item.id || i} className="p-3 rounded-xl border bg-background space-y-1 text-sm">
                                 <div className="flex justify-between font-bold items-center gap-2">
                                   <span className="min-w-0">
                                     <span className="text-amber-500 font-extrabold mr-1.5">{item.quantity}×</span>
@@ -154,9 +188,14 @@ export function TableDetailView({
                   })}
                 </div>
 
-                <div className="flex justify-between font-black text-base pt-3 border-t">
-                  <span>Total Amount</span>
-                  <span className="text-amber-600 dark:text-amber-400">{formatETB(activeOrder.total)}</span>
+                <div className="pt-3 border-t space-y-0.5">
+                  <div className="flex justify-between font-black text-base">
+                    <span>Total Amount</span>
+                    <span className="text-amber-600 dark:text-amber-400">{formatETB(activeOrder.total)}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground font-medium text-right">
+                    Includes VAT & service charge
+                  </p>
                 </div>
               </div>
 

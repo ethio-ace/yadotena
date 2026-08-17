@@ -773,6 +773,17 @@ func (s *Server) updateOrderStatusEndpoint(w http.ResponseWriter, r *http.Reques
 		_, _ = tx.Exec(ctx, fmt.Sprintf(`UPDATE order_items SET %s WHERE order_id = $1 %s`, setClause, statusCond), id)
 		s.recomputeOrderKitchenStatusTx(ctx, tx, id)
 
+		// A settled ticket that just served its last kitchen work closes itself
+		// instead of lingering as a paid-but-unfinished order (SERVED + PAID)
+		// with no UI path forward and a table that never frees.
+		if newStatus == "SERVED" && strings.ToUpper(currentPaymentStatus) == "PAID" {
+			var remaining int
+			_ = tx.QueryRow(ctx, `SELECT COUNT(*) FROM order_items WHERE order_id = $1 AND status NOT IN ('SERVED','CANCELLED')`, id).Scan(&remaining)
+			if remaining == 0 {
+				_, _ = tx.Exec(ctx, `UPDATE orders SET status = 'COMPLETED', updated_at = now() WHERE id = $1`, id)
+			}
+		}
+
 	case "COMPLETED":
 		// Commercial terminal state: payment must be settled AND no kitchen work
 		// may still be in progress. Everything that is READY is handed over
@@ -804,18 +815,22 @@ func (s *Server) updateOrderStatusEndpoint(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Sync table status if dine-in.
+	updatedOrder, _ := s.fetchOrderFull(ctx, id)
+
+	// Sync table status if dine-in. The final status after the transition
+	// (including auto-complete of a settled ticket) decides, not the requested
+	// newStatus — otherwise the table would stay occupied forever.
 	if tableID != nil && *tableID != "" {
-		if newStatus == "READY" {
+		finalStatus := updatedOrder.Status
+		if finalStatus == "READY" {
 			_, _ = s.Pool.Exec(ctx, `UPDATE tables SET status = 'WAITING_FOR_SERVICE', updated_at = now() WHERE id = $1`, *tableID)
 			s.Ably.Publish(ctx, "yadotena-realtime", "table.updated", map[string]any{"id": *tableID, "status": "WAITING_FOR_SERVICE"})
-		} else if newStatus == "COMPLETED" || newStatus == "CANCELLED" {
+		} else if finalStatus == "COMPLETED" || finalStatus == "CANCELLED" {
 			_, _ = s.Pool.Exec(ctx, `UPDATE tables SET status = 'AVAILABLE', updated_at = now() WHERE id = $1`, *tableID)
 			s.Ably.Publish(ctx, "yadotena-realtime", "table.updated", map[string]any{"id": *tableID, "status": "AVAILABLE"})
 		}
 	}
 
-	updatedOrder, _ := s.fetchOrderFull(ctx, id)
 	s.Ably.Publish(ctx, "yadotena-realtime", "order.updated", updatedOrder)
 	s.NATS.Publish("yadotena.orders.updated", updatedOrder)
 
@@ -1058,8 +1073,14 @@ func (s *Server) kitchenActionEndpoint(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, "Order not found")
 		return
 	}
-	if currentStatus == "COMPLETED" || currentStatus == "CANCELLED" {
-		writeErr(w, 409, fmt.Sprintf("Cannot update kitchen state on a %s order", strings.ToLower(currentStatus)))
+	// A cancelled ticket is terminal and can never be re-opened. COMPLETED is
+	// intentionally NOT gated here: kitchen work targets a *round*, and a paid
+	// order may still carry a fresh round the kitchen must cook. The per-round
+	// status conditions in the UPDATE below are the real guard — a ticket with
+	// no eligible items matches zero rows and 409s with the accurate reason
+	// instead of a misleading whole-order error.
+	if currentStatus == "CANCELLED" {
+		writeErr(w, 409, "Cannot update kitchen state on a cancelled order")
 		return
 	}
 

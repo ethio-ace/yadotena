@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { 
   Bell, Search, LogOut, Check, BellRing, 
-  Volume2, VolumeX, ChevronRight, SlidersHorizontal, Menu, X
+  Volume2, VolumeX, ChevronRight, SlidersHorizontal, Menu, X, Grid3X3, ClipboardList, Coffee
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,20 @@ import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useSoundNotifications } from "@/contexts/SoundNotificationContext";
 import { useTableLabels, formatTableRef } from "@/hooks/useTableLabels";
+import { formatETB } from "@/lib/currency";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navItemsForRole } from "@/lib/nav";
+
+function SearchGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="px-2 py-1">
+      <p className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">{label}</p>
+      <div className="space-y-0.5">{children}</div>
+    </div>
+  );
+}
 
 export default function Header({ user = { name: "Staff Member", role: "WAITER" } }: { user?: { name?: string | null; role?: string; id?: string } }) {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -25,7 +35,67 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const queryClient = useQueryClient();
   const pathname = usePathname();
+  const router = useRouter();
   const tableLabels = useTableLabels();
+  const userRole = user?.role || "WAITER";
+
+  // Live search across orders, tables, and dishes.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searching = searchQuery.trim().length >= 2;
+  const { data: searchOrders = [] } = useQuery({
+    queryKey: ["orders"], queryFn: api.orders.getAll, enabled: searching,
+  });
+  const { data: searchTables = [] } = useQuery({
+    queryKey: ["tables"], queryFn: api.tables.getAll, enabled: searching,
+  });
+  const { data: searchMenu = [] } = useQuery({
+    queryKey: ["menu"], queryFn: api.menu.getAll, enabled: searching,
+  });
+
+  const isWaiterSearch = userRole === "WAITER";
+  const orderResults = useMemo(() => {
+    if (!searching) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return searchOrders.filter((o) =>
+      o.id.toLowerCase().includes(q) ||
+      o.customerName?.toLowerCase().includes(q) ||
+      o.tableId?.toLowerCase().includes(q) ||
+      (o.type || "").toLowerCase().includes(q)
+    ).slice(0, 6);
+  }, [searching, searchQuery, searchOrders]);
+  const tableResults = useMemo(() => {
+    if (!searching) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return searchTables.filter((t) =>
+      t.name.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)
+    ).slice(0, 6);
+  }, [searching, searchQuery, searchTables]);
+  const dishResults = useMemo(() => {
+    if (!searching || isWaiterSearch) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return searchMenu.filter((m) =>
+      m.name.toLowerCase().includes(q) || (m.category || "").toLowerCase().includes(q)
+    ).slice(0, 6);
+  }, [searching, searchQuery, searchMenu, isWaiterSearch]);
+  const hasSearchResults = orderResults.length > 0 || tableResults.length > 0 || dishResults.length > 0;
+
+  // Close the search dropdown when clicking outside.
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [searchOpen]);
+
+  const goSearch = (href: string) => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    router.push(href);
+  };
 
   // Close popups when clicking anywhere outside them.
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -61,7 +131,6 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
     },
   });
 
-  const userRole = user?.role || "WAITER";
   const showPendingOrders = pendingOrders.length > 0 && userRole !== "WAITER";
   const totalUrgentCount = (showPendingOrders ? pendingOrders.length : 0) + pendingServiceRequests.length;
   const allowedItems = navItemsForRole(userRole);
@@ -81,14 +150,93 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
             {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
 
-          {/* Desktop Search */}
-          <div className="relative w-full max-w-md hidden md:block">
+          {/* Desktop Search — live results across orders, tables & dishes */}
+          <div className="relative w-full max-w-md hidden md:block" ref={searchRef}>
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              type="search" 
-              placeholder="Search orders, tables, dishes..." 
+            <Input
+              type="search"
+              placeholder="Search orders, tables, dishes..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+              onFocus={() => setSearchOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { setSearchOpen(false); setSearchQuery(""); }
+              }}
               className="w-full bg-muted/50 pl-9 border-none focus-visible:ring-1"
             />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(""); setSearchOpen(false); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+
+            {searchOpen && searching && (
+              <div className="absolute left-0 right-0 top-12 bg-card border rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                {hasSearchResults ? (
+                  <div className="max-h-96 overflow-y-auto py-1.5">
+                    {orderResults.length > 0 && (
+                      <SearchGroup label="Orders">
+                        {orderResults.map((o) => (
+                          <button
+                            key={o.id}
+                            onClick={() => goSearch(isWaiterSearch ? `/dashboard/waiter?tab=orders` : `/dashboard/orders`)}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60 transition-colors"
+                          >
+                            <ClipboardList className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="font-mono font-bold text-xs">#{o.id.slice(-6).toUpperCase()}</span>
+                            <span className="text-xs text-muted-foreground truncate flex-1">
+                              {o.type.replace("_", " ").toLowerCase()}
+                              {o.tableId ? ` · ${formatTableRef(o.tableId, tableLabels)}` : o.customerName ? ` · ${o.customerName}` : ""}
+                            </span>
+                          </button>
+                        ))}
+                      </SearchGroup>
+                    )}
+
+                    {tableResults.length > 0 && (
+                      <SearchGroup label="Tables">
+                        {tableResults.map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => goSearch(isWaiterSearch ? `/dashboard/waiter?tab=tables` : `/dashboard/tables`)}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60 transition-colors"
+                          >
+                            <Grid3X3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-xs font-bold">{t.name || t.id}</span>
+                            <span className="text-[10px] text-muted-foreground ml-auto">{t.capacity}p</span>
+                          </button>
+                        ))}
+                      </SearchGroup>
+                    )}
+
+                    {dishResults.length > 0 && (
+                      <SearchGroup label="Dishes">
+                        {dishResults.map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => goSearch("/dashboard/menu")}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60 transition-colors"
+                          >
+                            <Coffee className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-xs font-bold truncate flex-1">{m.name}</span>
+                            <span className="text-[10px] font-bold text-muted-foreground shrink-0">{formatETB(m.price)}</span>
+                          </button>
+                        ))}
+                      </SearchGroup>
+                    )}
+                  </div>
+                ) : (
+                  <div className="px-4 py-8 text-center text-muted-foreground">
+                    <p className="text-xs font-bold">No matches for “{searchQuery.trim()}”</p>
+                    <p className="text-[10px] mt-0.5">Try an order number, table name, or dish.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

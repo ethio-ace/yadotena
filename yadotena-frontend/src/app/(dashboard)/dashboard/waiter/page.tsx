@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Order, MenuItem, Table, ServiceRequest, AddonItem, MenuCategory } from "@/types";
@@ -19,8 +20,15 @@ import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 
 export default function WaiterWorkspacePage() {
   const queryClient = useQueryClient();
-  const [view, setView] = useState<WaiterView>("home");
+  const searchParams = useSearchParams();
   const [ordersDefaultTab, setOrdersDefaultTab] = useState<string>("ACTIVE");
+
+  // Deep links from the shared header search (?tab=orders|tables|alerts) seed
+  // the initial view — no effect needed, the value is known at first render.
+  const initialTab = searchParams.get("tab");
+  const [view, setView] = useState<WaiterView>(() =>
+    initialTab === "tables" || initialTab === "orders" || initialTab === "alerts" ? initialTab : "home"
+  );
 
   // The single table-detail experience shared by the Sell floor and the Tables
   // grid — clicking any table anywhere opens the same view with the add panel.
@@ -169,7 +177,7 @@ export default function WaiterWorkspacePage() {
   const activeOrder = activeTable ? findActiveOrderForTable(activeTable.table, orders) : undefined;
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex flex-col md:flex-row">
       <WaiterSidebar
         view={activeTable ? activeTable.source : view}
         pendingAlerts={pendingAlerts}

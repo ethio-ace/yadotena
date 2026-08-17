@@ -6,7 +6,7 @@ import { formatETB } from "@/lib/currency";
 import { getApplicableAddonsForItem, isShopProductItem } from "@/lib/orderUtils";
 import { findActiveOrderForTable } from "@/lib/tableUtils";
 import { addonNames } from "@/lib/kitchen";
-import { ArrowLeft, Search, X, Minus, Plus, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Search, X, Minus, Plus, ShoppingCart, ChevronDown, Settings2 } from "lucide-react";
 
 export interface CartItem {
   id: string;
@@ -55,7 +55,8 @@ export function CafeOrderBuilder({
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [showCurrentOrder, setShowCurrentOrder] = useState(true);
+  const [cartOpen, setCartOpen] = useState(false);
 
   // Addon sheet state
   const [configuringItem, setConfiguringItem] = useState<MenuItem | null>(null);
@@ -78,21 +79,29 @@ export function CafeOrderBuilder({
     return categories.filter(c => catIds.has(c.id) || catIds.has(c.name));
   }, [menu, categories, isShopMode]);
 
-  // Cart helpers
-  const addToCart = (item: MenuItem) => {
-    const applicableAddons = getApplicableAddonsForItem(item, allAddons);
-    if (applicableAddons.length > 0 && !isShopMode) {
+  // Fast add — menu only, one tap, never opens the addon sheet.
+  const quickAdd = (item: MenuItem) => {
+    const existing = cart.find(c => c.menuItemId === item.id && c.addons.length === 0 && !c.note);
+    if (existing) {
+      setCart(cart.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
+    } else {
+      setCart([...cart, {
+        id: crypto.randomUUID(), menuItemId: item.id, name: item.name,
+        basePrice: item.price, quantity: 1, addons: [], note: "",
+      }]);
+    }
+  };
+
+  // Detailed add — card tap opens the addon sheet when the item has add-ons.
+  const openConfigure = (item: MenuItem) => {
+    const applicable = getApplicableAddonsForItem(item, allAddons);
+    if (applicable.length > 0 && !isShopMode) {
       setConfiguringItem(item);
       setSheetAddons([]);
       setSheetNote("");
       setSheetQty(1);
     } else {
-      const existing = cart.find(c => c.menuItemId === item.id && c.addons.length === 0 && !c.note);
-      if (existing) {
-        setCart(cart.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-      } else {
-        setCart([...cart, { id: crypto.randomUUID(), menuItemId: item.id, name: item.name, basePrice: item.price, quantity: 1, addons: [], note: "" }]);
-      }
+      quickAdd(item);
     }
   };
 
@@ -137,8 +146,15 @@ export function CafeOrderBuilder({
       setShowTablePicker(true);
       return;
     }
+    setCartOpen(false);
     onSubmit(cart, selectedTable?.id, isShopMode ? "TAKEAWAY" : orderType, activeOrderForTable?.id);
   };
+
+  const addonMap = useMemo(() => Object.fromEntries(allAddons.map(a => [a.id, a.name])), [allAddons]);
+
+  const actionLabel = activeOrderForTable
+    ? `Add to Order #${activeOrderForTable.id.slice(-6).toUpperCase()}`
+    : isShopMode ? "Pay" : "Send to Kitchen";
 
   // === TABLE PICKER STEP ===
   if (showTablePicker && !isShopMode) {
@@ -251,19 +267,17 @@ export function CafeOrderBuilder({
           <h1 className="text-sm font-bold truncate">
             {activeOrderForTable ? `Adding to #${activeOrderForTable.id.slice(-6).toUpperCase()}` : isShopMode ? "Shop Sale" : "Café Order"}
           </h1>
-          {selectedTable && <p className="text-xs text-muted-foreground">{selectedTable.name || selectedTable.id} · Dine-in</p>}
-          {orderType === "TAKEAWAY" && !isShopMode && <p className="text-xs text-muted-foreground">Takeaway</p>}
+          <p className="text-xs text-muted-foreground truncate">
+            {selectedTable && <span>{selectedTable.name || selectedTable.id} · Dine-in</span>}
+            {orderType === "TAKEAWAY" && !isShopMode && <span>Takeaway</span>}
+            {isShopMode && <span>Counter sale · {cartCount > 0 ? `${cartCount} item${cartCount !== 1 ? "s" : ""}` : "no items yet"}</span>}
+          </p>
         </div>
-        {/* Mobile cart button */}
-        <button onClick={() => setMobileCartOpen(true)} className="lg:hidden relative p-2 rounded-lg hover:bg-accent/50">
-          <ShoppingCart className="h-5 w-5" />
-          {cartCount > 0 && <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-amber-600 text-white text-[10px] font-bold flex items-center justify-center">{cartCount}</span>}
-        </button>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden">
         {/* CATALOG */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="h-full flex flex-col">
           {/* Search + categories */}
           <div className="p-3 space-y-3 border-b shrink-0">
             <div className="relative">
@@ -286,18 +300,58 @@ export function CafeOrderBuilder({
             </div>
           </div>
 
+          {/* Current order on this table — visible on every screen size */}
+          {activeOrderForTable && (
+            <div className="shrink-0 border-b bg-amber-50/50 dark:bg-amber-950/10">
+              <button
+                onClick={() => setShowCurrentOrder(!showCurrentOrder)}
+                className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-amber-500/5 transition-colors"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                  On {selectedTable?.name || "Table"} · current order
+                </span>
+                <ChevronDown className={`h-3.5 w-3.5 text-amber-700 dark:text-amber-400 transition-transform ${showCurrentOrder ? "rotate-180" : ""}`} />
+              </button>
+              {showCurrentOrder && (
+                <div className="px-3 pb-3 space-y-1.5">
+                  <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                    {activeOrderForTable.items?.map((item, i) => {
+                      const aNames = addonNames(item.selectedAddons, addonMap);
+                      return (
+                        <div key={item.id || i} className="text-xs bg-card rounded-lg border px-2.5 py-1.5">
+                          <div className="flex justify-between gap-2">
+                            <span className="font-bold truncate">{item.quantity}× {item.name}</span>
+                            <span className="text-muted-foreground font-mono shrink-0">{formatETB(item.price * item.quantity)}</span>
+                          </div>
+                          {aNames.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground pl-2 truncate">+ {aNames.join(", ")}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between text-xs font-black pt-1.5 border-t border-amber-500/20">
+                    <span>Running Total</span>
+                    <span className="text-amber-600 dark:text-amber-400">{formatETB(activeOrderForTable.total)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Product grid */}
-          <div className="flex-1 overflow-y-auto p-3">
+          <div className="flex-1 overflow-y-auto p-3 pb-24">
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
               {catalogItems.map(item => {
                 const inCart = cartQuantityMap[item.id] || 0;
+                const hasAddons = !isShopMode && getApplicableAddonsForItem(item, allAddons).length > 0;
                 return (
                   <div
                     key={item.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => addToCart(item)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addToCart(item); } }}
+                    onClick={() => openConfigure(item)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openConfigure(item); } }}
                     className="group relative flex flex-col rounded-xl border bg-card text-left overflow-hidden cursor-pointer hover:shadow-md hover:border-amber-500/50 dark:hover:border-amber-500/40 active:scale-[0.98] transition-all"
                   >
                     {/* Image / Thumbnail */}
@@ -326,6 +380,12 @@ export function CafeOrderBuilder({
                         );
                       })()}
 
+                      {hasAddons && (
+                        <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-background/90 backdrop-blur text-[9px] font-black text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          <Settings2 className="h-2.5 w-2.5" /> Customize
+                        </span>
+                      )}
+
                       {inCart > 0 ? (
                         <div
                           className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 bg-background/95 backdrop-blur rounded-full p-0.5 shadow-md border"
@@ -340,7 +400,7 @@ export function CafeOrderBuilder({
                           </button>
                           <span className="text-xs font-black w-4 text-center">{inCart}</span>
                           <button
-                            onClick={(e) => { e.stopPropagation(); addToCart(item); }}
+                            onClick={(e) => { e.stopPropagation(); quickAdd(item); }}
                             className={`h-5 w-5 rounded-full flex items-center justify-center text-white ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}
                             aria-label={`Increase ${item.name} quantity`}
                           >
@@ -349,9 +409,10 @@ export function CafeOrderBuilder({
                         </div>
                       ) : (
                         <button
-                          onClick={(e) => { e.stopPropagation(); addToCart(item); }}
+                          onClick={(e) => { e.stopPropagation(); quickAdd(item); }}
                           className={`absolute bottom-1.5 right-1.5 h-6 w-6 rounded-full flex items-center justify-center text-white shadow-md active:scale-95 transition-transform ${isShopMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-600 hover:bg-amber-700"}`}
-                          aria-label={`Add ${item.name} to cart`}
+                          aria-label={`Quick add ${item.name}`}
+                          title="Quick add (menu only)"
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
@@ -362,8 +423,11 @@ export function CafeOrderBuilder({
                       <div className="font-bold text-xs leading-tight text-foreground line-clamp-1 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                         {item.name}
                       </div>
-                      <div className="text-sm font-black text-foreground">
-                        {formatETB(item.price)}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-black text-foreground">{formatETB(item.price)}</span>
+                        {hasAddons && (
+                          <span className="text-[9px] font-bold text-muted-foreground">+ add-ons</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -378,127 +442,73 @@ export function CafeOrderBuilder({
             )}
           </div>
         </div>
-
-        {/* DESKTOP CART SIDEBAR */}
-        <div className="hidden lg:flex flex-col w-80 border-l bg-card">
-          <div className="p-4 border-b">
-            <h2 className="font-bold text-sm">
-              {isShopMode ? "Sale" : "Order"} · {cartCount} item{cartCount !== 1 ? "s" : ""}
-            </h2>
-            {activeOrderForTable && (
-              <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 mt-0.5">
-                Adding to #{activeOrderForTable.id.slice(-6).toUpperCase()}
-              </p>
-            )}
-          </div>
-
-          {/* Current order on the table (shown when extending an open order) */}
-          {activeOrderForTable && (
-            <div className="border-b bg-muted/30">
-              <div className="p-3">
-                <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-2">
-                  On {selectedTable?.name || "Table"} — current order
-                </p>
-                <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
-                  {activeOrderForTable.items?.map((item, i) => {
-                    const aNames = addonNames(item.selectedAddons, Object.fromEntries(allAddons.map((a) => [a.id, a.name])));
-                    return (
-                      <div key={item.id || i} className="text-xs">
-                        <div className="flex justify-between gap-2">
-                          <span className="font-bold truncate">{item.quantity}× {item.name}</span>
-                          <span className="text-muted-foreground font-mono shrink-0">{formatETB(item.price * item.quantity)}</span>
-                        </div>
-                        {aNames.length > 0 && (
-                          <p className="text-[10px] text-muted-foreground pl-2 truncate">+ {aNames.join(", ")}</p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="flex justify-between text-xs font-black pt-1.5 mt-1.5 border-t">
-                  <span>Running Total</span>
-                  <span className="text-amber-600 dark:text-amber-400">{formatETB(activeOrderForTable.total)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {cart.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Add products to get started.</p>}
-            {cart.map(c => (
-              <div key={c.id} className="p-3 rounded-xl border space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="font-bold text-sm">{c.name}</span>
-                  <button onClick={() => removeItem(c.id)} className="text-muted-foreground hover:text-red-500"><X className="h-4 w-4" /></button>
-                </div>
-                {c.addons.length > 0 && <p className="text-xs text-muted-foreground">+ {c.addons.map(a => a.name).join(", ")}</p>}
-                {c.note && <p className="text-xs text-amber-600 dark:text-amber-400 italic">“{c.note}”</p>}
-                <div className="flex items-center justify-between pt-1">
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => c.quantity <= 1 ? removeItem(c.id) : updateQty(c.id, -1)} className="h-7 w-7 rounded-md border flex items-center justify-center text-muted-foreground hover:text-foreground"><Minus className="h-3 w-3" /></button>
-                    <span className="text-sm font-bold w-5 text-center">{c.quantity}</span>
-                    <button onClick={() => updateQty(c.id, 1)} className="h-7 w-7 rounded-md border flex items-center justify-center text-muted-foreground hover:text-foreground"><Plus className="h-3 w-3" /></button>
-                  </div>
-                  <span className="font-bold text-sm">{formatETB(itemTotal(c))}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          {cart.length > 0 && (
-            <div className="p-4 border-t space-y-3">
-              <div className="flex justify-between font-bold text-lg">
-                <span>Total</span>
-                <span>{formatETB(cartTotal)}</span>
-              </div>
-              <button onClick={handleSubmit}
-                className={`w-full h-14 rounded-xl font-bold text-sm text-white active:scale-[0.97] transition-all ${isShopMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-600 hover:bg-amber-700"}`}>
-                {activeOrderForTable ? "Add to Order" : isShopMode ? "Pay" : "Send to Kitchen"}
-              </button>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* MOBILE FLOATING CART FAB */}
+      {/* FLOATING CART BAR — all screen sizes */}
       {cart.length > 0 && (
         <button
-          onClick={() => setMobileCartOpen(true)}
-          className={`lg:hidden fixed bottom-5 right-4 z-30 flex items-center gap-2 pl-3.5 pr-4 py-3 rounded-full text-white font-bold text-sm shadow-2xl shadow-black/20 active:scale-95 transition-all ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}
-          aria-label={`Open cart with ${cartCount} items totaling ${formatETB(cartTotal)}`}
+          onClick={() => setCartOpen(true)}
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-md flex items-center gap-3 pl-4 pr-2 py-3 rounded-2xl text-white font-bold text-sm shadow-2xl shadow-black/25 active:scale-[0.99] transition-all bg-foreground text-background"
+          aria-label={`Review ${cartCount} items totaling ${formatETB(cartTotal)}`}
         >
-          <span className="relative">
+          <span className="relative shrink-0">
             <ShoppingCart className="h-5 w-5" />
-            <span className="absolute -top-2 -right-2 h-4 min-w-4 px-0.5 rounded-full bg-background text-foreground text-[9px] font-black flex items-center justify-center shadow">
+            <span className="absolute -top-2 -right-2 h-4 min-w-4 px-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center shadow">
               {cartCount}
             </span>
           </span>
-          <span className="border-l border-white/30 pl-2.5">{formatETB(cartTotal)}</span>
+          <span className="flex-1 text-left text-xs font-bold text-muted-foreground truncate">
+            {cart.map(c => c.name).slice(0, 2).join(", ")}
+            {cart.length > 2 ? ` +${cart.length - 2} more` : ""}
+          </span>
+          <span className="font-black text-base">{formatETB(cartTotal)}</span>
+          <span className={`h-9 px-3.5 rounded-xl flex items-center justify-center text-white text-xs font-black shrink-0 ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}>
+            {actionLabel}
+          </span>
         </button>
       )}
 
-      {/* MOBILE CART DRAWER */}
-      {mobileCartOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 bg-black/40 flex items-end" onClick={() => setMobileCartOpen(false)}>
-          <div className="bg-card w-full rounded-t-2xl p-5 max-h-[80vh] overflow-y-auto space-y-3 animate-in slide-in-from-bottom-4 duration-200" onClick={e => e.stopPropagation()}>
+      {/* CART DRAWER */}
+      {cartOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={() => setCartOpen(false)}>
+          <div className="bg-card w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-5 max-h-[80vh] overflow-y-auto space-y-3 animate-in slide-in-from-bottom-4 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center">
-              <h3 className="font-bold">Cart · {cartCount} items</h3>
-              <button onClick={() => setMobileCartOpen(false)}><X className="h-5 w-5" /></button>
+              <h3 className="font-bold">Cart · {cartCount} item{cartCount !== 1 ? "s" : ""}</h3>
+              <button onClick={() => setCartOpen(false)} className="p-1 text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
+
+            {activeOrderForTable && (
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-500/20 text-xs">
+                <p className="font-black text-amber-700 dark:text-amber-400 mb-1">
+                  Extending #{activeOrderForTable.id.slice(-6).toUpperCase()} · running total {formatETB(activeOrderForTable.total)}
+                </p>
+                <p className="text-muted-foreground">New items will be added to this order when sent.</p>
+              </div>
+            )}
+
             {cart.map(c => (
-              <div key={c.id} className="flex justify-between items-center p-3 rounded-xl border text-sm">
-                <div>
+              <div key={c.id} className="flex justify-between items-center gap-2 p-3 rounded-xl border text-sm">
+                <div className="min-w-0 flex-1">
                   <span className="font-bold">{c.quantity}× {c.name}</span>
-                  {c.addons.length > 0 && <p className="text-xs text-muted-foreground">+{c.addons.map(a => a.name).join(", ")}</p>}
+                  {c.addons.length > 0 && <p className="text-xs text-muted-foreground truncate">+{c.addons.map(a => a.name).join(", ")}</p>}
+                  {c.note && <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">“{c.note}”</p>}
                 </div>
-                <span className="font-bold">{formatETB(itemTotal(c))}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button onClick={() => c.quantity <= 1 ? removeItem(c.id) : updateQty(c.id, -1)} className="h-7 w-7 rounded-md border flex items-center justify-center text-muted-foreground hover:text-foreground"><Minus className="h-3 w-3" /></button>
+                  <span className="text-sm font-bold w-5 text-center">{c.quantity}</span>
+                  <button onClick={() => updateQty(c.id, 1)} className="h-7 w-7 rounded-md border flex items-center justify-center text-muted-foreground hover:text-foreground"><Plus className="h-3 w-3" /></button>
+                  <button onClick={() => removeItem(c.id)} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-red-500"><X className="h-3 w-3" /></button>
+                </div>
+                <span className="font-bold text-sm shrink-0">{formatETB(itemTotal(c))}</span>
               </div>
             ))}
+
             <div className="flex justify-between font-bold text-lg pt-2 border-t">
               <span>Total</span><span>{formatETB(cartTotal)}</span>
             </div>
-            <button onClick={() => { setMobileCartOpen(false); handleSubmit(); }}
-              className={`w-full h-14 rounded-xl font-bold text-sm text-white ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}>
-              {activeOrderForTable ? "Add to Order" : isShopMode ? "Pay" : "Send to Kitchen"}
+            <button onClick={handleSubmit}
+              className={`w-full h-14 rounded-xl font-bold text-sm text-white active:scale-[0.97] transition-all ${isShopMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-600 hover:bg-amber-700"}`}>
+              {actionLabel}
             </button>
           </div>
         </div>

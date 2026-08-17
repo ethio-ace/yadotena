@@ -1,20 +1,44 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UtensilsCrossed, Volume2, VolumeX, ListFilter, Layers, History, LogOut, Clock } from "lucide-react";
+import {
+  UtensilsCrossed,
+  Volume2,
+  VolumeX,
+  ListFilter,
+  Flame,
+  Clock,
+  CheckCircle2,
+  Layers,
+  History,
+  LogOut,
+  type LucideIcon,
+} from "lucide-react";
 import { signOut } from "next-auth/react";
+
+/** Kitchen navigation: QUEUE = glanceable 3-lane overview; NEW/PREP/READY =
+ * paginated full-width pages for one status; BATCH/HISTORY = production tools. */
+export type KitchenViewMode = "QUEUE" | "NEW" | "PREP" | "READY" | "BATCH" | "HISTORY";
 
 interface ChefHeaderProps {
   pendingCount: number;
   preparingCount: number;
   readyCount: number;
   overdueCount: number;
-  viewMode: "QUEUE" | "BATCH" | "HISTORY";
-  onViewModeChange: (mode: "QUEUE" | "BATCH" | "HISTORY") => void;
+  viewMode: KitchenViewMode;
+  onViewModeChange: (mode: KitchenViewMode) => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
   chefName?: string;
 }
+
+const SEGMENTS: { mode: KitchenViewMode; label: string; icon: LucideIcon }[] = [
+  { mode: "QUEUE", label: "QUEUE", icon: ListFilter },
+  { mode: "NEW", label: "NEW", icon: Flame },
+  { mode: "PREP", label: "PREP", icon: Clock },
+  { mode: "READY", label: "READY", icon: CheckCircle2 },
+  { mode: "BATCH", label: "BATCH", icon: Layers },
+];
 
 export function ChefHeader({
   pendingCount,
@@ -53,14 +77,14 @@ export function ChefHeader({
     { label: "OVERDUE", value: overdueCount, dot: "bg-red-500", alert: overdueCount > 0 },
   ];
 
-  const viewBtn = (mode: "QUEUE" | "BATCH" | "HISTORY", active: boolean) =>
+  const viewBtn = (mode: KitchenViewMode, active: boolean) =>
     `px-2.5 py-1.5 rounded-md text-[11px] font-bold flex items-center gap-1.5 transition-colors ${
       active ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:text-white"
     }`;
 
   return (
     <header className="sticky top-0 z-40 bg-zinc-950/95 backdrop-blur border-b border-zinc-800">
-      <div className="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-6 gap-y-2">
+      <div className="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Brand + chef identity */}
         <div className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
@@ -97,17 +121,15 @@ export function ChefHeader({
           </div>
         </div>
 
-        {/* View modes, sound, profile */}
+        {/* View segments, sound, profile */}
         <div className="flex items-center gap-1.5 ml-auto">
           <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
-            <button onClick={() => onViewModeChange("QUEUE")} className={viewBtn("QUEUE", viewMode === "QUEUE")}>
-              <ListFilter className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">QUEUE</span>
-            </button>
-            <button onClick={() => onViewModeChange("BATCH")} className={viewBtn("BATCH", viewMode === "BATCH")}>
-              <Layers className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">BATCH</span>
-            </button>
+            {SEGMENTS.map(({ mode, label, icon: Icon }) => (
+              <button key={mode} onClick={() => onViewModeChange(mode)} className={viewBtn(mode, viewMode === mode)}>
+                <Icon className="h-3.5 w-3.5" />
+                <span className="hidden lg:inline">{label}</span>
+              </button>
+            ))}
           </div>
 
           <button

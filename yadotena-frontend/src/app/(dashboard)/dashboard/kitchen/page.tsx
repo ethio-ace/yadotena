@@ -10,8 +10,9 @@ import { buildRoundCards, activeRoundCards, isCardOverdue, orderTicketNumber, de
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { useAblySync, AblyConnectionState } from "@/contexts/AblySyncProvider";
 
-import { ChefHeader } from "@/components/chef/ChefHeader";
+import { ChefHeader, KitchenViewMode } from "@/components/chef/ChefHeader";
 import { KitchenBoard } from "@/components/chef/KitchenBoard";
+import { StatusQueuePage } from "@/components/chef/StatusQueuePage";
 import { BatchView } from "@/components/chef/BatchView";
 import { OrderDetailSheet } from "@/components/chef/OrderDetailSheet";
 import { KitchenConnectionStatus } from "@/components/chef/KitchenConnectionStatus";
@@ -30,7 +31,7 @@ export default function KitchenDashboard() {
     connectionState === "suspended" ||
     connectionState === "failed";
 
-  const [viewMode, setViewMode] = useState<"QUEUE" | "BATCH" | "HISTORY">("QUEUE");
+  const [viewMode, setViewMode] = useState<KitchenViewMode>("QUEUE");
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     const stored = window.localStorage.getItem("kds.sound");
@@ -238,6 +239,43 @@ export default function KitchenDashboard() {
             onStartPreparing={handleStartPreparing}
             onMarkReady={handleMarkReady}
             onInspectOrder={setInspectOrder}
+            updatingKey={updatingOrderId}
+            onShowAll={(s) => setViewMode(s === "PENDING" ? "NEW" : s === "PREPARING" ? "PREP" : "READY")}
+          />
+        ) : viewMode === "NEW" ? (
+          <StatusQueuePage
+            key="NEW"
+            title="New Tickets"
+            status="PENDING"
+            cards={pendingCards}
+            newCardKeys={newOrderIds}
+            addonMap={addonMap}
+            tableLabels={tableLabels}
+            onStartPreparing={handleStartPreparing}
+            onInspect={setInspectOrder}
+            updatingKey={updatingOrderId}
+          />
+        ) : viewMode === "PREP" ? (
+          <StatusQueuePage
+            key="PREP"
+            title="Preparing"
+            status="PREPARING"
+            cards={preparingCards}
+            addonMap={addonMap}
+            tableLabels={tableLabels}
+            onMarkReady={handleMarkReady}
+            onInspect={setInspectOrder}
+            updatingKey={updatingOrderId}
+          />
+        ) : viewMode === "READY" ? (
+          <StatusQueuePage
+            key="READY"
+            title="Ready"
+            status="READY"
+            cards={readyCards}
+            addonMap={addonMap}
+            tableLabels={tableLabels}
+            onInspect={setInspectOrder}
             updatingKey={updatingOrderId}
           />
         ) : viewMode === "BATCH" ? (

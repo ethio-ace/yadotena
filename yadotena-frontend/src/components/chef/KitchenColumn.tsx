@@ -15,6 +15,9 @@ interface KitchenColumnProps {
   onMarkReady?: (orderId: string, round: number) => void;
   onInspect?: (order: RoundCard["order"]) => void;
   updatingKey?: string | null;
+  /** Cap visible cards so the overview stays glanceable; larger queues get a "view all" link. */
+  maxCards?: number;
+  onShowAll?: () => void;
 }
 
 export function KitchenColumn({
@@ -28,7 +31,10 @@ export function KitchenColumn({
   onMarkReady,
   onInspect,
   updatingKey,
+  maxCards,
+  onShowAll,
 }: KitchenColumnProps) {
+  const visibleCards = maxCards && cards.length > maxCards ? cards.slice(0, maxCards) : cards;
   return (
     <div className="flex flex-col h-full rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
       {/* Column header — quiet on purpose; the cards carry the state color */}
@@ -39,7 +45,7 @@ export function KitchenColumn({
 
       {/* Cards list container */}
       <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[400px]">
-        {cards.map((card) => (
+        {visibleCards.map((card) => (
           <KitchenOrderCard
             key={card.key}
             card={card}
@@ -54,6 +60,15 @@ export function KitchenColumn({
         ))}
 
         {cards.length === 0 && <KitchenEmptyState type={status} />}
+
+        {maxCards && cards.length > maxCards && (
+          <button
+            onClick={onShowAll}
+            className="w-full py-2.5 rounded-lg border border-dashed border-zinc-700 text-[11px] font-bold text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors"
+          >
+            View all {cards.length} →
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { Order } from "@/types";
 import { KitchenColumn } from "./KitchenColumn";
+import { KitchenOrderCard } from "./KitchenOrderCard";
+import { KitchenEmptyState } from "./KitchenEmptyState";
 import { buildRoundCards, activeRoundCards } from "@/lib/kitchen";
 
 interface KitchenBoardProps {
@@ -14,8 +15,20 @@ interface KitchenBoardProps {
   onMarkReady: (orderId: string, round: number) => void;
   onInspectOrder: (order: Order) => void;
   updatingKey?: string | null;
+  /** Jump to the paginated page for a status (e.g. lane "view all" link). */
+  onShowAll?: (status: "PENDING" | "PREPARING" | "READY") => void;
 }
 
+// Each lane in the overview is capped so a huge queue stays glanceable; the
+// "view all" footer links to that status's paginated page.
+const OVERVIEW_LANE_CAP = 10;
+const MOBILE_QUEUE_LIMIT = 15;
+
+/**
+ * QUEUE view: at-a-glance 3-lane overview (capped lanes on desktop, merged
+ * oldest-first scroll on mobile). Large queues are handled by the dedicated
+ * NEW / PREP / READY pages, which paginate the same cards.
+ */
 export function KitchenBoard({
   orders,
   newCardKeys,
@@ -25,9 +38,8 @@ export function KitchenBoard({
   onMarkReady,
   onInspectOrder,
   updatingKey,
+  onShowAll,
 }: KitchenBoardProps) {
-  const [mobileTab, setMobileTab] = useState<"PENDING" | "PREPARING" | "READY">("PENDING");
-
   // One card per kitchen round, not per order: a ticket with round 1 cooking
   // and round 2 just arrived shows in both PREPARING and NEW simultaneously.
   // Stable FIFO: oldest round on top; new arrivals slot in at the bottom.
@@ -41,91 +53,14 @@ export function KitchenBoard({
 
   return (
     <div className="flex flex-col flex-1 p-4 max-w-[1800px] mx-auto w-full">
-      {/* MOBILE SCREEN TAB CONTROL (Hidden on Tablet/Desktop md+) */}
-      <div className="md:hidden flex gap-2 mb-4 bg-zinc-900 p-1.5 rounded-2xl border border-zinc-800">
-        <button
-          onClick={() => setMobileTab("PENDING")}
-          className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
-            mobileTab === "PENDING"
-              ? "bg-zinc-100 text-zinc-900"
-              : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <span className="h-2 w-2 rounded-full bg-amber-500" />
-          <span>NEW ({pendingCards.length})</span>
-        </button>
-
-        <button
-          onClick={() => setMobileTab("PREPARING")}
-          className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
-            mobileTab === "PREPARING"
-              ? "bg-zinc-100 text-zinc-900"
-              : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <span className="h-2 w-2 rounded-full bg-zinc-500" />
-          <span>PREP ({preparingCards.length})</span>
-        </button>
-
-        <button
-          onClick={() => setMobileTab("READY")}
-          className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
-            mobileTab === "READY"
-              ? "bg-zinc-100 text-zinc-900"
-              : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          <span>READY ({readyCards.length})</span>
-        </button>
-      </div>
-
-      {/* MOBILE SINGLE-COLUMN DISPLAY */}
-      <div className="md:hidden flex-1">
-        {mobileTab === "PENDING" && (
-        <KitchenColumn
-          title="New Tickets"
-          status="PENDING"
-            cards={pendingCards}
-            newCardKeys={newCardKeys}
-            addonMap={addonMap}
-            tableLabels={tableLabels}
-            onStartPreparing={onStartPreparing}
-            onInspect={onInspectOrder}
-            updatingKey={updatingKey}
-          />
-        )}
-        {mobileTab === "PREPARING" && (
-          <KitchenColumn
-            title="Preparing"
-            status="PREPARING"
-            cards={preparingCards}
-            addonMap={addonMap}
-            tableLabels={tableLabels}
-            onMarkReady={onMarkReady}
-            onInspect={onInspectOrder}
-            updatingKey={updatingKey}
-          />
-        )}
-        {mobileTab === "READY" && (
-        <KitchenColumn
-          title="Ready"
-          status="READY"
-            cards={readyCards}
-            addonMap={addonMap}
-            tableLabels={tableLabels}
-            onInspect={onInspectOrder}
-            updatingKey={updatingKey}
-          />
-        )}
-      </div>
-
-      {/* DESKTOP & TABLET 3-COLUMN GRID DISPLAY (md+) */}
+      {/* DESKTOP & TABLET 3-LANE OVERVIEW (md+) */}
       <div className="hidden md:grid md:grid-cols-3 gap-5 flex-1 items-start">
         <KitchenColumn
           title="New Tickets"
           status="PENDING"
           cards={pendingCards}
+          maxCards={OVERVIEW_LANE_CAP}
+          onShowAll={() => onShowAll?.("PENDING")}
           newCardKeys={newCardKeys}
           addonMap={addonMap}
           tableLabels={tableLabels}
@@ -138,6 +73,8 @@ export function KitchenBoard({
           title="Preparing"
           status="PREPARING"
           cards={preparingCards}
+          maxCards={OVERVIEW_LANE_CAP}
+          onShowAll={() => onShowAll?.("PREPARING")}
           addonMap={addonMap}
           tableLabels={tableLabels}
           onMarkReady={onMarkReady}
@@ -149,11 +86,39 @@ export function KitchenBoard({
           title="Ready"
           status="READY"
           cards={readyCards}
+          maxCards={OVERVIEW_LANE_CAP}
+          onShowAll={() => onShowAll?.("READY")}
           addonMap={addonMap}
           tableLabels={tableLabels}
           onInspect={onInspectOrder}
           updatingKey={updatingKey}
         />
+      </div>
+
+      {/* MOBILE MERGED QUEUE (<md): everything oldest-first; the header's
+          NEW / PREP / READY segments open the focused paginated pages. */}
+      <div className="md:hidden space-y-3">
+        {cards.slice(0, MOBILE_QUEUE_LIMIT).map((card) => (
+          <KitchenOrderCard
+            key={card.key}
+            card={card}
+            isNew={newCardKeys?.has(card.key)}
+            addonMap={addonMap}
+            tableLabels={tableLabels}
+            onStartPreparing={onStartPreparing}
+            onMarkReady={onMarkReady}
+            onInspect={onInspectOrder}
+            updatingKey={updatingKey}
+          />
+        ))}
+
+        {cards.length === 0 && <KitchenEmptyState type="ALL_CLEAR" />}
+
+        {cards.length > MOBILE_QUEUE_LIMIT && (
+          <p className="text-center text-[11px] text-zinc-600 font-medium pt-1">
+            Showing {MOBILE_QUEUE_LIMIT} of {cards.length} — use NEW / PREP / READY to focus.
+          </p>
+        )}
       </div>
     </div>
   );

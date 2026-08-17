@@ -3,7 +3,6 @@
 import { RoundCard } from "@/lib/kitchen";
 import { KitchenOrderCard } from "./KitchenOrderCard";
 import { KitchenEmptyState } from "./KitchenEmptyState";
-import { Flame, Clock, CheckCircle2 } from "lucide-react";
 
 interface KitchenColumnProps {
   title: string;
@@ -30,45 +29,15 @@ export function KitchenColumn({
   onInspect,
   updatingKey,
 }: KitchenColumnProps) {
-  const headerDot = () => {
-    switch (status) {
-      case "PENDING":
-        return "bg-amber-500";
-      case "PREPARING":
-        return "bg-zinc-500";
-      case "READY":
-        return "bg-emerald-500";
-    }
-  };
-
-  const getHeaderIcon = () => {
-    switch (status) {
-      case "PENDING":
-        return <Flame className="h-4 w-4 text-amber-500" />;
-      case "PREPARING":
-        return <Clock className="h-4 w-4 text-zinc-500" />;
-      case "READY":
-        return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
-    }
-  };
-
   return (
-    <div className="flex flex-col h-full bg-zinc-950/60 border border-zinc-800 rounded-2xl overflow-hidden shadow-lg">
-      {/* Column Header */}
-      <div className="p-3.5 border-b border-zinc-800 bg-zinc-900/80 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${headerDot()}`} />
-          {getHeaderIcon()}
-          <h2 className="font-bold text-xs uppercase tracking-wider text-zinc-200">
-            {title}
-          </h2>
-        </div>
-        <span className="h-6 min-w-6 px-2 rounded-full bg-zinc-800 text-zinc-200 font-extrabold text-xs flex items-center justify-center border border-zinc-700">
-          {cards.length}
-        </span>
+    <div className="flex flex-col h-full rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+      {/* Column header — quiet on purpose; the cards carry the state color */}
+      <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">{title}</h2>
+        <span className="text-sm font-extrabold text-zinc-300 tabular-nums">{cards.length}</span>
       </div>
 
-      {/* Cards List container */}
+      {/* Cards list container */}
       <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[400px]">
         {cards.map((card) => (
           <KitchenOrderCard
@@ -84,9 +53,7 @@ export function KitchenColumn({
           />
         ))}
 
-        {cards.length === 0 && (
-          <KitchenEmptyState type={status} />
-        )}
+        {cards.length === 0 && <KitchenEmptyState type={status} />}
       </div>
     </div>
   );

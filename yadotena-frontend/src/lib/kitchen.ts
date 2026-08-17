@@ -200,12 +200,21 @@ export function isOrderOverdue(order: Order, now: number = Date.now()): boolean 
   return buildRoundCards([order]).some((c) => isCardOverdue(c, now));
 }
 
-/** Formats elapsed seconds as MM:SS (e.g. 02:14, 07:32, 12:48). */
+/**
+ * Formats elapsed seconds for kitchen timers. Sub-hour waits read as a stopwatch
+ * (02:14, 07:32); beyond that the clock becomes meaningless at MM:SS scale, so
+ * long waits switch to compact human units (1h 05m, 10d 13h) that stay legible
+ * even when a ticket has been sitting for days.
+ */
 export function formatElapsed(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds));
   const mins = Math.floor(safe / 60);
   const secs = safe % 60;
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  if (mins < 60) return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ${String(mins % 60).padStart(2, "0")}m`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
 }
 
 /**

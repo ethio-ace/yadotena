@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Order } from "@/types";
 import { KitchenColumn } from "./KitchenColumn";
-import { Flame, Clock, CheckCircle2 } from "lucide-react";
 import { buildRoundCards, activeRoundCards } from "@/lib/kitchen";
 
 interface KitchenBoardProps {
@@ -48,11 +47,11 @@ export function KitchenBoard({
           onClick={() => setMobileTab("PENDING")}
           className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
             mobileTab === "PENDING"
-              ? "bg-amber-500 text-amber-950"
+              ? "bg-zinc-100 text-zinc-900"
               : "text-zinc-400 hover:text-white"
           }`}
         >
-          <Flame className="h-4 w-4" />
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
           <span>NEW ({pendingCards.length})</span>
         </button>
 
@@ -60,11 +59,11 @@ export function KitchenBoard({
           onClick={() => setMobileTab("PREPARING")}
           className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
             mobileTab === "PREPARING"
-              ? "bg-zinc-200 text-zinc-950"
+              ? "bg-zinc-100 text-zinc-900"
               : "text-zinc-400 hover:text-white"
           }`}
         >
-          <Clock className="h-4 w-4" />
+          <span className="h-2 w-2 rounded-full bg-zinc-500" />
           <span>PREP ({preparingCards.length})</span>
         </button>
 
@@ -72,11 +71,11 @@ export function KitchenBoard({
           onClick={() => setMobileTab("READY")}
           className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
             mobileTab === "READY"
-              ? "bg-emerald-600 text-white"
+              ? "bg-zinc-100 text-zinc-900"
               : "text-zinc-400 hover:text-white"
           }`}
         >
-          <CheckCircle2 className="h-4 w-4" />
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
           <span>READY ({readyCards.length})</span>
         </button>
       </div>
@@ -84,9 +83,9 @@ export function KitchenBoard({
       {/* MOBILE SINGLE-COLUMN DISPLAY */}
       <div className="md:hidden flex-1">
         {mobileTab === "PENDING" && (
-          <KitchenColumn
-            title="New Orders"
-            status="PENDING"
+        <KitchenColumn
+          title="New Tickets"
+          status="PENDING"
             cards={pendingCards}
             newCardKeys={newCardKeys}
             addonMap={addonMap}
@@ -109,9 +108,9 @@ export function KitchenBoard({
           />
         )}
         {mobileTab === "READY" && (
-          <KitchenColumn
-            title="Ready for Pickup"
-            status="READY"
+        <KitchenColumn
+          title="Ready"
+          status="READY"
             cards={readyCards}
             addonMap={addonMap}
             tableLabels={tableLabels}
@@ -124,7 +123,7 @@ export function KitchenBoard({
       {/* DESKTOP & TABLET 3-COLUMN GRID DISPLAY (md+) */}
       <div className="hidden md:grid md:grid-cols-3 gap-5 flex-1 items-start">
         <KitchenColumn
-          title="New Rounds Waiting"
+          title="New Tickets"
           status="PENDING"
           cards={pendingCards}
           newCardKeys={newCardKeys}
@@ -136,7 +135,7 @@ export function KitchenBoard({
         />
 
         <KitchenColumn
-          title="Currently Preparing"
+          title="Preparing"
           status="PREPARING"
           cards={preparingCards}
           addonMap={addonMap}
@@ -147,7 +146,7 @@ export function KitchenBoard({
         />
 
         <KitchenColumn
-          title="Ready for Waiter"
+          title="Ready"
           status="READY"
           cards={readyCards}
           addonMap={addonMap}

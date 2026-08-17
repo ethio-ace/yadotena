@@ -7,52 +7,20 @@ interface KitchenEmptyStateProps {
 }
 
 export function KitchenEmptyState({ type }: KitchenEmptyStateProps) {
-  const getDetails = () => {
-    switch (type) {
-      case "PENDING":
-        return {
-          title: "KITCHEN CLEAR",
-          message: "No orders waiting in queue.",
-          sub: "New incoming orders will appear here automatically.",
-          icon: CheckCircle2,
-          color: "text-amber-500/50 border-amber-900/30 bg-amber-950/10",
-        };
-      case "PREPARING":
-        return {
-          title: "NOTHING PREPARING",
-          message: "No items currently on the line.",
-          sub: "Tap 'Start Preparing' on a pending order when ready.",
-          icon: Clock,
-          color: "text-amber-400/60 border-amber-900/30 bg-amber-950/10",
-        };
-      case "READY":
-        return {
-          title: "NO READY TICKETS",
-          message: "Pickup counter is clear.",
-          sub: "Mark orders ready to notify waiters for table delivery.",
-          icon: CheckCircle2,
-          color: "text-emerald-400/60 border-emerald-900/30 bg-emerald-950/10",
-        };
-      case "ALL_CLEAR":
-        return {
-          title: "✓ KITCHEN CAUGHT UP",
-          message: "All current orders are complete.",
-          sub: "Great work! Kitchen display station is synchronized.",
-          icon: CheckCircle2,
-          color: "text-emerald-400 border-emerald-900/50 bg-emerald-950/20",
-        };
-    }
-  };
+  const copy = {
+    PENDING: { title: "No new tickets", message: "Incoming orders will appear here." },
+    PREPARING: { title: "Nothing on the line", message: "Start a ticket to begin cooking." },
+    READY: { title: "Pickup counter clear", message: "Ready tickets will appear here." },
+    ALL_CLEAR: { title: "Kitchen caught up", message: "All tickets are complete." },
+  }[type];
 
-  const details = getDetails();
-  const Icon = details.icon;
+  const Icon = type === "PREPARING" ? Clock : CheckCircle2;
 
   return (
-    <div className={`py-16 px-6 text-center border border-dashed rounded-2xl space-y-2 my-auto ${details.color}`}>
-      <Icon className="h-10 w-10 mx-auto opacity-70 mb-2" />
-      <h3 className="font-black text-sm tracking-wider uppercase">{details.title}</h3>
-      <p className="text-xs font-medium text-zinc-300 opacity-90">{details.message}</p>
-      <p className="text-[11px] text-zinc-500 opacity-80">{details.sub}</p>
+    <div className="py-12 px-6 text-center border border-dashed border-zinc-800 rounded-xl">
+      <Icon className="h-6 w-6 mx-auto text-zinc-700 mb-2.5" />
+      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500">{copy.title}</p>
+      <p className="text-xs text-zinc-600 mt-1">{copy.message}</p>
     </div>
   );
 }

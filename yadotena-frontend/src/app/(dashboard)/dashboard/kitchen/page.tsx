@@ -11,7 +11,6 @@ import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { useAblySync, AblyConnectionState } from "@/contexts/AblySyncProvider";
 
 import { ChefHeader } from "@/components/chef/ChefHeader";
-import { KitchenStats } from "@/components/chef/KitchenStats";
 import { KitchenBoard } from "@/components/chef/KitchenBoard";
 import { BatchView } from "@/components/chef/BatchView";
 import { OrderDetailSheet } from "@/components/chef/OrderDetailSheet";
@@ -69,7 +68,6 @@ export default function KitchenDashboard() {
   const readyCards = cards.filter((c) => c.status === "READY");
   const completedOrders = orders.filter((o) => ["SERVED", "COMPLETED"].includes(o.status));
   const overdueCount = cards.filter((c) => isCardOverdue(c)).length;
-  const activeCount = pendingCards.length + preparingCards.length;
 
   // Addon catalog so kitchen tickets can render addon names instead of raw ids.
   const { data: addons = [] } = useQuery({
@@ -212,24 +210,17 @@ export default function KitchenDashboard() {
       {/* Realtime Connection Banner */}
       <KitchenConnectionStatus isConnected={!connectionDown} onRefresh={handleResync} />
 
-      {/* Primary KDS Header */}
+      {/* Primary KDS Header — kitchen counts folded in as a single compact cluster */}
       <ChefHeader
-        activeCount={activeCount}
-        readyCount={readyCards.length}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        soundEnabled={soundEnabled}
-        onToggleSound={handleToggleSound}
-        isConnected={isConnected}
-        chefName={chefName}
-      />
-
-      {/* Operational Indicators (not navigation) */}
-      <KitchenStats
         pendingCount={pendingCards.length}
         preparingCount={preparingCards.length}
         readyCount={readyCards.length}
         overdueCount={overdueCount}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        soundEnabled={soundEnabled}
+        onToggleSound={handleToggleSound}
+        chefName={chefName}
       />
 
       {/* MAIN CONTENT WORKSPACE */}
@@ -257,10 +248,10 @@ export default function KitchenDashboard() {
             <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
-                  <HistoryIcon className="h-5 w-5 text-amber-500" />
+                  <HistoryIcon className="h-5 w-5 text-zinc-400" />
                   <span>Today’s Production History</span>
                 </h2>
-                <p className="text-xs text-zinc-400 mt-0.5 font-medium">
+                <p className="text-xs text-zinc-500 mt-0.5 font-medium">
                   Log of completed and served tickets for this shift ({completedOrders.length} tickets).
                 </p>
               </div>
@@ -274,7 +265,7 @@ export default function KitchenDashboard() {
                   className="p-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:bg-zinc-900/60 transition-colors flex items-center justify-between cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                    <CheckCircle2 className="h-5 w-5 text-zinc-500 shrink-0" />
                     <div>
                       <div className="font-black text-sm text-white">
                         {o.tableId ? formatTableRef(o.tableId, tableLabels) : o.type} • {orderTicketNumber(o)}

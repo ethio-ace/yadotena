@@ -1,28 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UtensilsCrossed, Volume2, VolumeX, Layers, ListFilter, History, Wifi, WifiOff, Clock, LogOut } from "lucide-react";
+import { UtensilsCrossed, Volume2, VolumeX, ListFilter, Layers, History, LogOut, Clock } from "lucide-react";
 import { signOut } from "next-auth/react";
 
 interface ChefHeaderProps {
-  activeCount: number;
+  pendingCount: number;
+  preparingCount: number;
   readyCount: number;
+  overdueCount: number;
   viewMode: "QUEUE" | "BATCH" | "HISTORY";
   onViewModeChange: (mode: "QUEUE" | "BATCH" | "HISTORY") => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
-  isConnected?: boolean;
   chefName?: string;
 }
 
 export function ChefHeader({
-  activeCount,
+  pendingCount,
+  preparingCount,
   readyCount,
+  overdueCount,
   viewMode,
   onViewModeChange,
   soundEnabled,
   onToggleSound,
-  isConnected = true,
   chefName = "Kitchen Station",
 }: ChefHeaderProps) {
   const [timeStr, setTimeStr] = useState<string>("");
@@ -42,141 +44,100 @@ export function ChefHeader({
     return () => clearInterval(timer);
   }, []);
 
+  // Kitchen state at a glance. Color is reserved for meaning: NEW = needs a
+  // chef's attention, READY = needs a waiter, OVERDUE = needs intervention.
+  const counts = [
+    { label: "NEW", value: pendingCount, dot: "bg-amber-500", alert: false },
+    { label: "PREP", value: preparingCount, dot: "bg-zinc-500", alert: false },
+    { label: "READY", value: readyCount, dot: "bg-emerald-500", alert: false },
+    { label: "OVERDUE", value: overdueCount, dot: "bg-red-500", alert: overdueCount > 0 },
+  ];
+
+  const viewBtn = (mode: "QUEUE" | "BATCH" | "HISTORY", active: boolean) =>
+    `px-2.5 py-1.5 rounded-md text-[11px] font-bold flex items-center gap-1.5 transition-colors ${
+      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:text-white"
+    }`;
+
   return (
-    <header className="sticky top-0 z-40 bg-zinc-950 text-zinc-100 border-b border-zinc-800 shadow-xl px-4 py-3">
-      <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row items-center justify-between gap-3">
-        {/* Left: Branding, Chef Identity & Connection */}
-        <div className="flex items-center gap-4 w-full lg:w-auto justify-between lg:justify-start">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-amber-400 shrink-0">
-              <UtensilsCrossed className="h-5 w-5" />
+    <header className="sticky top-0 z-40 bg-zinc-950/95 backdrop-blur border-b border-zinc-800">
+      <div className="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-6 gap-y-2">
+        {/* Brand + chef identity */}
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+            <UtensilsCrossed className="h-4 w-4 text-zinc-400" />
+          </div>
+          <div>
+            <div className="text-sm font-extrabold tracking-tight text-white leading-none">
+              Yadotena <span className="text-zinc-600">·</span> Kitchen
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-extrabold text-base tracking-tight text-white uppercase leading-none">
-                  Yadotena <span className="text-amber-400">Kitchen</span>
-                </h1>
-              </div>
-              <p className="text-[11px] font-medium text-zinc-400 mt-0.5">
-                Production Station • <span className="text-zinc-200">{chefName}</span>
-              </p>
-            </div>
-          </div>
-
-          <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors ${
-              isConnected
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                : "bg-red-500/10 text-red-400 border-red-500/30"
-            }`}
-          >
-            {isConnected ? (
-              <>
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <Wifi className="h-3 w-3" /> CONNECTED
-              </>
-            ) : (
-              <>
-                <WifiOff className="h-3 w-3" /> RECONNECTING
-              </>
-            )}
-          </span>
-        </div>
-
-        {/* Center: Live Clock + Operational Counters */}
-        <div className="flex items-center gap-3 text-xs font-bold">
-          <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 rounded-xl px-3 py-1.5 shadow-inner">
-            <Clock className="h-3.5 w-3.5 text-zinc-400" />
-            <span className="font-mono text-zinc-200 text-sm">{timeStr || "10:42 AM"}</span>
-          </div>
-
-          <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 rounded-xl px-3 py-1.5">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
-            <span className="font-black text-sm text-zinc-100">{activeCount}</span>
-            <span className="text-[10px] uppercase tracking-wider text-zinc-400">Active</span>
-          </div>
-
-          <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 rounded-xl px-3 py-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            <span className="font-black text-sm text-zinc-100">{readyCount}</span>
-            <span className="text-[10px] uppercase tracking-wider text-zinc-400">Ready</span>
+            <div className="text-[10px] font-medium text-zinc-500 mt-1">{chefName}</div>
           </div>
         </div>
 
-        {/* Right: View Modes, Sound & Profile */}
-        <div className="flex items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
-          {/* Primary view modes */}
-          <div className="bg-zinc-900 border border-zinc-800 p-1 rounded-xl flex items-center gap-1">
-            <button
-              onClick={() => onViewModeChange("QUEUE")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                viewMode === "QUEUE"
-                  ? "bg-amber-500 text-amber-950 shadow-md font-black"
-                  : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
-              }`}
-            >
-              <ListFilter className="h-3.5 w-3.5" /> QUEUE
-            </button>
+        {/* Live clock + kitchen counts */}
+        <div className="flex items-center gap-5">
+          <div className="hidden md:flex items-center gap-1.5 font-mono text-sm font-bold text-zinc-300 tabular-nums">
+            <Clock className="h-3.5 w-3.5 text-zinc-500" />
+            {timeStr || "—"}
+          </div>
 
-            <button
-              onClick={() => onViewModeChange("BATCH")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                viewMode === "BATCH"
-                  ? "bg-amber-500 text-amber-950 shadow-md font-black"
-                  : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
-              }`}
-            >
-              <Layers className="h-3.5 w-3.5" /> BATCH
+          <div className="flex items-center gap-4">
+            {counts.map((c) => (
+              <span
+                key={c.label}
+                className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                  c.alert ? "text-red-400" : "text-zinc-500"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${c.dot}`} />
+                <span className="text-sm font-extrabold text-zinc-200 tabular-nums leading-none">{c.value}</span>
+                {c.label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* View modes, sound, profile */}
+        <div className="flex items-center gap-1.5 ml-auto">
+          <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
+            <button onClick={() => onViewModeChange("QUEUE")} className={viewBtn("QUEUE", viewMode === "QUEUE")}>
+              <ListFilter className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">QUEUE</span>
+            </button>
+            <button onClick={() => onViewModeChange("BATCH")} className={viewBtn("BATCH", viewMode === "BATCH")}>
+              <Layers className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">BATCH</span>
             </button>
           </div>
 
-          {/* Secondary: production history */}
           <button
             onClick={() => onViewModeChange(viewMode === "HISTORY" ? "QUEUE" : "HISTORY")}
             title="Today's Production History"
-            className={`h-9 w-9 rounded-xl border flex items-center justify-center transition-colors ${
-              viewMode === "HISTORY"
-                ? "bg-amber-500/15 border-amber-500/40 text-amber-400"
-                : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800"
+            className={`p-2 rounded-lg transition-colors ${
+              viewMode === "HISTORY" ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:text-white hover:bg-zinc-800"
             }`}
           >
             <History className="h-4 w-4" />
           </button>
 
-          {/* Mute/Unmute Audio Alert Toggle */}
           <button
             onClick={onToggleSound}
-            title={soundEnabled ? "Sound Alert ON" : "Sound Alert Silent"}
-            className={`h-9 px-3 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-colors ${
-              soundEnabled
-                ? "bg-zinc-900 border-zinc-700 text-zinc-200 hover:bg-zinc-800"
-                : "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
-            }`}
+            title={soundEnabled ? "Sound alert on" : "Sound alert off"}
+            className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
           >
-            {soundEnabled ? (
-              <>
-                <Volume2 className="h-4 w-4 text-emerald-400" />
-                <span className="hidden sm:inline">SOUND</span>
-              </>
-            ) : (
-              <>
-                <VolumeX className="h-4 w-4 text-red-400" />
-                <span className="hidden sm:inline">SILENT</span>
-              </>
-            )}
+            {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
           </button>
 
-          {/* Chef profile chip + sign out */}
-          <div className="hidden sm:flex items-center gap-1.5 pl-1.5 border-l border-zinc-800">
-            <div className="h-8 w-8 rounded-lg bg-amber-500/20 text-amber-400 font-black text-xs flex items-center justify-center border border-amber-500/30 uppercase">
+          <div className="hidden sm:flex items-center gap-1 pl-1.5 border-l border-zinc-800">
+            <div className="h-7 w-7 rounded-lg bg-zinc-800 text-zinc-300 font-bold text-[11px] flex items-center justify-center uppercase">
               {chefName.charAt(0)}
             </div>
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
               title="Sign out"
-              className="h-8 px-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-[#dc2626]/10 transition-colors"
+              className="p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-zinc-800/60 transition-colors"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>

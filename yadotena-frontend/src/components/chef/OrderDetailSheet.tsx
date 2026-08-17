@@ -1,7 +1,7 @@
 "use client";
 
 import { Order, OrderItem } from "@/types";
-import { Play, CheckCircle2, Clock, AlertTriangle, MapPin, RotateCcw } from "lucide-react";
+import { Play, CheckCircle2, Clock, MapPin } from "lucide-react";
 import {
   orderDestination,
   orderTicketNumber,
@@ -9,26 +9,27 @@ import {
   groupItemsByRound,
   roundStatus,
   itemStatus,
+  statusLabel,
 } from "@/lib/kitchen";
 
-function ItemCard({ item, addonMap }: { item: OrderItem; addonMap?: Record<string, string> }) {
+function ItemRow({ item, addonMap }: { item: OrderItem; addonMap?: Record<string, string> }) {
   const aNames = addonNames(item.selectedAddons, addonMap);
   const status = itemStatus(item);
   return (
-    <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 space-y-2">
-      <div className="flex items-start justify-between gap-2 text-base font-black text-white">
-        <span>
-          <span className="text-amber-500 font-extrabold mr-2">{item.quantity} ×</span>
+    <div className="py-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[15px] font-bold text-zinc-100 leading-snug min-w-0">
+          <span className="font-extrabold text-zinc-300 tabular-nums mr-2">{item.quantity}×</span>
           {item.name}
         </span>
         {status !== "PENDING" && (
           <span
-            className={`shrink-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+            className={`shrink-0 text-[10px] font-bold uppercase tracking-wider ${
               status === "READY"
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                ? "text-emerald-400"
                 : status === "SERVED"
-                  ? "bg-zinc-800 text-zinc-500 border-zinc-700"
-                  : "bg-zinc-800 text-zinc-300 border-zinc-700"
+                  ? "text-zinc-600"
+                  : "text-zinc-400"
             }`}
           >
             {status}
@@ -37,32 +38,38 @@ function ItemCard({ item, addonMap }: { item: OrderItem; addonMap?: Record<strin
       </div>
 
       {aNames.length > 0 && (
-        <div className="pl-4 space-y-1 text-xs font-medium text-zinc-300 border-l-2 border-amber-500/30">
+        <div className="mt-1.5 pl-7 space-y-0.5">
           {aNames.map((addon, aIdx) => (
-            <div key={aIdx} className="flex items-center gap-1">
-              <span className="text-amber-500 font-bold">+</span>
-              <span>{addon}</span>
+            <div key={aIdx} className="text-[13px] font-medium text-zinc-400">
+              + {addon}
             </div>
           ))}
         </div>
       )}
 
       {item.specialInstructions && (
-        <div className="mt-2 bg-amber-500/10 border border-amber-500/30 text-amber-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
-          <span>⚠ {item.specialInstructions.toUpperCase()}</span>
-        </div>
+        <p className="mt-1.5 pl-7 text-[13px] font-semibold text-amber-300/90">
+          {item.specialInstructions}
+        </p>
       )}
     </div>
   );
 }
 
-const ROUND_STATUS_CHIP: Record<string, string> = {
-  PENDING: "bg-amber-500 text-amber-950",
-  PREPARING: "bg-zinc-700 text-zinc-100",
-  READY: "bg-emerald-600 text-white",
-  SERVED: "bg-zinc-800 text-zinc-500",
-  CANCELLED: "bg-red-500/10 text-red-400",
+// Subtle text chips — color only as text, no filled backgrounds.
+const ROUND_STATUS_TEXT: Record<string, string> = {
+  PENDING: "text-amber-400",
+  PREPARING: "text-zinc-300",
+  READY: "text-emerald-400",
+  SERVED: "text-zinc-600",
+  CANCELLED: "text-red-400",
+};
+const ROUND_STATUS_DOT: Record<string, string> = {
+  PENDING: "bg-amber-500",
+  PREPARING: "bg-zinc-500",
+  READY: "bg-emerald-500",
+  SERVED: "bg-zinc-700",
+  CANCELLED: "bg-red-500",
 };
 
 interface OrderDetailSheetProps {
@@ -97,22 +104,20 @@ export function OrderDetailSheet({
       onClick={onClose}
     >
       <div
-        className="bg-zinc-950 text-zinc-100 border-t md:border-t-0 md:border-l border-zinc-800 w-full md:w-full md:max-w-md h-[85vh] md:h-full flex flex-col justify-between p-6 shadow-2xl overflow-y-auto animate-in slide-in-from-bottom duration-300 md:slide-in-from-right"
+        className="bg-zinc-950 text-zinc-100 border-t md:border-t-0 md:border-l border-zinc-800 w-full md:w-full md:max-w-md h-[85vh] md:h-full flex flex-col justify-between overflow-y-auto animate-in slide-in-from-bottom duration-300 md:slide-in-from-right"
         onClick={(e) => e.stopPropagation()}
       >
-        <div>
+        <div className="p-5">
           {/* Header */}
-          <div className="flex items-start justify-between border-b border-zinc-800 pb-4 mb-6">
+          <div className="flex items-start justify-between border-b border-zinc-800 pb-4 mb-5">
             <div>
-              <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg uppercase tracking-wide">
-                {orderTicketNumber(order)}
+              <span className="text-xs font-mono font-bold text-zinc-500 uppercase tracking-wide">
+                #{orderTicketNumber(order)}
               </span>
-              <h2 className="text-2xl font-black text-white mt-2 tracking-tight">
-                {destination}
-              </h2>
-              <div className="mt-2 space-y-1 text-xs text-zinc-400 font-medium">
+              <h2 className="text-2xl font-black text-white mt-1 tracking-tight">{destination}</h2>
+              <div className="mt-2 space-y-1 text-xs text-zinc-500 font-medium">
                 <p className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-zinc-500" />
+                  <Clock className="h-3.5 w-3.5 text-zinc-600" />
                   <span>
                     Placed at{" "}
                     {new Date(order.createdAt).toLocaleTimeString([], {
@@ -123,7 +128,7 @@ export function OrderDetailSheet({
                 </p>
                 {order.type === "DELIVERY" && order.deliveryAddress && (
                   <p className="flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5 text-zinc-500" />
+                    <MapPin className="h-3.5 w-3.5 text-zinc-600" />
                     <span>{order.deliveryAddress}</span>
                   </p>
                 )}
@@ -131,30 +136,28 @@ export function OrderDetailSheet({
             </div>
           </div>
 
-          {/* Ticket Items — grouped by kitchen round, each with its own state */}
-          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
-            Kitchen Items ({order.items?.length || 0})
+          {/* Ticket items — grouped by kitchen round, each with its own state */}
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+            Kitchen items · {order.items?.length || 0}
           </h3>
-          <div className="space-y-5">
+          <div className="space-y-4">
             {rounds.map(({ round, items }) => {
               const rStatus = roundStatus(items);
               const extended = round > 1;
               return (
-                <div key={round} className="rounded-2xl border border-zinc-800 overflow-hidden">
-                  <div className="flex items-center justify-between gap-2 px-3.5 py-2 bg-zinc-900/80 border-b border-zinc-800">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {extended && <RotateCcw className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${extended ? "text-amber-400" : "text-zinc-400"}`}>
-                        {extended ? `Round ${round} · added later` : "Original order"}
-                      </span>
-                    </div>
-                    <span className={`shrink-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${ROUND_STATUS_CHIP[rStatus]}`}>
-                      {rStatus === "PENDING" ? "Waiting" : rStatus}
+                <div key={round} className="rounded-xl border border-zinc-800 overflow-hidden">
+                  <div className="flex items-center justify-between px-3.5 py-2 bg-zinc-900/80 border-b border-zinc-800">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                      {extended ? `Round ${round} · added later` : "Original ticket"}
+                    </span>
+                    <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${ROUND_STATUS_TEXT[rStatus]}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${ROUND_STATUS_DOT[rStatus]}`} />
+                      {statusLabel(rStatus)}
                     </span>
                   </div>
-                  <div className="p-3 space-y-3">
+                  <div className="px-3.5 divide-y divide-zinc-800/70">
                     {items.map((item, idx) => (
-                      <ItemCard key={item.id || idx} item={item} addonMap={addonMap} />
+                      <ItemRow key={item.id || idx} item={item} addonMap={addonMap} />
                     ))}
                   </div>
                 </div>
@@ -163,8 +166,8 @@ export function OrderDetailSheet({
           </div>
         </div>
 
-        {/* Footer Actions — one per actionable round */}
-        <div className="pt-6 border-t border-zinc-800 space-y-3">
+        {/* Footer actions — one per actionable round */}
+        <div className="p-5 pt-4 border-t border-zinc-800 space-y-3">
           {rounds.map(({ round, items }) => {
             const rStatus = roundStatus(items);
             const isUpdating = updatingKey === `${order.id}:${round}`;
@@ -177,10 +180,10 @@ export function OrderDetailSheet({
                       onStartPreparing?.(order.id, round);
                       onClose();
                     }}
-                    className="w-full h-12 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
+                    className="w-full h-12 rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm tracking-wide flex items-center justify-center gap-2 transition-colors disabled:opacity-50 active:scale-[0.99]"
                   >
-                    <Play className="h-5 w-5 fill-current" />
-                    <span>START {round > 1 ? `ROUND ${round}` : "PREPARING"}</span>
+                    <Play className="h-4 w-4 fill-current" />
+                    <span>Start {round > 1 ? `Round ${round}` : "preparing"}</span>
                   </button>
                 )}
 
@@ -191,17 +194,17 @@ export function OrderDetailSheet({
                       onMarkReady?.(order.id, round);
                       onClose();
                     }}
-                    className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
+                    className="w-full h-12 rounded-lg bg-zinc-100 hover:bg-white text-zinc-900 font-black text-sm tracking-wide flex items-center justify-center gap-2 transition-colors disabled:opacity-50 active:scale-[0.99]"
                   >
-                    <CheckCircle2 className="h-5 w-5" />
-                    <span>MARK {round > 1 ? `ROUND ${round}` : "TICKET"} READY</span>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Mark {round > 1 ? `Round ${round}` : "ticket"} ready</span>
                   </button>
                 )}
 
                 {rStatus === "READY" && (
-                  <div className="w-full p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-center text-sm flex items-center justify-center gap-2">
-                    <CheckCircle2 className="h-5 w-5" />
-                    <span>{round > 1 ? `Round ${round}` : "Ticket"} is READY — awaiting waiter service</span>
+                  <div className="w-full h-12 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 font-bold text-sm flex items-center justify-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>{round > 1 ? `Round ${round}` : "Ticket"} ready — awaiting waiter</span>
                   </div>
                 )}
               </div>

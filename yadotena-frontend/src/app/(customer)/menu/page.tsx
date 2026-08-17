@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
 import { SortSelect, sortCatalogItems, SortKey } from "@/components/customer/SortSelect";
 import { TopProductsRow } from "@/components/customer/TopProductsRow";
-import { TrackOrderInput } from "@/components/customer/TrackOrderInput";
 import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
 import { isRetailProduct } from "@/lib/orderUtils";
@@ -133,9 +132,6 @@ function MenuContent() {
           </div>
         </div>
       </div>
-
-      {/* Track Order (public, no login) */}
-      <TrackOrderInput />
 
       {/* Top Sellers */}
       {topDishes.length > 0 && (

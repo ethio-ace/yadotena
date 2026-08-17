@@ -17,6 +17,8 @@ interface PaymentMethodsModalProps {
   onClose: () => void;
   onRequestBillSettlement: (methodName: string, methodCode: string) => void;
   isRequestingBill?: boolean;
+  /** Only active dine-in orders can ping a waiter to settle the bill. */
+  allowCallWaiter?: boolean;
 }
 
 interface PaymentMethodInfo {
@@ -42,6 +44,7 @@ export function PaymentMethodsModal({
   onClose,
   onRequestBillSettlement,
   isRequestingBill,
+  allowCallWaiter = true,
 }: PaymentMethodsModalProps) {
   const [selectedCode, setSelectedCode] = useState<string>("");
   const [copiedAccount, setCopiedAccount] = useState<string>("");
@@ -101,8 +104,13 @@ export function PaymentMethodsModal({
           </div>
 
           <p className="text-xs text-muted-foreground leading-relaxed bg-muted/40 border border-border rounded-2xl p-3">
-            💡 You can pay digitally using any account below. After sending, tap <b>Call Waiter to Settle Bill</b> — our
-            waiter will confirm the transfer and close your bill for you.
+            {allowCallWaiter ? (
+              <>💡 You can pay digitally using any account below. After sending, tap <b>Call Waiter to Settle Bill</b> — our
+                waiter will confirm the transfer and close your bill for you.</>
+            ) : (
+              <>💡 You can pay digitally using any account below, or pay cash at the counter. Our staff will verify the
+                transfer and settle your bill for you.</>
+            )}
           </p>
 
           {/* Method Selector */}
@@ -202,28 +210,34 @@ export function PaymentMethodsModal({
             </div>
           )}
 
-          {/* Call Waiter to Settle */}
-          <Button
-            onClick={() => onRequestBillSettlement(current?.name || "Digital Payment", current?.code || "")}
-            disabled={isRequestingBill}
-            className="w-full h-12 rounded-2xl font-black text-xs bg-primary text-primary-foreground shadow-lg shadow-primary/20 gap-2"
-          >
-            {isRequestingBill ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Alerting your waiter...
-              </>
-            ) : (
-              <>
-                <BellRing className="h-4 w-4" />
-                Call Waiter to Settle Bill
-              </>
-            )}
-          </Button>
-
-          <p className="text-center text-[10px] text-muted-foreground font-medium">
-            You cannot settle bills yourself — a floor waiter will confirm your payment.
-          </p>
+          {allowCallWaiter ? (
+            <>
+              <Button
+                onClick={() => onRequestBillSettlement(current?.name || "Digital Payment", current?.code || "")}
+                disabled={isRequestingBill}
+                className="w-full h-12 rounded-2xl font-black text-xs bg-primary text-primary-foreground shadow-lg shadow-primary/20 gap-2"
+              >
+                {isRequestingBill ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Alerting your waiter...
+                  </>
+                ) : (
+                  <>
+                    <BellRing className="h-4 w-4" />
+                    Call Waiter to Settle Bill
+                  </>
+                )}
+              </Button>
+              <p className="text-center text-[10px] text-muted-foreground font-medium">
+                You cannot settle bills yourself — a floor waiter will confirm your payment.
+              </p>
+            </>
+          ) : (
+            <p className="text-center text-[10px] text-muted-foreground font-medium bg-muted/40 border border-border rounded-2xl p-3">
+              You cannot settle bills yourself — our counter staff will confirm your payment when you pick up / receive your order.
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -2,26 +2,31 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
+import { addonNames } from "@/lib/kitchen";
 import {
-  ArrowLeft, CheckCircle2, Clock, MapPin, Receipt, Utensils,
-  BellRing, Star, Sparkles, Check, Landmark, Printer
+  ArrowLeft, BellRing, Check, CheckCircle2, CreditCard, Landmark,
+  MapPin, Printer, Receipt, Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
 import { PaymentMethodsModal } from "@/components/customer/PaymentMethodsModal";
 import { TrackOrderInput } from "@/components/customer/TrackOrderInput";
+import { Order } from "@/types";
 
-const statusSteps = [
-  { id: "PENDING", label: "Order Received", desc: "Kitchen received ticket", icon: Receipt },
-  { id: "PREPARING", label: "Preparing in Kitchen", desc: "Artisanal preparation in progress", icon: Utensils },
-  { id: "READY", label: "Ready to Serve", desc: "Plated & ready for delivery/pickup", icon: Clock },
-  { id: "COMPLETED", label: "Completed", desc: "Enjoy your meal!", icon: CheckCircle2 },
-];
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "COMPLETED": return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-transparent";
+    case "READY": return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 border-emerald-300";
+    case "SERVED": return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 border-blue-300";
+    case "PREPARING": return "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 border-purple-300";
+    case "CANCELLED": return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 border-red-300";
+    default: return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 border-amber-300";
+  }
+};
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -30,14 +35,36 @@ export default function OrderTrackingPage() {
   const [waiterCalled, setWaiterCalled] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
 
-  const { data: order, isLoading } = useQuery({
+  // Resolve by full order id OR 6-character ticket number (public, no login).
+  const { data: order, isLoading } = useQuery<Order | null>({
     queryKey: ["orders", id],
     queryFn: async () => {
       if (!id) return null;
-      const foundOrder = await api.orders.getById(id as string);
-      return foundOrder || null;
+      try {
+        return await api.orders.lookup(id);
+      } catch {
+        try {
+          return (await api.orders.getById(id)) || null;
+        } catch {
+          return null;
+        }
+      }
     },
+    retry: false,
   });
+
+  // Item images + add-on name resolution (same sources the staff order modal uses).
+  const { data: menu = [] } = useQuery({
+    queryKey: ["menu"],
+    queryFn: api.menu.getAll,
+    enabled: !!order && !isLoading,
+  });
+  const { data: addons = [] } = useQuery({
+    queryKey: ["addons"],
+    queryFn: () => api.addons.getAll(),
+    enabled: !!order && !isLoading,
+  });
+  const addonMap = Object.fromEntries(addons.map(a => [a.id, a.name]));
 
   const sendServiceRequest = useMutation({
     mutationFn: api.serviceRequests.create,
@@ -45,10 +72,11 @@ export default function OrderTrackingPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-3xl mx-auto p-8 space-y-6 animate-pulse">
-        <div className="h-44 bg-muted/60 rounded-3xl w-full"></div>
-        <div className="h-64 bg-muted/60 rounded-3xl w-full"></div>
-        <div className="h-48 bg-muted/60 rounded-3xl w-full"></div>
+      <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-4 animate-pulse">
+        <div className="h-16 bg-muted/60 rounded-2xl w-full" />
+        <div className="h-40 bg-muted/60 rounded-2xl w-full" />
+        <div className="h-48 bg-muted/60 rounded-2xl w-full" />
+        <div className="h-32 bg-muted/60 rounded-2xl w-full" />
       </div>
     );
   }
@@ -73,11 +101,19 @@ export default function OrderTrackingPage() {
     );
   }
 
-  const currentStepIndex = statusSteps.findIndex(s => s.id === order.status);
+  const isPaid = order.paymentStatus === "PAID";
   const isCompleted = order.status === "COMPLETED";
   const isCancelled = order.status === "CANCELLED";
   // Assistance (call waiter / bill) is only available while the order is active and dine-in.
   const canRequestAssistance = order.type === "DINE_IN" && !isCompleted && !isCancelled;
+  const payments = order.payments || [];
+
+  const getItemImage = (menuItemId: string) => {
+    const mi = menu.find(m => m.id === menuItemId);
+    const path = mi?.imageUrl || mi?.image;
+    if (!path) return null;
+    return path.startsWith("http") || path.startsWith("/") ? path : `/uploads/${path}`;
+  };
 
   const handleCallWaiter = () => {
     const effectiveTableId = order.tableId || "t1";
@@ -102,127 +138,100 @@ export default function OrderTrackingPage() {
     setTimeout(() => setBillRequested(false), 12000);
   };
 
-  return (
-    <div className="flex flex-col min-h-full bg-muted/10 animate-in fade-in duration-500 pb-24">
+  const orderTypeLabel =
+    order.type === "DINE_IN" ? `Dine-In • Table ${order.tableId?.replace(/^t/i, "")}` :
+    order.type === "TAKEAWAY" ? "Takeaway Pickup" : "Doorstep Delivery";
 
+  return (
+    <div className="flex flex-col min-h-full bg-muted/10 animate-in fade-in duration-300">
       {/* Top Bar */}
-      <div className="px-4 py-4 sticky top-0 bg-background/85 backdrop-blur-md z-20 border-b flex items-center shadow-sm">
-        <div className="max-w-3xl mx-auto w-full flex items-center justify-between">
-          <div className="flex items-center gap-2">
+      <div className="px-4 py-3 sticky top-0 bg-background/85 backdrop-blur-md z-20 border-b shadow-sm">
+        <div className="max-w-2xl mx-auto w-full flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
             <Link href="/menu">
-              <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted">
+              <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted shrink-0">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <div>
-              <h2 className="text-xl font-black">Live Order Status</h2>
-              <p className="text-xs text-muted-foreground font-mono">Ticket {order.id.slice(-6).toUpperCase()}</p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-black tracking-tight leading-none">#{order.id.slice(-6).toUpperCase()}</h2>
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getStatusColor(order.status)}`}>
+                  {order.status.replace(/_/g, " ")}
+                </span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${isPaid ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-amber-500/10 text-amber-600 border-amber-500/30"}`}>
+                  {isPaid ? "PAID" : "UNPAID"}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground font-medium mt-1 truncate">
+                {orderTypeLabel} • {new Date(order.createdAt).toLocaleString()}
+              </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-full text-xs font-bold gap-1.5 h-8"
-              onClick={() => window.print()}
-            >
-              <Printer className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Print Bill</span>
-            </Button>
-
-            <Badge
-              variant="secondary"
-              className={`px-3 py-1 text-xs font-bold ${
-                order.paymentStatus === "PAID"
-                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                  : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20"
-              }`}
-            >
-              {order.paymentStatus === "PAID" ? "✓ Paid" : "⏳ Awaiting Settlement"}
-            </Badge>
-          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full text-xs font-bold gap-1.5 h-8 shrink-0"
+            onClick={() => window.print()}
+          >
+            <Printer className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Print Bill</span>
+          </Button>
         </div>
       </div>
 
       <div className="p-4 md:p-6 flex-1">
-        <div className="max-w-3xl mx-auto space-y-6">
+        <div className="max-w-2xl mx-auto space-y-4">
 
-          {/* Order Hero Status Card */}
-          <Card className="border-none shadow-xl overflow-hidden bg-gradient-to-br from-primary via-primary/95 to-amber-600 text-primary-foreground rounded-3xl">
-            <CardContent className="p-6 md:p-8 text-center relative">
-              <div className="absolute top-0 right-0 transform translate-x-8 -translate-y-8 h-40 w-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-
-              <Badge className="bg-white/20 hover:bg-white/20 text-white font-bold backdrop-blur-md border border-white/25 px-4 py-1 text-xs mb-3">
-                {order.type === "DINE_IN" ? `Dine-In • Table ${order.tableId?.replace("t", "")}` :
-                 order.type === "TAKEAWAY" ? "Takeaway Pickup" : "Doorstep Delivery"}
-              </Badge>
-
-              <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-2">
-                {isCompleted ? "Order Complete! 🎉" :
-                 isCancelled ? "Order Cancelled" :
-                 order.status === "READY" ? "Your Meal is Ready! 🍽️" :
-                 order.status === "PREPARING" ? "Cooking with Passion 👨‍🍳" : "Ticket in Kitchen"}
-              </h1>
-
-              {order.type === "DELIVERY" && order.deliveryAddress && (
-                <p className="text-sm text-primary-foreground/90 max-w-md mx-auto flex items-center justify-center gap-1.5 mt-1">
-                  <MapPin className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{order.deliveryAddress}</span>
-                </p>
-              )}
-
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
-                  <span>Total: {formatETB(order.total)}</span>
-                </div>
-                <div className="inline-flex items-center gap-2 bg-black/25 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
-                  <Clock className="h-4 w-4 text-amber-300" />
-                  <span>Status: {order.status.replace(/_/g, " ")}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Live Stepper (same as staff order modal) */}
+          <div className="bg-card border rounded-2xl shadow-sm p-5">
+            <OrderProgressStepper status={order.status} />
+          </div>
 
           {/* Dine-In Assistance Hub (active orders only — customers cannot settle bills) */}
           {canRequestAssistance && (
-            <Card className="border-primary/20 bg-card rounded-3xl shadow-sm p-4 md:p-5">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="bg-card border border-primary/20 rounded-2xl shadow-sm p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Sparkles className="h-5 w-5" />
+                </div>
                 <div>
-                  <h3 className="font-extrabold text-base flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <span>Table Assistance</span>
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Call your waiter for help, or check payment methods and have them settle your bill.
+                  <h3 className="font-extrabold text-sm">Table Assistance</h3>
+                  <p className="text-[11px] text-muted-foreground font-medium">
+                    Call your waiter, or check payment methods and have them settle your bill.
                   </p>
                 </div>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <Button
-                    variant={waiterCalled ? "default" : "outline"}
-                    className={`rounded-2xl font-bold flex-1 sm:flex-none h-11 text-xs transition-all ${
-                      waiterCalled ? "bg-emerald-600 text-white hover:bg-emerald-700" : "hover:border-primary"
-                    }`}
-                    onClick={handleCallWaiter}
-                    disabled={waiterCalled}
-                  >
-                    {waiterCalled ? (
-                      <>
-                        <Check className="h-4 w-4 mr-1.5" />
-                        <span>Staff Alerted!</span>
-                      </>
-                    ) : (
-                      <>
-                        <BellRing className="h-4 w-4 mr-1.5 text-primary" />
-                        <span>Call Waiter</span>
-                      </>
-                    )}
-                  </Button>
-
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button
+                  variant={waiterCalled ? "default" : "outline"}
+                  className={`rounded-xl font-bold flex-1 sm:flex-none h-10 text-xs transition-all ${
+                    waiterCalled ? "bg-emerald-600 text-white hover:bg-emerald-700 border-emerald-600" : "hover:border-primary"
+                  }`}
+                  onClick={handleCallWaiter}
+                  disabled={waiterCalled}
+                >
+                  {waiterCalled ? (
+                    <>
+                      <Check className="h-4 w-4 mr-1.5" />
+                      <span>Staff Alerted!</span>
+                    </>
+                  ) : (
+                    <>
+                      <BellRing className="h-4 w-4 mr-1.5 text-primary" />
+                      <span>Call Waiter</span>
+                    </>
+                  )}
+                </Button>
+                {isPaid ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-xs px-4 h-10">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Paid & Settled
+                  </span>
+                ) : (
                   <Button
                     variant={billRequested ? "default" : "secondary"}
-                    className={`rounded-2xl font-bold flex-1 sm:flex-none h-11 text-xs transition-all ${
+                    className={`rounded-xl font-bold flex-1 sm:flex-none h-10 text-xs transition-all ${
                       billRequested ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
                     }`}
                     onClick={() => setShowPaymentModal(true)}
@@ -230,119 +239,171 @@ export default function OrderTrackingPage() {
                     <Landmark className="h-4 w-4 mr-1.5" />
                     <span>{billRequested ? "Waiter on the way!" : "Payment & Bill"}</span>
                   </Button>
-                </div>
+                )}
               </div>
-            </Card>
+            </div>
           )}
 
-          {/* Timeline Progress */}
-          <Card className="rounded-3xl shadow-sm border-muted-foreground/15">
-            <CardContent className="p-6 md:p-8">
-              <h3 className="font-black text-lg mb-6 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" />
-                <span>Kitchen Timeline</span>
-              </h3>
+          {/* Order Items */}
+          <div className="bg-card border rounded-2xl shadow-sm p-5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <Receipt className="h-3.5 w-3.5" /> Order Items ({order.items?.length || 0})
+            </h3>
+            <div className="space-y-2.5">
+              {order.items?.map((item, idx) => {
+                const img = getItemImage(item.menuItemId);
+                const aNames = addonNames(item.selectedAddons, addonMap);
 
-              <div className="relative pl-6 sm:pl-8 space-y-8 before:absolute before:left-3 sm:before:left-4 before:top-3 before:bottom-3 before:w-0.5 before:bg-muted">
-                {statusSteps.map((step, idx) => {
-                  const isPassed = currentStepIndex >= idx;
-                  const isCurrent = currentStepIndex === idx;
-                  const StepIcon = step.icon;
-
-                  return (
-                    <div key={step.id} className="relative flex items-start gap-4 group">
-                      <div
-                        className={`absolute -left-6 sm:-left-8 top-0.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                          isPassed
-                            ? "bg-primary text-primary-foreground shadow-md shadow-primary/30 ring-4 ring-background"
-                            : "bg-muted text-muted-foreground border-2 border-background"
-                        } ${isCurrent ? "scale-110 ring-primary/20 ring-4" : ""}`}
-                      >
-                        {isPassed && !isCurrent ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : <StepIcon className="h-3.5 w-3.5" />}
-                      </div>
-
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <h4 className={`font-extrabold text-sm ${isPassed ? "text-foreground" : "text-muted-foreground"}`}>
-                            {step.label}
-                          </h4>
-                          {isCurrent && (
-                            <Badge className="bg-primary/15 text-primary border-primary/20 text-[10px] font-bold animate-pulse">
-                              In Progress
-                            </Badge>
+                return (
+                  <div key={item.id || idx} className="p-3 rounded-xl border bg-background/50 space-y-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {img ? (
+                          <img src={img} alt={item.name} className="h-10 w-10 rounded-lg object-cover shrink-0 border" />
+                        ) : (
+                          <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center text-xs shrink-0 border border-amber-500/20">
+                            {item.quantity}×
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="font-bold text-sm truncate">{item.quantity}× {item.name}</div>
+                          {item.specialInstructions && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">
+                              &ldquo;{item.specialInstructions}&rdquo;
+                            </p>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          {step.desc}
-                        </p>
+                      </div>
+                      <div className="font-mono font-bold text-sm shrink-0">
+                        {formatETB(item.price * item.quantity)}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Order Itemized Summary */}
-          <Card className="rounded-3xl shadow-sm border-muted-foreground/15">
-            <CardContent className="p-6 md:p-8 space-y-4">
-              <div className="flex items-center justify-between border-b pb-4">
-                <div>
-                  <h3 className="font-extrabold text-base">Ordered Items</h3>
-                  <p className="text-xs text-muted-foreground">Detailed breakdown of your selection</p>
+                    {aNames.length > 0 && (
+                      <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
+                        {aNames.map((aName, aIdx) => (
+                          <div key={aIdx} className="flex items-center gap-1 text-foreground">
+                            <span className="text-amber-500 font-bold">+</span>
+                            <span>{aName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Financial Breakdown */}
+            <div className="mt-4 p-4 rounded-xl border bg-muted/10 space-y-2 text-sm">
+              {order.subtotal !== undefined && order.subtotal > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>{formatETB(order.subtotal)}</span>
                 </div>
-                <Badge variant="secondary" className="font-bold">
-                  {order.items.reduce((s, i) => s + i.quantity, 0)} Items
-                </Badge>
+              )}
+              {order.tax !== undefined && order.tax > 0 && (
+                <div className="flex justify-between text-muted-foreground text-xs">
+                  <span>VAT (15%)</span>
+                  <span>{formatETB(order.tax)}</span>
+                </div>
+              )}
+              {order.serviceCharge !== undefined && order.serviceCharge > 0 && (
+                <div className="flex justify-between text-muted-foreground text-xs">
+                  <span>Service Charge (10%)</span>
+                  <span>{formatETB(order.serviceCharge)}</span>
+                </div>
+              )}
+              {order.deliveryFee !== undefined && order.deliveryFee > 0 && (
+                <div className="flex justify-between text-muted-foreground text-xs">
+                  <span>Delivery Fee</span>
+                  <span>{formatETB(order.deliveryFee)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t font-black text-base">
+                <span>Total Amount</span>
+                <span className="text-lg text-emerald-600 dark:text-emerald-400">{formatETB(order.total)}</span>
               </div>
+            </div>
 
-              <div className="divide-y">
-                {order.items.map((item) => (
-                  <div key={item.id} className="py-3.5 flex items-center justify-between">
-                    <div className="space-y-1">
+            {order.type === "DELIVERY" && order.deliveryAddress && (
+              <p className="mt-3 text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                Delivering to: <span className="font-bold text-foreground truncate">{order.deliveryAddress}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Payment Details (read-only) */}
+          <div className="bg-card border rounded-2xl shadow-sm p-5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5" /> Payment Details
+            </h3>
+
+            {payments.length > 0 ? (
+              <div className="space-y-3">
+                {payments.map(p => (
+                  <div key={p.id} className="p-4 rounded-xl border bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/20 space-y-2">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="h-6 w-6 rounded-lg bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
-                          {item.quantity}x
-                        </span>
-                        <span className="font-bold text-sm text-foreground">{item.name}</span>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <span className="font-bold text-sm uppercase tracking-wide">{p.method || "Settled"}</span>
                       </div>
-                      {item.specialInstructions && (
-                        <p className="text-xs text-muted-foreground italic pl-8">
-                          &quot;{item.specialInstructions}&quot;
-                        </p>
-                      )}
+                      <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                        {formatETB(p.amount || order.total)}
+                      </span>
                     </div>
-                    <span className="font-extrabold text-sm text-foreground">
-                      {formatETB(item.price * item.quantity)}
-                    </span>
+                    {p.transactionRef && (
+                      <div className="flex items-center justify-between text-xs bg-background/80 p-2 rounded-lg border">
+                        <span className="text-muted-foreground font-medium">Reference / TXN:</span>
+                        <span className="font-mono font-bold text-foreground">{p.transactionRef}</span>
+                      </div>
+                    )}
+                    {p.createdAt && (
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Paid At:</span>
+                        <span>{new Date(p.createdAt).toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-
-              {/* Total calculation */}
-              <div className="pt-4 border-t space-y-2 text-sm text-muted-foreground">
-                <div className="flex justify-between font-black text-lg text-foreground pt-2 border-t">
-                  <span>Grand Total</span>
-                  <span className="text-primary">{formatETB(order.total)}</span>
+            ) : isPaid ? (
+              <div className="p-4 rounded-xl border bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/20 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <div>
+                    <div className="font-bold text-sm text-emerald-700 dark:text-emerald-400">Paid & Settled</div>
+                    <div className="text-xs text-muted-foreground">Full bill of {formatETB(order.total)} cleared.</div>
+                  </div>
                 </div>
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs">Settled</span>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Payment note */}
-          <Card className="rounded-3xl shadow-sm border-muted-foreground/15 bg-card/60 p-5 flex items-start gap-3">
-            <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Star className="h-4 w-4" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-sm">How do I pay?</h4>
-              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                {order.type === "DINE_IN" && !isCompleted && !isCancelled
-                  ? "Open Payment & Bill above to see our accepted accounts. Send the amount digitally, then call your waiter — they will confirm and settle your bill. Cash can be paid directly to your waiter."
-                  : "Your bill has been handled. Thank you for visiting Yadotena!"}
-              </p>
-            </div>
-          </Card>
+            ) : (
+              <div className="p-4 rounded-xl border bg-amber-500/5 border-amber-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-bold text-sm text-amber-700 dark:text-amber-400">Payment Pending</div>
+                    <div className="text-xs text-muted-foreground">Amount due: {formatETB(order.total)}</div>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-xl font-bold text-xs h-9"
+                    onClick={() => setShowPaymentModal(true)}
+                  >
+                    <Landmark className="h-3.5 w-3.5 mr-1.5" />
+                    View Accounts
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {canRequestAssistance
+                    ? "Send the amount digitally using the accounts shown, then call your waiter to confirm and settle. Cash can be paid directly to your waiter."
+                    : "Send the amount digitally using the accounts shown, or pay cash at the counter — our staff will verify and settle your bill."}
+                </p>
+              </div>
+            )}
+          </div>
 
         </div>
       </div>
@@ -354,6 +415,7 @@ export default function OrderTrackingPage() {
         onClose={() => setShowPaymentModal(false)}
         onRequestBillSettlement={handleRequestBillSettlement}
         isRequestingBill={sendServiceRequest.isPending}
+        allowCallWaiter={canRequestAssistance}
       />
     </div>
   );

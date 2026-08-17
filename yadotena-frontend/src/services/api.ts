@@ -296,6 +296,24 @@ export const api = {
         body: JSON.stringify({ items: serializeOrderItems(newItems) }),
       });
     },
+    /**
+     * Advance a kitchen *round* through its lifecycle without touching other
+     * rounds of the same order. `roundNumber` targets one round; omit it (or
+     * pass itemIds) to act on all eligible items (e.g. waiter "serve ready").
+     */
+    kitchenAction: async (
+      id: string,
+      body: {
+        roundNumber?: number;
+        itemIds?: string[];
+        action: "start" | "ready" | "serve" | "cancel";
+      }
+    ): Promise<Order> => {
+      return requestApiStrict<Order>(`/orders/${id}/kitchen`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
   },
 
   serviceRequests: {

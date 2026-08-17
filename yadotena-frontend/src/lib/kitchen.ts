@@ -1,4 +1,4 @@
-import { Order, OrderItem } from "@/types";
+import { Order, OrderItem, OrderStatus, ItemKitchenStatus } from "@/types";
 
 /**
  * Groups a ticket's items by kitchen round. Round 1 is the original order;
@@ -27,9 +27,107 @@ export function hasAddedRounds(order: { items?: OrderItem[] }): boolean {
   return (order.items || []).some((i) => (i.roundNumber || 1) > 1);
 }
 
+/** Effective kitchen status of an item. */
+export function itemStatus(item: OrderItem): ItemKitchenStatus {
+  return item.status || "PENDING";
+}
+
 /**
- * Kitchen production thresholds (minutes since order creation).
- * Centralized so urgency logic, stats, and cards never drift apart.
+ * True once any item on the order carries an explicit kitchen status. Until
+ * the backend exposes per-item status (migration 000016), orders fall back to
+ * the legacy whole-order status so the UI never shows a live ticket as NEW.
+ */
+export function hasItemStatuses(items?: OrderItem[]): boolean {
+  return (items || []).some((i) => !!i.status);
+}
+
+/**
+ * Status of a whole round, derived from its items. READY wins over PREPARING
+ * which wins over PENDING; SERVED only when every item in the round is served.
+ * `fallback` is used only when the order predates per-item status (itemStatus
+ * alone would always say PENDING for those rows, so explicit status wins).
+ */
+export function roundStatus(items: OrderItem[], fallback?: string): ItemKitchenStatus {
+  const st = new Set(
+    items.map((i) => (i.status ? i.status : (fallback as ItemKitchenStatus) || "PENDING"))
+  );
+  if (st.has("READY")) return "READY";
+  if (st.has("PREPARING")) return "PREPARING";
+  if (st.has("PENDING")) return "PENDING";
+  if (st.has("SERVED")) return "SERVED";
+  return "CANCELLED";
+}
+
+/**
+ * Derived kitchen status of the whole order from its items — mirrors the
+ * backend's recompute rule. READY when anything is ready, PREPARING while
+ * anything cooks, PENDING only when nothing has started, SERVED when done.
+ * Appending a new round therefore never regresses started work.
+ */
+export function deriveOrderStatus(items?: OrderItem[], fallback?: string): OrderStatus {
+  const active = (items || []).filter((i) => itemStatus(i) !== "CANCELLED");
+  if (active.length === 0) return (fallback as OrderStatus) || "PENDING";
+  const st = new Set(
+    active.map((i) => (i.status ? i.status : (fallback as ItemKitchenStatus) || "PENDING"))
+  );
+  if (st.has("READY")) return "READY";
+  if (st.has("PREPARING")) return "PREPARING";
+  if (st.has("PENDING")) return "PENDING";
+  return "SERVED";
+}
+
+/** A kitchen card = one order + one round, with that round's derived state. */
+export interface RoundCard {
+  key: string;
+  order: Order;
+  round: number;
+  status: ItemKitchenStatus;
+  items: OrderItem[];
+  extended: boolean; // round > 1 → "added later"
+  startedAt?: string; // when this round entered PREPARING
+  createdAt: string; // order creation, baseline for waiting timers
+}
+
+export function buildRoundCards(orders: Order[]): RoundCard[] {
+  const cards: RoundCard[] = [];
+  orders.forEach((order) => {
+    // Pre-deploy / legacy orders have no per-item status yet — inherit the
+    // whole-order kitchen status so they keep their true column placement.
+    const fallback = hasItemStatuses(order.items) ? undefined : order.status;
+    groupItemsByRound(order.items).forEach(({ round, items }) => {
+      cards.push({
+        key: `${order.id}:${round}`,
+        order,
+        round,
+        status: roundStatus(items, fallback),
+        items,
+        extended: round > 1,
+        startedAt: items.map((i) => i.startedAt).find(Boolean),
+        createdAt: order.createdAt,
+      });
+    });
+  });
+  return cards;
+}
+
+/** Rounds that still have kitchen work (the ones the KDS queue shows). */
+export function activeRoundCards(cards: RoundCard[]): RoundCard[] {
+  return cards.filter((c) => ["PENDING", "PREPARING", "READY"].includes(c.status));
+}
+
+/** Items on an order that are still PENDING or PREPARING (not yet served). */
+export function unresolvedItems(order: Order): OrderItem[] {
+  return (order.items || []).filter((i) => ["PENDING", "PREPARING"].includes(itemStatus(i)));
+}
+
+/** Items on an order that are READY and waiting for a waiter to pick up. */
+export function readyItems(order: Order): OrderItem[] {
+  return (order.items || []).filter((i) => itemStatus(i) === "READY");
+}
+
+/**
+ * Kitchen production thresholds (minutes since a round entered its current
+ * stage). Centralized so urgency logic, stats, and cards never drift apart.
  * Tune these to the café's actual preparation times.
  */
 export const KITCHEN_ATTENTION_MIN = 5;
@@ -43,9 +141,16 @@ export function getUrgency(elapsedMinutes: number): KitchenUrgency {
   return "NORMAL";
 }
 
+/** Whether a round card has been waiting (or cooking) past the urgent mark. */
+export function isCardOverdue(card: RoundCard, now: number = Date.now()): boolean {
+  if (card.status !== "PENDING" && card.status !== "PREPARING") return false;
+  const baseline = card.status === "PREPARING" ? card.startedAt || card.createdAt : card.createdAt;
+  return (now - new Date(baseline).getTime()) / 60000 >= KITCHEN_URGENT_MIN;
+}
+
+/** Back-compat: an order is overdue when any of its rounds is. */
 export function isOrderOverdue(order: Order, now: number = Date.now()): boolean {
-  if (order.status !== "PENDING" && order.status !== "PREPARING") return false;
-  return (now - new Date(order.createdAt).getTime()) / 60000 >= KITCHEN_URGENT_MIN;
+  return buildRoundCards([order]).some((c) => isCardOverdue(c, now));
 }
 
 /** Formats elapsed seconds as MM:SS (e.g. 02:14, 07:32, 12:48). */

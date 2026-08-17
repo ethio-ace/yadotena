@@ -14,7 +14,12 @@ interface BatchViewProps {
 export function BatchView({ orders, addonMap, tableLabels }: BatchViewProps) {
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
 
-  const activeOrders = orders.filter((o) => ["PENDING", "PREPARING"].includes(o.status));
+  // Aggregate only items that still need kitchen work — rounds are independent,
+  // so an order with one round READY and another PREPARING still counts its
+  // PREPARING items here (legacy rows without item status default to PENDING).
+  const activeOrders = orders.filter((o) =>
+    (o.items || []).some((i) => ["PENDING", "PREPARING"].includes((i.status || "PENDING") as string))
+  );
 
   // Aggregate items across active orders
   const itemMap = new Map<string, {

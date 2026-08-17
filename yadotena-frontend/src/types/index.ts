@@ -96,6 +96,13 @@ export interface PaymentRecord {
   createdAt: string;
 }
 
+/**
+ * Kitchen lifecycle of a single line item. Rounds are the kitchen unit of
+ * work: every item carries its own state so round 1 can be PREPARING while
+ * round 2 (appended later) is still PENDING — the whole order never re-opens.
+ */
+export type ItemKitchenStatus = "PENDING" | "PREPARING" | "READY" | "SERVED" | "CANCELLED";
+
 export interface OrderItem {
   id: string;
   menuItemId: string;
@@ -105,6 +112,9 @@ export interface OrderItem {
   specialInstructions?: string;
   selectedAddons?: { id: string; name: string; price: number }[];
   roundNumber?: number;
+  status?: ItemKitchenStatus;
+  startedAt?: string;
+  completedAt?: string;
 }
 
 export interface Order {

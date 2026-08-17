@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Order } from "@/types";
+import { Order, OrderItem } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
+import { readyItems, itemStatus, hasItemStatuses } from "@/lib/kitchen";
 import { ArrowLeft, Check, CreditCard, UtensilsCrossed, ShoppingBag, Bike, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,9 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
   const filtered = orders.filter(o => {
     switch (tab) {
       case "ACTIVE": return !["COMPLETED", "CANCELLED"].includes(o.status);
-      case "READY": return o.status === "READY";
+      // Rounds are independent — an order belongs in READY whenever any of its
+      // items is ready to serve, even if another round is still cooking.
+      case "READY": return readyItems(o).length > 0 && !["COMPLETED", "CANCELLED"].includes(o.status);
       case "UNPAID": return o.paymentStatus !== "PAID" && o.status !== "CANCELLED" && o.status !== "DRAFT";
       case "HISTORY": return o.status === "COMPLETED" || o.status === "CANCELLED";
       default: return true;
@@ -50,8 +53,13 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
     }
   };
 
+  // Legacy orders (pre per-item status) fall back to the whole-order status.
+  const effectiveStatus = (o: Order, i: OrderItem) =>
+    (hasItemStatuses(o.items) ? itemStatus(i) : o.status) || "PENDING";
+
   const nextAction = (o: Order) => {
-    if (o.status === "READY") return { label: "Mark Served", action: () => onServe(o.id), color: "bg-emerald-600 hover:bg-emerald-700 text-white" };
+    const ready = readyItems(o).length || (o.status === "READY" && !hasItemStatuses(o.items) ? (o.items?.length || 0) : 0);
+    if (ready > 0) return { label: `Serve Ready (${ready})`, action: () => onServe(o.id), color: "bg-emerald-600 hover:bg-emerald-700 text-white" };
     if (o.paymentStatus !== "PAID" && ["SERVED", "COMPLETED"].includes(o.status)) return { label: "Settle Bill", action: () => onSettle(o), color: "bg-amber-600 hover:bg-amber-700 text-white" };
     if (o.paymentStatus !== "PAID" && o.status !== "CANCELLED") return { label: "Settle", action: () => onSettle(o), color: "bg-amber-600 hover:bg-amber-700 text-white" };
     return null;
@@ -73,7 +81,7 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
 
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "ACTIVE", label: "Active", count: orders.filter(o => !["COMPLETED", "CANCELLED"].includes(o.status)).length },
-    { key: "READY", label: "Ready", count: orders.filter(o => o.status === "READY").length },
+    { key: "READY", label: "Ready", count: orders.filter(o => readyItems(o).length > 0 && !["COMPLETED", "CANCELLED"].includes(o.status)).length },
     { key: "UNPAID", label: "Unpaid", count: orders.filter(o => o.paymentStatus !== "PAID" && o.status !== "CANCELLED" && o.status !== "DRAFT").length },
     { key: "HISTORY", label: "History", count: 0 },
   ];
@@ -158,10 +166,30 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
                 {o.items?.slice(0, 3).map(i => `${i.quantity}× ${i.name}`).join(", ")}
                 {(o.items?.length || 0) > 3 && <span className="font-bold text-foreground/70"> +{(o.items?.length || 0) - 3} more</span>}
               </div>
+              {(() => {
+                const st = new Set((o.items || []).map(i => effectiveStatus(o, i)));
+                const ready = (o.items || []).filter(i => effectiveStatus(o, i) === "READY").length;
+                const cooking = (o.items || []).filter(i => ["PENDING", "PREPARING"].includes(effectiveStatus(o, i))).length;
+                if (!st.has("READY") && !st.has("PREPARING") && !st.has("PENDING")) return null;
+                return (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {ready > 0 && (
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wide">
+                        {ready} ready to serve
+                      </span>
+                    )}
+                    {cooking > 0 && (
+                      <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 text-[10px] font-black uppercase tracking-wide">
+                        {cooking} cooking
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
               {action && (
                 <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                   <button onClick={action.action} className={`h-9 px-4 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all ${action.color}`}>
-                    {action.label === "Mark Served" ? <Check className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
+                    {action.label.startsWith("Serve Ready") ? <Check className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
                     {action.label}
                   </button>
                 </div>

@@ -117,6 +117,7 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 			r.Patch("/orders/{id}/status", s.updateOrderStatusEndpoint)
 			r.Patch("/orders/{id}", s.updateOrderStatusEndpoint)
 			r.Post("/orders/{id}/add-items", s.addOrderItemsEndpoint)
+			r.Post("/orders/{id}/kitchen", s.kitchenActionEndpoint)
 
 			r.Post("/tables/{id}/start-session", s.startSession)
 			r.Post("/tables/{id}/status", s.updateTableStatus)
@@ -146,6 +147,7 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 			r.Get("/staff/orders/{id}", s.staffGetOrder)
 			r.Post("/staff/orders", s.staffPlaceOrder)
 			r.Patch("/staff/orders/{id}/status", s.staffPatchOrderStatus)
+			r.Post("/staff/orders/{id}/kitchen", s.kitchenActionEndpoint)
 			r.Post("/staff/orders/{id}/payment", s.staffSubmitPayment)
 			r.Post("/staff/orders/{id}/payment/verify", s.staffVerifyPayment)
 			r.Post("/staff/orders/{id}/payment/reject", s.staffRejectPayment)

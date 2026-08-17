@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Order, OrderItem } from "@/types";
+import { OrderItem } from "@/types";
 import { Clock, Play, CheckCircle2, AlertTriangle, Sparkles, Loader2, RotateCcw } from "lucide-react";
 import {
   formatElapsed,
@@ -7,19 +7,19 @@ import {
   orderDestination,
   orderTicketNumber,
   addonNames,
-  groupItemsByRound,
-  hasAddedRounds,
+  itemStatus,
+  RoundCard,
 } from "@/lib/kitchen";
 
 interface KitchenOrderCardProps {
-  order: Order;
+  card: RoundCard;
   isNew?: boolean;
   addonMap?: Record<string, string>;
   tableLabels?: Record<string, string>;
-  onStartPreparing?: (orderId: string) => void;
-  onMarkReady?: (orderId: string) => void;
-  onInspect?: (order: Order) => void;
-  updatingOrderId?: string | null;
+  onStartPreparing?: (orderId: string, round: number) => void;
+  onMarkReady?: (orderId: string, round: number) => void;
+  onInspect?: (order: RoundCard["order"]) => void;
+  updatingKey?: string | null;
 }
 
 function ItemLines({ item, addonMap }: { item: OrderItem; addonMap?: Record<string, string> }) {
@@ -54,21 +54,30 @@ function ItemLines({ item, addonMap }: { item: OrderItem; addonMap?: Record<stri
   );
 }
 
+/**
+ * One kitchen round of one order. Rounds are independent production units: the
+ * same ticket can appear in NEW (round 2 just arrived) and PREPARING (round 1
+ * still cooking) at the same time, and starting one round never touches the
+ * others.
+ */
 export function KitchenOrderCard({
-  order,
+  card,
   isNew = false,
   addonMap,
   tableLabels,
   onStartPreparing,
   onMarkReady,
   onInspect,
-  updatingOrderId,
+  updatingKey,
 }: KitchenOrderCardProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
   useEffect(() => {
     const calculateElapsed = () => {
-      const createdTime = new Date(order.createdAt).getTime();
+      // Timer baseline: the moment this round entered PREPARING once started,
+      // otherwise when the order was placed (waiting time).
+      const baseline = card.startedAt || card.createdAt;
+      const createdTime = new Date(baseline).getTime();
       const diffSec = Math.max(0, Math.floor((Date.now() - createdTime) / 1000));
       setElapsedSeconds(diffSec);
     };
@@ -76,16 +85,14 @@ export function KitchenOrderCard({
     calculateElapsed();
     const timer = setInterval(calculateElapsed, 1000);
     return () => clearInterval(timer);
-  }, [order.createdAt]);
+  }, [card.startedAt, card.createdAt]);
 
   const elapsedMins = Math.floor(elapsedSeconds / 60);
   const urgency = getUrgency(elapsedMins);
   const formattedTimer = formatElapsed(elapsedSeconds);
-  const isThisItemUpdating = updatingOrderId === order.id;
+  const isThisUpdating = updatingKey === card.key;
 
-  const rounds = groupItemsByRound(order.items);
-  const extended = hasAddedRounds(order);
-  const latestRound = rounds.length;
+  const { order, round, status, extended } = card;
 
   const urgencyLabel =
     urgency === "URGENT"
@@ -117,19 +124,15 @@ export function KitchenOrderCard({
     }
   })();
 
-  const styles = urgencyStyles;
-  const isPending = order.status === "PENDING";
-  const isPreparing = order.status === "PREPARING";
-  const isReady = order.status === "READY";
-
   const destination = orderDestination(order, tableLabels);
   const orderNumber = orderTicketNumber(order);
+  const mixedRound = new Set(card.items.map(itemStatus)).size > 1;
 
   return (
     <div
       onClick={() => onInspect?.(order)}
       className={`rounded-xl border p-4 transition-all duration-200 flex flex-col justify-between cursor-pointer select-none group relative overflow-hidden ${
-        isNew ? "border-amber-500/70 bg-zinc-900 ring-1 ring-amber-500/20" : styles.cardBorder
+        isNew ? "border-amber-500/70 bg-zinc-900 ring-1 ring-amber-500/20" : urgencyStyles.cardBorder
       }`}
     >
       {/* CARD HEADER */}
@@ -137,12 +140,17 @@ export function KitchenOrderCard({
         <div className="flex items-start justify-between border-b border-zinc-800 pb-3 mb-3">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className={`text-base font-black tracking-tight ${styles.headerText}`}>
+              <h3 className={`text-base font-black tracking-tight ${urgencyStyles.headerText}`}>
                 {destination}
               </h3>
               <span className="text-xs font-mono font-bold text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded-md border border-zinc-700/50">
                 {orderNumber}
               </span>
+              {extended && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-black uppercase tracking-wider">
+                  R{round}
+                </span>
+              )}
               {isNew && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500 text-amber-950 text-[10px] font-black uppercase tracking-wider">
                   <Sparkles className="h-3 w-3" /> New
@@ -150,13 +158,14 @@ export function KitchenOrderCard({
               )}
             </div>
             <p className="text-[11px] text-zinc-500 mt-0.5 font-medium">
-              {order.type === "DINE_IN" ? "Dine-in Ticket" : "Takeaway / Counter"}
+              {extended ? `Round ${round} · added later` : order.type === "DINE_IN" ? "Dine-in ticket" : "Takeaway / counter"}
+              {mixedRound ? " · mixed items" : ""}
             </p>
           </div>
 
-          {/* Elapsed Timer */}
+          {/* Elapsed Timer — starts when this round entered PREPARING */}
           <div className="flex flex-col items-end gap-1">
-            <span className={`px-2.5 py-1 rounded-lg text-xs font-mono flex items-center gap-1 ${styles.timerBadge}`}>
+            <span className={`px-2.5 py-1 rounded-lg text-xs font-mono flex items-center gap-1 ${urgencyStyles.timerBadge}`}>
               <Clock className="h-3.5 w-3.5" />
               {formattedTimer}
             </span>
@@ -169,85 +178,58 @@ export function KitchenOrderCard({
           </div>
         </div>
 
-        {/* EXTENDED TICKET RIBBON — a waiter added items to this order after it was placed */}
+        {/* EXTENDED ROUND RIBBON — this round was added to a live ticket */}
         {extended && (
           <div className="mb-3 -mx-1 flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/25 px-2.5 py-1.5 text-[11px] font-black text-amber-400 uppercase tracking-wide">
             <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-            <span>Ticket extended — Round {latestRound} added later</span>
+            <span>Round {round} added to live ticket</span>
           </div>
         )}
 
-        {/* ITEMS — grouped by kitchen round */}
-        <div className="space-y-3 mb-3">
-          {rounds.map(({ round, items }) => {
-            const isLatest = round === latestRound;
-            const isAdded = round > 1;
-            return (
-              <div key={round}>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  {rounds.length > 1 && (
-                    <>
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${
-                        isAdded ? "text-amber-500" : "text-zinc-500"
-                      }`}>
-                        {isAdded ? `Round ${round} · Added later` : "Original order"}
-                      </span>
-                      <span className="h-px flex-1 bg-zinc-800" />
-                      {isAdded && isLatest && isPending && (
-                        <span className="px-1.5 py-0.5 rounded bg-amber-500 text-amber-950 text-[9px] font-black uppercase tracking-wider">
-                          New
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-                <div className="space-y-2.5">
-                  {items.map((item, idx) => (
-                    <ItemLines key={item.id || idx} item={item} addonMap={addonMap} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+        {/* ITEMS — this round only */}
+        <div className="space-y-2.5 mb-3">
+          {card.items.map((item, idx) => (
+            <ItemLines key={item.id || idx} item={item} addonMap={addonMap} />
+          ))}
         </div>
       </div>
 
       {/* FOOTER & PRIMARY ACTION */}
       <div className="pt-3 border-t border-zinc-800" onClick={(e) => e.stopPropagation()}>
-        {isPending && (
+        {status === "PENDING" && (
           <button
-            disabled={isThisItemUpdating}
-            onClick={() => onStartPreparing?.(order.id)}
+            disabled={isThisUpdating}
+            onClick={() => onStartPreparing?.(order.id, round)}
             className="w-full h-11 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
           >
-            {isThisItemUpdating ? (
+            {isThisUpdating ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Play className="h-4 w-4 fill-current" />
             )}
-            <span>{isThisItemUpdating ? "STARTING..." : "START PREPARING"}</span>
+            <span>{isThisUpdating ? "STARTING..." : `START PREPARING${extended ? ` ROUND ${round}` : ""}`}</span>
           </button>
         )}
 
-        {isPreparing && (
+        {status === "PREPARING" && (
           <button
-            disabled={isThisItemUpdating}
-            onClick={() => onMarkReady?.(order.id)}
+            disabled={isThisUpdating}
+            onClick={() => onMarkReady?.(order.id, round)}
             className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
           >
-            {isThisItemUpdating ? (
+            {isThisUpdating ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <CheckCircle2 className="h-4 w-4" />
             )}
-            <span>{isThisItemUpdating ? "SAVING..." : "MARK READY"}</span>
+            <span>{isThisUpdating ? "SAVING..." : `MARK READY${extended ? ` ROUND ${round}` : ""}`}</span>
           </button>
         )}
 
-        {isReady && (
+        {status === "READY" && (
           <div className="w-full h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 font-bold text-xs flex items-center justify-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-            <span>✓ READY — Waiting for waiter pickup</span>
+            <span>✓ READY — waiting for waiter pickup</span>
           </div>
         )}
       </div>

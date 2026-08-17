@@ -19,15 +19,21 @@ func round2(x float64) float64 {
 	return math.Round(x*100) / 100
 }
 
+// APIOrderItem is the wire representation of a kitchen line item. Each item
+// carries its own kitchen lifecycle state (PENDING → PREPARING → READY →
+// SERVED) so rounds can progress independently within one order.
 type APIOrderItem struct {
-	ID                  string   `json:"id"`
-	MenuItemID          string   `json:"menuItemId"`
-	Name                string   `json:"name"`
-	Price               float64  `json:"price"`
-	Quantity            int      `json:"quantity"`
-	SpecialInstructions string   `json:"specialInstructions"`
-	SelectedAddons      []string `json:"selectedAddons"`
-	RoundNumber         int      `json:"roundNumber"`
+	ID                  string     `json:"id"`
+	MenuItemID          string     `json:"menuItemId"`
+	Name                string     `json:"name"`
+	Price               float64    `json:"price"`
+	Quantity            int        `json:"quantity"`
+	SpecialInstructions string     `json:"specialInstructions"`
+	SelectedAddons      []string   `json:"selectedAddons"`
+	RoundNumber         int        `json:"roundNumber"`
+	Status              string     `json:"status"`
+	StartedAt           *time.Time `json:"startedAt,omitempty"`
+	CompletedAt         *time.Time `json:"completedAt,omitempty"`
 }
 
 type APIOrder struct {
@@ -266,7 +272,10 @@ func (s *Server) listOrders(w http.ResponseWriter, r *http.Request) {
 						'quantity', oi.quantity,
 						'specialInstructions', COALESCE(oi.special_instructions, ''),
 						'selectedAddons', COALESCE(oi.selected_addons, '[]'::jsonb),
-						'roundNumber', oi.round_number
+						'roundNumber', oi.round_number,
+						'status', oi.status,
+						'startedAt', oi.started_at,
+						'completedAt', oi.completed_at
 					) ORDER BY oi.round_number, oi.id
 				) FILTER (WHERE oi.id IS NOT NULL), '[]'::jsonb
 			) AS items
@@ -606,11 +615,10 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.recalculateOrderFinancialsTx(ctx, tx, targetOrderID, orderType)
-		// New items merged into an order that was already past the queue
-		// (PREPARING/READY) must return it to PENDING so the fresh round gets
-		// kitchen attention — mirrors addOrderItemsEndpoint. If it's already
-		// PENDING the conditional update is a no-op.
-		_, _ = tx.Exec(ctx, `UPDATE orders SET status = 'PENDING', updated_at = now() WHERE id = $1 AND status <> 'PENDING'`, targetOrderID)
+		// The fresh round is PENDING by default; recomputing the derived order
+		// status keeps already-started rounds (PREPARING/READY) where they are
+		// instead of re-opening the whole ticket back to NEW.
+		s.recomputeOrderKitchenStatusTx(ctx, tx, targetOrderID)
 		if errCommit := tx.Commit(ctx); errCommit != nil {
 			writeErr(w, 500, errCommit.Error())
 			return
@@ -693,6 +701,12 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, newOrder)
 }
 
+// updateOrderStatusEndpoint is the generic status write path used by legacy
+// callers (manager boards, delivery dispatch pane, waiter quick actions).
+// Kitchen statuses (PREPARING/READY/SERVED) are translated to item-level
+// transitions and the order status is then derived from its items, so this
+// endpoint can never re-open a started round. COMPLETED and CANCELLED are
+// terminal commercial states handled explicitly below.
 func (s *Server) updateOrderStatusEndpoint(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
@@ -706,61 +720,91 @@ func (s *Server) updateOrderStatusEndpoint(w http.ResponseWriter, r *http.Reques
 	newStatus := strings.ToUpper(body.Status)
 	ctx := r.Context()
 
-	var oldStatus string
-	var currentPaymentStatus string
-	errScanOld := s.Pool.QueryRow(ctx, `SELECT status, payment_status FROM orders WHERE id = $1`, id).Scan(&oldStatus, &currentPaymentStatus)
-	if errScanOld != nil {
+	var oldStatus, currentPaymentStatus string
+	var tableID *string
+	if err := s.Pool.QueryRow(ctx, `SELECT status, payment_status, table_id FROM orders WHERE id = $1`, id).Scan(&oldStatus, &currentPaymentStatus, &tableID); err != nil {
 		writeErr(w, 404, "Order not found")
 		return
 	}
-
 	oldStatus = strings.ToUpper(oldStatus)
 
-	// Explicit State Transition Matrix Rules
-	if oldStatus != newStatus {
-		validTransitions := map[string][]string{
-			"DRAFT":     {"PENDING", "CANCELLED"},
-			"PENDING":   {"PREPARING", "CANCELLED"},
-			"PREPARING": {"READY", "CANCELLED"},
-			"READY":     {"SERVED", "CANCELLED"},
-			"SERVED":    {"COMPLETED", "CANCELLED"},
-			"COMPLETED": {}, // Terminal state
-			"CANCELLED": {}, // Terminal state
-		}
-
-		allowed, exists := validTransitions[oldStatus]
-		if !exists {
-			allowed = []string{"PENDING", "PREPARING", "READY", "SERVED", "COMPLETED", "CANCELLED"}
-		}
-
-		isAllowed := false
-		for _, target := range allowed {
-			if target == newStatus {
-				isAllowed = true
-				break
-			}
-		}
-
-		if !isAllowed && oldStatus != "" {
-			writeErr(w, 409, fmt.Sprintf("Invalid order status transition from %s to %s", oldStatus, newStatus))
+	// Terminal orders are immutable.
+	if oldStatus == "COMPLETED" || oldStatus == "CANCELLED" {
+		if oldStatus == newStatus {
+			updatedOrder, _ := s.fetchOrderFull(ctx, id)
+			writeJSON(w, 200, updatedOrder)
 			return
 		}
-	}
-
-	// Strict State Invariant: An order cannot transition to COMPLETED unless payment_status is PAID
-	if newStatus == "COMPLETED" && strings.ToUpper(currentPaymentStatus) != "PAID" {
-		writeErr(w, 409, "Cannot set order status to COMPLETED when payment is UNPAID. Settle payment first.")
+		writeErr(w, 409, fmt.Sprintf("Order is %s and can no longer change status", oldStatus))
 		return
 	}
 
-	var tableID *string
-	err := s.Pool.QueryRow(ctx, `UPDATE orders SET status = $1, updated_at = now() WHERE id = $2 RETURNING table_id`, newStatus, id).Scan(&tableID)
-	if err != nil {
+	tx, errTx := s.Pool.Begin(ctx)
+	if errTx != nil {
+		writeErr(w, 500, errTx.Error())
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	// Serialize against concurrent kitchen writes / item appends.
+	var lockID string
+	if err := tx.QueryRow(ctx, `SELECT id FROM orders WHERE id = $1 FOR UPDATE`, id).Scan(&lockID); err != nil {
 		writeErr(w, 404, "Order not found")
 		return
 	}
 
-	// Sync table status if dine-in
+	switch newStatus {
+	case "PREPARING", "READY", "SERVED":
+		// Translate a whole-order kitchen intent into item-level transitions;
+		// each step only advances items that are actually in the prior state,
+		// then the order status is recomputed from the items.
+		var setClause, statusCond string
+		switch newStatus {
+		case "PREPARING":
+			setClause = `status = 'PREPARING', started_at = COALESCE(started_at, now())`
+			statusCond = `AND status = 'PENDING'`
+		case "READY":
+			setClause = `status = 'READY', completed_at = now()`
+			statusCond = `AND status = 'PREPARING'`
+		case "SERVED":
+			setClause = `status = 'SERVED'`
+			statusCond = `AND status = 'READY'`
+		}
+		_, _ = tx.Exec(ctx, fmt.Sprintf(`UPDATE order_items SET %s WHERE order_id = $1 %s`, setClause, statusCond), id)
+		s.recomputeOrderKitchenStatusTx(ctx, tx, id)
+
+	case "COMPLETED":
+		// Commercial terminal state: payment must be settled AND no kitchen work
+		// may still be in progress. Everything that is READY is handed over
+		// (auto-served) as part of completing the order.
+		if strings.ToUpper(currentPaymentStatus) != "PAID" {
+			writeErr(w, 409, "Cannot complete an order when payment is UNPAID. Settle payment first.")
+			return
+		}
+		var cooking int
+		_ = tx.QueryRow(ctx, `SELECT COUNT(*) FROM order_items WHERE order_id = $1 AND status IN ('PENDING','PREPARING')`, id).Scan(&cooking)
+		if cooking > 0 {
+			writeErr(w, 409, "Cannot complete the order while kitchen work is still in progress")
+			return
+		}
+		_, _ = tx.Exec(ctx, `UPDATE order_items SET status = 'SERVED' WHERE order_id = $1 AND status = 'READY'`, id)
+		_, _ = tx.Exec(ctx, `UPDATE orders SET status = 'COMPLETED', updated_at = now() WHERE id = $1`, id)
+
+	case "CANCELLED":
+		_, _ = tx.Exec(ctx, `UPDATE order_items SET status = 'CANCELLED' WHERE order_id = $1 AND status IN ('PENDING','PREPARING','READY')`, id)
+		_, _ = tx.Exec(ctx, `UPDATE orders SET status = 'CANCELLED', updated_at = now() WHERE id = $1`, id)
+
+	default:
+		writeErr(w, 400, "invalid status")
+		return
+	}
+
+	if errCommit := tx.Commit(ctx); errCommit != nil {
+		writeErr(w, 500, errCommit.Error())
+		return
+	}
+
+	// Sync table status if dine-in.
 	if tableID != nil && *tableID != "" {
 		if newStatus == "READY" {
 			_, _ = s.Pool.Exec(ctx, `UPDATE tables SET status = 'WAITING_FOR_SERVICE', updated_at = now() WHERE id = $1`, *tableID)
@@ -859,7 +903,10 @@ func (s *Server) addOrderItemsEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.recalculateOrderFinancialsTx(ctx, tx, id, order.Type)
-	_, _ = tx.Exec(ctx, `UPDATE orders SET status = 'PENDING', updated_at = now() WHERE id = $1`, id)
+	// Appended items land in a fresh round and stay PENDING; the derived order
+	// status preserves the progress of rounds already in the kitchen instead of
+	// yanking the whole ticket back to NEW.
+	s.recomputeOrderKitchenStatusTx(ctx, tx, id)
 
 	if errCommit := tx.Commit(ctx); errCommit != nil {
 		writeErr(w, 500, errCommit.Error())
@@ -921,7 +968,7 @@ func (s *Server) loadOrderPayments(ctx context.Context, orderID string) []Paymen
 
 func (s *Server) loadOrderItems(ctx context.Context, orderID string) []APIOrderItem {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, COALESCE(menu_item_id, ''), name, price::float8, quantity, COALESCE(special_instructions, ''), selected_addons, round_number
+		SELECT id, COALESCE(menu_item_id, ''), name, price::float8, quantity, COALESCE(special_instructions, ''), selected_addons, round_number, status, started_at, completed_at
 		FROM order_items WHERE order_id = $1 ORDER BY round_number, id`, orderID)
 	if err != nil {
 		return []APIOrderItem{}
@@ -932,7 +979,7 @@ func (s *Server) loadOrderItems(ctx context.Context, orderID string) []APIOrderI
 	for rows.Next() {
 		var item APIOrderItem
 		var adRaw []byte
-		if errScan := rows.Scan(&item.ID, &item.MenuItemID, &item.Name, &item.Price, &item.Quantity, &item.SpecialInstructions, &adRaw, &item.RoundNumber); errScan == nil {
+		if errScan := rows.Scan(&item.ID, &item.MenuItemID, &item.Name, &item.Price, &item.Quantity, &item.SpecialInstructions, &adRaw, &item.RoundNumber, &item.Status, &item.StartedAt, &item.CompletedAt); errScan == nil {
 			if len(adRaw) > 0 {
 				_ = json.Unmarshal(adRaw, &item.SelectedAddons)
 			}
@@ -943,6 +990,142 @@ func (s *Server) loadOrderItems(ctx context.Context, orderID string) []APIOrderI
 		}
 	}
 	return items
+}
+
+// recomputeOrderKitchenStatusTx derives the order's kitchen status from its
+// line items. Rounds are independent: the order shows READY while anything is
+// ready, PREPARING while anything cooks, PENDING only when nothing has started,
+// and SERVED only when every item has been served. Appending a fresh round
+// therefore never re-opens work the kitchen already started — the new round
+// simply appears in the NEW column on its own card.
+func (s *Server) recomputeOrderKitchenStatusTx(ctx context.Context, tx pgx.Tx, orderID string) {
+	counts := map[string]int{"PENDING": 0, "PREPARING": 0, "READY": 0, "SERVED": 0}
+	rows, err := tx.Query(ctx, `SELECT status, COUNT(*) FROM order_items WHERE order_id = $1 GROUP BY status`, orderID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var st string
+		var c int
+		if rows.Scan(&st, &c) == nil {
+			counts[strings.ToUpper(st)] = c
+		}
+	}
+
+	newStatus := "PENDING"
+	switch {
+	case counts["READY"] > 0:
+		newStatus = "READY"
+	case counts["PREPARING"] > 0:
+		newStatus = "PREPARING"
+	case counts["PENDING"] > 0:
+		newStatus = "PENDING"
+	case counts["SERVED"] > 0:
+		newStatus = "SERVED"
+	}
+	_, _ = tx.Exec(ctx, `UPDATE orders SET status = $1, updated_at = now() WHERE id = $2`, newStatus, orderID)
+}
+
+// kitchenActionEndpoint advances a *round* (or a set of items) through the
+// kitchen lifecycle without touching any other round of the same order. This is
+// the KDS's primary write path: START (PENDING→PREPARING), READY
+// (PREPARING→READY), SERVE (READY→SERVED, used by waiters on handover) and
+// CANCEL (PENDING/PREPARING→CANCELLED).
+func (s *Server) kitchenActionEndpoint(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var input struct {
+		RoundNumber int      `json:"roundNumber"`
+		ItemIDs     []string `json:"itemIds"`
+		Action      string   `json:"action"`
+	}
+	if err := decodeJSON(r, &input); err != nil || input.Action == "" {
+		writeErr(w, 400, "action is required")
+		return
+	}
+
+	action := strings.ToUpper(input.Action)
+	switch action {
+	case "START", "READY", "SERVE", "CANCEL":
+	default:
+		writeErr(w, 400, "action must be one of START, READY, SERVE, CANCEL")
+		return
+	}
+
+	ctx := r.Context()
+	var currentStatus string
+	if err := s.Pool.QueryRow(ctx, `SELECT status FROM orders WHERE id = $1`, id).Scan(&currentStatus); err != nil {
+		writeErr(w, 404, "Order not found")
+		return
+	}
+	if currentStatus == "COMPLETED" || currentStatus == "CANCELLED" {
+		writeErr(w, 409, fmt.Sprintf("Cannot update kitchen state on a %s order", strings.ToLower(currentStatus)))
+		return
+	}
+
+	tx, errTx := s.Pool.Begin(ctx)
+	if errTx != nil {
+		writeErr(w, 500, errTx.Error())
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	// Serialize round computation under concurrent kitchen writes.
+	var lockID string
+	if err := tx.QueryRow(ctx, `SELECT id FROM orders WHERE id = $1 FOR UPDATE`, id).Scan(&lockID); err != nil {
+		writeErr(w, 404, "Order not found")
+		return
+	}
+
+	cond := `order_id = $1`
+	args := []any{id}
+	if input.RoundNumber > 0 {
+		args = append(args, input.RoundNumber)
+		cond += fmt.Sprintf(` AND round_number = $%d`, len(args))
+	}
+	if len(input.ItemIDs) > 0 {
+		args = append(args, input.ItemIDs)
+		cond += fmt.Sprintf(` AND id = ANY($%d)`, len(args))
+	}
+
+	var setClause, statusCond string
+	switch action {
+	case "START":
+		setClause = `status = 'PREPARING', started_at = COALESCE(started_at, now())`
+		statusCond = `AND status = 'PENDING'`
+	case "READY":
+		setClause = `status = 'READY', completed_at = now()`
+		statusCond = `AND status = 'PREPARING'`
+	case "SERVE":
+		setClause = `status = 'SERVED'`
+		statusCond = `AND status = 'READY'`
+	case "CANCEL":
+		setClause = `status = 'CANCELLED'`
+		statusCond = `AND status IN ('PENDING','PREPARING')`
+	}
+
+	tag, errExec := tx.Exec(ctx, fmt.Sprintf(`UPDATE order_items SET %s WHERE %s %s`, setClause, cond, statusCond), args...)
+	if errExec != nil {
+		writeErr(w, 500, errExec.Error())
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		writeErr(w, 409, fmt.Sprintf("No items in this round are eligible for %s", action))
+		return
+	}
+
+	s.recomputeOrderKitchenStatusTx(ctx, tx, id)
+	if errCommit := tx.Commit(ctx); errCommit != nil {
+		writeErr(w, 500, errCommit.Error())
+		return
+	}
+
+	updatedOrder, _ := s.fetchOrderFull(ctx, id)
+	s.Ably.Publish(ctx, "yadotena-realtime", "order.updated", updatedOrder)
+	s.NATS.Publish("yadotena.orders.updated", updatedOrder)
+	s.LogActivityFromReq(r, "KITCHEN_ACTION", "ORDER", id, fmt.Sprintf("Kitchen %s on Order #%s (round %d)", action, id, input.RoundNumber), nil, map[string]any{"action": action, "round": input.RoundNumber})
+
+	writeJSON(w, 200, updatedOrder)
 }
 
 func (s *Server) recalculateOrderFinancialsTx(ctx context.Context, tx pgx.Tx, orderID string, orderType string) {

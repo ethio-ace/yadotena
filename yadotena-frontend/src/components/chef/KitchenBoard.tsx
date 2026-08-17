@@ -4,38 +4,41 @@ import { useState } from "react";
 import { Order } from "@/types";
 import { KitchenColumn } from "./KitchenColumn";
 import { Flame, Clock, CheckCircle2 } from "lucide-react";
+import { buildRoundCards, activeRoundCards } from "@/lib/kitchen";
 
 interface KitchenBoardProps {
   orders: Order[];
-  newOrderIds?: Set<string>;
+  newCardKeys?: Set<string>;
   addonMap?: Record<string, string>;
   tableLabels?: Record<string, string>;
-  onStartPreparing: (orderId: string) => void;
-  onMarkReady: (orderId: string) => void;
+  onStartPreparing: (orderId: string, round: number) => void;
+  onMarkReady: (orderId: string, round: number) => void;
   onInspectOrder: (order: Order) => void;
-  updatingOrderId?: string | null;
+  updatingKey?: string | null;
 }
 
 export function KitchenBoard({
   orders,
-  newOrderIds,
+  newCardKeys,
   addonMap,
   tableLabels,
   onStartPreparing,
   onMarkReady,
   onInspectOrder,
-  updatingOrderId,
+  updatingKey,
 }: KitchenBoardProps) {
   const [mobileTab, setMobileTab] = useState<"PENDING" | "PREPARING" | "READY">("PENDING");
 
-  // Stable FIFO: oldest ticket on top. New arrivals slot in at the bottom with a
-  // NEW highlight instead of reshuffling what the chef is already reading.
-  const byOldestFirst = (a: Order, b: Order) =>
-    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  // One card per kitchen round, not per order: a ticket with round 1 cooking
+  // and round 2 just arrived shows in both PREPARING and NEW simultaneously.
+  // Stable FIFO: oldest round on top; new arrivals slot in at the bottom.
+  const cards = activeRoundCards(buildRoundCards(orders)).sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
 
-  const pendingOrders = orders.filter((o) => o.status === "PENDING").sort(byOldestFirst);
-  const preparingOrders = orders.filter((o) => o.status === "PREPARING").sort(byOldestFirst);
-  const readyOrders = orders.filter((o) => o.status === "READY").sort(byOldestFirst);
+  const pendingCards = cards.filter((c) => c.status === "PENDING");
+  const preparingCards = cards.filter((c) => c.status === "PREPARING");
+  const readyCards = cards.filter((c) => c.status === "READY");
 
   return (
     <div className="flex flex-col flex-1 p-4 max-w-[1800px] mx-auto w-full">
@@ -50,7 +53,7 @@ export function KitchenBoard({
           }`}
         >
           <Flame className="h-4 w-4" />
-          <span>NEW ({pendingOrders.length})</span>
+          <span>NEW ({pendingCards.length})</span>
         </button>
 
         <button
@@ -62,7 +65,7 @@ export function KitchenBoard({
           }`}
         >
           <Clock className="h-4 w-4" />
-          <span>PREP ({preparingOrders.length})</span>
+          <span>PREP ({preparingCards.length})</span>
         </button>
 
         <button
@@ -74,7 +77,7 @@ export function KitchenBoard({
           }`}
         >
           <CheckCircle2 className="h-4 w-4" />
-          <span>READY ({readyOrders.length})</span>
+          <span>READY ({readyCards.length})</span>
         </button>
       </div>
 
@@ -84,36 +87,36 @@ export function KitchenBoard({
           <KitchenColumn
             title="New Orders"
             status="PENDING"
-            orders={pendingOrders}
-            newOrderIds={newOrderIds}
+            cards={pendingCards}
+            newCardKeys={newCardKeys}
             addonMap={addonMap}
             tableLabels={tableLabels}
             onStartPreparing={onStartPreparing}
             onInspect={onInspectOrder}
-            updatingOrderId={updatingOrderId}
+            updatingKey={updatingKey}
           />
         )}
         {mobileTab === "PREPARING" && (
           <KitchenColumn
             title="Preparing"
             status="PREPARING"
-            orders={preparingOrders}
+            cards={preparingCards}
             addonMap={addonMap}
             tableLabels={tableLabels}
             onMarkReady={onMarkReady}
             onInspect={onInspectOrder}
-            updatingOrderId={updatingOrderId}
+            updatingKey={updatingKey}
           />
         )}
         {mobileTab === "READY" && (
           <KitchenColumn
             title="Ready for Pickup"
             status="READY"
-            orders={readyOrders}
+            cards={readyCards}
             addonMap={addonMap}
             tableLabels={tableLabels}
             onInspect={onInspectOrder}
-            updatingOrderId={updatingOrderId}
+            updatingKey={updatingKey}
           />
         )}
       </div>
@@ -121,36 +124,36 @@ export function KitchenBoard({
       {/* DESKTOP & TABLET 3-COLUMN GRID DISPLAY (md+) */}
       <div className="hidden md:grid md:grid-cols-3 gap-5 flex-1 items-start">
         <KitchenColumn
-          title="New Orders Waiting"
+          title="New Rounds Waiting"
           status="PENDING"
-          orders={pendingOrders}
-          newOrderIds={newOrderIds}
+          cards={pendingCards}
+          newCardKeys={newCardKeys}
           addonMap={addonMap}
           tableLabels={tableLabels}
           onStartPreparing={onStartPreparing}
           onInspect={onInspectOrder}
-          updatingOrderId={updatingOrderId}
+          updatingKey={updatingKey}
         />
 
         <KitchenColumn
           title="Currently Preparing"
           status="PREPARING"
-          orders={preparingOrders}
+          cards={preparingCards}
           addonMap={addonMap}
           tableLabels={tableLabels}
           onMarkReady={onMarkReady}
           onInspect={onInspectOrder}
-          updatingOrderId={updatingOrderId}
+          updatingKey={updatingKey}
         />
 
         <KitchenColumn
           title="Ready for Waiter"
           status="READY"
-          orders={readyOrders}
+          cards={readyCards}
           addonMap={addonMap}
           tableLabels={tableLabels}
           onInspect={onInspectOrder}
-          updatingOrderId={updatingOrderId}
+          updatingKey={updatingKey}
         />
       </div>
     </div>

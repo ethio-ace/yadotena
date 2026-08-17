@@ -4,9 +4,9 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { api } from "@/services/api";
-import { Order, OrderStatus } from "@/types";
+import { Order, ItemKitchenStatus } from "@/types";
 import { soundAlerts } from "@/lib/audioAlerts";
-import { isOrderOverdue, orderTicketNumber } from "@/lib/kitchen";
+import { buildRoundCards, activeRoundCards, isCardOverdue, orderTicketNumber, deriveOrderStatus } from "@/lib/kitchen";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { useAblySync, AblyConnectionState } from "@/contexts/AblySyncProvider";
 
@@ -61,12 +61,15 @@ export default function KitchenDashboard() {
     refetchInterval: isConnected ? false : 3000,
   });
 
-  const pendingOrders = orders.filter((o) => o.status === "PENDING");
-  const preparingOrders = orders.filter((o) => o.status === "PREPARING");
-  const readyOrders = orders.filter((o) => o.status === "READY");
+  // The kitchen unit of work is the round, not the order: a ticket with round 1
+  // cooking and round 2 just arrived shows in both PREPARING and NEW at once.
+  const cards = useMemo(() => activeRoundCards(buildRoundCards(orders)), [orders]);
+  const pendingCards = cards.filter((c) => c.status === "PENDING");
+  const preparingCards = cards.filter((c) => c.status === "PREPARING");
+  const readyCards = cards.filter((c) => c.status === "READY");
   const completedOrders = orders.filter((o) => ["SERVED", "COMPLETED"].includes(o.status));
-  const overdueCount = orders.filter((o) => isOrderOverdue(o)).length;
-  const activeCount = pendingOrders.length + preparingOrders.length;
+  const overdueCount = cards.filter((c) => isCardOverdue(c)).length;
+  const activeCount = pendingCards.length + preparingCards.length;
 
   // Addon catalog so kitchen tickets can render addon names instead of raw ids.
   const { data: addons = [] } = useQuery({
@@ -76,43 +79,46 @@ export default function KitchenDashboard() {
   const addonMap = useMemo(() => Object.fromEntries(addons.map((a) => [a.id, a.name])), [addons]);
   const tableLabels = useTableLabels();
 
-  // --- new-ticket detection: one chime per ticket + temporary NEW highlight ---
-  const seenPendingIdsRef = useRef<Set<string>>(new Set());
+  // --- new-round detection: one chime per fresh kitchen round + temporary NEW ---
+  const seenPendingKeysRef = useRef<Set<string>>(new Set());
   const isFirstSyncRef = useRef(true);
   const highlightTimersRef = useRef<number[]>([]);
 
-  useEffect(() => {
-    const pendingIds = new Set(pendingOrders.map((o) => o.id));
+  const pendingKeys = useMemo(
+    () => new Set(pendingCards.map((c) => c.key)),
+    [pendingCards]
+  );
 
-    // First sync is a baseline — existing tickets are not "new".
+  useEffect(() => {
+    // First sync is a baseline — existing rounds are not "new".
     if (isFirstSyncRef.current) {
-      seenPendingIdsRef.current = pendingIds;
+      seenPendingKeysRef.current = pendingKeys;
       isFirstSyncRef.current = false;
       return;
     }
 
-    const fresh = [...pendingIds].filter((id) => !seenPendingIdsRef.current.has(id));
+    const fresh = [...pendingKeys].filter((key) => !seenPendingKeysRef.current.has(key));
     if (fresh.length === 0) return;
 
-    seenPendingIdsRef.current = new Set([...seenPendingIdsRef.current, ...pendingIds]);
+    seenPendingKeysRef.current = new Set([...seenPendingKeysRef.current, ...pendingKeys]);
 
     if (soundEnabled) soundAlerts.playNewOrderChime();
 
     setNewOrderIds((prev) => {
       const next = new Set(prev);
-      fresh.forEach((id) => next.add(id));
+      fresh.forEach((key) => next.add(key));
       return next;
     });
 
     const timer = window.setTimeout(() => {
       setNewOrderIds((prev) => {
         const next = new Set(prev);
-        fresh.forEach((id) => next.delete(id));
+        fresh.forEach((key) => next.delete(key));
         return next;
       });
     }, 12000);
     highlightTimersRef.current.push(timer);
-  }, [pendingOrders, soundEnabled]);
+  }, [pendingKeys, soundEnabled]);
 
   useEffect(() => () => {
     highlightTimersRef.current.forEach((t) => window.clearTimeout(t));
@@ -140,17 +146,26 @@ export default function KitchenDashboard() {
   }, [notice]);
 
   // --- conservative optimistic transitions: rollback + resync on conflict ---
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: OrderStatus }) =>
-      api.orders.updateStatus(id, status),
-    onMutate: async ({ id, status }) => {
-      setUpdatingOrderId(id);
+  // Kitchen actions target a round, so only that round's items move and the
+  // order status is derived from its items afterwards.
+  const kitchenMutation = useMutation({
+    mutationFn: ({ id, round, action }: { id: string; round: number; action: "start" | "ready" | "serve" | "cancel" }) =>
+      api.orders.kitchenAction(id, { roundNumber: round, action }),
+    onMutate: async ({ id, round, action }) => {
+      const key = `${id}:${round}`;
+      setUpdatingOrderId(key);
       await queryClient.cancelQueries({ queryKey: ["orders"] });
       const previous = queryClient.getQueryData<Order[]>(["orders"]);
+      const targetItemStatus: ItemKitchenStatus =
+        action === "start" ? "PREPARING" : action === "ready" ? "READY" : action === "serve" ? "SERVED" : "CANCELLED";
       queryClient.setQueryData<Order[]>(["orders"], (old) =>
-        (old ?? []).map((o) =>
-          o.id === id ? { ...o, status, updatedAt: new Date().toISOString() } : o
-        )
+        (old ?? []).map((o) => {
+          if (o.id !== id) return o;
+          const items = (o.items || []).map((i) =>
+            (i.roundNumber || 1) !== round ? i : { ...i, status: targetItemStatus }
+          );
+          return { ...o, items, status: deriveOrderStatus(items), updatedAt: new Date().toISOString() };
+        })
       );
       return { previous };
     },
@@ -160,8 +175,8 @@ export default function KitchenDashboard() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       const message = (err as Error)?.message || "";
       setNotice(
-        /transition/i.test(message)
-          ? "Ticket was already updated by another station — kitchen state refreshed."
+        /transition|eligible|already/i.test(message)
+          ? "Round was already updated by another station — kitchen state refreshed."
           : `${message} — Kitchen state refreshed.`
       );
     },
@@ -174,14 +189,14 @@ export default function KitchenDashboard() {
     },
   });
 
-  const handleStartPreparing = (orderId: string) => {
+  const handleStartPreparing = (orderId: string, round: number) => {
     soundAlerts.unlockAudio();
-    updateStatusMutation.mutate({ id: orderId, status: "PREPARING" });
+    kitchenMutation.mutate({ id: orderId, round, action: "start" });
   };
 
-  const handleMarkReady = (orderId: string) => {
+  const handleMarkReady = (orderId: string, round: number) => {
     soundAlerts.unlockAudio();
-    updateStatusMutation.mutate({ id: orderId, status: "READY" });
+    kitchenMutation.mutate({ id: orderId, round, action: "ready" });
   };
 
   const handleResync = () => {
@@ -200,7 +215,7 @@ export default function KitchenDashboard() {
       {/* Primary KDS Header */}
       <ChefHeader
         activeCount={activeCount}
-        readyCount={readyOrders.length}
+        readyCount={readyCards.length}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         soundEnabled={soundEnabled}
@@ -211,9 +226,9 @@ export default function KitchenDashboard() {
 
       {/* Operational Indicators (not navigation) */}
       <KitchenStats
-        pendingCount={pendingOrders.length}
-        preparingCount={preparingOrders.length}
-        readyCount={readyOrders.length}
+        pendingCount={pendingCards.length}
+        preparingCount={preparingCards.length}
+        readyCount={readyCards.length}
         overdueCount={overdueCount}
       />
 
@@ -226,13 +241,13 @@ export default function KitchenDashboard() {
         ) : viewMode === "QUEUE" ? (
           <KitchenBoard
             orders={orders}
-            newOrderIds={newOrderIds}
+            newCardKeys={newOrderIds}
             addonMap={addonMap}
             tableLabels={tableLabels}
             onStartPreparing={handleStartPreparing}
             onMarkReady={handleMarkReady}
             onInspectOrder={setInspectOrder}
-            updatingOrderId={updatingOrderId}
+            updatingKey={updatingOrderId}
           />
         ) : viewMode === "BATCH" ? (
           <BatchView orders={orders} addonMap={addonMap} tableLabels={tableLabels} />
@@ -292,7 +307,7 @@ export default function KitchenDashboard() {
         onClose={() => setInspectOrder(null)}
         onStartPreparing={handleStartPreparing}
         onMarkReady={handleMarkReady}
-        updatingOrderId={updatingOrderId}
+        updatingKey={updatingOrderId}
         addonMap={addonMap}
         tableLabels={tableLabels}
       />

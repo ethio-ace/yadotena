@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Table, Order, MenuItem, MenuCategory, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { addonNames } from "@/lib/kitchen";
+import { addonNames, groupItemsByRound, roundStatus, itemStatus, hasItemStatuses } from "@/lib/kitchen";
 import { ArrowLeft, Plus, Eye, CreditCard, AlertTriangle, CircleCheck } from "lucide-react";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
 import { TableAddItemsPanel } from "@/components/waiter/TableAddItemsPanel";
@@ -75,36 +75,72 @@ export function TableDetailView({
                   <span>{activeOrder.items?.length || 0} items</span>
                 </div>
 
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                  {activeOrder.items?.map((item, i) => {
-                    const aNames = addonNames(item.selectedAddons, addonMap);
+                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                  {groupItemsByRound(activeOrder.items).map(({ round, items }) => {
+                    // Legacy orders (pre per-item status) inherit the order status.
+                    const fallback = hasItemStatuses(activeOrder.items) ? undefined : activeOrder.status;
+                    const rStatus = roundStatus(items, fallback);
+                    const extended = round > 1;
+                    const statusChip =
+                      rStatus === "READY"
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                        : rStatus === "PREPARING"
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                          : rStatus === "SERVED"
+                            ? "bg-muted text-muted-foreground"
+                            : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
                     return (
-                      <div key={item.id || i} className="p-3 rounded-2xl border bg-background/60 space-y-1 text-sm">
-                        <div className="flex justify-between font-bold">
-                          <span>
-                            <span className="text-amber-500 font-extrabold mr-1.5">{item.quantity}×</span>
-                            {item.name}
+                      <div key={round}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className={`text-[10px] font-black uppercase tracking-wider ${extended ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                            {extended ? `Added later · Round ${round}` : "Original order"}
                           </span>
-                          <span className="font-mono text-xs text-muted-foreground">{formatETB(item.price * item.quantity)}</span>
+                          <span className="h-px flex-1 bg-border" />
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide ${statusChip}`}>
+                            {rStatus === "PENDING" ? "Waiting" : rStatus === "PREPARING" ? "Preparing" : rStatus === "READY" ? "Ready" : rStatus === "SERVED" ? "Served" : rStatus}
+                          </span>
                         </div>
 
-                        {aNames.length > 0 && (
-                          <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
-                            {aNames.map((aName, aIdx) => (
-                              <div key={aIdx} className="flex items-center gap-1 text-foreground">
-                                <span className="text-amber-500 font-bold">+</span>
-                                <span>{aName}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        <div className="space-y-2">
+                          {items.map((item, i) => {
+                            const aNames = addonNames(item.selectedAddons, addonMap);
+                            const itStatus = hasItemStatuses(activeOrder.items) ? itemStatus(item) : activeOrder.status;
+                            return (
+                              <div key={item.id || i} className="p-3 rounded-2xl border bg-background/60 space-y-1 text-sm">
+                                <div className="flex justify-between font-bold items-center gap-2">
+                                  <span className="min-w-0">
+                                    <span className="text-amber-500 font-extrabold mr-1.5">{item.quantity}×</span>
+                                    {item.name}
+                                  </span>
+                                  <span className="flex items-center gap-2 shrink-0">
+                                    {itStatus !== rStatus && itStatus !== "PENDING" && (
+                                      <span className="px-1.5 py-0.5 rounded bg-muted text-[9px] font-black uppercase text-muted-foreground">{itStatus}</span>
+                                    )}
+                                    <span className="font-mono text-xs text-muted-foreground">{formatETB(item.price * item.quantity)}</span>
+                                  </span>
+                                </div>
 
-                        {item.specialInstructions && (
-                          <div className="mt-1 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" />
-                            <span>⚠ {item.specialInstructions}</span>
-                          </div>
-                        )}
+                                {aNames.length > 0 && (
+                                  <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
+                                    {aNames.map((aName, aIdx) => (
+                                      <div key={aIdx} className="flex items-center gap-1 text-foreground">
+                                        <span className="text-amber-500 font-bold">+</span>
+                                        <span>{aName}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {item.specialInstructions && (
+                                  <div className="mt-1 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" />
+                                    <span>⚠ {item.specialInstructions}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   })}

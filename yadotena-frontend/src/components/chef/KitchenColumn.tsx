@@ -1,6 +1,6 @@
 "use client";
 
-import { Order } from "@/types";
+import { RoundCard } from "@/lib/kitchen";
 import { KitchenOrderCard } from "./KitchenOrderCard";
 import { KitchenEmptyState } from "./KitchenEmptyState";
 import { Flame, Clock, CheckCircle2 } from "lucide-react";
@@ -8,27 +8,27 @@ import { Flame, Clock, CheckCircle2 } from "lucide-react";
 interface KitchenColumnProps {
   title: string;
   status: "PENDING" | "PREPARING" | "READY";
-  orders: Order[];
-  newOrderIds?: Set<string>;
+  cards: RoundCard[];
+  newCardKeys?: Set<string>;
   addonMap?: Record<string, string>;
   tableLabels?: Record<string, string>;
-  onStartPreparing?: (orderId: string) => void;
-  onMarkReady?: (orderId: string) => void;
-  onInspect?: (order: Order) => void;
-  updatingOrderId?: string | null;
+  onStartPreparing?: (orderId: string, round: number) => void;
+  onMarkReady?: (orderId: string, round: number) => void;
+  onInspect?: (order: RoundCard["order"]) => void;
+  updatingKey?: string | null;
 }
 
 export function KitchenColumn({
   title,
   status,
-  orders,
-  newOrderIds,
+  cards,
+  newCardKeys,
   addonMap,
   tableLabels,
   onStartPreparing,
   onMarkReady,
   onInspect,
-  updatingOrderId,
+  updatingKey,
 }: KitchenColumnProps) {
   const headerDot = () => {
     switch (status) {
@@ -64,27 +64,27 @@ export function KitchenColumn({
           </h2>
         </div>
         <span className="h-6 min-w-6 px-2 rounded-full bg-zinc-800 text-zinc-200 font-extrabold text-xs flex items-center justify-center border border-zinc-700">
-          {orders.length}
+          {cards.length}
         </span>
       </div>
 
       {/* Cards List container */}
       <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[400px]">
-        {orders.map((order) => (
+        {cards.map((card) => (
           <KitchenOrderCard
-            key={order.id}
-            order={order}
-            isNew={newOrderIds?.has(order.id)}
+            key={card.key}
+            card={card}
+            isNew={newCardKeys?.has(card.key)}
             addonMap={addonMap}
             tableLabels={tableLabels}
             onStartPreparing={onStartPreparing}
             onMarkReady={onMarkReady}
             onInspect={onInspect}
-            updatingOrderId={updatingOrderId}
+            updatingKey={updatingKey}
           />
         ))}
 
-        {orders.length === 0 && (
+        {cards.length === 0 && (
           <KitchenEmptyState type={status} />
         )}
       </div>

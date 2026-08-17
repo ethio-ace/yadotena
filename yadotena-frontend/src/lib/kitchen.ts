@@ -27,6 +27,24 @@ export function hasAddedRounds(order: { items?: OrderItem[] }): boolean {
   return (order.items || []).some((i) => (i.roundNumber || 1) > 1);
 }
 
+/** Number of kitchen rounds a ticket carries (1 = single-round order). */
+export function roundCount(order: { items?: OrderItem[] }): number {
+  return new Set((order.items || []).map((i) => i.roundNumber || 1)).size;
+}
+
+/** Line total of a round (sum of item price × quantity, no tax/service). */
+export function roundTotal(items: OrderItem[]): number {
+  return items.reduce((sum, i) => sum + (i.price || 0) * (i.quantity || 0), 0);
+}
+
+/**
+ * Human label for a round: "Round 2 · Added later" for extensions, plain
+ * "Round 1" for the original ticket — used by waiter/chef ticket surfaces.
+ */
+export function roundLabel(round: number): string {
+  return round > 1 ? `Round ${round} · Added later` : `Round ${round}`;
+}
+
 /** Effective kitchen status of an item. */
 export function itemStatus(item: OrderItem): ItemKitchenStatus {
   return item.status || "PENDING";

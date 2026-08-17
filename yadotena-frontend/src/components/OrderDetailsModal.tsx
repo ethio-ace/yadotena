@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Order, MenuItem, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { addonNames } from "@/lib/kitchen";
-import { X, CreditCard, CheckCircle2, Receipt, Eye, ExternalLink, Image as ImageIcon } from "lucide-react";
+import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount, hasItemStatuses } from "@/lib/kitchen";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
+import { X, CreditCard, CheckCircle2, Receipt, Eye, ExternalLink, Image as ImageIcon, RotateCcw } from "lucide-react";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
 
 interface OrderDetailsModalProps {
@@ -17,6 +18,7 @@ interface OrderDetailsModalProps {
 
 export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle }: OrderDetailsModalProps) {
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
+  const tableLabels = useTableLabels();
 
   const { data: addons = [] } = useQuery<AddonItem[]>({
     queryKey: ["addons"],
@@ -66,7 +68,13 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-              <span>{order.tableId ? `Table ${order.tableId}` : order.type}</span>
+              <span>{order.tableId ? formatTableRef(order.tableId, tableLabels) : order.type}</span>
+              {roundCount(order) > 1 && (
+                <>
+                  <span>•</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400">{roundCount(order)} rounds</span>
+                </>
+              )}
               <span>•</span>
               <span>{new Date(order.createdAt).toLocaleString()}</span>
             </p>
@@ -80,52 +88,92 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
           {/* Live Stepper */}
           <OrderProgressStepper status={order.status} />
 
-          {/* Order Items */}
+          {/* Order Items — grouped into round tickets, each with its own state */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-              <Receipt className="h-3.5 w-3.5" /> Order Items ({order.items?.length || 0})
+              <Receipt className="h-3.5 w-3.5" /> Round Tickets ({order.items?.length || 0} items)
             </h3>
-            <div className="space-y-2.5">
-              {order.items?.map((item, idx) => {
-                const img = getItemImage(item.menuItemId);
-                const aNames = addonNames(item.selectedAddons, addonMap);
-
+            <div className="space-y-4">
+              {groupItemsByRound(order.items).map(({ round, items }) => {
+                const fallback = hasItemStatuses(order.items) ? undefined : order.status;
+                const rStatus = roundStatus(items, fallback);
+                const extended = round > 1;
+                const rStatusChip =
+                  rStatus === "READY"
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                    : rStatus === "PREPARING"
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                      : rStatus === "SERVED"
+                        ? "bg-muted text-muted-foreground"
+                        : rStatus === "CANCELLED"
+                          ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
                 return (
-                  <div key={item.id || idx} className="p-3 rounded-xl border bg-background/50 space-y-1.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {img ? (
-                          <img src={img} alt={item.name} className="h-10 w-10 rounded-lg object-cover shrink-0 border" />
-                        ) : (
-                          <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center text-xs shrink-0 border border-amber-500/20">
-                            {item.quantity}×
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="font-bold text-sm truncate">{item.quantity}× {item.name}</div>
-                          {item.specialInstructions && (
-                            <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">
-                              &ldquo;{item.specialInstructions}&rdquo;
-                            </p>
-                          )}
-                        </div>
+                  <div key={round} className="rounded-2xl border overflow-hidden">
+                    {/* Ticket header */}
+                    <div className="flex items-center justify-between gap-2 px-3.5 py-2 bg-muted/40 border-b">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {extended && <RotateCcw className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
+                        <span className={`text-[10px] font-black uppercase tracking-wider ${extended ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                          {extended ? `Round ${round} · Added later` : "Original ticket"}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground font-medium">
+                          {items.length} item{items.length !== 1 ? "s" : ""}
+                        </span>
                       </div>
-                      <div className="font-mono font-bold text-sm shrink-0">
-                        {formatETB(item.price * item.quantity)}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide ${rStatusChip}`}>
+                          {rStatus === "PENDING" ? "Waiting" : rStatus.charAt(0) + rStatus.slice(1).toLowerCase()}
+                        </span>
+                        <span className="font-mono text-xs font-bold text-muted-foreground">{formatETB(roundTotal(items))}</span>
                       </div>
                     </div>
 
-                    {/* Add-ons */}
-                    {aNames.length > 0 && (
-                      <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
-                        {aNames.map((aName, aIdx) => (
-                          <div key={aIdx} className="flex items-center gap-1 text-foreground">
-                            <span className="text-amber-500 font-bold">+</span>
-                            <span>{aName}</span>
+                    <div className="p-3 space-y-2.5">
+                      {items.map((item, idx) => {
+                        const img = getItemImage(item.menuItemId);
+                        const aNames = addonNames(item.selectedAddons, addonMap);
+
+                        return (
+                          <div key={item.id || idx} className="p-3 rounded-xl border bg-background/50 space-y-1.5">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                {img ? (
+                                  <img src={img} alt={item.name} className="h-10 w-10 rounded-lg object-cover shrink-0 border" />
+                                ) : (
+                                  <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center text-xs shrink-0 border border-amber-500/20">
+                                    {item.quantity}×
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <div className="font-bold text-sm truncate">{item.quantity}× {item.name}</div>
+                                  {item.specialInstructions && (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">
+                                      &ldquo;{item.specialInstructions}&rdquo;
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="font-mono font-bold text-sm shrink-0">
+                                {formatETB(item.price * item.quantity)}
+                              </div>
+                            </div>
+
+                            {/* Add-ons */}
+                            {aNames.length > 0 && (
+                              <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
+                                {aNames.map((aName, aIdx) => (
+                                  <div key={aIdx} className="flex items-center gap-1 text-foreground">
+                                    <span className="text-amber-500 font-bold">+</span>
+                                    <span>{aName}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}

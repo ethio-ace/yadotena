@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Order, OrderItem } from "@/types";
+import { Order } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
-import { readyItems, itemStatus, hasItemStatuses } from "@/lib/kitchen";
+import { readyItems, hasItemStatuses, groupItemsByRound, roundStatus, roundLabel, roundTotal, roundCount } from "@/lib/kitchen";
 import { ArrowLeft, Check, CreditCard, UtensilsCrossed, ShoppingBag, Bike, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -53,9 +53,16 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
     }
   };
 
-  // Legacy orders (pre per-item status) fall back to the whole-order status.
-  const effectiveStatus = (o: Order, i: OrderItem) =>
-    (hasItemStatuses(o.items) ? itemStatus(i) : o.status) || "PENDING";
+  const roundChip = (s: string) => {
+    switch (s) {
+      case "READY": return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400";
+      case "PREPARING": return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400";
+      case "SERVED": return "bg-muted text-muted-foreground";
+      case "CANCELLED": return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400";
+      default: return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+    }
+  };
+  const roundChipLabel = (s: string) => (s === "PENDING" ? "Waiting" : s.charAt(0) + s.slice(1).toLowerCase());
 
   const nextAction = (o: Order) => {
     const ready = readyItems(o).length || (o.status === "READY" && !hasItemStatuses(o.items) ? (o.items?.length || 0) : 0);
@@ -141,6 +148,11 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-black tracking-tight">{o.id.slice(-6).toUpperCase()}</span>
+                    {roundCount(o) > 1 && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                        {roundCount(o)} rounds
+                      </span>
+                    )}
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${statusStyle(o.status)}`}>{o.status}</span>
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${typeMeta.cls}`}>
                       <TypeIcon className="h-3 w-3" /> {typeMeta.label}
@@ -162,30 +174,37 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onSettle, onV
                   </p>
                 </div>
               </div>
-              <div className="text-xs text-muted-foreground leading-relaxed">
-                {o.items?.slice(0, 3).map(i => `${i.quantity}× ${i.name}`).join(", ")}
-                {(o.items?.length || 0) > 3 && <span className="font-bold text-foreground/70"> +{(o.items?.length || 0) - 3} more</span>}
+              {/* Round tickets — one compact row per kitchen round, each with its own state */}
+              <div className="space-y-1.5">
+                {groupItemsByRound(o.items).map(({ round, items }) => {
+                  const fallback = hasItemStatuses(o.items) ? undefined : o.status;
+                  const rStatus = roundStatus(items, fallback);
+                  const extended = round > 1;
+                  return (
+                    <div
+                      key={round}
+                      className="flex items-center justify-between gap-2 p-2 rounded-xl border bg-background/60"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`text-[10px] font-black uppercase tracking-wide ${extended ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                          {roundLabel(round)}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+                          {items.length} item{items.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide ${roundChip(rStatus)}`}>
+                          {roundChipLabel(rStatus)}
+                        </span>
+                        <span className="font-mono text-xs font-bold text-muted-foreground">
+                          {formatETB(roundTotal(items))}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              {(() => {
-                const st = new Set((o.items || []).map(i => effectiveStatus(o, i)));
-                const ready = (o.items || []).filter(i => effectiveStatus(o, i) === "READY").length;
-                const cooking = (o.items || []).filter(i => ["PENDING", "PREPARING"].includes(effectiveStatus(o, i))).length;
-                if (!st.has("READY") && !st.has("PREPARING") && !st.has("PENDING")) return null;
-                return (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {ready > 0 && (
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wide">
-                        {ready} ready to serve
-                      </span>
-                    )}
-                    {cooking > 0 && (
-                      <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 text-[10px] font-black uppercase tracking-wide">
-                        {cooking} cooking
-                      </span>
-                    )}
-                  </div>
-                );
-              })()}
               {action && (
                 <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                   <button onClick={action.action} className={`h-9 px-4 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all ${action.color}`}>

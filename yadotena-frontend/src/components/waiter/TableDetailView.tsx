@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Table, Order, MenuItem, MenuCategory, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { addonNames, groupItemsByRound, roundStatus, itemStatus, hasItemStatuses } from "@/lib/kitchen";
+import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount, itemStatus, hasItemStatuses } from "@/lib/kitchen";
 import { ArrowLeft, Plus, Eye, CreditCard, AlertTriangle, CircleCheck } from "lucide-react";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
 import { TableAddItemsPanel } from "@/components/waiter/TableAddItemsPanel";
@@ -72,7 +72,12 @@ export function TableDetailView({
               <div className="space-y-2 pt-2">
                 <div className="flex justify-between items-center text-xs font-bold uppercase text-muted-foreground">
                   <span>Current Order #{activeOrder.id.slice(-6).toUpperCase()}</span>
-                  <span>{activeOrder.items?.length || 0} items</span>
+                  <span>
+                    {roundCount(activeOrder) > 1 && (
+                      <span className="text-amber-600 dark:text-amber-400 mr-1.5">{roundCount(activeOrder)} rounds · </span>
+                    )}
+                    {activeOrder.items?.length || 0} items
+                  </span>
                 </div>
 
                 <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
@@ -98,6 +103,9 @@ export function TableDetailView({
                           <span className="h-px flex-1 bg-border" />
                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide ${statusChip}`}>
                             {rStatus === "PENDING" ? "Waiting" : rStatus === "PREPARING" ? "Preparing" : rStatus === "READY" ? "Ready" : rStatus === "SERVED" ? "Served" : rStatus}
+                          </span>
+                          <span className="font-mono text-[11px] font-bold text-muted-foreground shrink-0">
+                            {formatETB(roundTotal(items))}
                           </span>
                         </div>
 

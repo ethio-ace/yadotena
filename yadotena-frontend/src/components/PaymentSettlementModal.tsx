@@ -13,6 +13,8 @@ import {
   Copy, Check
 } from "lucide-react";
 import { Order } from "@/types";
+import { roundCount, groupItemsByRound, roundTotal } from "@/lib/kitchen";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 
 interface PaymentSettlementModalProps {
   order: Order | null;
@@ -36,6 +38,7 @@ export function PaymentSettlementModal({
   const [validationError, setValidationError] = useState<string>("");
   const [copiedAccount, setCopiedAccount] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tableLabels = useTableLabels();
 
   // Query payment methods from backend
   const { data: paymentMethods = [] } = useQuery({
@@ -148,7 +151,7 @@ export function PaymentSettlementModal({
               <span>Settle Payment</span>
             </h3>
             <p className="text-xs text-muted-foreground font-medium">
-              Order {order.id.slice(-6).toUpperCase()} {order.tableId && `• Table ${order.tableId.replace("t", "")}`}
+              Order {order.id.slice(-6).toUpperCase()} {order.tableId && `• ${formatTableRef(order.tableId, tableLabels)}`}
             </p>
           </div>
           <button 
@@ -177,6 +180,32 @@ export function PaymentSettlementModal({
             UNPAID
           </Badge>
         </div>
+
+        {/* One payment settles every round of the ticket */}
+        {(() => {
+          const rounds = groupItemsByRound(order.items);
+          if (rounds.length <= 1) return null;
+          return (
+            <div className="p-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5" /> Single payment · {roundCount(order)} rounds on this ticket
+              </p>
+              <div className="space-y-1">
+                {rounds.map(({ round, items }) => (
+                  <div key={round} className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground font-medium">
+                      Round {round} · {items.length} item{items.length !== 1 ? "s" : ""}
+                    </span>
+                    <span className="font-mono font-bold text-foreground">{formatETB(roundTotal(items))}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground font-medium border-t border-amber-500/15 pt-1.5">
+                One payment method settles the whole bill — all rounds in a single transaction.
+              </p>
+            </div>
+          );
+        })()}
 
         {/* Payment Method Selector (Dynamically Loaded from DB) */}
         <div className="space-y-2">

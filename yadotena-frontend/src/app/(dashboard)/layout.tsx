@@ -16,7 +16,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (status === "unauthenticated") {
       router.replace("/login");
-    } else if (status === "authenticated" && session?.user?.role === "WAITER" && pathname !== "/dashboard/waiter" && pathname !== "/dashboard") {
+    } else if (
+      status === "authenticated" &&
+      session?.user?.role === "WAITER" &&
+      pathname !== "/dashboard/waiter" &&
+      pathname !== "/dashboard/notifications" &&
+      pathname !== "/dashboard"
+    ) {
       router.replace("/dashboard/waiter");
     } else if (status === "authenticated" && session?.user?.role === "KITCHEN" && pathname !== "/dashboard/kitchen" && pathname !== "/dashboard") {
       router.replace("/dashboard/kitchen");

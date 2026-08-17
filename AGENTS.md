@@ -14,6 +14,13 @@ Non-obvious facts that reading the code won't reveal. Keep entries terse.
 - "Top Products": `GET /api/v1/menu/popular` (public, no auth) ranks items by total ordered quantity (`orderCount`); the menu/shop pages render it via `TopProductsRow` and fall back to `Popular`/`Favorite` dietary tags or first items when order history is empty. `SortSelect` + `sortCatalogItems` provide popularity/name/price sorting on both pages.
 - Don't add cart UI or `useCartStore` usage back to customer pages — that store belongs to the staff POS (SessionManager/waiter flows).
 
+## Staff operations
+
+- Waiter workspace (`/dashboard/waiter`) bottom nav holds Sell / Tables / Orders / Alerts. `TablesView` now embeds `TableAddItemsPanel` (inline search + category chips + per-item addon sheet) that appends straight to the table's open order via `api.orders.addItems` — appends land back on the tables view. Categories/addons fetch is gated on `builderOpen` which now also includes the tables view.
+- Notifications: `NotificationsView` (components/notifications) is the single source for pending + resolved service requests with status/type filters and a per-item detail panel; it powers both the waiter Alerts tab and the shared `/dashboard/notifications` route (waiters are allowed there via the layout redirect list). The shared `Header` bell dropdown resolves table names via `useTableLabels` (the backend service-request payload has no `tableName`), closes on outside click, and links to "View All".
+- Service-request `notes` from the customer order page now carry the human table label; BILL notes for cash omit the amount by design ("is about to pay with Cash at Table X"), digital notes name method + table.
+- Manager/owner Orders page (`/dashboard/orders`) applies page-level filters (order type / table / payment status) via `OrdersFilterBar` and passes `ordersOverride` into `ActiveOrdersTab` / `OrderHistoryTab` (they skip their own query when the prop is present). `OrderHistoryTab` is recent-first and splits closed-but-unpaid tickets into a red "Closed but Unpaid" section so they never masquerade as settled history.
+
 ## Owner analytics
 
 - Owner metrics in `lib/owner.ts` bucket orders by client-local day on purpose — the backend `/staff/analytics` date-casts in DB UTC and would misplace early-morning Addis orders. Keep local-instant bucketing consistent across overview + reports.

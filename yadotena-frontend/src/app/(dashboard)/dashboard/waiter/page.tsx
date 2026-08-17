@@ -14,7 +14,7 @@ import { AlertsView } from "@/components/waiter/AlertsView";
 import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 
-import { Home, Grid3X3, ClipboardList, Bell, Coffee, ShoppingBag } from "lucide-react";
+import { Home, Grid3X3, ClipboardList, Bell } from "lucide-react";
 
 type View = "home" | "tables" | "cafe-order" | "shop-sale" | "orders" | "alerts";
 
@@ -36,7 +36,7 @@ export default function WaiterWorkspacePage() {
   // Data — categories/addons are only needed inside the order builder, so they
   // are fetched lazily when that view opens (react-query keeps them cached after
   // the first visit). The other queries serve home/tables/orders/alerts.
-  const builderOpen = view === "cafe-order" || view === "shop-sale";
+  const builderOpen = view === "cafe-order" || view === "shop-sale" || view === "tables";
   const { data: tables = [] } = useQuery<Table[]>({ queryKey: ["tables"], queryFn: api.tables.getAll });
   const { data: orders = [] } = useQuery<Order[]>({ queryKey: ["orders"], queryFn: api.orders.getAll });
   const { data: menu = [] } = useQuery<MenuItem[]>({ queryKey: ["menu"], queryFn: api.menu.getAll });
@@ -70,27 +70,37 @@ export default function WaiterWorkspacePage() {
         setView("orders");
       }
     },
-    onError: (err: any) => showToast(err?.message || "We couldn't create the order. Please try again."),
+    onError: (err: Error) => showToast(err?.message || "We couldn't create the order. Please try again."),
   });
 
+  type AppendPayload = Array<{
+    menuItemId: string;
+    quantity: number;
+    specialInstructions: string;
+    selectedAddons: string[];
+  }>;
+
   const appendItemsMutation = useMutation({
-    mutationFn: ({ id, items }: { id: string; items: any }) => api.orders.addItems(id, items),
+    mutationFn: ({ id, items }: { id: string; items: AppendPayload }) => api.orders.addItems(id, items),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["tables"] });
       soundAlerts.playActionPing();
-      setView("orders");
+      // Adding to an open table order returns to the floor view.
+      setView("tables");
     },
-    onError: (err: any) => showToast(err?.message || "We couldn't add those items. Please try again."),
+    onError: (err: Error) => showToast(err?.message || "We couldn't add those items. Please try again."),
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: any }) => api.orders.updateStatus(id, status),
+    mutationFn: ({ id, status }: { id: string; status: Order["status"] }) => api.orders.updateStatus(id, status),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["orders"] }); queryClient.invalidateQueries({ queryKey: ["tables"] }); },
   });
 
   const resolveRequestMutation = useMutation({
     mutationFn: (id: string) => api.serviceRequests.resolve(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["serviceRequests"] }); soundAlerts.playActionPing(); },
+    onError: (err: Error) => showToast(err?.message || "Couldn't resolve that request."),
   });
 
   // Handlers
@@ -103,10 +113,14 @@ export default function WaiterWorkspacePage() {
     setView("cafe-order");
   };
 
-  const handleAddItemsToOrder = (order: Order, table: Table) => {
-    setPreselectedTable(table);
-    setAppendToOrder(order);
-    setView("cafe-order");
+  const handleAppendItemsToOrder = (order: Order, items: CartItem[]) => {
+    const payload = items.map((i) => ({
+      menuItemId: i.menuItemId,
+      quantity: i.quantity,
+      specialInstructions: i.note || "",
+      selectedAddons: i.addons.map((a) => a.id || a.name),
+    }));
+    appendItemsMutation.mutate({ id: order.id, items: payload });
   };
 
   const handleSubmitOrder = (items: CartItem[], tableId: string | undefined, orderType: "DINE_IN" | "TAKEAWAY", appendOrderId?: string) => {
@@ -131,7 +145,8 @@ export default function WaiterWorkspacePage() {
         status: isShop || !hasPrepared ? "COMPLETED" : "PENDING",
         paymentStatus: "PENDING",
         tableId: orderType === "DINE_IN" ? tableId : undefined,
-        items: payload as any,
+        // Server derives id/name/price snapshots; only menuItemId/qty/notes/addons are client-side.
+        items: payload as unknown as Parameters<typeof api.orders.create>[0]["items"],
         idempotencyKey: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       });
     }
@@ -179,9 +194,11 @@ export default function WaiterWorkspacePage() {
       {view === "tables" && (
         <TablesView
           tables={tables} orders={orders}
+          menu={menu} categories={categories} allAddons={allAddons}
+          isAppending={appendItemsMutation.isPending}
           onBack={() => setView("home")}
           onNewOrderForTable={handleNewOrderForTable}
-          onAddItemsToOrder={handleAddItemsToOrder}
+          onAppendItems={handleAppendItemsToOrder}
           onViewOrder={o => setInspectOrder(o)}
           onSettleOrder={o => setPaymentOrder(o)}
         />

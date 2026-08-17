@@ -6,6 +6,7 @@ import {
   ClipboardList,
   CreditCard,
   Receipt,
+  BellRing,
   Settings,
   BarChart3,
   Users,
@@ -50,6 +51,7 @@ export const managerNavGroups: NavGroup[] = [
     items: [
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
       { name: "Order Supervision", href: "/dashboard/orders", icon: ClipboardList },
+      { name: "Notifications", href: "/dashboard/notifications", icon: BellRing },
     ],
   },
   {
@@ -82,6 +84,7 @@ export const ownerNavGroups: NavGroup[] = [
       { name: "Add-ons", href: "/dashboard/addons", icon: Layers },
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
       { name: "Orders", href: "/dashboard/orders", icon: ClipboardList },
+      { name: "Notifications", href: "/dashboard/notifications", icon: BellRing },
     ],
   },
   {

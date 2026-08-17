@@ -8,7 +8,12 @@ import { KitchenOrderCard } from "@/components/dashboard/KitchenOrderCard";
 import { AddExtraSelectionModal } from "@/components/dashboard/AddExtraSelectionModal";
 import { FullPageMenuPOS } from "@/components/dashboard/FullPageMenuPOS";
 
-export function ActiveOrdersTab() {
+interface ActiveOrdersTabProps {
+  /** Page-level filtered orders (type / table / payment) from the Orders page. */
+  ordersOverride?: Order[];
+}
+
+export function ActiveOrdersTab({ ordersOverride }: ActiveOrdersTabProps) {
   const [search, setSearch] = useState("");
   const [selectedOrderToEdit, setSelectedOrderToEdit] = useState<Order | null>(null);
   const [showExtraSelectionForOrder, setShowExtraSelectionForOrder] = useState<Order | null>(null);
@@ -16,10 +21,13 @@ export function ActiveOrdersTab() {
   
   const queryClient = useQueryClient();
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: queriedOrders = [], isLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
+    enabled: ordersOverride === undefined,
   });
+
+  const orders = ordersOverride ?? queriedOrders;
 
   // Resolve raw addon ids on tickets to human names (cached by react-query).
   const { data: addons = [] } = useQuery({

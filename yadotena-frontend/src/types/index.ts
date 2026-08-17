@@ -178,9 +178,10 @@ export interface Expense {
 export interface ServiceRequest {
   id: string;
   tableId: string;
-  tableName: string;
+  tableName?: string;
   type: "WAITER" | "BILL" | "ASSISTANCE";
   status: "PENDING" | "RESOLVED";
   createdAt: string;
+  resolvedAt?: string;
   notes?: string;
 }

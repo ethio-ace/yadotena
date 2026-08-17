@@ -1,21 +1,25 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/services/api";
-import { Table, Order, AddonItem } from "@/types";
+import { Table, Order, MenuItem, MenuCategory, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { addonNames } from "@/lib/kitchen";
 import { findActiveOrderForTable } from "@/lib/tableUtils";
 import { ArrowLeft, Plus, Users, Eye, CreditCard, AlertTriangle } from "lucide-react";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
+import { TableAddItemsPanel } from "@/components/waiter/TableAddItemsPanel";
+import type { CartItem } from "@/components/waiter/CafeOrderBuilder";
 
 interface TablesViewProps {
   tables: Table[];
   orders: Order[];
+  menu: MenuItem[];
+  categories: MenuCategory[];
+  allAddons: AddonItem[];
+  isAppending: boolean;
   onBack: () => void;
   onNewOrderForTable: (table: Table) => void;
-  onAddItemsToOrder: (order: Order, table: Table) => void;
+  onAppendItems: (order: Order, items: CartItem[]) => void;
   onViewOrder: (order: Order) => void;
   onSettleOrder: (order: Order) => void;
 }
@@ -23,20 +27,16 @@ interface TablesViewProps {
 type TabFilter = "ALL" | "AVAILABLE" | "OCCUPIED";
 
 export function TablesView({
-  tables, orders, onBack, onNewOrderForTable,
-  onAddItemsToOrder, onViewOrder, onSettleOrder,
+  tables, orders, menu, categories, allAddons, isAppending,
+  onBack, onNewOrderForTable, onAppendItems, onViewOrder, onSettleOrder,
 }: TablesViewProps) {
   const [filter, setFilter] = useState<TabFilter>("ALL");
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
 
-  // Addon name mapper
-  const { data: addons = [] } = useQuery<AddonItem[]>({
-    queryKey: ["addons"],
-    queryFn: () => api.addons.getAll(),
-  });
-  const addonMap = useMemo(() => Object.fromEntries(addons.map(a => [a.id, a.name])), [addons]);
+  // Addon name mapper for resolving ids on tickets.
+  const addonMap = useMemo(() => Object.fromEntries(allAddons.map((a) => [a.id, a.name])), [allAddons]);
 
-  const filtered = tables.filter(t => {
+  const filtered = tables.filter((t) => {
     if (filter === "AVAILABLE") return t.status === "AVAILABLE";
     if (filter === "OCCUPIED") return t.status !== "AVAILABLE";
     return true;
@@ -138,25 +138,32 @@ export function TablesView({
                 </div>
               </div>
 
+              {/* Inline add-items panel */}
+              <TableAddItemsPanel
+                order={activeOrder}
+                menu={menu}
+                categories={categories}
+                allAddons={allAddons}
+                isSubmitting={isAppending}
+                onAppend={(items) => onAppendItems(activeOrder, items)}
+                onCollapse={() => setSelectedTable(null)}
+              />
+
               {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <button 
-                  onClick={() => onAddItemsToOrder(activeOrder, selectedTable)} 
-                  className="h-13 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-amber-600/20"
-                >
-                  <Plus className="h-5 w-5" /> Add Extra Items
-                </button>
-                <button 
-                  onClick={() => onSettleOrder(activeOrder)} 
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={() => onSettleOrder(activeOrder)}
                   className="h-13 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-emerald-600/20"
                 >
                   <CreditCard className="h-5 w-5" /> Settle Bill
                 </button>
+                <button
+                  onClick={() => onViewOrder(activeOrder)}
+                  className="h-13 rounded-2xl border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-accent/50 flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Eye className="h-4 w-4" /> View Full Ticket
+                </button>
               </div>
-
-              <button onClick={() => onViewOrder(activeOrder)} className="w-full h-11 rounded-xl border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-accent/50 flex items-center justify-center gap-2 transition-colors">
-                <Eye className="h-4 w-4" /> View Full Ticket Details
-              </button>
             </>
           ) : (
             <div className="border-t pt-4 text-center space-y-3">
@@ -181,7 +188,7 @@ export function TablesView({
 
       {/* Filter tabs */}
       <div className="flex gap-2 mb-5">
-        {(["ALL", "AVAILABLE", "OCCUPIED"] as TabFilter[]).map(f => (
+        {(["ALL", "AVAILABLE", "OCCUPIED"] as TabFilter[]).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
               filter === f ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"
@@ -194,7 +201,7 @@ export function TablesView({
 
       {/* Table grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {filtered.map(table => {
+        {filtered.map((table) => {
           const active = getActiveOrder(table);
           return (
             <button

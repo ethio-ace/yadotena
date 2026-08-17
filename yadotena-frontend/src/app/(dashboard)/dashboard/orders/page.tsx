@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShoppingBag, Clock, CheckCircle2, AlertCircle, Plus, Sparkles, ChefHat, Truck } from "lucide-react";
+import { OrdersFilterBar, OrderFilters } from "@/components/dashboard/orders/OrdersFilterBar";
+import { formatETB } from "@/lib/currency";
+import { formatTableRef } from "@/hooks/useTableLabels";
+import { ShoppingBag, Clock, CheckCircle2, AlertCircle, Plus, Sparkles, ChefHat, Truck, X } from "lucide-react";
 
 // Heavy tab surfaces are code-split so the initial load stays light and each
 // tab's data fetch only starts when the tab is actually opened.
@@ -43,12 +46,36 @@ function OrderTabSkeleton() {
 
 export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<"ACTIVE" | "HISTORY" | "NEW" | "DISPATCH">("ACTIVE");
+  const [filters, setFilters] = useState<OrderFilters>({ type: "ALL", tableId: "", payment: "ALL" });
 
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
     refetchInterval: 10000,
   });
+  const { data: tables = [] } = useQuery({
+    queryKey: ["tables"],
+    queryFn: api.tables.getAll,
+  });
+
+  // Apply the shared page filters (type / table / payment) to every tab.
+  const filteredOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (filters.type !== "ALL" && o.type !== filters.type) return false;
+      if (filters.tableId !== "" && o.tableId !== filters.tableId) return false;
+      if (filters.payment === "PAID" && o.paymentStatus !== "PAID") return false;
+      if (filters.payment === "UNPAID" && o.paymentStatus === "PAID") return false;
+      return true;
+    });
+  }, [orders, filters]);
+
+  const selectedTable = tables.find((t) => t.id === filters.tableId);
+  const tableOrders = filters.tableId ? filteredOrders : [];
+  const tableRevenue = tableOrders
+    .filter((o) => o.paymentStatus === "PAID")
+    .reduce((sum, o) => sum + (o.total || 0), 0);
+  const tableUnpaid = tableOrders.filter((o) => o.paymentStatus !== "PAID").length;
+  const tableActive = tableOrders.filter((o) => !["COMPLETED", "CANCELLED"].includes(o.status)).length;
 
   const pendingCount = orders.filter((o) => o.status === "PENDING").length;
   const preparingCount = orders.filter((o) => o.status === "PREPARING").length;
@@ -156,6 +183,43 @@ export default function OrdersPage() {
         </Card>
       </div>
 
+      {/* Filters (type / table / payment) applied across all tabs */}
+      <OrdersFilterBar tables={tables} filters={filters} onChange={setFilters} />
+
+      {/* Per-table summary when a table is selected */}
+      {selectedTable && (
+        <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-4 animate-in fade-in duration-200">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center font-black">
+                {selectedTable.name?.replace(/^Table\s*/i, "").replace(/\s*\(.*\)$/, "") || "T"}
+              </div>
+              <div>
+                <h3 className="font-black text-sm">{formatTableRef(selectedTable.id, Object.fromEntries(tables.map((t) => [t.id, t.name])))}</h3>
+                <p className="text-[11px] text-muted-foreground font-medium">
+                  {tableOrders.length} order{tableOrders.length !== 1 ? "s" : ""} · {formatETB(tableRevenue)} collected
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold ${tableActive > 0 ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25" : "bg-muted text-muted-foreground border"}`}>
+                {tableActive} active
+              </span>
+              <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold ${tableUnpaid > 0 ? "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/25" : "bg-muted text-muted-foreground border"}`}>
+                {tableUnpaid} unpaid
+              </span>
+              <button
+                onClick={() => setFilters({ ...filters, tableId: "" })}
+                className="h-8 w-8 rounded-lg border flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                aria-label="Clear table filter"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navigation Tabs */}
       <div className="flex overflow-x-auto gap-2 p-1.5 bg-card rounded-2xl border shadow-sm scrollbar-hide">
         <Button
@@ -204,10 +268,10 @@ export default function OrdersPage() {
       </div>
 
       {/* Tab Contents */}
-      {activeTab === "ACTIVE" && <ActiveOrdersTab />}
+      {activeTab === "ACTIVE" && <ActiveOrdersTab ordersOverride={filteredOrders} />}
       {activeTab === "DISPATCH" && <ReadyDeliveryPane />}
       {activeTab === "NEW" && <PlaceOrderTab />}
-      {activeTab === "HISTORY" && <OrderHistoryTab />}
+      {activeTab === "HISTORY" && <OrderHistoryTab ordersOverride={filteredOrders} />}
     </div>
   );
 }

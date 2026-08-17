@@ -59,6 +59,12 @@ export default function OrderTrackingPage() {
     queryFn: api.menu.getAll,
     enabled: !!order && !isLoading,
   });
+  // Public table roster so assistance requests name the real table (not raw ids).
+  const { data: tables = [] } = useQuery({
+    queryKey: ["tables"],
+    queryFn: api.tables.getAll,
+    enabled: !!order && !isLoading,
+  });
   const { data: addons = [] } = useQuery({
     queryKey: ["addons"],
     queryFn: () => api.addons.getAll(),
@@ -115,12 +121,20 @@ export default function OrderTrackingPage() {
     return path.startsWith("http") || path.startsWith("/") ? path : `/uploads/${path}`;
   };
 
+  // Human table label for the alert ("Table 04 (VIP Lounge)" or "Table 4").
+  const tableLabel = (() => {
+    if (!order.tableId) return "the table";
+    const named = tables.find(t => t.id === order.tableId)?.name;
+    if (named) return named;
+    return `Table ${order.tableId.replace(/^t/i, "")}`;
+  })();
+
   const handleCallWaiter = () => {
     const effectiveTableId = order.tableId || "t1";
     sendServiceRequest.mutate({
       tableId: effectiveTableId,
       type: "WAITER",
-      notes: "Guest requested waiter assistance at table",
+      notes: `Guest requested waiter assistance at ${tableLabel}.`,
     });
     setWaiterCalled(true);
     setTimeout(() => setWaiterCalled(false), 12000);
@@ -128,10 +142,16 @@ export default function OrderTrackingPage() {
 
   const handleRequestBillSettlement = (methodName: string, methodCode: string) => {
     const effectiveTableId = order.tableId || "t1";
+    const isCash = /cash/i.test(methodName) || /cash/i.test(methodCode);
+    // Cash: no amount — the waiter just needs to come to the table.
+    // Digital: name the method + table so staff can verify the transfer.
+    const notes = isCash
+      ? `Guest is about to pay with Cash at ${tableLabel}. Please come and settle the bill.`
+      : `Guest paid via ${methodName} (${methodCode}) at ${tableLabel}. Please verify and settle the bill.`;
     sendServiceRequest.mutate({
       tableId: effectiveTableId,
       type: "BILL",
-      notes: `Guest paid ${methodName} (${methodCode}) — Total: ${formatETB(order.total)}. Please verify and settle the bill.`,
+      notes,
     });
     setBillRequested(true);
     setShowPaymentModal(false);

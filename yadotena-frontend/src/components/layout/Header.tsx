@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { 
@@ -13,17 +13,33 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useSoundNotifications } from "@/contexts/SoundNotificationContext";
+import { useTableLabels, formatTableRef } from "@/hooks/useTableLabels";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navItemsForRole } from "@/lib/nav";
 
-export default function Header({ user = { name: "Staff Member", role: "WAITER" } }: { user?: any }) {
+export default function Header({ user = { name: "Staff Member", role: "WAITER" } }: { user?: { name?: string | null; role?: string; id?: string } }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAudioControls, setShowAudioControls] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const queryClient = useQueryClient();
   const pathname = usePathname();
+  const tableLabels = useTableLabels();
+
+  // Close popups when clicking anywhere outside them.
+  const popoverRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showNotifications && !showAudioControls) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+        setShowAudioControls(false);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [showNotifications, showAudioControls]);
 
   const {
     isMuted,
@@ -169,13 +185,13 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
             </div>
 
             {/* Service Request & Alerts Notification Dropdown */}
-            <div className="relative">
+            <div className="relative" ref={popoverRef}>
               <Button 
                 variant={pendingServiceRequests.length > 0 ? "default" : "ghost"} 
                 size="icon" 
                 className={`relative rounded-full transition-all ${
                   pendingServiceRequests.length > 0 
-                    ? "bg-rose-500 hover:bg-rose-600 text-white animate-bounce shadow-md shadow-rose-500/25" 
+                    ? "bg-rose-500 hover:bg-rose-600 text-white animate-pulse shadow-md shadow-rose-500/25" 
                     : "text-muted-foreground"
                 }`}
                 onClick={() => setShowNotifications(!showNotifications)}
@@ -211,9 +227,11 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
                     <div className="max-h-72 overflow-y-auto space-y-2.5 pr-1 divide-y divide-muted/40">
                       {pendingServiceRequests.map((req) => (
                         <div key={req.id} className="pt-2.5 first:pt-0 flex items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-black text-sm text-foreground">{req.tableName}</span>
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-black text-sm text-foreground">
+                                {formatTableRef(req.tableId, tableLabels) || req.tableName || "Table"}
+                              </span>
                               <Badge 
                                 className={`text-[10px] font-bold ${
                                   req.type === "BILL" 
@@ -224,7 +242,7 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
                                 {req.type === "BILL" ? "🧾 Request Bill" : "🛎️ Call Waiter"}
                               </Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground">{req.notes}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-2">{req.notes}</p>
                             <span className="text-[10px] text-muted-foreground opacity-75">
                               {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
@@ -243,6 +261,18 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
                       ))}
                     </div>
                   )}
+
+                  {/* Footer links */}
+                  <div className="pt-2 border-t flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground font-semibold">Sound alerting until resolved</span>
+                    <Link
+                      href="/dashboard/notifications"
+                      onClick={() => setShowNotifications(false)}
+                      className="inline-flex items-center gap-1 text-xs font-black text-primary hover:underline"
+                    >
+                      View All <ChevronRight className="h-3 w-3" />
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>
@@ -252,11 +282,11 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
 
           <div className="flex items-center gap-3">
             <div className="hidden sm:block text-right">
-              <p className="text-sm font-medium leading-none">{user.name}</p>
-              <p className="text-xs text-muted-foreground mt-1 capitalize">{user.role.toLowerCase()}</p>
+              <p className="text-sm font-medium leading-none">{user.name || "Staff Member"}</p>
+              <p className="text-xs text-muted-foreground mt-1 capitalize">{(user.role || "STAFF").toLowerCase()}</p>
             </div>
             <div className="h-9 w-9 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-              {user.name.charAt(0)}
+              {(user.name || "S").charAt(0)}
             </div>
             <Button variant="ghost" size="icon" onClick={() => signOut({ callbackUrl: '/login' })} title="Logout">
               <LogOut className="h-5 w-5 text-muted-foreground hover:text-destructive" />

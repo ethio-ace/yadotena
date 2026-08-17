@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { MenuItem, MenuCategory, AddonItem, MenuItemAddon, Order } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { getApplicableAddonsForItem, isShopProductItem } from "@/lib/orderUtils";
-import { ChevronDown, Minus, Plus, Search, ShoppingCart, X } from "lucide-react";
+import { Check, Minus, Plus, Search, ShoppingCart, X } from "lucide-react";
 import type { CartItem } from "@/components/waiter/CafeOrderBuilder";
 
 const NOTE_PRESETS = ["No Spicy", "Extra Hot", "No Onions", "Well Done", "Extra Sauce", "Separate Plate"];
@@ -22,7 +22,6 @@ interface TableAddItemsPanelProps {
 export function TableAddItemsPanel({
   order, menu, categories, allAddons, isSubmitting, onAppend, onCollapse,
 }: TableAddItemsPanelProps) {
-  const [open, setOpen] = useState(true);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -93,12 +92,9 @@ export function TableAddItemsPanel({
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
 
   return (
-    <div className="rounded-2xl border-2 border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/10 overflow-hidden">
+    <div className="rounded-3xl border-2 border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/10 overflow-hidden shadow-lg">
       {/* Panel header */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-amber-500/5 transition-colors"
-      >
+      <div className="flex items-center justify-between gap-2 px-4 py-3">
         <div className="flex items-center gap-2.5">
           <div className="h-9 w-9 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0">
             <Plus className="h-4.5 w-4.5" />
@@ -106,136 +102,149 @@ export function TableAddItemsPanel({
           <div>
             <h4 className="font-black text-sm">Add Items to This Order</h4>
             <p className="text-[11px] text-muted-foreground font-medium">
-              Extend #{order.id.slice(-6).toUpperCase()} with more dishes or add-ons
+              Extend #{order.id.slice(-6).toUpperCase()} — pick dishes & add-ons
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {cartCount > 0 && (
-            <span className="h-6 min-w-6 px-1.5 rounded-full bg-amber-600 text-white text-xs font-bold flex items-center justify-center">
-              {cartCount}
-            </span>
-          )}
-          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
-        </div>
-      </button>
+        {cartCount > 0 && (
+          <span className="h-7 min-w-7 px-1.5 rounded-full bg-amber-600 text-white text-sm font-black flex items-center justify-center shadow">
+            {cartCount}
+          </span>
+        )}
+      </div>
 
-      {open && (
-        <div className="border-t border-amber-500/15">
-          {/* Search + categories */}
-          <div className="p-3 space-y-2.5">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search dishes to add..."
-                className="w-full h-10 pl-9 pr-8 rounded-xl border bg-background text-sm"
-              />
-              {search && (
-                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+      <div className="border-t border-amber-500/15">
+        {/* Search + categories */}
+        <div className="p-3 space-y-2.5">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search dishes to add..."
+              className="w-full h-10 pl-9 pr-8 rounded-xl border bg-background text-sm"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+            <button
+              onClick={() => setActiveCategory("All")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
+                activeCategory === "All" ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              All
+            </button>
+            {relevantCategories.map((c) => (
               <button
-                onClick={() => setActiveCategory("All")}
+                key={c.id}
+                onClick={() => setActiveCategory(c.name)}
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                  activeCategory === "All" ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
+                  activeCategory === c.name ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
                 }`}
               >
-                All
+                {c.icon} {c.name}
               </button>
-              {relevantCategories.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setActiveCategory(c.name)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                    activeCategory === c.name ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {c.icon} {c.name}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
+        </div>
 
-          {/* Item grid */}
-          <div className="px-3 pb-3 max-h-72 overflow-y-auto">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {catalog.map((item) => {
-                const inCart = cartCountMap[item.id] || 0;
-                return (
-                  <div
-                    key={item.id}
-                    className="group relative flex flex-col rounded-xl border bg-card text-left overflow-hidden cursor-pointer hover:border-amber-500/50 active:scale-[0.98] transition-all"
-                    onClick={() => addToCart(item)}
-                  >
-                    <div className="relative w-full h-14 bg-muted/40 flex items-center justify-center overflow-hidden">
-                      {(() => {
-                        const imgPath = item.imageUrl || item.image;
-                        if (!imgPath) {
-                          return (
-                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent text-amber-600/60 dark:text-amber-400/60">
-                              <ShoppingCart className="h-5 w-5 opacity-40" />
-                            </div>
-                          );
-                        }
-                        const srcUrl = imgPath.startsWith("http") || imgPath.startsWith("/") ? imgPath : `/uploads/${imgPath}`;
+        {/* Item grid */}
+        <div className="px-3 max-h-[42vh] overflow-y-auto">
+          <div className="grid grid-cols-2 gap-2">
+            {catalog.map((item) => {
+              const inCart = cartCountMap[item.id] || 0;
+              return (
+                <div
+                  key={item.id}
+                  className="group relative flex flex-col rounded-xl border bg-card text-left overflow-hidden cursor-pointer hover:border-amber-500/50 active:scale-[0.98] transition-all"
+                  onClick={() => addToCart(item)}
+                >
+                  <div className="relative w-full h-14 bg-muted/40 flex items-center justify-center overflow-hidden">
+                    {(() => {
+                      const imgPath = item.imageUrl || item.image;
+                      if (!imgPath) {
                         return (
-                          <img
-                            src={srcUrl}
-                            alt={item.name}
-                            loading="lazy"
-                            decoding="async"
-                            className="w-full h-full object-cover"
-                            onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
-                          />
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent text-amber-600/60 dark:text-amber-400/60">
+                            <ShoppingCart className="h-5 w-5 opacity-40" />
+                          </div>
                         );
-                      })()}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); addToCart(item); }}
-                        className="absolute bottom-1.5 right-1.5 h-6 w-6 rounded-full bg-amber-600 hover:bg-amber-700 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform"
-                        aria-label={`Add ${item.name}`}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
-                      {inCart > 0 && (
-                        <span className="absolute top-1.5 right-1.5 h-5 min-w-5 px-1 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center shadow">
-                          {inCart}
-                        </span>
-                      )}
-                    </div>
-                    <div className="p-2">
-                      <div className="font-bold text-xs leading-tight line-clamp-1">{item.name}</div>
-                      <div className="text-sm font-black text-amber-600 dark:text-amber-400">{formatETB(item.price)}</div>
-                    </div>
+                      }
+                      const srcUrl = imgPath.startsWith("http") || imgPath.startsWith("/") ? imgPath : `/uploads/${imgPath}`;
+                      return (
+                        <img
+                          src={srcUrl}
+                          alt={item.name}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+                        />
+                      );
+                    })()}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); addToCart(item); }}
+                      className="absolute bottom-1.5 right-1.5 h-6 w-6 rounded-full bg-amber-600 hover:bg-amber-700 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform"
+                      aria-label={`Add ${item.name}`}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                    {inCart > 0 && (
+                      <span className="absolute top-1.5 right-1.5 h-5 min-w-5 px-1 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center shadow">
+                        {inCart}
+                      </span>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-            {catalog.length === 0 && (
-              <p className="text-center py-8 text-muted-foreground text-sm font-medium">No dishes match this search.</p>
+                  <div className="p-2">
+                    <div className="font-bold text-xs leading-tight line-clamp-1">{item.name}</div>
+                    <div className="text-sm font-black text-amber-600 dark:text-amber-400">{formatETB(item.price)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {catalog.length === 0 && (
+            <p className="text-center py-8 text-muted-foreground text-sm font-medium">No dishes match this search.</p>
+          )}
+        </div>
+
+        {/* PINNED — what's selected & about to be added */}
+        <div className="border-t-2 border-amber-500/20 bg-background/80 backdrop-blur p-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+              {cart.length > 0 ? "Currently selected — will be added" : "Nothing selected yet"}
+            </p>
+            {cart.length > 0 && (
+              <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                {cartCount} item{cartCount === 1 ? "" : "s"}
+              </span>
             )}
           </div>
 
-          {/* Cart summary / submit */}
           {cart.length > 0 ? (
-            <div className="px-3 pb-3 space-y-2">
-              <div className="space-y-1.5 rounded-xl border bg-background/70 p-2.5 max-h-40 overflow-y-auto">
+            <>
+              <div className="space-y-1.5 rounded-xl border bg-card p-2.5 max-h-44 overflow-y-auto">
                 {cart.map((c) => (
                   <div key={c.id} className="flex items-center justify-between gap-2 text-xs">
                     <div className="min-w-0">
                       <span className="font-bold">{c.quantity}× {c.name}</span>
                       {c.addons.length > 0 && (
-                        <span className="text-muted-foreground block truncate">+ {c.addons.map((a) => a.name).join(", ")}</span>
+                        <span className="text-amber-600 dark:text-amber-400 block truncate font-medium">
+                          + {c.addons.map((a) => a.name).join(", ")}
+                        </span>
                       )}
+                      {c.note && <span className="text-muted-foreground block truncate">📝 {c.note}</span>}
+                      <span className="text-muted-foreground block">{formatETB(itemTotal(c))}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button onClick={() => updateQty(c.id, -1)} className="h-6 w-6 rounded-md border flex items-center justify-center text-muted-foreground hover:text-foreground">
                         <Minus className="h-3 w-3" />
                       </button>
+                      <span className="w-5 text-center font-bold">{c.quantity}</span>
                       <button onClick={() => updateQty(c.id, 1)} className="h-6 w-6 rounded-md border flex items-center justify-center text-muted-foreground hover:text-foreground">
                         <Plus className="h-3 w-3" />
                       </button>
@@ -264,19 +273,22 @@ export function TableAddItemsPanel({
                   {isSubmitting ? "Adding..." : `Add ${cartCount} to Order #${order.id.slice(-6).toUpperCase()}`}
                 </button>
               </div>
-            </div>
+            </>
           ) : (
-            <div className="px-3 pb-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                Tap <span className="font-black text-amber-600 dark:text-amber-400">+</span> on a dish above — items with add-ons open a customizer.
+              </p>
               <button
                 onClick={onCollapse}
-                className="w-full h-10 rounded-xl border border-dashed text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+                className="shrink-0 h-10 px-4 rounded-xl border border-dashed text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
               >
-                Done adding — close panel
+                Done — close
               </button>
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Addon sheet */}
       {configuringItem && (() => {
@@ -306,12 +318,23 @@ export function TableAddItemsPanel({
                       <button
                         key={a.id}
                         onClick={() => setSheetAddons(selected ? sheetAddons.filter((s) => s.id !== a.id) : [...sheetAddons, a])}
-                        className={`w-full flex items-center justify-between p-3 rounded-xl border text-sm transition-colors ${
-                          selected ? "border-amber-500 bg-amber-50/50 dark:bg-amber-950/20" : "border-border hover:bg-accent/50"
+                        className={`w-full flex items-center justify-between gap-3 p-3 rounded-xl border-2 text-sm font-bold transition-all active:scale-[0.98] ${
+                          selected
+                            ? "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/25"
+                            : "border-border bg-background hover:border-amber-500/50 text-foreground"
                         }`}
                       >
-                        <span className="font-medium">{a.name}</span>
-                        <span className="text-muted-foreground">{a.price > 0 ? `+${formatETB(a.price)}` : "Free"}</span>
+                        <span className="flex items-center gap-2.5 min-w-0">
+                          <span className={`h-5 w-5 rounded-md flex items-center justify-center shrink-0 border-2 ${
+                            selected ? "bg-white border-white text-amber-600" : "border-muted-foreground/40 text-transparent"
+                          }`}>
+                            <Check className="h-3.5 w-3.5" strokeWidth={3.5} />
+                          </span>
+                          <span className="truncate">{a.name}</span>
+                        </span>
+                        <span className={selected ? "text-white/90" : "text-muted-foreground"}>
+                          {a.price > 0 ? `+${formatETB(a.price)}` : "Free"}
+                        </span>
                       </button>
                     );
                   })}
@@ -325,8 +348,10 @@ export function TableAddItemsPanel({
                     <button
                       key={n}
                       onClick={() => setSheetNote(sheetNote === n ? "" : n)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                        sheetNote === n ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400" : "border-border hover:bg-accent/50"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${
+                        sheetNote === n
+                          ? "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/25"
+                          : "border-border bg-background text-muted-foreground hover:border-amber-500/50 hover:text-foreground"
                       }`}
                     >
                       {n}
@@ -341,7 +366,7 @@ export function TableAddItemsPanel({
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center justify-between pt-2 border-t">
                 <div className="flex items-center gap-3">
                   <button onClick={() => setSheetQty(Math.max(1, sheetQty - 1))} className="h-10 w-10 rounded-lg border flex items-center justify-center hover:bg-accent/50">
                     <Minus className="h-4 w-4" />
@@ -353,7 +378,7 @@ export function TableAddItemsPanel({
                 </div>
                 <button
                   onClick={confirmAddonSheet}
-                  className="h-12 px-6 rounded-xl bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 active:scale-95 transition-all"
+                  className="h-12 px-6 rounded-xl bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 active:scale-95 transition-all shadow-md shadow-amber-600/20"
                 >
                   Add {formatETB((configuringItem.price + sheetAddons.reduce((s, a) => s + (a.price || 0), 0)) * sheetQty)}
                 </button>

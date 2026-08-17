@@ -120,6 +120,9 @@ export default function WaiterWorkspacePage() {
   const handleNewOrderForTable = (table: Table) => {
     setPreselectedTable(table);
     setAppendToOrder(null);
+    // Leaving the table detail into the builder — clear the active table or the
+    // activeTable branch keeps winning and the button appears dead.
+    setActiveTable(null);
     setView("cafe-order");
   };
 
@@ -202,7 +205,7 @@ export default function WaiterWorkspacePage() {
         {/* MAIN CONTENT */}
         <div className="flex-1 overflow-y-auto">
           {activeTable ? (
-            <div className="p-4 sm:p-6 max-w-lg mx-auto">
+            <div className="p-4 sm:p-6 max-w-6xl mx-auto">
               <TableDetailView
                 table={activeTable.table}
                 activeOrder={activeOrder}

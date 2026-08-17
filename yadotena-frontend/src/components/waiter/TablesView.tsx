@@ -21,31 +21,26 @@ export function TablesView({
 }: TablesViewProps) {
   const [filter, setFilter] = useState<TabFilter>("ALL");
 
+  // Live truth comes from the open orders, not the stored table.status field
+  // (which goes stale when sessions end without clearing it).
+  const isBusy = (table: Table) => !!findActiveOrderForTable(table, orders);
+
   const filtered = tables.filter((t) => {
-    if (filter === "AVAILABLE") return t.status === "AVAILABLE";
-    if (filter === "OCCUPIED") return t.status !== "AVAILABLE";
+    if (filter === "AVAILABLE") return !isBusy(t);
+    if (filter === "OCCUPIED") return isBusy(t);
     return true;
   });
 
-  const getActiveOrder = (table: Table) => findActiveOrderForTable(table, orders);
-
-  const statusColor = (status: string) => {
-    switch (status) {
-      case "AVAILABLE": return "border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/20";
-      case "OCCUPIED": case "ORDERING": case "PREPARING": return "border-amber-500/40 bg-amber-50/50 dark:bg-amber-950/20";
-      case "WAITING_FOR_PAYMENT": return "border-red-500/40 bg-red-50/50 dark:bg-red-950/20";
-      default: return "border-border bg-card";
-    }
+  const cardStyle = (table: Table) => {
+    const o = findActiveOrderForTable(table, orders);
+    if (o && o.paymentStatus !== "PAID") return "border-red-500/40 bg-red-50/50 dark:bg-red-950/20";
+    if (o) return "border-amber-500/40 bg-amber-50/50 dark:bg-amber-950/20";
+    return "border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/20";
   };
 
-  const statusLabel = (status: string) => {
-    switch (status) {
-      case "AVAILABLE": return "Open";
-      case "OCCUPIED": case "ORDERING": case "PREPARING": return "Occupied";
-      case "WAITING_FOR_PAYMENT": return "Bill Due";
-      case "CLEANING": return "Cleaning";
-      default: return status;
-    }
+  const counts = {
+    busy: tables.filter(isBusy).length,
+    open: tables.filter((t) => !isBusy(t)).length,
   };
 
   return (
@@ -61,7 +56,7 @@ export function TablesView({
         <div>
           <h1 className="text-xl font-bold">Tables</h1>
           <p className="text-xs text-muted-foreground font-medium mt-0.5">
-            Tap a table to see its order and add items.
+            {counts.busy} busy · {counts.open} open — tap a table to see its order and add items.
           </p>
         </div>
         <button
@@ -88,12 +83,12 @@ export function TablesView({
       {/* Table grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {filtered.map((table) => {
-          const active = getActiveOrder(table);
+          const active = findActiveOrderForTable(table, orders);
           return (
             <button
               key={table.id}
               onClick={() => onSelectTable(table)}
-              className={`p-4 rounded-2xl border-2 text-left transition-all hover:shadow-md active:scale-[0.97] ${statusColor(table.status)}`}
+              className={`p-4 rounded-2xl border-2 text-left transition-all hover:shadow-md active:scale-[0.97] ${cardStyle(table)}`}
             >
               <div className="font-bold text-base">{table.name || `Table ${table.id}`}</div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
@@ -105,9 +100,12 @@ export function TablesView({
                     #{active.id.slice(-6).toUpperCase()}
                   </span>
                   <span className="block text-sm font-bold mt-1">{formatETB(active.total)}</span>
+                  {active.paymentStatus !== "PAID" && (
+                    <span className="block text-[10px] font-black text-red-500 uppercase tracking-wide mt-0.5">Unpaid</span>
+                  )}
                 </div>
               ) : (
-                <div className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">{statusLabel(table.status)}</div>
+                <div className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">Open</div>
               )}
             </button>
           );

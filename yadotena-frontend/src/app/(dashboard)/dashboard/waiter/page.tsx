@@ -3,25 +3,28 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { Order, MenuItem, Table, ServiceRequest, AddonItem } from "@/types";
+import { Order, MenuItem, Table, ServiceRequest, AddonItem, MenuCategory } from "@/types";
 import { soundAlerts } from "@/lib/audioAlerts";
+import { findActiveOrderForTable } from "@/lib/tableUtils";
 
 import { WaiterHome } from "@/components/waiter/WaiterHome";
+import { WaiterSidebar, WaiterView } from "@/components/waiter/WaiterSidebar";
 import { TablesView } from "@/components/waiter/TablesView";
+import { TableDetailView } from "@/components/waiter/TableDetailView";
 import { CafeOrderBuilder, CartItem } from "@/components/waiter/CafeOrderBuilder";
 import { OrdersBoard } from "@/components/waiter/OrdersBoard";
 import { AlertsView } from "@/components/waiter/AlertsView";
 import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 
-import { Home, Grid3X3, ClipboardList, Bell } from "lucide-react";
-
-type View = "home" | "tables" | "cafe-order" | "shop-sale" | "orders" | "alerts";
-
 export default function WaiterWorkspacePage() {
   const queryClient = useQueryClient();
-  const [view, setView] = useState<View>("home");
+  const [view, setView] = useState<WaiterView>("home");
   const [ordersDefaultTab, setOrdersDefaultTab] = useState<string>("ACTIVE");
+
+  // The single table-detail experience shared by the Sell floor and the Tables
+  // grid — clicking any table anywhere opens the same view with the add panel.
+  const [activeTable, setActiveTable] = useState<{ table: Table; source: WaiterView } | null>(null);
 
   // Order builder context
   const [preselectedTable, setPreselectedTable] = useState<Table | null>(null);
@@ -33,14 +36,12 @@ export default function WaiterWorkspacePage() {
   // Order detail modal
   const [inspectOrder, setInspectOrder] = useState<Order | null>(null);
 
-  // Data — categories/addons are only needed inside the order builder, so they
-  // are fetched lazily when that view opens (react-query keeps them cached after
-  // the first visit). The other queries serve home/tables/orders/alerts.
-  const builderOpen = view === "cafe-order" || view === "shop-sale" || view === "tables";
+  // Data — categories/addons are lazy-fetched when a surface needs them.
+  const builderOpen = view === "cafe-order" || view === "shop-sale" || view === "tables" || !!activeTable;
   const { data: tables = [] } = useQuery<Table[]>({ queryKey: ["tables"], queryFn: api.tables.getAll });
   const { data: orders = [] } = useQuery<Order[]>({ queryKey: ["orders"], queryFn: api.orders.getAll });
   const { data: menu = [] } = useQuery<MenuItem[]>({ queryKey: ["menu"], queryFn: api.menu.getAll });
-  const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: api.categories.getAll, enabled: builderOpen });
+  const { data: categories = [] } = useQuery<MenuCategory[]>({ queryKey: ["categories"], queryFn: api.categories.getAll, enabled: builderOpen });
   const { data: allAddons = [] } = useQuery<AddonItem[]>({ queryKey: ["addons"], queryFn: () => api.addons.getAll(), enabled: builderOpen });
   const { data: serviceRequests = [] } = useQuery<ServiceRequest[]>({ queryKey: ["serviceRequests"], queryFn: api.serviceRequests.getAll });
 
@@ -53,7 +54,7 @@ export default function WaiterWorkspacePage() {
   }, [toast]);
   const showToast = (message: string, kind: "error" | "success" = "error") => setToast({ message, kind });
 
-  const pendingAlerts = serviceRequests.filter(r => r.status === "PENDING").length;
+  const pendingAlerts = serviceRequests.filter((r) => r.status === "PENDING").length;
 
   // Mutations
   const createOrderMutation = useMutation({
@@ -87,6 +88,7 @@ export default function WaiterWorkspacePage() {
       queryClient.invalidateQueries({ queryKey: ["tables"] });
       soundAlerts.playActionPing();
       // Adding to an open table order returns to the floor view.
+      setActiveTable(null);
       setView("tables");
     },
     onError: (err: Error) => showToast(err?.message || "We couldn't add those items. Please try again."),
@@ -124,19 +126,19 @@ export default function WaiterWorkspacePage() {
   };
 
   const handleSubmitOrder = (items: CartItem[], tableId: string | undefined, orderType: "DINE_IN" | "TAKEAWAY", appendOrderId?: string) => {
-    const payload = items.map(i => ({
+    const payload = items.map((i) => ({
       menuItemId: i.menuItemId,
       quantity: i.quantity,
       specialInstructions: i.note || "",
-      selectedAddons: i.addons.map(a => a.id || a.name),
+      selectedAddons: i.addons.map((a) => a.id || a.name),
     }));
 
     if (appendOrderId) {
       appendItemsMutation.mutate({ id: appendOrderId, items: payload });
     } else {
       const isShop = view === "shop-sale";
-      const hasPrepared = items.some(i => {
-        const mi = menu.find(m => m.id === i.menuItemId);
+      const hasPrepared = items.some((i) => {
+        const mi = menu.find((m) => m.id === i.menuItemId);
         return mi && !mi.id.startsWith("shop-") && !(mi.category || "").toLowerCase().includes("shop");
       });
 
@@ -154,95 +156,113 @@ export default function WaiterWorkspacePage() {
 
   const handleServe = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "SERVED" });
 
-  // Navigation items
-  const navItems = [
-    { key: "home" as View, icon: Home, label: "Sell" },
-    { key: "tables" as View, icon: Grid3X3, label: "Tables" },
-    { key: "orders" as View, icon: ClipboardList, label: "Orders" },
-    { key: "alerts" as View, icon: Bell, label: "Alerts", badge: pendingAlerts },
-  ];
+  const openTable = (table: Table) => {
+    setActiveTable({ table, source: view === "home" ? "home" : "tables" });
+  };
+  const closeTable = () => {
+    if (!activeTable) return;
+    const source = activeTable.source;
+    setActiveTable(null);
+    setView(source);
+  };
+
+  const activeOrder = activeTable ? findActiveOrderForTable(activeTable.table, orders) : undefined;
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Action feedback toast */}
-      {toast && (
-        <div
-          role="status"
-          className={`fixed top-3 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] rounded-xl border px-4 py-2.5 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 ${
-            toast.kind === "error"
-              ? "bg-red-600 border-red-700 text-white"
-              : "bg-emerald-600 border-emerald-700 text-white"
-          }`}
-        >
-          {toast.message}
+    <div className="min-h-screen bg-background flex">
+      <WaiterSidebar
+        view={activeTable ? activeTable.source : view}
+        pendingAlerts={pendingAlerts}
+        onNavigate={(v) => { setActiveTable(null); setView(v); }}
+      />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Action feedback toast */}
+        {toast && (
+          <div
+            role="status"
+            className={`fixed top-3 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] rounded-xl border px-4 py-2.5 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 ${
+              toast.kind === "error"
+                ? "bg-red-600 border-red-700 text-white"
+                : "bg-emerald-600 border-emerald-700 text-white"
+            }`}
+          >
+            {toast.message}
+          </div>
+        )}
+
+        {/* MAIN CONTENT */}
+        <div className="flex-1 overflow-y-auto">
+          {activeTable ? (
+            <div className="p-4 sm:p-6 max-w-lg mx-auto">
+              <TableDetailView
+                table={activeTable.table}
+                activeOrder={activeOrder}
+                menu={menu}
+                categories={categories}
+                allAddons={allAddons}
+                isAppending={appendItemsMutation.isPending}
+                onBack={closeTable}
+                onCreateOrder={handleNewOrderForTable}
+                onAppendItems={handleAppendItemsToOrder}
+                onViewOrder={(o) => setInspectOrder(o)}
+                onSettleOrder={(o) => setPaymentOrder(o)}
+              />
+            </div>
+          ) : view === "home" ? (
+            <WaiterHome
+              orders={orders}
+              serviceRequests={serviceRequests}
+              tables={tables}
+              onCafeOrder={handleCafeOrder}
+              onShopSale={handleShopSale}
+              onViewReady={() => { setOrdersDefaultTab("READY"); setView("orders"); }}
+              onViewUnpaid={() => { setOrdersDefaultTab("UNPAID"); setView("orders"); }}
+              onViewAlerts={() => setView("alerts")}
+              onOpenTable={openTable}
+            />
+          ) : view === "tables" ? (
+            <TablesView
+              tables={tables} orders={orders}
+              onBack={() => setView("home")}
+              onSelectTable={openTable}
+              onNewOrder={handleCafeOrder}
+            />
+          ) : view === "cafe-order" ? (
+            <CafeOrderBuilder
+              menu={menu} categories={categories} allAddons={allAddons}
+              tables={tables} orders={orders}
+              preselectedTable={preselectedTable}
+              appendToOrder={appendToOrder}
+              onBack={() => setView("home")}
+              onSubmit={handleSubmitOrder}
+            />
+          ) : view === "shop-sale" ? (
+            <CafeOrderBuilder
+              menu={menu} categories={categories} allAddons={allAddons}
+              tables={tables} orders={orders}
+              isShopMode
+              onBack={() => setView("home")}
+              onSubmit={handleSubmitOrder}
+            />
+          ) : view === "orders" ? (
+            <OrdersBoard
+              orders={orders}
+              defaultTab={ordersDefaultTab}
+              onBack={() => setView("home")}
+              onServe={handleServe}
+              onSettle={(o) => setPaymentOrder(o)}
+              onViewOrder={(o) => setInspectOrder(o)}
+            />
+          ) : (
+            <AlertsView
+              serviceRequests={serviceRequests}
+              onBack={() => setView("home")}
+              onResolve={(id) => resolveRequestMutation.mutate(id)}
+            />
+          )}
         </div>
-      )}
-
-      {/* MAIN CONTENT */}
-      {view === "home" && (
-        <WaiterHome
-          orders={orders}
-          serviceRequests={serviceRequests}
-          onCafeOrder={handleCafeOrder}
-          onShopSale={handleShopSale}
-          onViewReady={() => { setOrdersDefaultTab("READY"); setView("orders"); }}
-          onViewUnpaid={() => { setOrdersDefaultTab("UNPAID"); setView("orders"); }}
-          onViewAlerts={() => setView("alerts")}
-        />
-      )}
-
-      {view === "tables" && (
-        <TablesView
-          tables={tables} orders={orders}
-          menu={menu} categories={categories} allAddons={allAddons}
-          isAppending={appendItemsMutation.isPending}
-          onBack={() => setView("home")}
-          onNewOrderForTable={handleNewOrderForTable}
-          onAppendItems={handleAppendItemsToOrder}
-          onViewOrder={o => setInspectOrder(o)}
-          onSettleOrder={o => setPaymentOrder(o)}
-        />
-      )}
-
-      {view === "cafe-order" && (
-        <CafeOrderBuilder
-          menu={menu} categories={categories} allAddons={allAddons}
-          tables={tables} orders={orders}
-          preselectedTable={preselectedTable}
-          appendToOrder={appendToOrder}
-          onBack={() => setView("home")}
-          onSubmit={handleSubmitOrder}
-        />
-      )}
-
-      {view === "shop-sale" && (
-        <CafeOrderBuilder
-          menu={menu} categories={categories} allAddons={allAddons}
-          tables={tables} orders={orders}
-          isShopMode
-          onBack={() => setView("home")}
-          onSubmit={handleSubmitOrder}
-        />
-      )}
-
-      {view === "orders" && (
-        <OrdersBoard
-          orders={orders}
-          defaultTab={ordersDefaultTab}
-          onBack={() => setView("home")}
-          onServe={handleServe}
-          onSettle={o => setPaymentOrder(o)}
-          onViewOrder={o => setInspectOrder(o)}
-        />
-      )}
-
-      {view === "alerts" && (
-        <AlertsView
-          serviceRequests={serviceRequests}
-          onBack={() => setView("home")}
-          onResolve={id => resolveRequestMutation.mutate(id)}
-        />
-      )}
+      </div>
 
       {/* ORDER INSPECT MODAL */}
       <OrderDetailsModal
@@ -264,25 +284,6 @@ export default function WaiterWorkspacePage() {
           setPaymentOrder(null);
         }}
       />
-
-      {/* BOTTOM NAVIGATION */}
-      {!["cafe-order", "shop-sale"].includes(view) && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-t px-2 py-1.5 flex items-center justify-around max-w-lg mx-auto">
-          {navItems.map(n => {
-            const active = view === n.key || (n.key === "home" && ["home"].includes(view));
-            return (
-              <button key={n.key} onClick={() => { setView(n.key); if (n.key === "orders") setOrdersDefaultTab("ACTIVE"); }}
-                className={`relative flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-colors ${active ? "text-foreground font-bold" : "text-muted-foreground"}`}>
-                <n.icon className="h-5 w-5" />
-                <span className="text-[10px]">{n.label}</span>
-                {n.badge && n.badge > 0 && (
-                  <span className="absolute top-0.5 right-2 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">{n.badge}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

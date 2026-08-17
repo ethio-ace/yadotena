@@ -1,40 +1,25 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Table, Order, MenuItem, MenuCategory, AddonItem } from "@/types";
+import { useState } from "react";
+import { Table, Order } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { addonNames } from "@/lib/kitchen";
 import { findActiveOrderForTable } from "@/lib/tableUtils";
-import { ArrowLeft, Plus, Users, Eye, CreditCard, AlertTriangle } from "lucide-react";
-import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
-import { TableAddItemsPanel } from "@/components/waiter/TableAddItemsPanel";
-import type { CartItem } from "@/components/waiter/CafeOrderBuilder";
+import { ArrowLeft, Users, Plus } from "lucide-react";
 
 interface TablesViewProps {
   tables: Table[];
   orders: Order[];
-  menu: MenuItem[];
-  categories: MenuCategory[];
-  allAddons: AddonItem[];
-  isAppending: boolean;
   onBack: () => void;
-  onNewOrderForTable: (table: Table) => void;
-  onAppendItems: (order: Order, items: CartItem[]) => void;
-  onViewOrder: (order: Order) => void;
-  onSettleOrder: (order: Order) => void;
+  onSelectTable: (table: Table) => void;
+  onNewOrder: () => void;
 }
 
 type TabFilter = "ALL" | "AVAILABLE" | "OCCUPIED";
 
 export function TablesView({
-  tables, orders, menu, categories, allAddons, isAppending,
-  onBack, onNewOrderForTable, onAppendItems, onViewOrder, onSettleOrder,
+  tables, orders, onBack, onSelectTable, onNewOrder,
 }: TablesViewProps) {
   const [filter, setFilter] = useState<TabFilter>("ALL");
-  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
-
-  // Addon name mapper for resolving ids on tickets.
-  const addonMap = useMemo(() => Object.fromEntries(allAddons.map((a) => [a.id, a.name])), [allAddons]);
 
   const filtered = tables.filter((t) => {
     if (filter === "AVAILABLE") return t.status === "AVAILABLE";
@@ -63,128 +48,29 @@ export function TablesView({
     }
   };
 
-  // Table detail inline view
-  if (selectedTable) {
-    const activeOrder = getActiveOrder(selectedTable);
-    return (
-      <div className="p-4 sm:p-6 max-w-lg mx-auto animate-in fade-in duration-200">
-        <button onClick={() => setSelectedTable(null)} className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground mb-4 active:scale-95">
-          <ArrowLeft className="h-4 w-4" /> Back to Tables
-        </button>
-
-        <div className="bg-card border rounded-3xl p-5 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-black">{selectedTable.name || `Table ${selectedTable.id}`}</h2>
-              <p className="text-xs text-muted-foreground font-medium">{selectedTable.capacity} seats · {statusLabel(selectedTable.status)}</p>
-            </div>
-            <div className={`h-3 w-3 rounded-full ${selectedTable.status === "AVAILABLE" ? "bg-emerald-500" : "bg-amber-500"}`} />
-          </div>
-
-          {activeOrder ? (
-            <>
-              {/* Order Stepper */}
-              <div className="border-t pt-4">
-                <OrderProgressStepper status={activeOrder.status} />
-              </div>
-
-              {/* Items & Resolved Addons */}
-              <div className="space-y-2 pt-2">
-                <div className="flex justify-between items-center text-xs font-bold uppercase text-muted-foreground">
-                  <span>Current Order #{activeOrder.id.slice(-6).toUpperCase()}</span>
-                  <span>{activeOrder.items?.length || 0} items</span>
-                </div>
-
-                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                  {activeOrder.items?.map((item, i) => {
-                    const aNames = addonNames(item.selectedAddons, addonMap);
-                    return (
-                      <div key={item.id || i} className="p-3 rounded-2xl border bg-background/60 space-y-1 text-sm">
-                        <div className="flex justify-between font-bold">
-                          <span>
-                            <span className="text-amber-500 font-extrabold mr-1.5">{item.quantity}×</span>
-                            {item.name}
-                          </span>
-                          <span className="font-mono text-xs text-muted-foreground">{formatETB(item.price * item.quantity)}</span>
-                        </div>
-
-                        {/* Resolved Add-ons */}
-                        {aNames.length > 0 && (
-                          <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
-                            {aNames.map((aName, aIdx) => (
-                              <div key={aIdx} className="flex items-center gap-1 text-foreground">
-                                <span className="text-amber-500 font-bold">+</span>
-                                <span>{aName}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Special Instructions */}
-                        {item.specialInstructions && (
-                          <div className="mt-1 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" />
-                            <span>⚠ {item.specialInstructions}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="flex justify-between font-black text-base pt-3 border-t">
-                  <span>Total Amount</span>
-                  <span className="text-amber-600 dark:text-amber-400">{formatETB(activeOrder.total)}</span>
-                </div>
-              </div>
-
-              {/* Inline add-items panel */}
-              <TableAddItemsPanel
-                order={activeOrder}
-                menu={menu}
-                categories={categories}
-                allAddons={allAddons}
-                isSubmitting={isAppending}
-                onAppend={(items) => onAppendItems(activeOrder, items)}
-                onCollapse={() => setSelectedTable(null)}
-              />
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={() => onSettleOrder(activeOrder)}
-                  className="h-13 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-emerald-600/20"
-                >
-                  <CreditCard className="h-5 w-5" /> Settle Bill
-                </button>
-                <button
-                  onClick={() => onViewOrder(activeOrder)}
-                  className="h-13 rounded-2xl border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-accent/50 flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Eye className="h-4 w-4" /> View Full Ticket
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="border-t pt-4 text-center space-y-3">
-              <p className="text-sm text-muted-foreground">No active order on this table.</p>
-              <button onClick={() => onNewOrderForTable(selectedTable)} className="w-full h-13 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-amber-600/20">
-                <Plus className="h-5 w-5" /> New Café Order
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-4 sm:p-6 max-w-3xl mx-auto animate-in fade-in duration-200">
-      <button onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground mb-4 active:scale-95">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto animate-in fade-in duration-200">
+      <button
+        onClick={onBack}
+        className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground mb-4 active:scale-95 transition-all"
+      >
         <ArrowLeft className="h-4 w-4" /> Home
       </button>
 
-      <h1 className="text-xl font-bold mb-4">Tables</h1>
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold">Tables</h1>
+          <p className="text-xs text-muted-foreground font-medium mt-0.5">
+            Tap a table to see its order and add items.
+          </p>
+        </div>
+        <button
+          onClick={onNewOrder}
+          className="h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-sm flex items-center gap-1.5 active:scale-95 transition-all shadow-md shadow-amber-600/20"
+        >
+          <Plus className="h-4 w-4" /> New Café Order
+        </button>
+      </div>
 
       {/* Filter tabs */}
       <div className="flex gap-2 mb-5">
@@ -206,7 +92,7 @@ export function TablesView({
           return (
             <button
               key={table.id}
-              onClick={() => setSelectedTable(table)}
+              onClick={() => onSelectTable(table)}
               className={`p-4 rounded-2xl border-2 text-left transition-all hover:shadow-md active:scale-[0.97] ${statusColor(table.status)}`}
             >
               <div className="font-bold text-base">{table.name || `Table ${table.id}`}</div>
@@ -215,8 +101,10 @@ export function TablesView({
               </div>
               {active ? (
                 <div className="mt-2 pt-2 border-t border-border/50">
-                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{active.items?.length || 0} items</span>
-                  <span className="block text-sm font-bold mt-0.5">{formatETB(active.total)}</span>
+                  <span className="inline-block px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400 font-mono font-black text-[10px]">
+                    #{active.id.slice(-6).toUpperCase()}
+                  </span>
+                  <span className="block text-sm font-bold mt-1">{formatETB(active.total)}</span>
                 </div>
               ) : (
                 <div className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">{statusLabel(table.status)}</div>

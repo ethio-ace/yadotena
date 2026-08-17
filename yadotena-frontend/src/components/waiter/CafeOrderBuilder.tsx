@@ -5,7 +5,8 @@ import { MenuItem, MenuCategory, AddonItem, MenuItemAddon, Table, Order } from "
 import { formatETB } from "@/lib/currency";
 import { getApplicableAddonsForItem, isShopProductItem } from "@/lib/orderUtils";
 import { findActiveOrderForTable } from "@/lib/tableUtils";
-import { ArrowLeft, Search, X, Minus, Plus, MessageSquare, ShoppingCart, AlertCircle } from "lucide-react";
+import { addonNames } from "@/lib/kitchen";
+import { ArrowLeft, Search, X, Minus, Plus, ShoppingCart } from "lucide-react";
 
 export interface CartItem {
   id: string;
@@ -241,8 +242,6 @@ export function CafeOrderBuilder({
     );
   })();
 
-  const brandColor = isShopMode ? "emerald" : "amber";
-
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] animate-in fade-in duration-200">
       {/* Top bar */}
@@ -386,7 +385,44 @@ export function CafeOrderBuilder({
             <h2 className="font-bold text-sm">
               {isShopMode ? "Sale" : "Order"} · {cartCount} item{cartCount !== 1 ? "s" : ""}
             </h2>
+            {activeOrderForTable && (
+              <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+                Adding to #{activeOrderForTable.id.slice(-6).toUpperCase()}
+              </p>
+            )}
           </div>
+
+          {/* Current order on the table (shown when extending an open order) */}
+          {activeOrderForTable && (
+            <div className="border-b bg-muted/30">
+              <div className="p-3">
+                <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-2">
+                  On {selectedTable?.name || "Table"} — current order
+                </p>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                  {activeOrderForTable.items?.map((item, i) => {
+                    const aNames = addonNames(item.selectedAddons, Object.fromEntries(allAddons.map((a) => [a.id, a.name])));
+                    return (
+                      <div key={item.id || i} className="text-xs">
+                        <div className="flex justify-between gap-2">
+                          <span className="font-bold truncate">{item.quantity}× {item.name}</span>
+                          <span className="text-muted-foreground font-mono shrink-0">{formatETB(item.price * item.quantity)}</span>
+                        </div>
+                        {aNames.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground pl-2 truncate">+ {aNames.join(", ")}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between text-xs font-black pt-1.5 mt-1.5 border-t">
+                  <span>Running Total</span>
+                  <span className="text-amber-600 dark:text-amber-400">{formatETB(activeOrderForTable.total)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {cart.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Add products to get started.</p>}
             {cart.map(c => (

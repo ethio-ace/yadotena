@@ -69,6 +69,7 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 
 	// Public Read & Customer Action Routes
 	r.Get("/menu", s.listMenuItems)
+	r.Get("/menu/popular", s.popularMenuItems)
 	r.Get("/menu/{id}", s.getMenuItem)
 	r.Get("/menu/{id}/addons", s.getRespectiveAddonsForMenuItem)
 	r.Get("/addons", s.listAddons)
@@ -80,6 +81,7 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 	r.Get("/payment-methods", s.listPaymentMethods)
 	r.Get("/payment-methods/{id}", s.getPaymentMethod)
 	r.Post("/orders", s.createOrderEndpoint)
+	r.Get("/orders/lookup", s.lookupOrderByNumber)
 	r.Get("/orders/{id}", s.getOrder)
 	r.Post("/service-requests", s.createServiceRequest)
 

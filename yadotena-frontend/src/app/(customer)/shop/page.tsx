@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { MenuItem, MenuCategory } from "@/types";
@@ -11,28 +11,14 @@ import { Search, ShoppingBag, PackageCheck } from "lucide-react";
 import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
-
-// Helper function to check if item is a packaged retail product
-export const isRetailProduct = (item: MenuItem): boolean => {
-  const cat = (item.category || "").toLowerCase();
-  const catId = item.categoryId || "";
-  return (
-    item.id.startsWith("shop-") ||
-    catId.startsWith("cat-shop") ||
-    cat.includes("shop") ||
-    cat.includes("tomoca") ||
-    cat.includes("pack") ||
-    cat.includes("butter") ||
-    cat.includes("honey") ||
-    cat.includes("spice") ||
-    cat.includes("powder") ||
-    cat.includes("retail")
-  );
-};
+import { SortSelect, sortCatalogItems, SortKey } from "@/components/customer/SortSelect";
+import { TopProductsRow } from "@/components/customer/TopProductsRow";
+import { isRetailProduct } from "@/lib/orderUtils";
 
 export default function ShopPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [sort, setSort] = useState<SortKey>("popularity");
   const [selectedProduct, setSelectedProduct] = useState<MenuItem | null>(null);
 
   const { data: menu = [], isLoading: isMenuLoading } = useQuery({
@@ -43,6 +29,11 @@ export default function ShopPage() {
   const { data: dbCategories = [] } = useQuery<MenuCategory[]>({
     queryKey: ["categories"],
     queryFn: api.categories.getAll,
+  });
+
+  const { data: popularItems = [] } = useQuery({
+    queryKey: ["menu", "popular"],
+    queryFn: () => api.menu.getPopular(8),
   });
 
   // Filter database categories relevant to over-the-counter packaged retail products
@@ -75,26 +66,40 @@ export default function ShopPage() {
   ];
 
   // Filter shop products (only over-the-counter packaged goods)
-  const shopProducts = menu.filter((item) => {
-    const isAvailable = item.available !== false;
-    const matchesSearch =
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      (item.description || "").toLowerCase().includes(search.toLowerCase());
+  const shopProducts = useMemo(() => {
+    const retail = menu.filter((item) => {
+      const isAvailable = item.available !== false;
+      const matchesSearch =
+        item.name.toLowerCase().includes(search.toLowerCase()) ||
+        (item.description || "").toLowerCase().includes(search.toLowerCase());
 
-    const isRetail = isRetailProduct(item);
+      const isRetail = isRetailProduct(item);
 
-    let matchesCategory = activeCategory === "All";
-    if (!matchesCategory) {
-      matchesCategory =
-        item.categoryId === activeCategory || item.category === activeCategory;
-    }
+      let matchesCategory = activeCategory === "All";
+      if (!matchesCategory) {
+        matchesCategory =
+          item.categoryId === activeCategory || item.category === activeCategory;
+      }
 
-    return isAvailable && isRetail && matchesSearch && matchesCategory;
-  });
+      return isAvailable && isRetail && matchesSearch && matchesCategory;
+    });
+    return sortCatalogItems(retail, sort);
+  }, [menu, search, activeCategory, sort]);
+
+  // Top-selling retail products (fall back to first available shop items when no order data yet)
+  const topProducts = useMemo(() => {
+    const popular = popularItems
+      .filter(p => isRetailProduct(p) && p.available !== false)
+      .slice(0, 8);
+    if (popular.length >= 3) return popular;
+    return menu.filter(m => isRetailProduct(m) && m.available !== false).slice(0, 6);
+  }, [popularItems, menu]);
+
+  const hasFilters = search !== "" || activeCategory !== "All" || sort !== "popularity";
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-300">
-      
+
       {/* Storefront Hero Banner */}
       <div className="relative rounded-3xl overflow-hidden border border-muted-foreground/15 shadow-xl bg-gradient-to-br from-amber-600/15 via-primary/10 to-background p-6 md:p-10 flex flex-col justify-end min-h-[190px]">
         <div className="relative z-10 space-y-3">
@@ -120,24 +125,37 @@ export default function ShopPage() {
         </div>
       </div>
 
-      {/* Search & Dynamic Database Category Navigation */}
+      {/* Top Sellers */}
+      {topProducts.length > 0 && (
+        <TopProductsRow
+          items={topProducts}
+          title="Top Store Products"
+          subtitle="Most popular packaged goods at the counter"
+          onSelect={setSelectedProduct}
+        />
+      )}
+
+      {/* Search, Sort & Dynamic Database Category Navigation */}
       <div className="space-y-4">
-        <div className="relative max-w-2xl">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input
-            placeholder="Search Tomoca ground coffee, roasted beans, butter jars, honey..."
-            className="pl-12 h-12 rounded-2xl bg-card border-muted-foreground/20 text-sm shadow-sm focus-visible:ring-primary"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted px-2 py-1 rounded-md"
-            >
-              Clear
-            </button>
-          )}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 sm:max-w-2xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              placeholder="Search Tomoca ground coffee, roasted beans, butter jars, honey..."
+              className="pl-12 h-12 rounded-2xl bg-card border-muted-foreground/20 text-sm shadow-sm focus-visible:ring-primary"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted px-2 py-1 rounded-md"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <SortSelect value={sort} onChange={setSort} />
         </div>
 
         {/* Dynamic Database Category Pills */}
@@ -160,6 +178,20 @@ export default function ShopPage() {
               </button>
             );
           })}
+        </div>
+
+        {/* Result count / active filters */}
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold px-1">
+          <span>{shopProducts.length} {shopProducts.length === 1 ? "product" : "products"}</span>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => { setSearch(""); setActiveCategory("All"); setSort("popularity"); }}
+              className="text-primary underline-offset-2 hover:underline font-bold"
+            >
+              Reset filters
+            </button>
+          )}
         </div>
       </div>
 
@@ -223,13 +255,14 @@ export default function ShopPage() {
               </div>
               <h3 className="text-lg font-bold text-foreground">No retail packaged products found</h3>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                We couldn't find any packaged retail items matching your selection.
+                We couldn&apos;t find any packaged retail items matching your selection.
               </p>
               <button
                 type="button"
                 onClick={() => {
                   setSearch("");
                   setActiveCategory("All");
+                  setSort("popularity");
                 }}
                 className="text-xs font-bold text-primary underline"
               >
@@ -240,7 +273,7 @@ export default function ShopPage() {
         </div>
       )}
 
-      {/* Product Detail Modal */}
+      {/* Product Detail Modal (view-only) */}
       <ItemDetailModal
         item={selectedProduct}
         isOpen={!!selectedProduct}

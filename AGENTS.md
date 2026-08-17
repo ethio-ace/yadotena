@@ -9,7 +9,10 @@ Non-obvious facts that reading the code won't reveal. Keep entries terse.
 
 ## Customer (public) flow
 
-- Customers are **view-only by design** (per the owner): the public menu/shop pages must not offer login, ordering, or a cart. `ItemDetailModal` deliberately has no add-to-cart button. Don't add cart UI to customer pages.
+- Customers are **anonymous & view-only by design** (per the owner): no login/register anywhere on the public site (the customer header has no staff-portal link), no cart, no ordering. `ItemDetailModal` is read-only — add-ons and spice levels render as informational chips with a lock note; it fetches `api.addons.getRespectiveForMenuItem` for the real scoped add-on list.
+- Public order tracking: `GET /api/v1/orders/lookup?number=` resolves a full order id or the 6-char ticket suffix (see `lookupOrderByNumber`); the header "Track Order" popover, menu-page `TrackOrderInput`, and the order-not-found page all push to `/order/{number}`. The `/order/[id]` page never settles bills directly — it only shows read-only payment methods/accounts (`PaymentMethodsModal`, powered by the public `GET /payment-methods`) and creates `WAITER`/`BILL` service requests. Assistance UI is gated to `DINE_IN && status not COMPLETED/CANCELLED`.
+- "Top Products": `GET /api/v1/menu/popular` (public, no auth) ranks items by total ordered quantity (`orderCount`); the menu/shop pages render it via `TopProductsRow` and fall back to `Popular`/`Favorite` dietary tags or first items when order history is empty. `SortSelect` + `sortCatalogItems` provide popularity/name/price sorting on both pages.
+- Don't add cart UI or `useCartStore` usage back to customer pages — that store belongs to the staff POS (SessionManager/waiter flows).
 
 ## Owner analytics
 

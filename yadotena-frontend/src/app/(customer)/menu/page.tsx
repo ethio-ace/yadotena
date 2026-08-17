@@ -1,24 +1,24 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { useCartStore } from "@/stores/cartStore";
 import { MenuItem } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Minus, Search, Star, Clock, Sparkles, UtensilsCrossed, ArrowRight } from "lucide-react";
+import { Search, Clock, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
+import { SortSelect, sortCatalogItems, SortKey } from "@/components/customer/SortSelect";
+import { TopProductsRow } from "@/components/customer/TopProductsRow";
+import { TrackOrderInput } from "@/components/customer/TrackOrderInput";
 import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
-import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
-import Link from "next/link";
+import { isRetailProduct } from "@/lib/orderUtils";
 
 function MenuContent() {
-  const tableLabels = useTableLabels();
   const { data: menu, isLoading: isMenuLoading } = useQuery({
     queryKey: ["menu"],
     queryFn: api.menu.getAll,
@@ -29,44 +29,50 @@ function MenuContent() {
     queryFn: api.categories.getAll,
   });
 
-  const tableId = useCartStore((state) => state.tableId);
-  const activeOrderId = useCartStore((state) => state.activeOrderId);
-  const addItem = useCartStore((state) => state.addItem);
-
-  // Poll for live table/session orders
-  const { data: allOrders } = useQuery({
-    queryKey: ["orders"],
-    queryFn: api.orders.getAll,
+  const { data: popularItems = [] } = useQuery({
+    queryKey: ["menu", "popular"],
+    queryFn: () => api.menu.getPopular(8),
   });
 
-  // Find active table session order if one is currently being prepared
-  const activeSessionOrder = allOrders?.find((o) => {
-    const isMatchingTable = tableId && o.tableId === tableId;
-    const isMatchingOrderId = activeOrderId && o.id === activeOrderId;
-    const isActiveStatus = o.status !== "COMPLETED" && o.status !== "CANCELLED";
-    return (isMatchingTable || isMatchingOrderId) && isActiveStatus;
-  });
-  
-  const setTableId = useCartStore((state) => state.setTableId);
   const searchParams = useSearchParams();
   const initialCategoryParam = searchParams.get("category");
-  const tableParam = searchParams.get("table");
 
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState(initialCategoryParam || "All");
+  const [prevCategoryParam, setPrevCategoryParam] = useState<string | null>(initialCategoryParam);
+  const [sort, setSort] = useState<SortKey>("popularity");
   const [selectedItemForModal, setSelectedItemForModal] = useState<MenuItem | null>(null);
 
-  useEffect(() => {
-    if (initialCategoryParam) {
-      setActiveCategory(initialCategoryParam);
-    }
-  }, [initialCategoryParam]);
+  // Keep the category in sync when the ?category= query param changes while mounted.
+  if (prevCategoryParam !== initialCategoryParam) {
+    setPrevCategoryParam(initialCategoryParam);
+    setActiveCategory(initialCategoryParam || "All");
+  }
 
-  useEffect(() => {
-    if (tableParam) {
-      setTableId(tableParam);
-    }
-  }, [tableParam, setTableId]);
+  // Top sellers: from real order counts, falling back to "Popular"/"Favorite" tagged dishes.
+  const topDishes = useMemo(() => {
+    const popular = popularItems
+      .filter(p => !isRetailProduct(p) && p.available !== false)
+      .slice(0, 8);
+    if (popular.length >= 3) return popular;
+    const fallback = (menu || [])
+      .filter(m => !isRetailProduct(m) && m.available !== false)
+      .filter(m => m.dietaryTags?.some(t => /popular|favorite/i.test(t)))
+      .slice(0, 8);
+    return fallback.length > 0 ? fallback : (menu || []).filter(m => !isRetailProduct(m)).slice(0, 6);
+  }, [popularItems, menu]);
+
+  const filteredMenu = useMemo(() => {
+    const cooked = (menu || []).filter(m => {
+      const isAvailable = m.available !== false;
+      const isCookedDish = !isRetailProduct(m);
+      const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase()) ||
+                            m.description.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = activeCategory === "All" || m.category === activeCategory;
+      return isAvailable && isCookedDish && matchesSearch && matchesCategory;
+    });
+    return sortCatalogItems(cooked, sort);
+  }, [menu, search, activeCategory, sort]);
 
   if (isMenuLoading) {
     return (
@@ -90,58 +96,11 @@ function MenuContent() {
       .filter(cn => cn && !dynamicCategories.some(dc => dc.name === cn))
       .map(cn => ({ name: cn, icon: "🍽️" }))
   ];
-  
-  const isRetailProduct = (item: MenuItem): boolean => {
-    const cat = (item.category || "").toLowerCase();
-    const catId = item.categoryId || "";
-    return (
-      item.id.startsWith("shop-") ||
-      catId.startsWith("cat-shop") ||
-      cat.includes("tomoca") ||
-      cat.includes("retail")
-    );
-  };
 
-  const filteredMenu = menu?.filter(m => {
-    const isAvailable = m.available !== false;
-    const isCookedDish = !isRetailProduct(m);
-    const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase()) || 
-                          m.description.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = activeCategory === "All" || m.category === activeCategory;
-    return isAvailable && isCookedDish && matchesSearch && matchesCategory;
-  });
+  const hasFilters = search !== "" || activeCategory !== "All" || sort !== "popularity";
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
-      
-      {/* Live Active Table Order Banner */}
-      {activeSessionOrder && (
-        <div className="bg-gradient-to-r from-amber-500/20 via-primary/15 to-amber-500/20 border border-primary/40 p-4 md:p-5 rounded-3xl backdrop-blur-md shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center gap-3.5">
-            <div className="h-12 w-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary shrink-0">
-              <UtensilsCrossed className="h-6 w-6 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-base text-foreground">
-                  {tableId ? `${formatTableRef(tableId, tableLabels)} Session` : "Your Active Order"}: <span className="text-primary">{activeSessionOrder.status}</span>
-                </span>
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block animate-ping" />
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {activeSessionOrder.items.length} items • Ticket {activeSessionOrder.id.slice(-6).toUpperCase()} is currently in preparation
-              </p>
-            </div>
-          </div>
-
-          <Link href={`/order/${activeSessionOrder.id}`}>
-            <Button size="sm" className="rounded-full font-bold shadow-md flex items-center gap-1.5 w-full sm:w-auto h-10 px-5">
-              <span>View Live Tracker</span>
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
-        </div>
-      )}
 
       {/* Restaurant Hero Banner */}
       <div className="relative rounded-3xl overflow-hidden border border-muted-foreground/15 shadow-md bg-gradient-to-br from-amber-600/10 via-primary/5 to-background p-6 md:p-8 flex flex-col justify-end min-h-[170px]">
@@ -175,24 +134,40 @@ function MenuContent() {
         </div>
       </div>
 
-      {/* Search & Category Filter Section */}
+      {/* Track Order (public, no login) */}
+      <TrackOrderInput />
+
+      {/* Top Sellers */}
+      {topDishes.length > 0 && (
+        <TopProductsRow
+          items={topDishes}
+          title="Top Dishes"
+          subtitle="What everyone is ordering right now"
+          onSelect={setSelectedItemForModal}
+        />
+      )}
+
+      {/* Search, Sort & Category Filter Section */}
       <div className="space-y-4">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input 
-            placeholder="Search our delicious dishes, coffee, drinks..." 
-            className="pl-12 h-14 rounded-2xl bg-card border-muted-foreground/15 text-base shadow-sm focus-visible:ring-primary"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button 
-              onClick={() => setSearch("")}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground hover:text-foreground bg-muted px-2 py-1 rounded-md"
-            >
-              Clear
-            </button>
-          )}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              placeholder="Search our delicious dishes, coffee, drinks..."
+              className="pl-12 h-14 rounded-2xl bg-card border-muted-foreground/15 text-base shadow-sm focus-visible:ring-primary"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground hover:text-foreground bg-muted px-2 py-1 rounded-md"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <SortSelect value={sort} onChange={setSort} />
         </div>
 
         {/* Scrollable Category Filter Pills */}
@@ -216,101 +191,84 @@ function MenuContent() {
             );
           })}
         </div>
+
+        {/* Result count / active filters */}
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold px-1">
+          <span>{filteredMenu.length} {filteredMenu.length === 1 ? "dish" : "dishes"}</span>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => { setSearch(""); setActiveCategory("All"); setSort("popularity"); }}
+              className="text-primary underline-offset-2 hover:underline font-bold"
+            >
+              Reset filters
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Menu Grid */}
       <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {filteredMenu?.map((item) => (
-          <MenuItemCard 
-            key={item.id} 
-            item={item} 
+        {filteredMenu.map((item) => (
+          <MenuItemCard
+            key={item.id}
+            item={item}
             onOpenModal={() => setSelectedItemForModal(item)}
           />
         ))}
 
-        {filteredMenu?.length === 0 && (
+        {filteredMenu.length === 0 && (
           <div className="text-center py-16 text-muted-foreground col-span-full space-y-3 bg-card/40 rounded-3xl border border-dashed p-8">
             <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mx-auto text-2xl">
               🔍
             </div>
             <h3 className="text-lg font-bold text-foreground">No dishes found</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              We couldn't find any dishes matching "{search}". Try searching for something else or browse categories.
+              We couldn&apos;t find any dishes matching &quot;{search}&quot;. Try searching for something else or browse categories.
             </p>
-            <Button variant="outline" size="sm" className="rounded-full" onClick={() => { setSearch(""); setActiveCategory("All"); }}>
+            <Button variant="outline" size="sm" className="rounded-full" onClick={() => { setSearch(""); setActiveCategory("All"); setSort("popularity"); }}>
               Reset Filters
             </Button>
           </div>
         )}
       </div>
 
-      {/* Item Customization Modal */}
+      {/* Item Detail Modal (view-only — customers cannot order) */}
       <ItemDetailModal
         item={selectedItemForModal}
         isOpen={!!selectedItemForModal}
         onClose={() => setSelectedItemForModal(null)}
-        onAddToCart={(customItem) => addItem(customItem)}
       />
     </div>
   );
 }
 
 function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () => void }) {
-  const addItem = useCartStore(state => state.addItem);
-  const removeItem = useCartStore(state => state.removeItem);
-  const updateQuantity = useCartStore(state => state.updateQuantity);
-  const cartItems = useCartStore(state => state.items);
-  
-  // Find if item is already in cart
-  const cartItem = cartItems.find(i => i.menuItemId === item.id);
-
-  const handleQuickAdd = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    addItem({
-      menuItemId: item.id,
-      name: item.name,
-      price: item.price,
-      quantity: 1,
-    });
-  };
-
-  const handleIncrement = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (cartItem) {
-      updateQuantity(cartItem.id, cartItem.quantity + 1);
-    }
-  };
-
-  const handleDecrement = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (cartItem) {
-      if (cartItem.quantity > 1) {
-        updateQuantity(cartItem.id, cartItem.quantity - 1);
-      } else {
-        removeItem(cartItem.id);
-      }
-    }
-  };
-
   return (
-    <Card 
+    <Card
       onClick={onOpenModal}
       className="overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border-muted-foreground/15 bg-card/70 backdrop-blur-sm flex flex-col group rounded-3xl"
     >
       {/* Dish Cover Image */}
       <div className="relative h-48 w-full overflow-hidden bg-muted">
-        <img 
-          src={getImageUrl(item.image)} 
-          alt={item.name} 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+        <img
+          src={getImageUrl(item.image)}
+          alt={item.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
-        
-        {/* Category Badge & Prep Time */}
+
+        {/* Category Badge & Popular Tag */}
         <div className="absolute top-3 left-3 flex gap-1.5">
           <Badge variant="secondary" className="bg-background/85 backdrop-blur-md font-bold text-xs shadow-sm">
             {item.category}
           </Badge>
         </div>
+        {item.dietaryTags?.some(t => /popular|favorite/i.test(t)) && (
+          <Badge className="absolute top-3 right-3 bg-amber-500/95 text-white font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm gap-0.5">
+            <Star className="h-2.5 w-2.5 fill-current" />
+            Popular
+          </Badge>
+        )}
 
         <div className="absolute bottom-3 right-3">
           <Badge variant="secondary" className="bg-background/85 backdrop-blur-md font-semibold text-[11px] flex items-center gap-1 shadow-sm">
@@ -340,7 +298,7 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
             </div>
           )}
         </div>
-        
+
         {/* Price Tag */}
         <div className="pt-3 border-t border-muted/50 flex items-center justify-between">
           <div>

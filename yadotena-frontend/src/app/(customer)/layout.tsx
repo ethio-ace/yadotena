@@ -4,10 +4,25 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, BookOpen } from "lucide-react";
+import { BookOpen, Receipt, Search } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Input } from "@/components/ui/input";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [trackOpen, setTrackOpen] = useState(false);
+  const [trackValue, setTrackValue] = useState("");
+
+  const submitTrack = (e: React.FormEvent) => {
+    e.preventDefault();
+    const number = trackValue.trim();
+    if (!number) return;
+    setTrackOpen(false);
+    setTrackValue("");
+    router.push(`/order/${encodeURIComponent(number)}`);
+  };
 
   return (
     <div className="min-h-screen bg-background relative shadow-2xl flex flex-col">
@@ -59,16 +74,45 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
           <div className="h-4 w-[1px] bg-border mx-1 hidden sm:block" />
 
-          <Link href="/login">
-            <Button 
-              variant="outline" 
-              size="sm" 
+          {/* Track Order by number (no login) */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
               className="rounded-full text-xs font-bold h-9 px-3.5 gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+              onClick={() => setTrackOpen((o) => !o)}
             >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Staff Portal</span>
+              <Receipt className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Track Order</span>
             </Button>
-          </Link>
+
+            {trackOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setTrackOpen(false)} />
+                <form
+                  onSubmit={submitTrack}
+                  className="absolute right-0 top-full mt-2 z-50 w-72 bg-card border rounded-2xl shadow-2xl p-3 space-y-2 animate-in zoom-in-95 fade-in duration-150"
+                >
+                  <p className="text-xs font-black text-foreground">Track your order</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">
+                    Enter the ticket number from your receipt — no account needed.
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={trackValue}
+                      onChange={(e) => setTrackValue(e.target.value)}
+                      placeholder="e.g. 84K2M1"
+                      autoFocus
+                      className="h-9 rounded-xl text-sm font-medium"
+                    />
+                    <Button type="submit" size="icon" className="h-9 w-9 rounded-xl shrink-0">
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
 
           <ThemeToggle />
         </div>

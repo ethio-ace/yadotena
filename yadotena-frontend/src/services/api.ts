@@ -104,6 +104,11 @@ export const api = {
     getAll: async (): Promise<MenuItem[]> => {
       return requestApiStrict<MenuItem[]>("/menu", { method: "GET" });
     },
+    /** Best-selling items ranked by ordered quantity (public, no auth). */
+    getPopular: async (limit?: number): Promise<(MenuItem & { orderCount?: number })[]> => {
+      const q = limit ? `?limit=${limit}` : "";
+      return requestApiStrict<(MenuItem & { orderCount?: number })[]>(`/menu/popular${q}`, { method: "GET" });
+    },
     getById: async (id: string): Promise<MenuItem | undefined> => {
       return requestApiStrict<MenuItem>(`/menu/${id}`, { method: "GET" });
     },
@@ -237,6 +242,10 @@ export const api = {
     },
     getById: async (id: string): Promise<Order | undefined> => {
       return requestApiStrict<Order>(`/orders/${id}`, { method: "GET" });
+    },
+    /** Public order tracking by full order id or 6-character ticket number. */
+    lookup: async (number: string): Promise<Order> => {
+      return requestApiStrict<Order>(`/orders/lookup?number=${encodeURIComponent(number)}`, { method: "GET" });
     },
     create: async (
       order: Omit<Order, "id" | "createdAt" | "updatedAt" | "total"> & {

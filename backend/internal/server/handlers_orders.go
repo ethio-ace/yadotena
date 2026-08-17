@@ -385,6 +385,34 @@ func (s *Server) getOrder(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, order)
 }
 
+// lookupOrderByNumber lets an anonymous customer track an order by its full id
+// (ORD-xxxxxx) or by the 6-character ticket number printed on their receipt.
+func (s *Server) lookupOrderByNumber(w http.ResponseWriter, r *http.Request) {
+	number := strings.TrimSpace(r.URL.Query().Get("number"))
+	if number == "" {
+		writeErr(w, 400, "number is required")
+		return
+	}
+
+	var id string
+	err := s.Pool.QueryRow(r.Context(), `
+		SELECT id FROM orders
+		WHERE id = $1 OR UPPER(id) = UPPER($1) OR RIGHT(UPPER(id), 6) = UPPER($1)
+		ORDER BY created_at DESC
+		LIMIT 1`, number).Scan(&id)
+	if err != nil {
+		writeErr(w, 404, "Order not found")
+		return
+	}
+
+	order, err := s.fetchOrderFull(r.Context(), id)
+	if err != nil {
+		writeErr(w, 404, "Order not found")
+		return
+	}
+	writeJSON(w, 200, order)
+}
+
 func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 	ip := r.RemoteAddr
 	if !cache.AllowRate(r.Context(), s.Redis, "rl:order:"+ip, 60, time.Minute) {

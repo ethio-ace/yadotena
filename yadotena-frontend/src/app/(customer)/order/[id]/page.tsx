@@ -6,16 +6,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
-import { 
-  ArrowLeft, CheckCircle2, Clock, MapPin, Receipt, Utensils, 
-  BellRing, Plus, Star, Sparkles, Check, ChevronRight, Phone, MessageSquare, Printer
+import {
+  ArrowLeft, CheckCircle2, Clock, MapPin, Receipt, Utensils,
+  BellRing, Star, Sparkles, Check, Landmark, Printer
 } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { useCartStore } from "@/stores/cartStore";
-import { AddExtraSelectionModal } from "@/components/dashboard/AddExtraSelectionModal";
-import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
+import { useParams } from "next/navigation";
+import { useState } from "react";
+import { PaymentMethodsModal } from "@/components/customer/PaymentMethodsModal";
+import { TrackOrderInput } from "@/components/customer/TrackOrderInput";
 
 const statusSteps = [
   { id: "PENDING", label: "Order Received", desc: "Kitchen received ticket", icon: Receipt },
@@ -26,28 +25,10 @@ const statusSteps = [
 
 export default function OrderTrackingPage() {
   const params = useParams();
-  const router = useRouter();
-  const [showExtraSelection, setShowExtraSelection] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const id = params.id as string;
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [waiterCalled, setWaiterCalled] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
-  const [rating, setRating] = useState<number>(0);
-  const [feedbackSent, setFeedbackSent] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState(720); // 12 mins
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatCountdown = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s < 10 ? "0" : ""}${s}`;
-  };
 
   const { data: order, isLoading } = useQuery({
     queryKey: ["orders", id],
@@ -57,17 +38,6 @@ export default function OrderTrackingPage() {
       return foundOrder || null;
     },
   });
-
-  const [tableId, setTableId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (order?.tableId) {
-      setTableId(order.tableId);
-    } else {
-      const storedTableId = useCartStore.getState().tableId;
-      if (storedTableId) setTableId(storedTableId);
-    }
-  }, [order]);
 
   const sendServiceRequest = useMutation({
     mutationFn: api.serviceRequests.create,
@@ -85,14 +55,17 @@ export default function OrderTrackingPage() {
 
   if (!order) {
     return (
-      <div className="p-8 text-center flex flex-col items-center justify-center min-h-[70vh] max-w-md mx-auto space-y-4">
+      <div className="p-8 flex flex-col items-center justify-center min-h-[70vh] max-w-md mx-auto space-y-5">
         <div className="h-24 w-24 bg-muted rounded-full flex items-center justify-center mb-2">
           <Receipt className="h-10 w-10 text-muted-foreground opacity-50" />
         </div>
-        <h2 className="text-3xl font-black">Order Not Found</h2>
-        <p className="text-muted-foreground text-sm">
-          We couldn't locate this order ticket. Please check your link or return to the menu.
+        <h2 className="text-3xl font-black text-center">Order Not Found</h2>
+        <p className="text-muted-foreground text-sm text-center">
+          We couldn&apos;t locate this order ticket. Double-check the number or look it up below.
         </p>
+        <div className="w-full">
+          <TrackOrderInput />
+        </div>
         <Link href="/menu" className="pt-2">
           <Button size="lg" className="rounded-full px-8 font-bold">Back to Menu</Button>
         </Link>
@@ -103,32 +76,35 @@ export default function OrderTrackingPage() {
   const currentStepIndex = statusSteps.findIndex(s => s.id === order.status);
   const isCompleted = order.status === "COMPLETED";
   const isCancelled = order.status === "CANCELLED";
+  // Assistance (call waiter / bill) is only available while the order is active and dine-in.
+  const canRequestAssistance = order.type === "DINE_IN" && !isCompleted && !isCancelled;
 
-  const handleCallWaiter = (customNote?: string) => {
-    const effectiveTableId = order.tableId || tableId || "t1";
+  const handleCallWaiter = () => {
+    const effectiveTableId = order.tableId || "t1";
     sendServiceRequest.mutate({
       tableId: effectiveTableId,
       type: "WAITER",
-      notes: customNote || "Guest requested waiter assistance at table",
+      notes: "Guest requested waiter assistance at table",
     });
     setWaiterCalled(true);
     setTimeout(() => setWaiterCalled(false), 12000);
   };
 
-  const handleRequestBill = (method: string = "Telebirr / Cash") => {
-    const effectiveTableId = order.tableId || tableId || "t1";
+  const handleRequestBillSettlement = (methodName: string, methodCode: string) => {
+    const effectiveTableId = order.tableId || "t1";
     sendServiceRequest.mutate({
       tableId: effectiveTableId,
       type: "BILL",
-      notes: `Requested table bill via ${method} (Total: ${formatETB(order.total)})`,
+      notes: `Guest paid ${methodName} (${methodCode}) — Total: ${formatETB(order.total)}. Please verify and settle the bill.`,
     });
     setBillRequested(true);
+    setShowPaymentModal(false);
     setTimeout(() => setBillRequested(false), 12000);
   };
 
   return (
     <div className="flex flex-col min-h-full bg-muted/10 animate-in fade-in duration-500 pb-24">
-      
+
       {/* Top Bar */}
       <div className="px-4 py-4 sticky top-0 bg-background/85 backdrop-blur-md z-20 border-b flex items-center shadow-sm">
         <div className="max-w-3xl mx-auto w-full flex items-center justify-between">
@@ -145,9 +121,9 @@ export default function OrderTrackingPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button 
-              size="sm" 
-              variant="outline" 
+            <Button
+              size="sm"
+              variant="outline"
               className="rounded-full text-xs font-bold gap-1.5 h-8"
               onClick={() => window.print()}
             >
@@ -155,15 +131,15 @@ export default function OrderTrackingPage() {
               <span className="hidden sm:inline">Print Bill</span>
             </Button>
 
-            <Badge 
-              variant="secondary" 
+            <Badge
+              variant="secondary"
               className={`px-3 py-1 text-xs font-bold ${
-                order.paymentStatus === "PAID" 
-                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" 
+                order.paymentStatus === "PAID"
+                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                   : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20"
               }`}
             >
-              {order.paymentStatus === "PAID" ? "✓ Paid" : "⏳ Pay on Departure"}
+              {order.paymentStatus === "PAID" ? "✓ Paid" : "⏳ Awaiting Settlement"}
             </Badge>
           </div>
         </div>
@@ -171,21 +147,21 @@ export default function OrderTrackingPage() {
 
       <div className="p-4 md:p-6 flex-1">
         <div className="max-w-3xl mx-auto space-y-6">
-          
+
           {/* Order Hero Status Card */}
           <Card className="border-none shadow-xl overflow-hidden bg-gradient-to-br from-primary via-primary/95 to-amber-600 text-primary-foreground rounded-3xl">
             <CardContent className="p-6 md:p-8 text-center relative">
               <div className="absolute top-0 right-0 transform translate-x-8 -translate-y-8 h-40 w-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-              
+
               <Badge className="bg-white/20 hover:bg-white/20 text-white font-bold backdrop-blur-md border border-white/25 px-4 py-1 text-xs mb-3">
                 {order.type === "DINE_IN" ? `Dine-In • Table ${order.tableId?.replace("t", "")}` :
                  order.type === "TAKEAWAY" ? "Takeaway Pickup" : "Doorstep Delivery"}
               </Badge>
 
               <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-2">
-                {isCompleted ? "Order Complete! 🎉" : 
-                 isCancelled ? "Order Cancelled" : 
-                 order.status === "READY" ? "Your Meal is Ready! 🍽️" : 
+                {isCompleted ? "Order Complete! 🎉" :
+                 isCancelled ? "Order Cancelled" :
+                 order.status === "READY" ? "Your Meal is Ready! 🍽️" :
                  order.status === "PREPARING" ? "Cooking with Passion 👨‍🍳" : "Ticket in Kitchen"}
               </h1>
 
@@ -197,51 +173,38 @@ export default function OrderTrackingPage() {
               )}
 
               <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <div className="inline-flex items-center gap-2 bg-black/25 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
-                  <Clock className="h-4 w-4 text-amber-300 animate-pulse" />
-                  <span>Est. Prep: {formatCountdown(secondsRemaining)} remaining</span>
-                </div>
                 <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
                   <span>Total: {formatETB(order.total)}</span>
+                </div>
+                <div className="inline-flex items-center gap-2 bg-black/25 backdrop-blur-md rounded-full px-5 py-2.5 font-bold text-sm border border-white/15">
+                  <Clock className="h-4 w-4 text-amber-300" />
+                  <span>Status: {order.status.replace(/_/g, " ")}</span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Add Extra to Order Button */}
-          {!isCompleted && !isCancelled && (
-            <div className="block mt-4 mb-2 animate-in fade-in">
-              <Button 
-                className="w-full rounded-2xl h-14 text-lg font-black bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:scale-[1.01] transition-transform"
-                onClick={() => setShowExtraSelection(true)}
-              >
-                <Plus className="mr-2 h-6 w-6" />
-                Add Extra
-              </Button>
-            </div>
-          )}
-
-          {/* Dine-In Interactive Action Hub (Call Waiter / Bill) */}
-          {order.type === "DINE_IN" && (
+          {/* Dine-In Assistance Hub (active orders only — customers cannot settle bills) */}
+          {canRequestAssistance && (
             <Card className="border-primary/20 bg-card rounded-3xl shadow-sm p-4 md:p-5">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
                   <h3 className="font-extrabold text-base flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    <span>Table Assistance & Quick Actions</span>
+                    <span>Table Assistance</span>
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Signal your waiter, request your check, or add more gourmet items to your table.
+                    Call your waiter for help, or check payment methods and have them settle your bill.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <Button 
-                    variant={waiterCalled ? "default" : "outline"} 
+                  <Button
+                    variant={waiterCalled ? "default" : "outline"}
                     className={`rounded-2xl font-bold flex-1 sm:flex-none h-11 text-xs transition-all ${
                       waiterCalled ? "bg-emerald-600 text-white hover:bg-emerald-700" : "hover:border-primary"
                     }`}
-                    onClick={() => handleCallWaiter()}
+                    onClick={handleCallWaiter}
                     disabled={waiterCalled}
                   >
                     {waiterCalled ? (
@@ -257,22 +220,16 @@ export default function OrderTrackingPage() {
                     )}
                   </Button>
 
-                  <Button 
+                  <Button
                     variant={billRequested ? "default" : "secondary"}
                     className={`rounded-2xl font-bold flex-1 sm:flex-none h-11 text-xs transition-all ${
                       billRequested ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
                     }`}
                     onClick={() => setShowPaymentModal(true)}
                   >
-                    <Receipt className="h-4 w-4 mr-1.5" />
-                    <span>Settle Bill Now</span>
+                    <Landmark className="h-4 w-4 mr-1.5" />
+                    <span>{billRequested ? "Waiter on the way!" : "Payment & Bill"}</span>
                   </Button>
-
-                  <Link href="/menu">
-                    <Button variant="outline" size="icon" className="rounded-2xl h-11 w-11 shrink-0" title="Order More">
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </Link>
                 </div>
               </div>
             </Card>
@@ -294,7 +251,7 @@ export default function OrderTrackingPage() {
 
                   return (
                     <div key={step.id} className="relative flex items-start gap-4 group">
-                      <div 
+                      <div
                         className={`absolute -left-6 sm:-left-8 top-0.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                           isPassed
                             ? "bg-primary text-primary-foreground shadow-md shadow-primary/30 ring-4 ring-background"
@@ -351,7 +308,7 @@ export default function OrderTrackingPage() {
                       </div>
                       {item.specialInstructions && (
                         <p className="text-xs text-muted-foreground italic pl-8">
-                          "{item.specialInstructions}"
+                          &quot;{item.specialInstructions}&quot;
                         </p>
                       )}
                     </div>
@@ -372,47 +329,31 @@ export default function OrderTrackingPage() {
             </CardContent>
           </Card>
 
-          {(isCompleted || order.status === "READY") && order.type === "DINE_IN" && (
-            <Card className="rounded-3xl shadow-sm border-muted-foreground/15 bg-card/60 p-6 text-center space-y-3">
-              <div className="pt-2 animate-in fade-in">
-                <Button 
-                  className="rounded-full px-6 font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
-                  onClick={() => {
-                    useCartStore.getState().resetSession();
-                    router.push("/menu");
-                  }}
-                >
-                  End Session & Start Fresh Order
-                </Button>
-                <p className="text-[10px] text-muted-foreground mt-2">
-                  Clicking this will close your current table session. You can scan the QR code to start again.
-                </p>
-              </div>
-            </Card>
-          )}
+          {/* Payment note */}
+          <Card className="rounded-3xl shadow-sm border-muted-foreground/15 bg-card/60 p-5 flex items-start gap-3">
+            <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Star className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm">How do I pay?</h4>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                {order.type === "DINE_IN" && !isCompleted && !isCancelled
+                  ? "Open Payment & Bill above to see our accepted accounts. Send the amount digitally, then call your waiter — they will confirm and settle your bill. Cash can be paid directly to your waiter."
+                  : "Your bill has been handled. Thank you for visiting Yadotena!"}
+              </p>
+            </div>
+          </Card>
 
         </div>
       </div>
 
-      {showExtraSelection && (
-        <AddExtraSelectionModal
-          isOpen={showExtraSelection}
-          onClose={() => setShowExtraSelection(false)}
-          onSelectOption={(category) => {
-            useCartStore.getState().setActiveOrderId(order.id);
-            router.push(`/menu?category=${category}`);
-          }}
-        />
-      )}
-
-      <PaymentSettlementModal
+      {/* Read-only Payment Methods & Accounts modal — customers never settle directly */}
+      <PaymentMethodsModal
         order={order}
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
-        onSuccess={() => {
-          setShowPaymentModal(false);
-          router.refresh();
-        }}
+        onRequestBillSettlement={handleRequestBillSettlement}
+        isRequestingBill={sendServiceRequest.isPending}
       />
     </div>
   );

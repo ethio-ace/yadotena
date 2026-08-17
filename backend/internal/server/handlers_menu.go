@@ -18,6 +18,65 @@ type Addon struct {
 	Price float64 `json:"price"`
 }
 
+type PopularMenuItem struct {
+	MenuItem
+	OrderCount int `json:"orderCount"`
+}
+
+// popularMenuItems returns the best-selling menu items (cooked dishes + retail
+// shop products) ranked by total ordered quantity. Public — powers the customer
+// "Top Products / Most Popular" sections.
+func (s *Server) popularMenuItems(w http.ResponseWriter, r *http.Request) {
+	limit := 8
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 24 {
+			limit = n
+		}
+	}
+
+	q := `
+		SELECT m.id, m.name, m.description, m.price::float8, COALESCE(MIN(c.name), '') AS category, COALESCE(m.category_id, ''),
+		       COALESCE(m.image, ''), m.available, m.preparation_time, m.dietary_tags, m.created_at, m.updated_at,
+		       SUM(oi.quantity)::int AS order_count
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		JOIN menu_items m ON m.id = oi.menu_item_id
+		LEFT JOIN menu_categories c ON c.id = m.category_id
+		WHERE o.status <> 'CANCELLED' AND o.status <> 'DRAFT'
+		GROUP BY m.id
+		ORDER BY SUM(oi.quantity) DESC, SUM(oi.quantity * oi.price) DESC
+		LIMIT $1`
+
+	rows, err := s.Pool.Query(r.Context(), q, limit)
+	if err != nil {
+		writeJSON(w, 200, []PopularMenuItem{})
+		return
+	}
+	defer rows.Close()
+
+	items := make([]PopularMenuItem, 0)
+	for rows.Next() {
+		var item PopularMenuItem
+		var dietaryTagsRaw []byte
+		if err := rows.Scan(
+			&item.ID, &item.Name, &item.Description, &item.Price, &item.Category, &item.CategoryId,
+			&item.Image, &item.Available, &item.PreparationTime, &dietaryTagsRaw, &item.CreatedAt, &item.UpdatedAt,
+			&item.OrderCount,
+		); err == nil {
+			if len(dietaryTagsRaw) > 0 {
+				_ = json.Unmarshal(dietaryTagsRaw, &item.DietaryTags)
+			}
+			if item.DietaryTags == nil {
+				item.DietaryTags = []string{}
+			}
+			item.CustomAddons = make([]Addon, 0)
+			items = append(items, item)
+		}
+	}
+
+	writeJSON(w, 200, items)
+}
+
 type MenuItem struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`

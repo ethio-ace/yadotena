@@ -34,7 +34,7 @@ export default function EmployeesPage() {
   const toggleStatusMutation = useMutation({
     mutationFn: (id: string) => api.users.toggleStatus(id),
     onSuccess: () => {
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
   });
@@ -42,7 +42,7 @@ export default function EmployeesPage() {
   const deleteUserMutation = useMutation({
     mutationFn: (id: string) => api.users.delete(id),
     onSuccess: () => {
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       setDeletingUser(null);
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
@@ -462,7 +462,7 @@ function AddUserModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose
   const createMutation = useMutation({
     mutationFn: api.users.create,
     onSuccess: () => {
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       onSuccess();
     },
     onError: (err: any) => {
@@ -629,7 +629,7 @@ function EditUserModal({ user, isOpen, onClose, onSuccess }: { user: User; isOpe
   const updateMutation = useMutation({
     mutationFn: (updates: any) => api.users.update(user.id, updates),
     onSuccess: () => {
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       onSuccess();
     },
     onError: (err: any) => {

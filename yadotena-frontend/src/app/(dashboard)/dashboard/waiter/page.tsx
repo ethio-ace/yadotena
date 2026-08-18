@@ -70,7 +70,7 @@ export default function WaiterWorkspacePage() {
     onSuccess: (newOrder) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       // If shop sale or counter → open payment immediately
       if (view === "shop-sale") {
         setPaymentOrder(newOrder);
@@ -79,7 +79,7 @@ export default function WaiterWorkspacePage() {
         setView("orders");
       }
     },
-    onError: (err: Error) => showToast(err?.message || "We couldn't create the order. Please try again."),
+    onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "We couldn't create the order. Please try again."); },
   });
 
   type AppendPayload = Array<{
@@ -94,12 +94,12 @@ export default function WaiterWorkspacePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       // Adding to an open table order returns to the floor view.
       setActiveTable(null);
       setView("tables");
     },
-    onError: (err: Error) => showToast(err?.message || "We couldn't add those items. Please try again."),
+    onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "We couldn't add those items. Please try again."); },
   });
 
   const updateStatusMutation = useMutation({
@@ -109,8 +109,8 @@ export default function WaiterWorkspacePage() {
 
   const resolveRequestMutation = useMutation({
     mutationFn: (id: string) => api.serviceRequests.resolve(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["serviceRequests"] }); soundAlerts.playActionPing(); },
-    onError: (err: Error) => showToast(err?.message || "Couldn't resolve that request."),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["serviceRequests"] }); soundAlerts.playActionConfirm(); },
+    onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "Couldn't resolve that request."); },
   });
 
   // Handlers

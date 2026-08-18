@@ -101,7 +101,7 @@ export default function KitchenDashboard() {
 
     seenPendingKeysRef.current = new Set([...seenPendingKeysRef.current, ...pendingKeys]);
 
-    if (soundEnabled) soundAlerts.playNewOrderChime();
+    if (soundEnabled) soundAlerts.playNewOrder();
 
     setNewOrderIds((prev) => {
       const next = new Set(prev);
@@ -181,7 +181,7 @@ export default function KitchenDashboard() {
     },
     onSuccess: () => {
       setUpdatingOrderId(null);
-      if (soundEnabled) soundAlerts.playActionPing();
+      if (soundEnabled) soundAlerts.playActionConfirm();
     },
     onSettled: () => {
       setUpdatingOrderId(null);

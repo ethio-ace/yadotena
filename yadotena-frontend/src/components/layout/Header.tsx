@@ -138,8 +138,11 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
     setVolume,
     pendingOrders,
     pendingServiceRequests,
-    testOrderSound,
-    testWaiterSound,
+    testNewOrder,
+    testWaiterCall,
+    testBillRequest,
+    testOrderReady,
+    testPaymentReceived,
     unlockAudio,
   } = useSoundNotifications();
 
@@ -334,17 +337,41 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
                         size="sm"
                         variant="outline"
                         className="rounded-xl text-[11px] h-8 font-bold"
-                        onClick={testOrderSound}
+                        onClick={testNewOrder}
                       >
-                        🔔 Order Chime
+                        📋 New Order
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         className="rounded-xl text-[11px] h-8 font-bold"
-                        onClick={testWaiterSound}
+                        onClick={testWaiterCall}
                       >
-                        🛎️ Waiter Chime
+                        🛎️ Table Call
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl text-[11px] h-8 font-bold"
+                        onClick={testBillRequest}
+                      >
+                        🧾 Bill Request
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl text-[11px] h-8 font-bold"
+                        onClick={testOrderReady}
+                      >
+                        ✅ Order Ready
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl text-[11px] h-8 font-bold col-span-2"
+                        onClick={testPaymentReceived}
+                      >
+                        💰 Payment Received
                       </Button>
                     </div>
                   </div>

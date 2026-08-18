@@ -14,6 +14,13 @@ interface SoundNotificationContextType {
   setVolume: (val: number) => void;
   pendingOrders: Order[];
   pendingServiceRequests: ServiceRequest[];
+  // Test sounds
+  testNewOrder: () => void;
+  testWaiterCall: () => void;
+  testBillRequest: () => void;
+  testOrderReady: () => void;
+  testPaymentReceived: () => void;
+  // Legacy compatibility
   testOrderSound: () => void;
   testWaiterSound: () => void;
   unlockAudio: () => void;
@@ -102,50 +109,75 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
   const pendingOrders = orders.filter((o) => o.status === "PENDING");
   const pendingServiceRequests = serviceRequests.filter((r) => r.status === "PENDING");
 
-  const lastOrderSoundRef = useRef<number>(0);
-  const lastWaiterSoundRef = useRef<number>(0);
+  // Track previous counts to detect NEW pending items (not just existing)
+  const prevOrderCountRef = useRef<number>(0);
+  const prevRequestCountRef = useRef<number>(0);
+  const initializedRef = useRef<boolean>(false);
 
-  // Periodic recurring sound alert loop
+  // Play sounds only when NEW pending items appear (not on every poll)
   useEffect(() => {
     if (isMuted) return;
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const isWaiter = session?.user?.role === "WAITER";
-
-      // 1. Pending Order Alert: Recurring every 6 seconds as long as there is an unhandled PENDING order
-      // Waiters do not receive new order notifications
-      if (!isWaiter && pendingOrders.length > 0) {
-        if (now - lastOrderSoundRef.current >= 6000) {
-          soundAlerts.playNewOrderChime(volume);
-          lastOrderSoundRef.current = now;
-        }
+    
+    const isWaiter = session?.user?.role === "WAITER";
+    
+    // Skip first render - just record baseline
+    if (!initializedRef.current) {
+      prevOrderCountRef.current = pendingOrders.length;
+      prevRequestCountRef.current = pendingServiceRequests.length;
+      initializedRef.current = true;
+      return;
+    }
+    
+    // New order appeared (and user is not a waiter)
+    if (!isWaiter && pendingOrders.length > prevOrderCountRef.current) {
+      soundAlerts.playNewOrder(volume);
+    }
+    
+    // New service request appeared
+    if (pendingServiceRequests.length > prevRequestCountRef.current) {
+      // Check if it's a BILL or WAITER request
+      const newestRequest = pendingServiceRequests[pendingServiceRequests.length - 1];
+      if (newestRequest?.type === "BILL") {
+        soundAlerts.playBillRequest(volume);
+      } else {
+        soundAlerts.playWaiterCall(volume);
       }
+    }
+    
+    // Update refs
+    prevOrderCountRef.current = pendingOrders.length;
+    prevRequestCountRef.current = pendingServiceRequests.length;
+  }, [isMuted, volume, pendingOrders.length, pendingServiceRequests.length, session?.user?.role]);
 
-      // 2. Pending Waiter / Bill Alert: Recurring every 8 seconds as long as there is an unhandled service request
-      if (pendingServiceRequests.length > 0) {
-        if (now - lastWaiterSoundRef.current >= 8000) {
-          // Stagger by 2 seconds if both exist
-          if (pendingOrders.length === 0 || now - lastOrderSoundRef.current >= 2500) {
-            soundAlerts.playWaiterCallChime(volume);
-            lastWaiterSoundRef.current = now;
-          }
-        }
-      }
-    }, 1500);
-
-    return () => clearInterval(interval);
-  }, [isMuted, volume, pendingOrders.length, pendingServiceRequests.length]);
-
-  const testOrderSound = useCallback(() => {
+  // Test sound functions
+  const testNewOrder = useCallback(() => {
     unlockAudio();
-    soundAlerts.playNewOrderChime(volume);
+    soundAlerts.playNewOrder(volume);
   }, [unlockAudio, volume]);
 
-  const testWaiterSound = useCallback(() => {
+  const testWaiterCall = useCallback(() => {
     unlockAudio();
-    soundAlerts.playWaiterCallChime(volume);
+    soundAlerts.playWaiterCall(volume);
   }, [unlockAudio, volume]);
+
+  const testBillRequest = useCallback(() => {
+    unlockAudio();
+    soundAlerts.playBillRequest(volume);
+  }, [unlockAudio, volume]);
+
+  const testOrderReady = useCallback(() => {
+    unlockAudio();
+    soundAlerts.playOrderReady(volume);
+  }, [unlockAudio, volume]);
+
+  const testPaymentReceived = useCallback(() => {
+    unlockAudio();
+    soundAlerts.playPaymentReceived(volume);
+  }, [unlockAudio, volume]);
+
+  // Legacy compatibility
+  const testOrderSound = testNewOrder;
+  const testWaiterSound = testWaiterCall;
 
   return (
     <SoundNotificationContext.Provider
@@ -156,6 +188,11 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
         setVolume,
         pendingOrders,
         pendingServiceRequests,
+        testNewOrder,
+        testWaiterCall,
+        testBillRequest,
+        testOrderReady,
+        testPaymentReceived,
         testOrderSound,
         testWaiterSound,
         unlockAudio,
@@ -177,6 +214,11 @@ export function useSoundNotifications() {
       setVolume: () => {},
       pendingOrders: [],
       pendingServiceRequests: [],
+      testNewOrder: () => {},
+      testWaiterCall: () => {},
+      testBillRequest: () => {},
+      testOrderReady: () => {},
+      testPaymentReceived: () => {},
       testOrderSound: () => {},
       testWaiterSound: () => {},
       unlockAudio: () => {},

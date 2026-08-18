@@ -43,7 +43,7 @@ export default function TablesPage() {
     mutationFn: ({ id, status }: { id: string; status: TableStatus }) => 
       api.tables.updateStatus(id, status),
     onSuccess: () => {
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       queryClient.invalidateQueries({ queryKey: ["tables"] });
     },
   });
@@ -51,7 +51,7 @@ export default function TablesPage() {
   const deleteTableMutation = useMutation({
     mutationFn: (id: string) => api.tables.delete(id),
     onSuccess: () => {
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       setDeletingTable(null);
       queryClient.invalidateQueries({ queryKey: ["tables"] });
     },
@@ -523,7 +523,7 @@ function AddTableModal({
   const createMutation = useMutation({
     mutationFn: api.tables.create,
     onSuccess: () => {
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       onSuccess();
     },
     onError: (err: Error) => {
@@ -662,7 +662,7 @@ function EditTableModal({
   const updateMutation = useMutation({
     mutationFn: (updates: any) => api.tables.update(table.id, updates),
     onSuccess: () => {
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       onSuccess();
     },
     onError: (err: Error) => {

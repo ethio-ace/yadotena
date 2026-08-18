@@ -33,7 +33,7 @@ export default function ExpensesPage() {
   const createExpenseMutation = useMutation({
     mutationFn: (data: any) => api.expenses.create(data),
     onSuccess: () => {
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       setShowForm(false);
       setDescription("");
       setAmount("");

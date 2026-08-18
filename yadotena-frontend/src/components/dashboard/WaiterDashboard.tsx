@@ -24,7 +24,7 @@ export default function WaiterDashboard() {
   const resolveRequest = useMutation({
     mutationFn: api.serviceRequests.resolve,
     onSuccess: () => {
-      soundAlerts.playActionPing();
+      soundAlerts.playActionConfirm();
       queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
     },

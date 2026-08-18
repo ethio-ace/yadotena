@@ -6,7 +6,7 @@ import { NotificationsView } from "@/components/notifications/NotificationsView"
 interface AlertsViewProps {
   serviceRequests: ServiceRequest[];
   onBack: () => void;
-  onResolve: (id: string) => void;
+  onResolve: (id: string, type: string) => void;
 }
 
 /** Waiter-workspace wrapper around the full notifications experience. */

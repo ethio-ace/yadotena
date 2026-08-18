@@ -22,9 +22,8 @@ export default function WaiterDashboard() {
   });
 
   const resolveRequest = useMutation({
-    mutationFn: api.serviceRequests.resolve,
+    mutationFn: ({ id }: { id: string }) => api.serviceRequests.resolve(id),
     onSuccess: () => {
-      soundAlerts.playActionConfirm();
       queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
     },
@@ -93,7 +92,15 @@ export default function WaiterDashboard() {
                   </div>
                 </div>
                 <Button 
-                  onClick={() => resolveRequest.mutate(req.id)}
+                  onClick={() => {
+                    // Play the RIGHT sound for the request type, then resolve
+                    if (req.type === "BILL") {
+                      soundAlerts.playBillRequest();
+                    } else {
+                      soundAlerts.playWaiterCall();
+                    }
+                    resolveRequest.mutate({ id: req.id });
+                  }}
                   disabled={resolveRequest.isPending}
                   className="rounded-xl h-10 px-5 font-bold bg-foreground text-background hover:bg-foreground/90 shadow-md w-full sm:w-auto"
                 >

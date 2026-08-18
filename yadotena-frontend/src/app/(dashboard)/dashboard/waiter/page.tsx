@@ -281,7 +281,7 @@ export default function WaiterWorkspacePage() {
             <AlertsView
               serviceRequests={serviceRequests}
               onBack={() => setView("home")}
-              onResolve={(id) => resolveRequestMutation.mutate(id)}
+              onResolve={(id, type) => resolveRequestMutation.mutate({ id, type })}
             />
           )}
         </div>

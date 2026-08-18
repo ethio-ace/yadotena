@@ -9,7 +9,7 @@ import {
 
 interface NotificationsViewProps {
   serviceRequests: ServiceRequest[];
-  onResolve: (id: string) => void;
+  onResolve: (id: string, type: string) => void;
   /** Render with a back affordance (used inside the waiter workspace). */
   onBack?: () => void;
   /** Render a full-page heading (used on the standalone /notifications route). */
@@ -219,7 +219,7 @@ export function NotificationsView({
                       {isPending && (
                         <div className="flex gap-2 pt-1">
                           <button
-                            onClick={() => { onResolve(expanded.id); setExpandedId(null); }}
+                            onClick={() => { onResolve(expanded.id, expanded.type); setExpandedId(null); }}
                             className="flex-1 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.97] transition-all shadow-sm"
                           >
                             <Check className="h-4 w-4" /> Mark as Resolved

@@ -1,20 +1,22 @@
 /**
- * Yadotena Audio Notification Engine v3
+ * Yadotena Audio Notification Engine — Final
  *
- * Professional restaurant notification sounds using Web Audio API.
- * Each entity type has a TRULY DISTINCT, recognizable sound profile.
+ * Five simple, pleasant bell sounds designed for a real café.
+ * Each sound is immediately distinguishable by rhythm and pitch.
  *
- * Sound Design Principles:
- * - Each sound is immediately identifiable even in a busy café
- * - Low-to-mid frequencies for comfort (no piercing highs)
- * - Short, crisp sounds that don't linger
- * - Clear distinction between every event type
- * - No annoying repetition — smart rate limiting built-in
+ * Sound map:
+ *   📋 New Order      → Ding → Dong          (2-note warm chime)
+ *   🛎️ Table Call     → Ding!                 (single bell strike)
+ *   🧾 Bill Request   → Ding → Ding           (double polite chime)
+ *   ✅ Order Ready    → Ding → Ding → DING↑   (3-note ascending)
+ *   💰 Payment        → click → Ding           (soft confirmation)
  *
- * v3 changes:
- * - Redesigned all sounds to be unmistakably different
- * - Fixed frequency overlaps between similar sounds
- * - Each sound now has a unique rhythm AND frequency profile
+ * Design rules:
+ *   - Sounds ≤ 1.2s, comfortable at hundreds of plays/day
+ *   - Consistent sonic identity: all bell-like sine tones
+ *   - No music, no melodies, no harsh frequencies
+ *   - Differentiation through rhythm (1/2/3 notes) and pitch
+ *   - Smart rate limiting: no overlapping playback
  */
 
 class SoundAlertManager {
@@ -25,310 +27,242 @@ class SoundAlertManager {
 
   private getAudioContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
-
     if (!this.audioCtx) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        this.audioCtx = new AudioContextClass();
-      }
+      const C = window.AudioContext || (window as any).webkitAudioContext;
+      if (C) this.audioCtx = new C();
     }
-
     if (this.audioCtx && this.audioCtx.state === "suspended") {
       this.audioCtx.resume().catch(() => {});
     }
-
     return this.audioCtx;
   }
 
+  /** Unlock audio on first user gesture (iOS / Chrome autoplay policy). */
   public unlockAudio(): void {
     if (this.isUnlocked || typeof window === "undefined") return;
     try {
       const ctx = this.getAudioContext();
-      if (ctx) {
-        if (ctx.state === "suspended") {
-          ctx.resume();
-        }
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        gain.gain.value = 0.001;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(0);
-        osc.stop(ctx.currentTime + 0.05);
-        this.isUnlocked = true;
-      }
-    } catch {
-      // Ignored
-    }
+      if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume();
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      g.gain.value = 0.001;
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(0);
+      osc.stop(ctx.currentTime + 0.05);
+      this.isUnlocked = true;
+    } catch {}
   }
 
-  /**
-   * Rate limit: per-sound cooldown + global cooldown.
-   */
-  private canPlay(soundId: string, minIntervalMs: number): boolean {
+  // ─── Rate limiting ───────────────────────────────────────────────────
+
+  private canPlay(soundId: string, cooldownMs: number): boolean {
     const now = Date.now();
-
-    // Global cooldown: no two sounds within 800ms
-    if (now - this.lastAnySound < 800) return false;
-
-    // Per-sound cooldown
+    if (now - this.lastAnySound < 800) return false; // global gap
     const last = this.lastPlayed.get(soundId) || 0;
-    if (now - last < minIntervalMs) return false;
-
+    if (now - last < cooldownMs) return false;
     this.lastPlayed.set(soundId, now);
     this.lastAnySound = now;
     return true;
   }
 
-  /**
-   * Force-play bypassing per-sound rate limits (test buttons only).
-   */
-  private canPlayTest(soundId: string): boolean {
+  /** Test buttons skip per-sound cooldown, keep global gap. */
+  private canPlayTest(): boolean {
     const now = Date.now();
     if (now - this.lastAnySound < 400) return false;
-    this.lastPlayed.set(soundId, now);
     this.lastAnySound = now;
     return true;
   }
 
-  // ─── Tone helpers ────────────────────────────────────────────────────
+  // ─── Bell tone primitive ─────────────────────────────────────────────
 
-  private playTone(
+  /**
+   * Play a single bell note: sine oscillator with fast attack,
+   * natural exponential decay. Clean, pleasant, no harshness.
+   */
+  private bell(
     ctx: AudioContext,
     freq: number,
-    startTime: number,
-    duration: number,
-    volume: number,
-    type: OscillatorType = "sine"
+    at: number,
+    dur: number,
+    vol: number,
   ): void {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, startTime);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, at);
 
-    gain.gain.setValueAtTime(0.001, startTime);
-    gain.gain.linearRampToValueAtTime(Math.min(volume, 0.7), startTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    // Bell envelope: instant attack → exponential decay
+    gain.gain.setValueAtTime(0, at);
+    gain.gain.linearRampToValueAtTime(Math.min(vol, 0.6), at + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, at + dur);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
-
-    osc.start(startTime);
-    osc.stop(startTime + duration);
+    osc.start(at);
+    osc.stop(at + dur + 0.05);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // NEW ORDER — Kitchen chime
-  // Bright 3-note ascending: C5 → E5 → G5 (sine)
-  // Like a pleasant doorbell — "a new order just came in!"
+  // 📋 NEW ORDER — Ding → Dong
+  // Two-note warm chime. First note slightly higher than second.
+  // Communicates: "something new just arrived"
   // ═══════════════════════════════════════════════════════════════════════
   public playNewOrder(volume: number = 0.6): void {
-    if (!this.canPlay("new_order", 5000)) return;
-
+    if (!this.canPlay("new_order", 6000)) return;
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;
-
-      const now = ctx.currentTime;
-      const notes = [
-        { freq: 523.25, start: 0, dur: 0.12 },    // C5
-        { freq: 659.25, start: 0.10, dur: 0.12 },  // E5
-        { freq: 783.99, start: 0.20, dur: 0.22 },  // G5
-      ];
-
-      notes.forEach(({ freq, start, dur }) => {
-        this.playTone(ctx, freq, now + start, dur, volume * 0.65, "sine");
-      });
-    } catch {
-      // Ignore
-    }
+      const t = ctx.currentTime;
+      this.bell(ctx, 659.25, t,         0.35, volume * 0.55); // E5  (Ding)
+      this.bell(ctx, 523.25, t + 0.18,  0.45, volume * 0.55); // C5  (Dong)
+    } catch {}
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // ORDER READY — Server pickup alert
-  // Quick bright double-ding: high A5 → E5 (triangle)
-  // "Ding-ding!" — unmistakable, like a service bell
-  // ═══════════════════════════════════════════════════════════════════════
-  public playOrderReady(volume: number = 0.6): void {
-    if (!this.canPlay("order_ready", 5000)) return;
-
-    try {
-      const ctx = this.getAudioContext();
-      if (!ctx) return;
-
-      const now = ctx.currentTime;
-      // Bright double-ding — service bell style
-      this.playTone(ctx, 880.00, now, 0.10, volume * 0.5, "triangle");       // A5
-      this.playTone(ctx, 880.00, now + 0.12, 0.10, volume * 0.5, "triangle"); // A5
-      this.playTone(ctx, 659.25, now + 0.25, 0.25, volume * 0.5, "triangle"); // E5
-    } catch {
-      // Ignore
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // ORDER COMPLETED — Quick confirmation pop
-  // Soft single high pop: B5 → fade (sine)
-  // "Done!" — light, satisfying, very short
-  // ═══════════════════════════════════════════════════════════════════════
-  public playOrderCompleted(volume: number = 0.5): void {
-    if (!this.canPlay("order_completed", 3000)) return;
-
-    try {
-      const ctx = this.getAudioContext();
-      if (!ctx) return;
-
-      const now = ctx.currentTime;
-      this.playTone(ctx, 987.77, now, 0.06, volume * 0.35, "sine");  // B5
-      this.playTone(ctx, 1318.51, now + 0.04, 0.10, volume * 0.25, "sine"); // E6
-    } catch {
-      // Ignore
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // WAITER CALL — Table needs assistance
-  // Gentle low doorbell: E4 → A4 (sine)
-  // Warm, low — "someone needs you" — completely different from order ready
+  // 🛎️ TABLE CALL — Ding!
+  // Single bell strike. Slightly higher pitch than New Order.
+  // Communicates: "customer needs staff attention NOW"
+  // Impossible to confuse with any other sound.
   // ═══════════════════════════════════════════════════════════════════════
   public playWaiterCall(volume: number = 0.65): void {
     if (!this.canPlay("waiter_call", 4000)) return;
-
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;
-
-      const now = ctx.currentTime;
-      // Low warm doorbell — completely distinct from order ready
-      this.playTone(ctx, 329.63, now, 0.20, volume * 0.55, "sine");       // E4
-      this.playTone(ctx, 440.00, now + 0.20, 0.30, volume * 0.55, "sine"); // A4
-    } catch {
-      // Ignore
-    }
+      const t = ctx.currentTime;
+      this.bell(ctx, 783.99, t, 0.40, volume * 0.60); // G5  (Ding!)
+    } catch {}
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // BILL REQUEST — Customer wants to pay
-  // Triple-tap: G4 → B4 → G4 (triangle)
-  // Quick rhythmic pattern — "money" — unique rhythm distinguishes it
+  // 🧾 BILL REQUEST — Ding → Ding
+  // Double polite chime. Softer than Table Call.
+  // Communicates: "customer wants to pay"
+  //
+  // Distinction:
+  //   Ding      = Table needs attention
+  //   Ding-Ding = Customer wants the bill
   // ═══════════════════════════════════════════════════════════════════════
   public playBillRequest(volume: number = 0.65): void {
     if (!this.canPlay("bill_request", 4000)) return;
-
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;
-
-      const now = ctx.currentTime;
-      // Distinct triple-tap rhythm on triangle — "check please"
-      this.playTone(ctx, 392.00, now, 0.08, volume * 0.50, "triangle");       // G4
-      this.playTone(ctx, 493.88, now + 0.09, 0.08, volume * 0.50, "triangle"); // B4
-      this.playTone(ctx, 392.00, now + 0.18, 0.15, volume * 0.50, "triangle"); // G4
-    } catch {
-      // Ignore
-    }
+      const t = ctx.currentTime;
+      this.bell(ctx, 659.25, t,         0.30, volume * 0.45); // E5  (Ding)
+      this.bell(ctx, 659.25, t + 0.20,  0.35, volume * 0.45); // E5  (Ding)
+    } catch {}
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PAYMENT RECEIVED — Cash register "cha-ching!"
-  // Bright 3-note ascending: E5 → A5 → C#6 (sine)
-  // Universally understood "ka-ching!" — positive, rewarding
+  // ✅ ORDER READY — Ding → Ding → DING↑
+  // 3-note ascending chime. Brightest, most recognizable sound.
+  // Communicates: "completed → ready → come collect it"
+  //
+  // This is the strongest audio identity in the system.
+  // Final note is slightly longer and higher.
   // ═══════════════════════════════════════════════════════════════════════
-  public playPaymentReceived(volume: number = 0.6): void {
-    if (!this.canPlay("payment_received", 4000)) return;
-
+  public playOrderReady(volume: number = 0.6): void {
+    if (!this.canPlay("order_ready", 5000)) return;
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;
+      const t = ctx.currentTime;
+      this.bell(ctx, 523.25, t,          0.25, volume * 0.50); // C5  (Ding)
+      this.bell(ctx, 659.25, t + 0.15,   0.25, volume * 0.55); // E5  (Ding)
+      this.bell(ctx, 783.99, t + 0.30,   0.50, volume * 0.60); // G5  (DING↑)
+    } catch {}
+  }
 
-      const now = ctx.currentTime;
-      // Classic "ka-ching!" ascending bright
-      this.playTone(ctx, 659.25, now, 0.08, volume * 0.45, "sine");       // E5
-      this.playTone(ctx, 880.00, now + 0.07, 0.08, volume * 0.50, "sine"); // A5
-      this.playTone(ctx, 1108.73, now + 0.14, 0.18, volume * 0.55, "sine"); // C#6
-    } catch {
-      // Ignore
-    }
+  // ═══════════════════════════════════════════════════════════════════════
+  // 💰 PAYMENT RECEIVED — click → Ding
+  // Short confirmation. Low volume, soft, positive but subtle.
+  // Communicates: "transaction completed"
+  // Does NOT sound like a casino.
+  // ═══════════════════════════════════════════════════════════════════════
+  public playPaymentReceived(volume: number = 0.5): void {
+    if (!this.canPlay("payment_received", 3000)) return;
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      // Soft click (noise burst via very short oscillator)
+      this.bell(ctx, 1200, t, 0.03, volume * 0.20);           // click
+      // Followed by gentle confirmation ding
+      this.bell(ctx, 523.25, t + 0.04, 0.30, volume * 0.35); // C5
+    } catch {}
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ORDER COMPLETED — Quick success pop
+  // Short single note, lighter than Order Ready.
+  // Used when an order is marked served/completed.
+  // ═══════════════════════════════════════════════════════════════════════
+  public playOrderCompleted(volume: number = 0.45): void {
+    if (!this.canPlay("order_completed", 2000)) return;
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      this.bell(ctx, 659.25, t, 0.20, volume * 0.35); // E5
+    } catch {}
   }
 
   // ═══════════════════════════════════════════════════════════════════════
   // ACTION CONFIRM — Generic success
-  // Soft single tone: F5 (sine)
-  // Subtle, non-intrusive — "got it"
+  // Very soft single tone. "Got it."
   // ═══════════════════════════════════════════════════════════════════════
-  public playActionConfirm(volume: number = 0.4): void {
-    if (!this.canPlay("action_confirm", 2000)) return;
-
+  public playActionConfirm(volume: number = 0.35): void {
+    if (!this.canPlay("action_confirm", 1500)) return;
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;
-
-      const now = ctx.currentTime;
-      this.playTone(ctx, 698.46, now, 0.06, volume * 0.30, "sine"); // F5
-    } catch {
-      // Ignore
-    }
+      const t = ctx.currentTime;
+      this.bell(ctx, 587.33, t, 0.15, volume * 0.30); // D5
+    } catch {}
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // ERROR — Something went wrong
-  // Low descending: G4 → D4 (triangle)
-  // "Uh oh" — clearly signals failure
+  // ERROR — Low descending tone
+  // "Uh oh." Clearly signals failure.
   // ═══════════════════════════════════════════════════════════════════════
   public playError(volume: number = 0.5): void {
-    if (!this.canPlay("error", 3000)) return;
-
+    if (!this.canPlay("error", 2500)) return;
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;
-
-      const now = ctx.currentTime;
-      this.playTone(ctx, 392.00, now, 0.15, volume * 0.4, "triangle");       // G4
-      this.playTone(ctx, 293.66, now + 0.12, 0.22, volume * 0.4, "triangle"); // D4
-    } catch {
-      // Ignore
-    }
+      const t = ctx.currentTime;
+      this.bell(ctx, 440.00, t,          0.20, volume * 0.40); // A4
+      this.bell(ctx, 349.23, t + 0.15,   0.25, volume * 0.40); // F4
+    } catch {}
   }
 
   // ═══════════════════════════════════════════════════════════════════════
   // KITCHEN ALERT — Order overdue/urgent
-  // Quick double-tap: D5 (sine)
-  // Attention-getting double-tap — short and urgent
+  // Quick double-tap. Attention-getting, short.
   // ═══════════════════════════════════════════════════════════════════════
-  public playKitchenAlert(volume: number = 0.55): void {
+  public playKitchenAlert(volume: number = 0.5): void {
     if (!this.canPlay("kitchen_alert", 15000)) return;
-
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;
-
-      const now = ctx.currentTime;
-      this.playTone(ctx, 587.33, now, 0.06, volume * 0.40, "sine");        // D5
-      this.playTone(ctx, 587.33, now + 0.10, 0.06, volume * 0.40, "sine"); // D5
-    } catch {
-      // Ignore
-    }
+      const t = ctx.currentTime;
+      this.bell(ctx, 587.33, t,          0.08, volume * 0.40); // D5
+      this.bell(ctx, 587.33, t + 0.12,   0.08, volume * 0.40); // D5
+    } catch {}
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // LEGACY COMPATIBILITY
-  // ═══════════════════════════════════════════════════════════════════════
+  // ─── Legacy compatibility ────────────────────────────────────────────
 
   /** @deprecated Use playNewOrder() */
-  public playNewOrderChime(volume: number = 0.6): void {
-    this.playNewOrder(volume);
-  }
-
-  /** @deprecated Use playWaiterCall() or playBillRequest() */
-  public playWaiterCallChime(volume: number = 0.65): void {
-    this.playWaiterCall(volume);
-  }
-
+  public playNewOrderChime(v?: number): void { this.playNewOrder(v); }
+  /** @deprecated Use playWaiterCall() */
+  public playWaiterCallChime(v?: number): void { this.playWaiterCall(v); }
   /** @deprecated Use playActionConfirm() */
-  public playActionPing(volume: number = 0.4): void {
-    this.playActionConfirm(volume);
-  }
+  public playActionPing(v?: number): void { this.playActionConfirm(v); }
 }
 
 export const soundAlerts = new SoundAlertManager();

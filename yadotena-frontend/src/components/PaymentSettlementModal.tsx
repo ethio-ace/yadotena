@@ -13,6 +13,7 @@ import {
   Copy, Check
 } from "lucide-react";
 import { Order } from "@/types";
+import { soundAlerts } from "@/lib/audioAlerts";
 import { roundCount, groupItemsByRound, roundTotal } from "@/lib/kitchen";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 
@@ -65,6 +66,7 @@ export function PaymentSettlementModal({
       status?: string 
     }) => api.payments.create(data),
     onSuccess: () => {
+      soundAlerts.playPaymentReceived(); // 💰 Soft confirmation chime
       onSuccess?.();
       onClose();
       resetForm();

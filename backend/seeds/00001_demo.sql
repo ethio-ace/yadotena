@@ -187,7 +187,21 @@ INSERT INTO orders (id, type, status, payment_status, table_id, customer_name, c
 ('ord-200001', 'DINE_IN', 'COMPLETED', 'PAID', 't9', 'Ruth Solomon', '+251 91 901 2345', NULL,
   1710.00, 256.50, 171.00, 0.00, 2137.50, now() - interval '3 hours', now() - interval '2 hours'),
 ('ord-200002', 'DINE_IN', 'COMPLETED', 'PAID', 't10', 'Bethel Tesfaye', '+251 91 012 3456', NULL,
-  680.00, 102.00, 68.00, 0.00, 850.00, now() - interval '5 hours', now() - interval '4 hours');
+  680.00, 102.00, 68.00, 0.00, 850.00, now() - interval '5 hours', now() - interval '4 hours')
+ON CONFLICT (id) DO UPDATE SET
+  type = EXCLUDED.type,
+  status = EXCLUDED.status,
+  payment_status = EXCLUDED.payment_status,
+  table_id = EXCLUDED.table_id,
+  customer_name = EXCLUDED.customer_name,
+  customer_phone = EXCLUDED.customer_phone,
+  delivery_address = EXCLUDED.delivery_address,
+  subtotal = EXCLUDED.subtotal,
+  tax = EXCLUDED.tax,
+  service_charge = EXCLUDED.service_charge,
+  delivery_fee = EXCLUDED.delivery_fee,
+  total = EXCLUDED.total,
+  updated_at = EXCLUDED.updated_at;
 
 INSERT INTO order_items (id, order_id, menu_item_id, name, price, quantity, special_instructions, selected_addons, round_number, status, started_at, completed_at) VALUES
 -- ord-100007 (t8, NEW)
@@ -219,7 +233,19 @@ INSERT INTO order_items (id, order_id, menu_item_id, name, price, quantity, spec
 ('oi-200001-2', 'ord-200001', 'item-trad-01', 'Special Doro Wat Platter', 550.00, 1, NULL, '[]'::jsonb, 1, 'SERVED', now() - interval '2 hours', now() - interval '1 hour'),
 -- ord-200002 (completed history)
 ('oi-200002-1', 'ord-200002', 'item-milk-01', 'Pure Farm-Fresh Cow Milk (Warm / Chilled)', 120.00, 3, NULL, '[]'::jsonb, 1, 'SERVED', now() - interval '4 hours', now() - interval '3 hours'),
-('oi-200002-2', 'ord-200002', 'item-brk-02', 'Yadotena House Beef Fitfit', 320.00, 1, NULL, '[]'::jsonb, 1, 'SERVED', now() - interval '4 hours', now() - interval '3 hours');
+('oi-200002-2', 'ord-200002', 'item-brk-02', 'Yadotena House Beef Fitfit', 320.00, 1, NULL, '[]'::jsonb, 1, 'SERVED', now() - interval '4 hours', now() - interval '3 hours')
+ON CONFLICT (id) DO UPDATE SET
+  order_id = EXCLUDED.order_id,
+  menu_item_id = EXCLUDED.menu_item_id,
+  name = EXCLUDED.name,
+  price = EXCLUDED.price,
+  quantity = EXCLUDED.quantity,
+  special_instructions = EXCLUDED.special_instructions,
+  selected_addons = EXCLUDED.selected_addons,
+  round_number = EXCLUDED.round_number,
+  status = EXCLUDED.status,
+  started_at = EXCLUDED.started_at,
+  completed_at = EXCLUDED.completed_at;
 
 -- Normalized order_item_addons join (mirrors selected_addons for consistency)
 INSERT INTO order_item_addons (order_item_id, addon_id, name, price) VALUES
@@ -236,7 +262,8 @@ INSERT INTO payments (order_id, method, amount, status, transaction_ref, created
 ('ord-100006', 'TELEBIRR', 1750.00, 'PAID', 'TXN-100006', now() - interval '2 minutes'),
 ('ord-100005', 'TELEBIRR', 587.50, 'PAID', 'TXN-100005', now() - interval '8 minutes'),
 ('ord-200001', 'CBE',      2137.50, 'PAID', 'TXN-200001', now() - interval '2 hours'),
-('ord-200002', 'TELEBIRR', 850.00, 'PAID', 'TXN-200002', now() - interval '4 hours');
+('ord-200002', 'TELEBIRR', 850.00, 'PAID', 'TXN-200002', now() - interval '4 hours')
+ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- 8. DINING SESSIONS (active for occupied tables, closed for settled ones)
@@ -249,14 +276,16 @@ INSERT INTO dining_sessions (table_id, session_code, status, started_at, closed_
 ('t7',  'T7-BH29', 'ACTIVE', now() - interval '35 minutes', NULL),
 ('t8',  'T8-RT66', 'ACTIVE', now() - interval '15 minutes', NULL),
 ('t9',  'T9-LP10', 'CLOSED', now() - interval '3 hours', now() - interval '2 hours'),
-('t10', 'T10-ZC41', 'CLOSED', now() - interval '5 hours', now() - interval '4 hours');
+('t10', 'T10-ZC41', 'CLOSED', now() - interval '5 hours', now() - interval '4 hours')
+ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- 9. SERVICE REQUESTS
 -- ============================================================================
 INSERT INTO service_requests (id, table_id, type, status, notes, created_at, resolved_at) VALUES
 ('req-1001', 't4', 'WAITER', 'PENDING', 'Extra napkins and a bottle of water, please', now() - interval '6 minutes', NULL),
-('req-1002', 't6', 'WAITER', 'RESOLVED', 'Refill the popcorn for the jebena', now() - interval '25 minutes', now() - interval '20 minutes');
+('req-1002', 't6', 'WAITER', 'RESOLVED', 'Refill the popcorn for the jebena', now() - interval '25 minutes', now() - interval '20 minutes')
+ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- 10. EXPENSES
@@ -264,7 +293,8 @@ INSERT INTO service_requests (id, table_id, type, status, notes, created_at, res
 INSERT INTO expenses (id, amount, category, description, date, recorded_by_id, payment_method, created_at) VALUES
 ('exp-1001', 16500.00, 'Ingredients', 'Weekly fresh beef & chicken supply', CURRENT_DATE - 2, 'usr-mgr-1', 'Bank Transfer', now() - interval '2 days'),
 ('exp-1002', 4800.50, 'Utilities', 'Monthly commercial electricity bill', CURRENT_DATE - 5, 'usr-mgr-1', 'Telebirr', now() - interval '5 days'),
-('exp-1003', 3500.00, 'Equipment', 'La Marzocco espresso machine maintenance', CURRENT_DATE - 1, 'usr-mgr-1', 'Cash', now() - interval '1 day');
+('exp-1003', 3500.00, 'Equipment', 'La Marzocco espresso machine maintenance', CURRENT_DATE - 1, 'usr-mgr-1', 'Cash', now() - interval '1 day')
+ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- 11. ACTIVITY LOGS (audit trail for the shift)
@@ -274,4 +304,5 @@ INSERT INTO activity_logs (id, user_id, user_name, user_role, action, entity_typ
 ('act-1002', 'usr-waiter-1', 'Tigist Waiter', 'WAITER', 'ORDER_CREATED', 'orders', 'ord-100006', 'Created delivery order #100006 for Abebe Kebede', now() - interval '2 minutes'),
 ('act-1003', 'usr-chef-1', 'Dawit Kitchen Chef', 'CHEF', 'KITCHEN_START', 'orders', 'ord-100004', 'Started preparing round 2 of order #100004', now() - interval '3 minutes'),
 ('act-1004', 'usr-chef-1', 'Dawit Kitchen Chef', 'CHEF', 'KITCHEN_READY', 'orders', 'ord-100003', 'Marked round 1 of order #100003 ready for pickup', now() - interval '2 minutes'),
-('act-1005', 'usr-waiter-1', 'Tigist Waiter', 'WAITER', 'PAYMENT_RECEIVED', 'payments', 'ord-100005', 'Collected Telebirr payment 587.50 ETB for order #100005', now() - interval '8 minutes');
+('act-1005', 'usr-waiter-1', 'Tigist Waiter', 'WAITER', 'PAYMENT_RECEIVED', 'payments', 'ord-100005', 'Collected Telebirr payment 587.50 ETB for order #100005', now() - interval '8 minutes')
+ON CONFLICT DO NOTHING;

@@ -148,6 +148,14 @@ body {
     overflow: visible !important;
     padding: 0 !important;
   }
+
+  /* The menu designer sheet: natural size, no screen chrome. The dynamic
+     `@page` rule (set inline to match the chosen paper size) owns margins. */
+  .menu-sheet {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 auto !important;
+  }
 }
 
 /* Custom Scrollbar for High-Density Operational Terminals */

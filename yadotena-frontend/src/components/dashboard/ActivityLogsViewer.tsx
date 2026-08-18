@@ -11,8 +11,70 @@ import { format, subDays, startOfDay } from "date-fns";
 import { 
   Activity, Search, Shield, User, ChefHat, ShoppingCart, 
   CreditCard, Grid, MenuSquare, RefreshCw, X, 
-  FileDiff, Clock, Sparkles, Download, Filter, Calendar, Laptop
+  FileDiff, Clock, Sparkles, Download, Filter, Calendar, Laptop, 
+  ChevronDown, ChevronUp, ListFilter
 } from "lucide-react";
+
+/**
+ * Line-based diff between two JSON values using a longest-common-subsequence
+ * alignment. Long state snapshots read far better as unified +/- lines than
+ * as two giant raw-JSON columns.
+ */
+function diffLines(prevVal: unknown, nextVal: unknown): { type: "same" | "add" | "del"; text: string }[] {
+  // JSON.stringify(undefined) returns undefined — coerce so .split never throws.
+  const prevLines = (JSON.stringify(prevVal, null, 2) ?? "").split("\n");
+  const nextLines = (JSON.stringify(nextVal, null, 2) ?? "").split("\n");
+  const a = prevLines.length;
+  const b = nextLines.length;
+
+  // LCS length table.
+  const dp: number[][] = Array.from({ length: a + 1 }, () => new Array(b + 1).fill(0));
+  for (let i = a - 1; i >= 0; i--) {
+    for (let j = b - 1; j >= 0; j--) {
+      dp[i][j] = prevLines[i] === nextLines[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const out: { type: "same" | "add" | "del"; text: string }[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a && j < b) {
+    if (prevLines[i] === nextLines[j]) {
+      out.push({ type: "same", text: prevLines[i] });
+      i++;
+      j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      out.push({ type: "del", text: prevLines[i] });
+      i++;
+    } else {
+      out.push({ type: "add", text: nextLines[j] });
+      j++;
+    }
+  }
+  while (i < a) out.push({ type: "del", text: prevLines[i++] });
+  while (j < b) out.push({ type: "add", text: nextLines[j++] });
+  return out;
+}
+
+function isLongValue(v: unknown): boolean {
+  if (v === undefined || v === null) return false;
+  if (typeof v === "object") return true;
+  return String(v).length > 48;
+}
+
+/** Number of attributes that actually changed between two snapshots. */
+function countChangedFields(prevState: unknown, nextState: unknown): number {
+  const parse = (v: unknown): Record<string, unknown> => {
+    if (typeof v === "string") {
+      try { return JSON.parse(v) as Record<string, unknown>; } catch { return {}; }
+    }
+    return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  };
+  const prevObj = parse(prevState);
+  const nextObj = parse(nextState);
+  const keys = Array.from(new Set([...Object.keys(prevObj), ...Object.keys(nextObj)])).filter((k) => k !== "updatedAt" && k !== "createdAt");
+  return keys.filter((k) => JSON.stringify(prevObj[k]) !== JSON.stringify(nextObj[k])).length;
+}
 
 export interface ActivityLogItem {
   id: string;
@@ -48,6 +110,10 @@ export function ActivityLogsViewer({
   const [selectedActionFilter, setSelectedActionFilter] = useState<string>("ALL");
   const [timeframeFilter, setTimeframeFilter] = useState<"ALL" | "TODAY" | "7DAYS" | "30DAYS">("ALL");
   const [inspectingLog, setInspectingLog] = useState<ActivityLogItem | null>(null);
+  // Show only entries that represent a real before/after change (no snapshot noise).
+  const [changesOnly, setChangesOnly] = useState(false);
+  // Expanded long line-diffs inside the inspect modal, keyed by attribute name.
+  const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
 
   // Compute date range based on timeframeFilter
   const getDateRange = () => {
@@ -78,9 +144,15 @@ export function ActivityLogsViewer({
     }),
   });
 
-  // Filter logs if role-restricted
+  // Filter logs if role-restricted; optionally hide entries without a real change.
   const displayLogs = logs.filter((log) => {
     if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(log.userRole)) {
+      return false;
+    }
+    if (changesOnly && !log.prevState && !log.nextState) {
+      return false;
+    }
+    if (changesOnly && countChangedFields(log.prevState, log.nextState) === 0) {
       return false;
     }
     return true;
@@ -154,13 +226,13 @@ export function ActivityLogsViewer({
 
     try {
       prevObj = typeof prevState === "string" ? JSON.parse(prevState) : prevState || {};
-    } catch (e) {
+    } catch {
       prevObj = {};
     }
 
     try {
       nextObj = typeof nextState === "string" ? JSON.parse(nextState) : nextState || {};
-    } catch (e) {
+    } catch {
       nextObj = {};
     }
 
@@ -191,24 +263,91 @@ export function ActivityLogsViewer({
               const prevVal = prevObj[key];
               const nextVal = nextObj[key];
               const isModified = JSON.stringify(prevVal) !== JSON.stringify(nextVal);
+              const hasLongValue = isLongValue(prevVal) || isLongValue(nextVal);
 
-              const formatVal = (v: any) => {
-                if (v === undefined || v === null) return <span className="text-muted-foreground/50 font-sans italic">empty</span>;
-                if (typeof v === "object") return JSON.stringify(v);
-                return String(v);
-              };
+              // Compact side-by-side for short primitive values.
+              if (!hasLongValue) {
+                const formatVal = (v: any) => {
+                  if (v === undefined || v === null) return <span className="text-muted-foreground/50 font-sans italic">empty</span>;
+                  return String(v);
+                };
+                return (
+                  <tr key={key} className={isModified ? "bg-amber-500/5" : ""}>
+                    <td className="px-4 py-3 font-bold font-sans text-foreground flex items-center gap-1.5">
+                      {isModified && <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>}
+                      {key}
+                    </td>
+                    <td className="px-4 py-3 bg-rose-500/5 text-rose-700 dark:text-rose-300 font-semibold line-through decoration-rose-400/50 break-words">
+                      {formatVal(prevVal)}
+                    </td>
+                    <td className="px-4 py-3 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 font-black break-words">
+                      {formatVal(nextVal)}
+                    </td>
+                  </tr>
+                );
+              }
+
+              // Long / object values get a unified +/- line diff, collapsible
+              // so huge snapshots never blow out the modal.
+              const lines = diffLines(prevVal, nextVal);
+              const collapsed = !expandedDiffs.has(key) && lines.length > 14;
+              const visible = collapsed ? lines.slice(0, 14) : lines;
+              const delCount = lines.filter((l) => l.type === "del").length;
+              const addCount = lines.filter((l) => l.type === "add").length;
 
               return (
-                <tr key={key} className={isModified ? "bg-amber-500/5" : ""}>
-                  <td className="px-4 py-3 font-bold font-sans text-foreground flex items-center gap-1.5">
-                    {isModified && <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>}
-                    {key}
+                <tr key={key} className="align-top">
+                  <td className="px-4 py-3 font-bold font-sans text-foreground w-44 align-top">
+                    <span className="flex items-center gap-1.5">
+                      {isModified && <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>}
+                      {key}
+                    </span>
+                    {isModified && (
+                      <span className="mt-1.5 block text-[10px] font-mono text-muted-foreground">
+                        <span className="text-rose-500">−{delCount}</span> · <span className="text-emerald-600 dark:text-emerald-400">+{addCount}</span>
+                      </span>
+                    )}
                   </td>
-                  <td className="px-4 py-3 bg-rose-500/5 text-rose-700 dark:text-rose-300 font-semibold line-through decoration-rose-400/50">
-                    {formatVal(prevVal)}
-                  </td>
-                  <td className="px-4 py-3 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 font-black">
-                    {formatVal(nextVal)}
+                  <td colSpan={2} className="px-0 py-3 pr-4">
+                    <div className="rounded-xl border overflow-hidden">
+                      <div className="max-h-72 overflow-y-auto">
+                        {visible.map((line, idx) => (
+                          <div
+                            key={idx}
+                            className={`flex items-stretch font-mono text-[11px] leading-5 ${
+                              line.type === "del"
+                                ? "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                                : line.type === "add"
+                                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                  : "text-muted-foreground"
+                            }`}
+                          >
+                            <span className={`w-6 shrink-0 text-center select-none ${line.type === "del" ? "text-rose-500" : line.type === "add" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/40"}`}>
+                              {line.type === "del" ? "−" : line.type === "add" ? "+" : " "}
+                            </span>
+                            <span className="whitespace-pre px-2">{line.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {collapsed && (
+                        <button
+                          onClick={() => setExpandedDiffs((prev) => new Set(prev).add(key))}
+                          className="w-full py-2 text-[11px] font-bold text-primary hover:bg-muted/40 border-t flex items-center justify-center gap-1"
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                          Show full diff ({lines.length} lines)
+                        </button>
+                      )}
+                      {!collapsed && lines.length > 14 && (
+                        <button
+                          onClick={() => setExpandedDiffs((prev) => { const next = new Set(prev); next.delete(key); return next; })}
+                          className="w-full py-2 text-[11px] font-bold text-muted-foreground hover:bg-muted/40 border-t flex items-center justify-center gap-1"
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                          Collapse diff
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -373,6 +512,21 @@ export function ActivityLogsViewer({
               <option value="CREATE_ADDON">Addon Modifications</option>
               <option value="CREATE_MENU_ITEM">Menu Additions</option>
             </select>
+
+            {/* Changes-Only Toggle — hide noise entries without a real diff */}
+            <button
+              onClick={() => setChangesOnly((v) => !v)}
+              aria-pressed={changesOnly}
+              className={`h-8 px-3 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
+                changesOnly
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-background text-muted-foreground hover:text-foreground border-muted"
+              }`}
+              title="Hide entries that carry no before/after data — keep only real changes"
+            >
+              <ListFilter className="h-3.5 w-3.5" />
+              <span>{changesOnly ? "Changes Only" : "Show All"}</span>
+            </button>
           </div>
 
         </div>
@@ -482,7 +636,11 @@ export function ActivityLogsViewer({
                               }}
                             >
                               <FileDiff className="h-3.5 w-3.5" />
-                              <span>Inspect Data</span>
+                              {hasDiff ? (
+                                <span>Inspect · {countChangedFields(logItem.prevState, logItem.nextState)} change{countChangedFields(logItem.prevState, logItem.nextState) !== 1 ? "s" : ""}</span>
+                              ) : (
+                                <span>View Entry</span>
+                              )}
                             </Button>
                           </td>
 

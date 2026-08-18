@@ -63,43 +63,46 @@ export function KitchenOrderCard({
       <CardContent className="p-3.5 space-y-3 flex-1">
         <ul className="space-y-2.5">
           {order.items?.map((item: any, i: number) => (
-            <li key={i} className="space-y-1">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2 min-w-0">
-                  <span className="font-black text-xs text-primary-foreground bg-primary px-2 py-0.5 rounded-lg shrink-0">
-                    {item.quantity}×
-                  </span>
-                  <div className="min-w-0">
-                    <span className="font-extrabold text-sm text-foreground leading-snug block">
+            <li key={i}>
+              {/* Two-column grid: quantity pill (col 1) and everything else (col 2)
+                  so names, add-ons, and notes always align under the item name. */}
+              <div className="grid grid-cols-[auto_1fr] gap-2 items-start">
+                <span className="font-black text-xs text-primary-foreground bg-primary px-2 py-0.5 rounded-lg shrink-0 justify-self-start">
+                  {item.quantity}×
+                </span>
+
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-extrabold text-sm text-foreground leading-snug block break-words min-w-0">
                       {item.name}
                     </span>
-                    
-                    {/* Addons List — raw string ids resolve through the addon map */}
-                    {addonNames(item.selectedAddons, addonMap).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {addonNames(item.selectedAddons, addonMap).map((addon, aIdx) => (
-                          <span key={aIdx} className="bg-muted text-muted-foreground text-[10px] font-bold px-1.5 py-0.5 rounded border">
-                            +{addon}
-                          </span>
-                        ))}
-                      </div>
+
+                    {item.roundNumber && item.roundNumber > 1 && (
+                      <Badge variant="outline" className="text-[9px] font-black text-primary border-primary/40 shrink-0">
+                        Round {item.roundNumber}
+                      </Badge>
                     )}
                   </div>
-                </div>
 
-                {item.roundNumber && item.roundNumber > 1 && (
-                  <Badge variant="outline" className="text-[9px] font-black text-primary border-primary/40 shrink-0">
-                    Round {item.roundNumber}
-                  </Badge>
-                )}
+                  {/* Addons List — raw string ids resolve through the addon map */}
+                  {addonNames(item.selectedAddons, addonMap).length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {addonNames(item.selectedAddons, addonMap).map((addon, aIdx) => (
+                        <span key={aIdx} className="bg-muted text-muted-foreground text-[10px] font-bold px-1.5 py-0.5 rounded border">
+                          +{addon}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Special Instructions Note — aligned under the item name */}
+                  {item.specialInstructions && (
+                    <div className="text-xs bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-xl font-bold">
+                      Note: &ldquo;{item.specialInstructions}&rdquo;
+                    </div>
+                  )}
+                </div>
               </div>
-
-              {/* Special Instructions Note */}
-              {item.specialInstructions && (
-                <div className="ml-7 text-xs bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-xl font-bold">
-                  Note: "{item.specialInstructions}"
-                </div>
-              )}
             </li>
           ))}
         </ul>

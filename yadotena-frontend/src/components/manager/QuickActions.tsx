@@ -4,9 +4,7 @@ import Link from "next/link";
 import { Coffee, Receipt, ShieldCheck, EyeOff } from "lucide-react";
 
 export function QuickActions() {
-  // Only high-frequency tasks, each pointing at a real destination. Retail
-  // products are created from the same menu page as café items, so they are
-  // not given a duplicate action.
+  // Only high-frequency tasks, each pointing at a real destination.
   const actions = [
     {
       label: "Add Menu Item",
@@ -39,21 +37,19 @@ export function QuickActions() {
   ];
 
   return (
-    <section className="space-y-3">
-      <h2 className="font-black text-sm uppercase tracking-wider text-foreground">
-        Quick Actions
-      </h2>
+    <section aria-label="Quick actions" className="space-y-3">
+      <h2 className="font-black text-sm uppercase tracking-wider text-foreground">Quick Actions</h2>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-1">
         {actions.map((act) => {
           const Icon = act.icon;
           return (
             <Link
               key={act.label}
               href={act.href}
-              className="group p-3.5 rounded-2xl border bg-card flex items-center gap-3 hover:border-primary/40 hover:shadow-md transition-all active:scale-[0.98]"
+              className="group p-3 rounded-2xl border bg-card flex items-center gap-3 hover:border-primary/40 hover:shadow-md transition active:scale-[0.98]"
             >
-              <span className={`p-2 rounded-xl shrink-0 ${act.chip}`}>
+              <span className={`p-2 rounded-xl shrink-0 ${act.chip}`} aria-hidden="true">
                 <Icon className="h-4 w-4" />
               </span>
               <span className="min-w-0">

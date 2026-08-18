@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CreditCard, EyeOff, ClipboardList, BellRing, ChevronRight } from "lucide-react";
+import { CreditCard, EyeOff, ClipboardList, BellRing, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 interface AttentionCenterProps {
@@ -26,23 +26,24 @@ export function AttentionCenter({
     return (
       <section
         id="attention-center"
-        className="p-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+        role="status"
+        className="px-4 py-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 flex items-center justify-between gap-3 scroll-mt-24"
+        aria-label="Attention status"
       >
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="font-black text-sm text-emerald-700 dark:text-emerald-400 uppercase tracking-tight">
-              All caught up
-            </h2>
-            <p className="text-xs text-muted-foreground font-medium">
-              No action required right now. New items will appear here.
-            </p>
-          </div>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 truncate">
+            All caught up
+          </p>
+          <p className="hidden sm:block text-xs text-muted-foreground font-medium truncate">
+            · Nothing needs your attention right now.
+          </p>
         </div>
-        <span className="shrink-0 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-black border border-emerald-500/20 uppercase tracking-wider">
-          ● All systems operational
+        <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+          ● Operational
         </span>
       </section>
     );
@@ -92,7 +93,11 @@ export function AttentionCenter({
   ].filter((c) => c.count > 0);
 
   return (
-    <section id="attention-center" className="space-y-3">
+    <section
+      id="attention-center"
+      className="space-y-3 scroll-mt-24"
+      aria-label="Needs attention"
+    >
       <div className="flex items-center justify-between">
         <h2 className="font-black text-sm uppercase tracking-wider text-foreground">
           Needs attention ({totalAttentionItems})
@@ -104,12 +109,11 @@ export function AttentionCenter({
           const Icon = card.icon;
           const isRose = card.tone === "rose";
           return (
-            // The whole card is the action — one big touch target, no
-            // separate button to hunt for during a rush.
+            // The whole card is the action — one big touch target during a rush.
             <Link
               key={card.key}
               href={card.href}
-              className={`group p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-xs transition-all active:scale-[0.99] ${
+              className={`group p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-xs transition active:scale-[0.99] ${
                 isRose
                   ? "border-rose-500/25 bg-rose-500/5 hover:border-rose-500/50"
                   : "border-amber-500/25 bg-amber-500/5 hover:border-amber-500/50"

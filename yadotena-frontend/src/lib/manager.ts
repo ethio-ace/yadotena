@@ -12,12 +12,16 @@ export interface ManagerMetrics {
   todayRevenue: number;
   /** Total orders created today. */
   totalOrdersToday: number;
+  /** Average value of today's settled orders. */
+  avgOrderValue: number;
   /** Today's open orders still awaiting settlement. */
   unpaidOrders: Order[];
   /** Digital payments waiting for manager verification. */
   pendingVerification: number;
   /** Menu items marked unavailable. */
   outOfStockCount: number;
+  /** The unavailable menu items themselves (for the stock watch). */
+  unavailableItems: MenuItem[];
   /** Tables in any in-use state (not just OCCUPIED). */
   activeTables: number;
   totalTables: number;
@@ -55,15 +59,15 @@ export function computeManagerMetrics(opts: {
   const pendingVerification = payments.filter(
     (p) => p.status === "PENDING_VERIFICATION"
   ).length;
-  const outOfStockCount = menuItems.filter((i) => i.available === false).length;
   // The backend derives several in-use states (ORDERING, PREPARING,
   // WAITING_FOR_SERVICE, WAITING_FOR_PAYMENT, OCCUPIED) — anything not
   // AVAILABLE is an occupied table.
   const activeTables = tables.filter((t) => t.status !== "AVAILABLE").length;
   const pendingServiceCalls = serviceRequests.filter((r) => r.status === "PENDING").length;
-  const todayRevenue = orders
-    .filter((o) => o.paymentStatus === "PAID")
-    .reduce((sum, o) => sum + (o.total || 0), 0);
+  const paidOrders = orders.filter((o) => o.paymentStatus === "PAID");
+  const todayRevenue = paidOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const unavailableItems = menuItems.filter((i) => i.available === false);
+  const outOfStockCount = unavailableItems.length;
 
   const attentionCount =
     pendingVerification + outOfStockCount + unpaidOrders.length + pendingServiceCalls;
@@ -72,9 +76,11 @@ export function computeManagerMetrics(opts: {
     todayOrders: activeOrders,
     todayRevenue,
     totalOrdersToday: orders.length,
+    avgOrderValue: paidOrders.length > 0 ? todayRevenue / paidOrders.length : 0,
     unpaidOrders,
     pendingVerification,
     outOfStockCount,
+    unavailableItems,
     activeTables,
     totalTables: tables.length,
     pendingServiceCalls,

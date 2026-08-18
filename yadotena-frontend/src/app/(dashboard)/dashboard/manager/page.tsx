@@ -31,12 +31,25 @@ export default function ManagerDashboardPage() {
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      {/* SKIP LINK — keyboard users bypass the chrome straight to content */}
+      <a
+        href="#manager-main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:px-4 focus:py-2 focus:rounded-xl focus:bg-primary focus:text-primary-foreground focus:text-xs focus:font-black focus:shadow-xl"
+      >
+        Skip to main content
+      </a>
+
       {/* MANAGER SIDEBAR */}
       <ManagerSidebar
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapse}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        floor={{
+          activeTables: metrics.activeTables,
+          totalTables: metrics.totalTables,
+          attentionCount: metrics.attentionCount,
+        }}
       />
 
       {/* MAIN CONTENT WORKSPACE AREA */}
@@ -48,7 +61,7 @@ export default function ManagerDashboardPage() {
           onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         />
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main id="manager-main" className="flex-1 overflow-y-auto bg-muted/30 p-4 sm:p-6 lg:p-8">
           <ManagerOverview />
         </main>
       </div>

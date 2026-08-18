@@ -7,19 +7,13 @@ import { greetingForHour } from "@/lib/manager";
 import { AttentionCenter } from "./AttentionCenter";
 import { QuickActions } from "./QuickActions";
 import { TodaySummary } from "./TodaySummary";
-import { AlertTriangle, CheckCircle2, ChevronRight, RefreshCw } from "lucide-react";
-import { formatETB } from "@/lib/currency";
+import { LiveTickets } from "./LiveTickets";
+import { StockWatch } from "./StockWatch";
+import { AlertTriangle, RefreshCw, Grid3X3, ChevronRight } from "lucide-react";
 
 export function ManagerOverview() {
   const { data: session } = useSession();
   const { metrics, tableNameById, isLoading, isError, refetchAll } = useManagerOps();
-
-  const orderLabel = (order: { tableId?: string; type: string }) => {
-    if (order.tableId) {
-      return tableNameById[order.tableId] || (order.type === "DINE_IN" ? "Table" : order.type);
-    }
-    return order.type || "Takeaway";
-  };
 
   const firstName = (session?.user?.name || "Manager").trim().split(" ")[0];
   const greeting = greetingForHour(new Date().getHours());
@@ -30,27 +24,49 @@ export function ManagerOverview() {
   });
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 max-w-[1400px] mx-auto">
-      {/* GREETING — the manager's first question: "Is everything okay today?" */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-          {greeting}, {firstName}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1 font-medium">Today · {todayLabel}</p>
+    <div className="space-y-6 max-w-[1400px] mx-auto">
+      {/* PAGE HEADER — greeting + live floor pulse */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+            {greeting}, {firstName}
+          </h1>
+          <p className="text-xs text-muted-foreground font-medium mt-1">{todayLabel}</p>
+        </div>
+
+        <Link
+          href="/dashboard/tables"
+          className="group flex items-center gap-2.5 px-3 py-2 rounded-xl border bg-card shadow-xs hover:border-primary/40 hover:shadow-md transition"
+          aria-label={`${metrics.activeTables} of ${metrics.totalTables} tables in use — view floor`}
+        >
+          <Grid3X3 className="h-4 w-4 text-primary" aria-hidden="true" />
+          <span className="text-xs font-black text-foreground">
+            {metrics.activeTables}
+            <span className="text-muted-foreground font-bold"> / {metrics.totalTables}</span> tables
+            in use
+          </span>
+          <ChevronRight
+            className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform"
+            aria-hidden="true"
+          />
+        </Link>
       </div>
 
       {/* ACTIONABLE ERROR STATE */}
       {isError && (
-        <div className="p-4 rounded-2xl border border-destructive/30 bg-destructive/5 text-destructive text-xs font-bold flex items-center justify-between gap-3">
+        <div
+          role="alert"
+          className="p-4 rounded-2xl border border-destructive/30 bg-destructive/5 text-destructive text-xs font-bold flex items-center justify-between gap-3"
+        >
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span>Couldn’t load live data. Check your connection and try again.</span>
           </div>
           <button
             onClick={refetchAll}
             className="shrink-0 px-3 py-1.5 rounded-xl bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 flex items-center gap-1.5 transition-colors"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> RETRY
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> RETRY
           </button>
         </div>
       )}
@@ -58,21 +74,20 @@ export function ManagerOverview() {
       {/* LOADING SKELETON */}
       {isLoading ? (
         <div className="space-y-6" aria-busy="true">
-          <div className="h-24 rounded-2xl border bg-muted/30 animate-pulse" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {Array.from({ length: 6 }).map((_, i) => (
+          <div className="h-14 rounded-2xl border bg-muted/30 animate-pulse" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-28 rounded-2xl border bg-muted/30 animate-pulse" />
             ))}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-24 rounded-2xl border bg-muted/30 animate-pulse" />
-            ))}
+          <div className="grid gap-4 lg:grid-cols-3 items-start">
+            <div className="lg:col-span-2 h-72 rounded-2xl border bg-muted/30 animate-pulse" />
+            <div className="h-72 rounded-2xl border bg-muted/30 animate-pulse" />
           </div>
         </div>
       ) : (
         <>
-          {/* 1. NEEDS ATTENTION */}
+          {/* 1. ATTENTION — everything that needs the manager today */}
           <AttentionCenter
             unverifiedPaymentsCount={metrics.pendingVerification}
             unavailableItemsCount={metrics.outOfStockCount}
@@ -80,84 +95,25 @@ export function ManagerOverview() {
             activeServiceCallsCount={metrics.pendingServiceCalls}
           />
 
-          {/* 2. TODAY — operational state & daily metrics */}
+          {/* 2. TODAY — the day's health, at a glance */}
           <TodaySummary
             todayRevenue={metrics.todayRevenue}
             totalOrdersCount={metrics.totalOrdersToday}
-            unpaidOrdersCount={metrics.unpaidOrders.length}
-            pendingVerificationCount={metrics.pendingVerification}
-            outOfStockCount={metrics.outOfStockCount}
+            avgOrderValue={metrics.avgOrderValue}
             occupiedTablesCount={metrics.activeTables}
             totalTablesCount={metrics.totalTables}
           />
 
-          {/* 3. QUICK ACTIONS — high-frequency tasks */}
-          <QuickActions />
-
-          {/* 4. LIVE TICKETS — today's active orders */}
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-black text-sm uppercase tracking-wider text-foreground">
-                Live Tickets Today ({metrics.todayOrders.length})
-              </h2>
-              <Link
-                href="/dashboard/orders"
-                className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-              >
-                All Orders <ChevronRight className="h-3.5 w-3.5" />
-              </Link>
+          {/* 3. FLOOR — live tickets + right rail of shortcuts & stock */}
+          <div className="grid gap-4 lg:grid-cols-3 items-start">
+            <div className="lg:col-span-2">
+              <LiveTickets orders={metrics.todayOrders} tableNameById={tableNameById} />
             </div>
-
-            <div className="rounded-2xl border bg-card overflow-hidden divide-y divide-border/60 shadow-xs">
-              {metrics.todayOrders.slice(0, 8).map((order) => (
-                <Link
-                  key={order.id}
-                  href="/dashboard/orders"
-                  className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/40 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-foreground truncate">
-                        {orderLabel(order)}
-                        <span className="ml-2 font-mono text-[11px] font-bold text-muted-foreground">
-                          {order.id.slice(-6).toUpperCase()}
-                        </span>
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {order.items?.map((i) => `${i.quantity}× ${i.name}`).join(", ") || "No items"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs font-black text-muted-foreground">
-                      {formatETB(order.total || 0)}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${
-                        order.paymentStatus === "PAID"
-                          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                          : "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                      }`}
-                    >
-                      {order.paymentStatus === "PAID" ? "Paid" : "Unpaid"}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-
-              {metrics.todayOrders.length === 0 && (
-                <div className="py-10 text-center space-y-1.5">
-                  <CheckCircle2 className="h-6 w-6 mx-auto text-emerald-500 opacity-60" />
-                  <p className="text-xs font-bold text-muted-foreground">
-                    No active tickets right now.
-                  </p>
-                  <p className="text-[11px] text-muted-foreground/80">
-                    New orders appear here the moment they’re placed.
-                  </p>
-                </div>
-              )}
+            <div className="space-y-4">
+              <QuickActions />
+              <StockWatch items={metrics.unavailableItems} />
             </div>
-          </section>
+          </div>
         </>
       )}
     </div>

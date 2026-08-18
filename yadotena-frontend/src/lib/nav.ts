@@ -6,7 +6,7 @@ import {
   ClipboardList,
   CreditCard,
   Receipt,
-  BellRing,
+  Bell,
   Settings,
   BarChart3,
   Users,
@@ -36,8 +36,16 @@ export interface NavGroup {
 
 export const managerNavGroups: NavGroup[] = [
   {
-    group: "OVERVIEW",
+    group: "DASHBOARD",
     items: [{ name: "Overview", href: "/dashboard/manager", icon: LayoutDashboard }],
+  },
+  {
+    group: "OPERATIONS",
+    items: [
+      { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
+      { name: "Order Supervision", href: "/dashboard/orders", icon: ClipboardList },
+      { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
+    ],
   },
   {
     group: "CATALOG",
@@ -47,20 +55,11 @@ export const managerNavGroups: NavGroup[] = [
     ],
   },
   {
-    group: "OPERATIONS",
+    group: "FINANCE",
     items: [
-      { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
-      { name: "Order Supervision", href: "/dashboard/orders", icon: ClipboardList },
-      { name: "Notifications", href: "/dashboard/notifications", icon: BellRing },
+      { name: "Payment Verification", href: "/dashboard/payments", icon: CreditCard },
+      { name: "Expense Ledger", href: "/dashboard/expenses", icon: Receipt },
     ],
-  },
-  {
-    group: "PAYMENTS",
-    items: [{ name: "Payment Verification", href: "/dashboard/payments", icon: CreditCard }],
-  },
-  {
-    group: "EXPENSES",
-    items: [{ name: "Expense Ledger", href: "/dashboard/expenses", icon: Receipt }],
   },
   {
     group: "SETTINGS",
@@ -70,7 +69,7 @@ export const managerNavGroups: NavGroup[] = [
 
 export const ownerNavGroups: NavGroup[] = [
   {
-    group: "OVERVIEW",
+    group: "DASHBOARD",
     items: [{ name: "Business Overview", href: "/dashboard/owner", icon: LayoutDashboard }],
   },
   {
@@ -84,7 +83,7 @@ export const ownerNavGroups: NavGroup[] = [
       { name: "Add-ons", href: "/dashboard/addons", icon: Layers },
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
       { name: "Orders", href: "/dashboard/orders", icon: ClipboardList },
-      { name: "Notifications", href: "/dashboard/notifications", icon: BellRing },
+      { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
     ],
   },
   {

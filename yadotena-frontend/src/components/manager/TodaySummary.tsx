@@ -1,14 +1,12 @@
 "use client";
 
 import { formatETB } from "@/lib/currency";
-import { DollarSign, ShoppingBag, Grid3X3, AlertCircle, CreditCard, EyeOff } from "lucide-react";
+import { DollarSign, ShoppingBag, Receipt, Grid3X3 } from "lucide-react";
 
 interface TodaySummaryProps {
   todayRevenue: number;
   totalOrdersCount: number;
-  unpaidOrdersCount: number;
-  pendingVerificationCount: number;
-  outOfStockCount: number;
+  avgOrderValue: number;
   occupiedTablesCount: number;
   totalTablesCount: number;
 }
@@ -16,12 +14,13 @@ interface TodaySummaryProps {
 export function TodaySummary({
   todayRevenue = 0,
   totalOrdersCount = 0,
-  unpaidOrdersCount = 0,
-  pendingVerificationCount = 0,
-  outOfStockCount = 0,
+  avgOrderValue = 0,
   occupiedTablesCount = 0,
   totalTablesCount = 0,
 }: TodaySummaryProps) {
+  const tablePct =
+    totalTablesCount > 0 ? Math.round((occupiedTablesCount / totalTablesCount) * 100) : 0;
+
   const metrics = [
     {
       label: "Today’s Revenue",
@@ -29,7 +28,6 @@ export function TodaySummary({
       sub: "Settled & verified sales",
       icon: DollarSign,
       tone: "emerald" as const,
-      attention: false,
     },
     {
       label: "Orders Today",
@@ -37,54 +35,31 @@ export function TodaySummary({
       sub: "Tickets created today",
       icon: ShoppingBag,
       tone: "brand" as const,
-      attention: false,
+    },
+    {
+      label: "Avg Ticket",
+      value: formatETB(avgOrderValue),
+      sub: "Per settled order",
+      icon: Receipt,
+      tone: "brand" as const,
     },
     {
       label: "Active Tables",
       value: `${occupiedTablesCount} / ${totalTablesCount}`,
-      sub:
-        totalTablesCount > 0
-          ? `${Math.round((occupiedTablesCount / totalTablesCount) * 100)}% in use`
-          : "No tables",
+      sub: totalTablesCount > 0 ? `${tablePct}% of the floor in use` : "No tables configured",
       icon: Grid3X3,
       tone: "brand" as const,
-      attention: false,
-    },
-    {
-      label: "Unpaid Orders",
-      value: unpaidOrdersCount.toString(),
-      sub: unpaidOrdersCount > 0 ? "Awaiting settlement" : "All settled",
-      icon: AlertCircle,
-      tone: "amber" as const,
-    },
-    {
-      label: "Pending Verification",
-      value: pendingVerificationCount.toString(),
-      sub: pendingVerificationCount > 0 ? "Digital payments to verify" : "All verified",
-      icon: CreditCard,
-      tone: "amber" as const,
-    },
-    {
-      label: "Out of Stock",
-      value: outOfStockCount.toString(),
-      sub: outOfStockCount > 0 ? "Unavailable items" : "Full catalog",
-      icon: EyeOff,
-      tone: "rose" as const,
     },
   ];
 
   const toneStyles: Record<string, string> = {
     emerald: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10",
     brand: "text-primary bg-primary/10",
-    amber: "text-amber-600 dark:text-amber-400 bg-amber-500/10",
-    rose: "text-rose-600 dark:text-rose-400 bg-rose-500/10",
   };
 
   return (
-    <section className="space-y-3">
-      <h2 className="font-black text-sm uppercase tracking-wider text-foreground">Today</h2>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    <section aria-label="Today’s performance" className="space-y-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {metrics.map((m) => {
           const Icon = m.icon;
           return (
@@ -92,18 +67,18 @@ export function TodaySummary({
               key={m.label}
               className="p-4 rounded-2xl border bg-card flex flex-col justify-between shadow-xs"
             >
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-2 gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
                   {m.label}
                 </span>
-                <span className={`p-1.5 rounded-lg ${toneStyles[m.tone]}`}>
+                <span className={`p-1.5 rounded-lg shrink-0 ${toneStyles[m.tone]}`} aria-hidden="true">
                   <Icon className="h-3.5 w-3.5" />
                 </span>
               </div>
               <div>
-                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+                <p className="text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums">
                   {m.value}
-                </h3>
+                </p>
                 <p className="text-[10px] text-muted-foreground font-medium mt-0.5 line-clamp-1">
                   {m.sub}
                 </p>

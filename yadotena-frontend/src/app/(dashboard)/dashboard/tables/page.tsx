@@ -271,8 +271,17 @@ export default function TablesPage() {
 
       {/* Delete Table Confirmation */}
       {deletingTable && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-card border rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150" onClick={() => setDeletingTable(null)}>
+          <div className="bg-card border rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base">Delete Dining Table</h3>
+                <p className="text-xs text-muted-foreground">Remove table from floor plan</p>
+              </div>
+            </div>
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-600">
                 <Trash2 className="h-5 w-5" />
@@ -392,10 +401,10 @@ function TableCard({
       className={cn("overflow-hidden hover:shadow-xl transition-all duration-300 border-2 rounded-3xl flex flex-col justify-between cursor-pointer active:scale-[0.99]", config.cardBg)}
     >
       <CardContent className="p-4 sm:p-5 flex flex-col h-full justify-between space-y-3.5">
-        <div className="flex justify-between items-start">
-          <div>
+        <div className="flex justify-between items-start gap-2">
+          <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h3 className="font-black text-lg tracking-tight text-foreground">{table.name}</h3>
+              <h3 className="font-black text-lg tracking-tight text-foreground leading-snug break-words">{table.name}</h3>
             </div>
             
             <div className="mt-1 flex items-center gap-1.5">
@@ -406,7 +415,7 @@ function TableCard({
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <div className="flex items-center text-xs font-bold bg-background/80 backdrop-blur-sm rounded-full px-2.5 py-1 shadow-sm border">
               <Users className="h-3 w-3 mr-1 text-muted-foreground" />
               <span>{table.capacity} seats</span>
@@ -537,8 +546,8 @@ function AddTableModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-card border rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150" onClick={onClose}>
+      <div className="bg-card border rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b pb-3">
           <div className="flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black">
@@ -672,8 +681,8 @@ function EditTableModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-card border rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150" onClick={onClose}>
+      <div className="bg-card border rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b pb-3">
           <div className="flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black">

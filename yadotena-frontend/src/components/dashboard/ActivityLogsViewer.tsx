@@ -86,6 +86,11 @@ export function ActivityLogsViewer({
     return true;
   });
 
+  // Role pills only list roles this viewer may actually show.
+  const roleFilterOptions = allowedRoles && allowedRoles.length > 0
+    ? ["ALL", ...allowedRoles]
+    : ["ALL", "WAITER", "KITCHEN", "MANAGER", "OWNER"];
+
   const getRoleIcon = (role: string) => {
     switch (role?.toUpperCase()) {
       case "WAITER":
@@ -322,7 +327,7 @@ export function ActivityLogsViewer({
             <span className="text-[11px] text-muted-foreground uppercase mr-1 flex items-center gap-1">
               <Filter className="h-3 w-3" /> Role:
             </span>
-            {["ALL", "WAITER", "KITCHEN", "MANAGER", "OWNER"].map((role) => (
+            {roleFilterOptions.map((role) => (
               <button
                 key={role}
                 onClick={() => setSelectedRoleFilter(role)}

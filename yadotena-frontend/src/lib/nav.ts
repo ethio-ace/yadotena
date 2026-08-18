@@ -62,6 +62,10 @@ export const managerNavGroups: NavGroup[] = [
     ],
   },
   {
+    group: "AUDIT",
+    items: [{ name: "Activity Logs", href: "/dashboard/logs", icon: ScrollText }],
+  },
+  {
     group: "SETTINGS",
     items: [{ name: "Store Settings", href: "/dashboard/settings", icon: Settings }],
   },
@@ -81,6 +85,7 @@ export const ownerNavGroups: NavGroup[] = [
     items: [
       { name: "Café Menu", href: "/dashboard/menu", icon: Coffee },
       { name: "Add-ons", href: "/dashboard/addons", icon: Layers },
+      { name: "Printable Menu", href: "/dashboard/print-menu", icon: ScrollText },
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
       { name: "Orders", href: "/dashboard/orders", icon: ClipboardList },
       { name: "Notifications", href: "/dashboard/notifications", icon: Bell },

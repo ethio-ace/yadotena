@@ -65,8 +65,13 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
   const [addonImagePreview, setAddonImagePreview] = useState("");
 
   const [error, setError] = useState("");
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string>("");
 
+  // Sync the form whenever the modal opens (or switches to a different item).
+  // Keyed on the item id + isOpen so the effect can never re-trigger from a
+  // transient array identity (categories) while a query is still loading.
   useEffect(() => {
+    if (!isOpen) return;
     if (itemToEdit) {
       setName(itemToEdit.name);
       setDescription(itemToEdit.description);
@@ -92,7 +97,16 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
     }
     setError("");
     setShowAddonCreator(false);
-  }, [itemToEdit, isOpen, categories]);
+  }, [isOpen, itemToEdit?.id]);
+
+  // When categories finish loading while the create form is open, promote the
+  // default category to a real one (runs at most once per load, guarded).
+  useEffect(() => {
+    if (!isOpen || itemToEdit) return;
+    if (categories.length > 0 && !categories.some((c) => c.name === category)) {
+      setCategory(categories[0].name);
+    }
+  }, [categories, isOpen, itemToEdit, category]);
 
   const createMutation = useMutation({
     mutationFn: api.menu.create,
@@ -162,8 +176,6 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
   const handleRemoveAddon = (id: string) => {
     setCustomAddons(prev => prev.filter(a => a.id !== id));
   };
-  
-  const [uploadedImageUrl, setUploadedImageUrl] = useState<string>("");
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

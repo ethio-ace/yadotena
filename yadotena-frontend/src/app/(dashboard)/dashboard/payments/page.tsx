@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,8 @@ interface PaymentMethod {
 export default function PaymentsPage() {
   const queryClient = useQueryClient();
   const tableLabels = useTableLabels();
+  const { data: session } = useSession();
+  const isOwner = (session?.user?.role || "").toUpperCase() === "OWNER";
   const [activeTab, setActiveTab] = useState<"TRANSACTIONS" | "GATEWAYS">("TRANSACTIONS");
   const [search, setSearch] = useState("");
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<any | null>(null);
@@ -190,16 +193,18 @@ export default function PaymentsPage() {
             Transactions Ledger ({paidOrders.length})
           </Button>
 
-          <Button
-            onClick={() => setActiveTab("GATEWAYS")}
-            className={`h-9 px-4 rounded-xl text-xs font-black border transition-all ${
-              activeTab === "GATEWAYS" 
-                ? "bg-primary text-primary-foreground border-primary" 
-                : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            Payment Gateways ({methods.length})
-          </Button>
+          {isOwner && (
+            <Button
+              onClick={() => setActiveTab("GATEWAYS")}
+              className={`h-9 px-4 rounded-xl text-xs font-black border transition-all ${
+                activeTab === "GATEWAYS" 
+                  ? "bg-primary text-primary-foreground border-primary" 
+                  : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              Payment Gateways ({methods.length})
+            </Button>
+          )}
         </div>
       </div>
 
@@ -304,8 +309,26 @@ export default function PaymentsPage() {
         </Card>
       )}
 
+      {/* TAB 2: PAYMENT GATEWAYS CONFIGURATION — owner-only. Managers get a read-only note. */}
+      {activeTab === "GATEWAYS" && !isOwner && (
+        <Card className="rounded-2xl border border-amber-500/30 bg-amber-500/5 shadow-sm">
+          <CardContent className="p-6 flex items-start gap-4">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-black text-sm text-foreground">Owner Access Required</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Payment gateways (Telebirr, CBE, cash registers) are configured by the business owner only.
+                You can review the transaction ledger above, but gateway accounts are managed from the owner account.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* TAB 2: PAYMENT GATEWAYS CONFIGURATION */}
-      {activeTab === "GATEWAYS" && (
+      {activeTab === "GATEWAYS" && isOwner && (
         <Card className="rounded-2xl border bg-card shadow-sm p-5 space-y-4">
           <div className="flex justify-between items-center border-b pb-3">
             <div>
@@ -397,8 +420,14 @@ export default function PaymentsPage() {
 
       {/* Modal for Creating & Editing Payment Method */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative w-full max-w-md bg-card border rounded-2xl shadow-2xl p-5 space-y-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={closeModal}
+        >
+          <div
+            className="relative w-full max-w-md bg-card border rounded-2xl shadow-2xl p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-base font-black">
                 {editingMethod ? "Edit Payment Gateway" : "Add Payment Gateway"}

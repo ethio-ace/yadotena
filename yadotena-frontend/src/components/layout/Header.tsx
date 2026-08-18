@@ -97,6 +97,26 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
     router.push(href);
   };
 
+  // Close the mobile menu when tapping outside or pressing Escape.
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsMobileMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isMobileMenuOpen]);
+
   // Close popups when clicking anywhere outside them.
   const popoverRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -138,7 +158,7 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
   return (
     <div className="flex flex-col shrink-0 z-30 relative">
       {/* Top Header Bar */}
-      <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-6 shadow-sm">
+      <header className="h-16 bg-card border-b flex items-center justify-between px-4 md:px-6 shadow-sm print:hidden">
         <div className="flex-1 flex items-center gap-3">
           {/* Mobile Menu Toggle */}
           <Button 
@@ -445,7 +465,7 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
 
       {/* Mobile Sidebar Menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-16 left-0 right-0 bg-card border-b shadow-xl z-40 p-4 animate-in slide-in-from-top-2 duration-200">
+        <div ref={mobileMenuRef} className="md:hidden absolute top-16 left-0 right-0 bg-card border-b shadow-xl z-40 p-4 animate-in slide-in-from-top-2 duration-200">
           <nav className="space-y-1">
             {allowedItems.map((item) => {
               const isActive = 

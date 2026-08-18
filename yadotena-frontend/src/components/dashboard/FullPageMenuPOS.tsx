@@ -643,8 +643,14 @@ export function FullPageMenuPOS({
 
       {/* Dish Addon & Presets Configuration Modal */}
       {configuringDish && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-card border rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4 relative animate-in zoom-in-95 duration-200">
+        <div
+          className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setConfiguringDish(null)}
+        >
+          <div
+            className="bg-card border rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4 relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             
             <div className="flex items-start justify-between border-b pb-3">
               <div>

@@ -18,8 +18,14 @@ export function AddExtraSelectionModal({ isOpen, onClose, onSelectOption }: AddE
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-background rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 relative">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="bg-background rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button 
           onClick={onClose}
           className="absolute top-4 right-4 p-2 bg-muted/50 hover:bg-muted rounded-full transition-colors z-10"
@@ -50,14 +56,14 @@ export function AddExtraSelectionModal({ isOpen, onClose, onSelectOption }: AddE
           <Button 
             variant="outline" 
             className="w-full h-auto py-4 justify-start px-4 text-left border-2 hover:border-amber-500/50 hover:bg-amber-500/5 rounded-2xl group transition-all"
-            onClick={() => onSelectOption("Extra")}
+            onClick={() => onSelectOption("✨ Standalone Add-ons")}
           >
             <div className="bg-amber-500/10 p-3 rounded-xl group-hover:bg-amber-500/20 transition-colors mr-4 shrink-0">
               <PlusCircle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
               <div className="font-bold text-base text-foreground mb-1">Extra Items</div>
-              <div className="text-xs text-muted-foreground font-medium whitespace-normal">Mayonnaise, extra bread, sauces, and add-ons.</div>
+              <div className="text-xs text-muted-foreground font-medium whitespace-normal">Sauces, sides, and standalone add-ons from the real add-ons list.</div>
             </div>
           </Button>
         </div>

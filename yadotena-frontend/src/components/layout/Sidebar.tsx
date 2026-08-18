@@ -26,6 +26,7 @@ export default function Sidebar({ role }: Readonly<{ role: Role }>) {
       className={cn(
         "bg-card border-r flex-col justify-between transition-all duration-300",
         "hidden md:flex h-full shrink-0",
+        "print:hidden",
         isCollapsed ? "w-20" : "w-64"
       )}
     >

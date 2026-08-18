@@ -34,26 +34,26 @@ export function KitchenOrderCard({
       }`}
     >
       {/* Card Header */}
-      <CardHeader className={`p-3.5 border-b flex flex-row items-center justify-between space-y-0 ${
+      <CardHeader className={`p-3.5 border-b flex flex-row items-center justify-between gap-3 space-y-0 ${
         isUrgent ? "bg-primary/10" : "bg-muted/30"
       }`}>
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-black text-foreground">
               {order.id.slice(-6).toUpperCase()}
             </span>
             {isUrgent && (
-              <Badge className="bg-primary text-primary-foreground text-[9px] font-black uppercase px-2 py-0.5 animate-pulse">
+              <Badge className="bg-primary text-primary-foreground text-[9px] font-black uppercase px-2 py-0.5 animate-pulse shrink-0">
                 New Order
               </Badge>
             )}
           </div>
-          <span className="text-xs font-black text-primary block mt-0.5">
+          <span className="text-xs font-black text-primary block mt-0.5 leading-snug break-words">
             {tableDisplay}
           </span>
         </div>
 
-        <div className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground bg-background/80 px-2.5 py-1 rounded-xl border">
+        <div className="flex items-center gap-1 text-[11px] font-bold text-muted-foreground bg-background/80 px-2.5 py-1 rounded-xl border shrink-0 whitespace-nowrap">
           <Clock className="h-3 w-3 text-primary shrink-0" />
           <span>{formatDistanceToNow(new Date(order.createdAt))} ago</span>
         </div>

@@ -3,18 +3,20 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
 import { addonNames } from "@/lib/kitchen";
 import {
   ArrowLeft, BellRing, Check, CheckCircle2, CreditCard, Landmark,
-  MapPin, Printer, Receipt, Sparkles,
+  MapPin, Printer, Receipt, Sparkles, Copy, Utensils, QrCode
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
 import { PaymentMethodsModal } from "@/components/customer/PaymentMethodsModal";
 import { TrackOrderInput } from "@/components/customer/TrackOrderInput";
+import { DigitalReceiptModal } from "@/components/customer/DigitalReceiptModal";
 import { Order } from "@/types";
 
 const getStatusColor = (status: string) => {
@@ -30,10 +32,13 @@ const getStatusColor = (status: string) => {
 
 export default function OrderTrackingPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [waiterCalled, setWaiterCalled] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
 
   // Resolve by full order id OR 6-character ticket number (public, no login).
   const { data: order, isLoading } = useQuery<Order | null>({
@@ -51,15 +56,16 @@ export default function OrderTrackingPage() {
       }
     },
     retry: false,
+    refetchInterval: 5000, // Live poll every 5s for realtime order status updates!
   });
 
-  // Item images + add-on name resolution (same sources the staff order modal uses).
+  // Item images + add-on name resolution
   const { data: menu = [] } = useQuery({
     queryKey: ["menu"],
     queryFn: api.menu.getAll,
     enabled: !!order && !isLoading,
   });
-  // Public table roster so assistance requests name the real table (not raw ids).
+  // Public table roster
   const { data: tables = [] } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
@@ -110,9 +116,15 @@ export default function OrderTrackingPage() {
   const isPaid = order.paymentStatus === "PAID";
   const isCompleted = order.status === "COMPLETED";
   const isCancelled = order.status === "CANCELLED";
-  // Assistance (call waiter / bill) is only available while the order is active and dine-in.
   const canRequestAssistance = order.type === "DINE_IN" && !isCompleted && !isCancelled;
   const payments = order.payments || [];
+  const ticketNumber = order.id.slice(-6).toUpperCase();
+
+  const handleCopyTicket = () => {
+    navigator.clipboard.writeText(ticketNumber);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
 
   const getItemImage = (menuItemId: string) => {
     const mi = menu.find(m => m.id === menuItemId);
@@ -143,8 +155,6 @@ export default function OrderTrackingPage() {
   const handleRequestBillSettlement = (methodName: string, methodCode: string) => {
     const effectiveTableId = order.tableId || "t1";
     const isCash = /cash/i.test(methodName) || /cash/i.test(methodCode);
-    // Cash: no amount — the waiter just needs to come to the table.
-    // Digital: name the method + table so staff can verify the transfer.
     const notes = isCash
       ? `Guest is about to pay with Cash at ${tableLabel}. Please come and settle the bill.`
       : `Guest paid via ${methodName} (${methodCode}) at ${tableLabel}. Please verify and settle the bill.`;
@@ -164,7 +174,7 @@ export default function OrderTrackingPage() {
 
   return (
     <div className="flex flex-col min-h-full bg-muted/10 animate-in fade-in duration-300">
-      {/* Top Bar */}
+      {/* Top Navigation Bar */}
       <div className="px-4 py-3 sticky top-0 bg-background/85 backdrop-blur-md z-20 border-b shadow-sm">
         <div className="max-w-2xl mx-auto w-full flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -175,7 +185,7 @@ export default function OrderTrackingPage() {
             </Link>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black tracking-tight leading-none">#{order.id.slice(-6).toUpperCase()}</h2>
+                <h2 className="text-lg font-black tracking-tight leading-none">#{ticketNumber}</h2>
                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getStatusColor(order.status)}`}>
                   {order.status.replace(/_/g, " ")}
                 </span>
@@ -188,27 +198,92 @@ export default function OrderTrackingPage() {
               </p>
             </div>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-full text-xs font-bold gap-1.5 h-8 shrink-0"
-            onClick={() => window.print()}
-          >
-            <Printer className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Print Bill</span>
-          </Button>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full text-xs font-bold gap-1.5 h-8 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+              onClick={() => setShowReceiptModal(true)}
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Digital Receipt</span>
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full text-xs font-bold gap-1.5 h-8"
+              onClick={() => window.print()}
+            >
+              <Printer className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Print</span>
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className="p-4 md:p-6 flex-1">
         <div className="max-w-2xl mx-auto space-y-4">
 
-          {/* Live Stepper (same as staff order modal) */}
+          {/* Prominent Order Tracking ID Header Banner */}
+          <div className="bg-gradient-to-r from-primary/10 via-amber-500/10 to-primary/10 border-2 border-primary/20 rounded-3xl p-5 shadow-sm space-y-3 relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="bg-background/80 font-mono font-bold text-xs">
+                    Tracking ID
+                  </Badge>
+                  <span className="text-xs text-muted-foreground font-medium">Order #{order.id}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-3xl font-black text-foreground tracking-tight font-mono">
+                    #{ticketNumber}
+                  </h1>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 rounded-full text-xs font-bold gap-1 bg-background/60 hover:bg-background border shadow-xs"
+                    onClick={handleCopyTicket}
+                  >
+                    {copiedId ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                    <span>{copiedId ? "Copied!" : "Copy Code"}</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Action Buttons inside banner */}
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="rounded-2xl font-bold text-xs h-10 px-4 shadow-md shadow-primary/20 gap-1.5"
+                  onClick={() => setShowReceiptModal(true)}
+                >
+                  <Receipt className="h-4 w-4" />
+                  <span>View Digital Receipt</span>
+                </Button>
+
+                {order.type === "DINE_IN" && order.tableId && !isCompleted && !isCancelled && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-2xl font-bold text-xs h-10 px-3.5 gap-1.5 bg-background/80 hover:bg-background"
+                    onClick={() => router.push(`/menu?table=${encodeURIComponent(order.tableId!)}`)}
+                  >
+                    <Utensils className="h-4 w-4 text-primary" />
+                    <span>Add More Dishes</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Live Order Progress Stepper */}
           <div className="bg-card border rounded-2xl shadow-sm p-5">
             <OrderProgressStepper status={order.status} />
           </div>
 
-          {/* Dine-In Assistance Hub (active orders only — customers cannot settle bills) */}
+          {/* Dine-In Assistance Hub */}
           {canRequestAssistance && (
             <div className="bg-card border border-primary/20 rounded-2xl shadow-sm p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -218,7 +293,7 @@ export default function OrderTrackingPage() {
                 <div>
                   <h3 className="font-extrabold text-sm">Table Assistance</h3>
                   <p className="text-[11px] text-muted-foreground font-medium">
-                    Call your waiter, or check payment methods and have them settle your bill.
+                    Call your waiter, check payment accounts, or request your bill.
                   </p>
                 </div>
               </div>
@@ -264,7 +339,7 @@ export default function OrderTrackingPage() {
             </div>
           )}
 
-          {/* Order Items */}
+          {/* Order Items List */}
           <div className="bg-card border rounded-2xl shadow-sm p-5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
               <Receipt className="h-3.5 w-3.5" /> Order Items ({order.items?.length || 0})
@@ -354,7 +429,7 @@ export default function OrderTrackingPage() {
             )}
           </div>
 
-          {/* Payment Details (read-only) */}
+          {/* Payment Details */}
           <div className="bg-card border rounded-2xl shadow-sm p-5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
               <CreditCard className="h-3.5 w-3.5" /> Payment Details
@@ -394,7 +469,7 @@ export default function OrderTrackingPage() {
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   <div>
                     <div className="font-bold text-sm text-emerald-700 dark:text-emerald-400">Paid & Settled</div>
-                    <div className="text-xs text-muted-foreground">Full bill of {formatETB(order.total)} cleared.</div>
+                    <div className="text-xs text-muted-foreground font-medium">Full bill of {formatETB(order.total)} cleared.</div>
                   </div>
                 </div>
                 <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs">Settled</span>
@@ -404,7 +479,7 @@ export default function OrderTrackingPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-bold text-sm text-amber-700 dark:text-amber-400">Payment Pending</div>
-                    <div className="text-xs text-muted-foreground">Amount due: {formatETB(order.total)}</div>
+                    <div className="text-xs text-muted-foreground font-medium">Amount due: {formatETB(order.total)}</div>
                   </div>
                   <Button
                     variant="secondary"
@@ -428,7 +503,7 @@ export default function OrderTrackingPage() {
         </div>
       </div>
 
-      {/* Read-only Payment Methods & Accounts modal — customers never settle directly */}
+      {/* Read-only Payment Methods & Accounts modal */}
       <PaymentMethodsModal
         order={order}
         isOpen={showPaymentModal}
@@ -436,6 +511,14 @@ export default function OrderTrackingPage() {
         onRequestBillSettlement={handleRequestBillSettlement}
         isRequestingBill={sendServiceRequest.isPending}
         allowCallWaiter={canRequestAssistance}
+      />
+
+      {/* Digital Receipt Modal */}
+      <DigitalReceiptModal
+        order={order}
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        addonMap={addonMap}
       />
     </div>
   );

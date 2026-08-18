@@ -248,7 +248,8 @@ export const api = {
       return requestApiStrict<Order>(`/orders/lookup?number=${encodeURIComponent(number)}`, { method: "GET" });
     },
     create: async (
-      order: Omit<Order, "id" | "createdAt" | "updatedAt" | "total"> & {
+      order: Omit<Order, "id" | "createdAt" | "updatedAt" | "total" | "items" | "status"> & {
+        status?: Order["status"];
         items: Array<{
           menuItemId: string;
           quantity: number;

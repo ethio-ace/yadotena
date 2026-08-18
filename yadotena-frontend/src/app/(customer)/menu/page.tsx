@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
@@ -8,7 +8,7 @@ import { MenuItem } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Clock, Star } from "lucide-react";
+import { Search, Clock, Star, Utensils } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
 import { SortSelect, sortCatalogItems, SortKey } from "@/components/customer/SortSelect";
@@ -16,6 +16,7 @@ import { TopProductsRow } from "@/components/customer/TopProductsRow";
 import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
 import { isRetailProduct } from "@/lib/orderUtils";
+import { useCustomerDineIn } from "@/contexts/CustomerDineInContext";
 
 function MenuContent() {
   const { data: menu, isLoading: isMenuLoading } = useQuery({
@@ -35,6 +36,16 @@ function MenuContent() {
 
   const searchParams = useSearchParams();
   const initialCategoryParam = searchParams.get("category");
+  const tableQueryParam = searchParams.get("table");
+
+  const { tableId, tableName, setTableId, setIsTablePickerOpen } = useCustomerDineIn();
+
+  // If table query param is passed in URL (e.g. from scanning QR code), automatically set active table!
+  useEffect(() => {
+    if (tableQueryParam && tableQueryParam !== tableId) {
+      setTableId(tableQueryParam);
+    }
+  }, [tableQueryParam, tableId, setTableId]);
 
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState(initialCategoryParam || "All");
@@ -113,6 +124,12 @@ function MenuContent() {
               <Clock className="h-3 w-3 mr-1 text-primary" />
               15-25 min avg prep
             </Badge>
+            {tableId && (
+              <Badge className="bg-primary text-primary-foreground font-black px-3 py-0.5 text-xs shadow-sm">
+                <Utensils className="h-3 w-3 mr-1" />
+                Seated at {tableName}
+              </Badge>
+            )}
           </div>
 
           <div className="flex items-start gap-3">
@@ -126,7 +143,9 @@ function MenuContent() {
                 Explore the Yadotena Café
               </h1>
               <p className="text-muted-foreground text-xs md:text-sm mt-0.5 font-medium max-w-xl">
-                Farm-fresh dairy, artisan kitchen meals, coffees &amp; teas, and over-the-counter retail — all in one menu.
+                {tableId
+                  ? `Ordering for ${tableName}. Select your dishes and add-ons to send your order straight to our kitchen!`
+                  : "Farm-fresh dairy, artisan kitchen meals, coffees & teas. Scan table QR code to order directly!"}
               </p>
             </div>
           </div>
@@ -229,7 +248,7 @@ function MenuContent() {
         )}
       </div>
 
-      {/* Item Detail Modal (view-only — customers cannot order) */}
+      {/* Item Detail Modal */}
       <ItemDetailModal
         item={selectedItemForModal}
         isOpen={!!selectedItemForModal}
@@ -240,6 +259,8 @@ function MenuContent() {
 }
 
 function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () => void }) {
+  const { tableId } = useCustomerDineIn();
+
   return (
     <Card
       onClick={onOpenModal}
@@ -295,12 +316,17 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
           )}
         </div>
 
-        {/* Price Tag */}
+        {/* Price Tag & Add Button */}
         <div className="pt-3 border-t border-muted/50 flex items-center justify-between">
           <div>
             <span className="text-[10px] text-muted-foreground block font-bold uppercase">Price</span>
             <span className="font-black text-xl text-primary">{formatETB(item.price)}</span>
           </div>
+
+          <Button size="sm" className="rounded-2xl font-bold px-3.5 gap-1 shadow-md shadow-primary/20">
+            <Utensils className="h-3.5 w-3.5" />
+            <span>{tableId ? "Order" : "View"}</span>
+          </Button>
         </div>
       </div>
     </Card>

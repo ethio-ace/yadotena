@@ -8,8 +8,12 @@ import { BookOpen, Receipt, Search } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
+import { CustomerDineInProvider } from "@/contexts/CustomerDineInContext";
+import { CustomerTableBanner } from "@/components/customer/CustomerTableBanner";
+import { TablePickerModal } from "@/components/customer/TablePickerModal";
+import { CustomerDineInCart } from "@/components/customer/CustomerDineInCart";
 
-export default function CustomerLayout({ children }: { children: React.ReactNode }) {
+function CustomerHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const [trackOpen, setTrackOpen] = useState(false);
@@ -25,9 +29,12 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   };
 
   return (
-    <div className="min-h-screen bg-background relative shadow-2xl flex flex-col">
-      {/* Public Digital Menu & Store Header */}
-      <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-md border-b px-4 md:px-8 py-3 flex items-center justify-between shadow-sm">
+    <>
+      {/* Table Banner */}
+      <CustomerTableBanner />
+
+      {/* Public Header */}
+      <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-md border-b px-4 md:px-8 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
           <Link href="/menu" className="flex items-center gap-2.5 group">
             <img
@@ -48,9 +55,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
         <div className="flex items-center gap-2 sm:gap-3">
           <Link href="/menu">
-            <Button 
-              variant={pathname === "/menu" ? "default" : "ghost"} 
-              size="sm" 
+            <Button
+              variant={pathname === "/menu" ? "default" : "ghost"}
+              size="sm"
               className={`rounded-full text-xs font-black h-9 px-4 gap-1.5 transition-all ${
                 pathname === "/menu" ? "shadow-md shadow-primary/20" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -61,9 +68,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           </Link>
 
           <Link href="/shop">
-            <Button 
-              variant={pathname === "/shop" ? "default" : "ghost"} 
-              size="sm" 
+            <Button
+              variant={pathname === "/shop" ? "default" : "ghost"}
+              size="sm"
               className={`rounded-full text-xs font-black h-9 px-4 gap-1.5 transition-all ${
                 pathname === "/shop" ? "shadow-md shadow-primary/20" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -74,7 +81,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
           <div className="h-4 w-[1px] bg-border mx-1 hidden sm:block" />
 
-          {/* Track Order by number (no login) */}
+          {/* Track Order by number */}
           <div className="relative">
             <Button
               variant="outline"
@@ -117,11 +124,25 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           <ThemeToggle />
         </div>
       </header>
+    </>
+  );
+}
 
-      {/* Main Content Area */}
-      <main className="flex-1">
-        {children}
-      </main>
-    </div>
+export default function CustomerLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <CustomerDineInProvider>
+      <div className="min-h-screen bg-background relative shadow-2xl flex flex-col">
+        <CustomerHeader />
+        
+        {/* Table Picker & Cart UI Modals */}
+        <TablePickerModal />
+        <CustomerDineInCart />
+
+        {/* Main Content Area */}
+        <main className="flex-1 pb-20 sm:pb-8">
+          {children}
+        </main>
+      </div>
+    </CustomerDineInProvider>
   );
 }

@@ -11,6 +11,7 @@ import {
   BarChart3,
   Users,
   ScrollText,
+  Activity,
 } from "lucide-react";
 import { Role } from "@/types";
 
@@ -62,8 +63,11 @@ export const managerNavGroups: NavGroup[] = [
     ],
   },
   {
-    group: "AUDIT",
-    items: [{ name: "Activity Logs", href: "/dashboard/logs", icon: ScrollText }],
+    group: "ACTIVITY",
+    items: [
+      { name: "Activity Feed", href: "/dashboard/activity", icon: Activity },
+      { name: "Audit Log", href: "/dashboard/logs", icon: ScrollText },
+    ],
   },
   {
     group: "SETTINGS",

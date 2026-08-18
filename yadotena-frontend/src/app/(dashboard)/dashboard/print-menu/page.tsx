@@ -40,9 +40,6 @@ export default function PrintableMenuPage() {
   const [mode, setMode] = useState<Mode>("design");
   const [template, setTemplate] = useState<MenuTemplate>(() => loadTemplate());
   const [savedFlash, setSavedFlash] = useState(false);
-  // On phones the editor and preview can't sit side by side, so the design
-  // workspace gets an internal Edit / Live Preview switch (both stay in sync).
-  const [mobilePane, setMobilePane] = useState<"editor" | "preview">("editor");
 
   // Auto-save whenever the template changes; flash a subtle "Saved" chip.
   useEffect(() => {
@@ -170,7 +167,10 @@ export default function PrintableMenuPage() {
     if (!el) return;
     const compute = () => {
       const sheetPx = (pageSizeMm(template.page.size).w / 25.4) * 96;
-      setZoom(Math.min(1, Math.max(0.3, (el.clientWidth - 32) / sheetPx)));
+      // Floor stays low so the sheet still fits the right-hand pane when the
+      // editor takes its column on narrow screens — the sheet is always
+      // visible beside the settings, never hidden behind a toggle.
+      setZoom(Math.min(1, Math.max(0.14, (el.clientWidth - 24) / sheetPx)));
     };
     compute();
     const ro = new ResizeObserver(compute);
@@ -276,32 +276,9 @@ export default function PrintableMenuPage() {
 
       {/* ── Design mode: editor + live sheet ───────────────────────── */}
       {mode === "design" && (
-        <div className="space-y-4">
-          {/* Mobile: switch between the settings and the live sheet. */}
-          <div className="md:hidden print:hidden sticky top-16 z-30 flex items-center gap-1 bg-background/90 backdrop-blur border p-1 rounded-2xl text-xs font-bold shadow-sm">
-            {(
-              [
-                { id: "editor" as const, label: "⚙️ Edit settings" },
-                { id: "preview" as const, label: "👁 Live preview" },
-              ]
-            ).map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setMobilePane(t.id)}
-                aria-pressed={mobilePane === t.id}
-                className={cn(
-                  "flex-1 py-2 px-3 rounded-xl transition-all",
-                  mobilePane === t.id ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(280px,320px)_1fr] lg:grid-cols-[minmax(300px,360px)_1fr] gap-6 items-start">
-          {/* Editor panel */}
-          <div className={cn("space-y-4 print:hidden", mobilePane === "preview" && "hidden md:block")}>
+        <div className="grid grid-cols-[minmax(220px,260px)_minmax(0,1fr)] sm:grid-cols-[minmax(250px,290px)_minmax(0,1fr)] lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)] gap-4 lg:gap-6 items-start">
+          {/* Editor panel — the preview always sits beside it, same page. */}
+          <div className="space-y-4 print:hidden min-w-0">
             {/* Page & theme */}
             <section className="bg-card rounded-2xl border shadow-sm p-4 space-y-3.5">
               <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Page &amp; Theme</h3>
@@ -585,13 +562,10 @@ export default function PrintableMenuPage() {
             </section>
           </div>
 
-          {/* Live sheet preview */}
+          {/* Live sheet preview — always visible beside the editor. */}
           <div
             ref={previewRef}
-            className={cn(
-              "bg-muted/30 border rounded-2xl p-4 overflow-x-auto md:sticky md:top-4 print:hidden",
-              mobilePane === "editor" && "hidden md:block"
-            )}
+            className="bg-muted/30 border rounded-2xl p-3 sm:p-4 overflow-x-auto md:sticky md:top-4 print:hidden min-w-0"
           >
             <div className="flex items-center justify-between mb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
               <span>Live preview · {template.page.size} · {sections.length} sections</span>
@@ -608,7 +582,6 @@ export default function PrintableMenuPage() {
                 />
               </div>
             </div>
-          </div>
           </div>
         </div>
       )}

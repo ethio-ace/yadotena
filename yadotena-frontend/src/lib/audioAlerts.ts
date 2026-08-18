@@ -57,16 +57,43 @@ class SoundAlertManager {
   }
 
   /**
-   * Rate limit a sound to prevent annoying repetition
-   * Returns true if sound should play, false if too soon
+   * Rate limit a sound to prevent annoying repetition.
+   * Two layers of protection:
+   * 1. Per-sound cooldown (e.g. new_order can't repeat within 8s)
+   * 2. Global cooldown (no sound of ANY kind can play within 800ms)
    */
+  private lastAnySound: number = 0;
+
   private canPlay(soundId: string, minIntervalMs: number): boolean {
     const now = Date.now();
+    
+    // Global cooldown: no two sounds within 800ms of each other
+    if (now - this.lastAnySound < 800) {
+      return false;
+    }
+    
+    // Per-sound cooldown
     const last = this.lastPlayed.get(soundId) || 0;
     if (now - last < minIntervalMs) {
       return false;
     }
+    
     this.lastPlayed.set(soundId, now);
+    this.lastAnySound = now;
+    return true;
+  }
+
+  /**
+   * Force-play a sound bypassing rate limits (for test buttons only)
+   */
+  private canPlayTest(soundId: string): boolean {
+    const now = Date.now();
+    // Only enforce global cooldown for tests, skip per-sound
+    if (now - this.lastAnySound < 400) {
+      return false;
+    }
+    this.lastPlayed.set(soundId, now);
+    this.lastAnySound = now;
     return true;
   }
 
@@ -109,7 +136,7 @@ class SoundAlertManager {
    * Warm, inviting, not alarming
    */
   public playNewOrder(volume: number = 0.6): void {
-    if (!this.canPlay("new_order", 8000)) return;
+    if (!this.canPlay("new_order", 5000)) return;
     
     try {
       const ctx = this.getAudioContext();
@@ -179,7 +206,7 @@ class SoundAlertManager {
    * Gentle two-tone (C5 → E5) - attention-getting but not piercing
    */
   public playWaiterCall(volume: number = 0.65): void {
-    if (!this.canPlay("waiter_call", 10000)) return;
+    if (!this.canPlay("waiter_call", 4000)) return;
     
     try {
       const ctx = this.getAudioContext();
@@ -199,7 +226,7 @@ class SoundAlertManager {
    * Three-note pattern (G4 → B4 → G4) - distinct from waiter call
    */
   public playBillRequest(volume: number = 0.65): void {
-    if (!this.canPlay("bill_request", 10000)) return;
+    if (!this.canPlay("bill_request", 4000)) return;
     
     try {
       const ctx = this.getAudioContext();

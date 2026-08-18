@@ -118,11 +118,13 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
   }, [isMobileMenuOpen]);
 
   // Close popups when clicking anywhere outside them.
-  const popoverRef = useRef<HTMLDivElement>(null);
+  // Use a single wrapper ref that encompasses BOTH popups so clicking
+  // inside the audio controls panel doesn't get treated as "outside".
+  const popupsWrapperRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!showNotifications && !showAudioControls) return;
     const onMouseDown = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      if (popupsWrapperRef.current && !popupsWrapperRef.current.contains(e.target as Node)) {
         setShowNotifications(false);
         setShowAudioControls(false);
       }
@@ -264,7 +266,7 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
         </div>
 
         <div className="flex items-center gap-3 md:gap-4">
-          <div className="flex items-center gap-2 relative">
+          <div className="flex items-center gap-2 relative" ref={popupsWrapperRef}>
             <ThemeToggle />
 
             {/* Audio Alert Settings & Mute Toggle */}
@@ -380,7 +382,7 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
             </div>
 
             {/* Service Request & Alerts Notification Dropdown */}
-            <div className="relative" ref={popoverRef}>
+            <div className="relative">
               <Button 
                 variant={pendingServiceRequests.length > 0 ? "default" : "ghost"} 
                 size="icon" 

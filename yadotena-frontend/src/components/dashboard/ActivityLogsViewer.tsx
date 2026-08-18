@@ -12,8 +12,9 @@ import {
   Activity, Search, Shield, User, ChefHat, ShoppingCart, 
   CreditCard, Grid, MenuSquare, RefreshCw, X, 
   FileDiff, Clock, Sparkles, Download, Filter, Calendar, Laptop, 
-  ChevronDown, ChevronUp, ListFilter
+  ChevronDown, ChevronUp, ListFilter, PlusCircle, MinusCircle, ArrowRightCircle, PencilLine
 } from "lucide-react";
+import { countChangedFields, ChangeSummary, summarizeChanges } from "@/lib/activitySummary";
 
 /**
  * Line-based diff between two JSON values using a longest-common-subsequence
@@ -62,19 +63,12 @@ function isLongValue(v: unknown): boolean {
   return String(v).length > 48;
 }
 
-/** Number of attributes that actually changed between two snapshots. */
-function countChangedFields(prevState: unknown, nextState: unknown): number {
-  const parse = (v: unknown): Record<string, unknown> => {
-    if (typeof v === "string") {
-      try { return JSON.parse(v) as Record<string, unknown>; } catch { return {}; }
-    }
-    return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
-  };
-  const prevObj = parse(prevState);
-  const nextObj = parse(nextState);
-  const keys = Array.from(new Set([...Object.keys(prevObj), ...Object.keys(nextObj)])).filter((k) => k !== "updatedAt" && k !== "createdAt");
-  return keys.filter((k) => JSON.stringify(prevObj[k]) !== JSON.stringify(nextObj[k])).length;
-}
+const SUMMARY_ICONS: Record<ChangeSummary["kind"], React.ReactNode> = {
+  added: <PlusCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-px" />,
+  removed: <MinusCircle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 shrink-0 mt-px" />,
+  status: <ArrowRightCircle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-px" />,
+  changed: <PencilLine className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 shrink-0 mt-px" />,
+};
 
 export interface ActivityLogItem {
   id: string;
@@ -114,6 +108,8 @@ export function ActivityLogsViewer({
   const [changesOnly, setChangesOnly] = useState(false);
   // Expanded long line-diffs inside the inspect modal, keyed by attribute name.
   const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
+  // The inspect modal shows a human summary first; the raw table is behind this.
+  const [showTechnicalDiff, setShowTechnicalDiff] = useState(false);
 
   // Compute date range based on timeframeFilter
   const getDateRange = () => {
@@ -238,7 +234,13 @@ export function ActivityLogsViewer({
 
     const allKeys = Array.from(
       new Set([...Object.keys(prevObj || {}), ...Object.keys(nextObj || {})])
-    ).filter((k) => k !== "updatedAt" && k !== "createdAt");
+    ).filter(
+      (k) =>
+        k !== "updatedAt" &&
+        k !== "createdAt" &&
+        // Only fields that actually changed — never show untouched attributes.
+        JSON.stringify(prevObj[k]) !== JSON.stringify(nextObj[k])
+    );
 
     if (allKeys.length === 0) {
       return (
@@ -698,14 +700,71 @@ export function ActivityLogsViewer({
                 </div>
               </div>
 
-              {/* Side-by-Side Data Diff Visualizer */}
-              <div className="flex-1 overflow-y-auto space-y-2">
-                <h4 className="font-black text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <FileDiff className="h-4 w-4 text-primary" />
-                  <span>Attribute State Comparison (Previous vs. Current)</span>
-                </h4>
+              <div className="flex-1 overflow-y-auto space-y-4">
+                {/* ── What changed — human-readable summary ─────────── */}
+                {(() => {
+                  const summaries = summarizeChanges(
+                    inspectingLog.entityType,
+                    inspectingLog.prevState,
+                    inspectingLog.nextState
+                  );
+                  return (
+                    <div>
+                      <h4 className="font-black text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <span>What changed</span>
+                        {summaries.length > 0 && (
+                          <span className="ml-auto font-mono text-[10px] normal-case text-muted-foreground/70">
+                            {summaries.length} change{summaries.length !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </h4>
+                      {summaries.length === 0 ? (
+                        <div className="mt-2 p-4 text-center text-xs text-muted-foreground italic bg-muted/20 rounded-2xl border">
+                          This action recorded no field-level changes — no before/after snapshot was captured.
+                        </div>
+                      ) : (
+                        <ul className="mt-2 space-y-1.5">
+                          {summaries.map((s, i) => (
+                            <li
+                              key={i}
+                              className="flex items-start gap-2.5 rounded-xl border bg-muted/20 px-3 py-2.5 text-xs"
+                            >
+                              {SUMMARY_ICONS[s.kind]}
+                              <div className="min-w-0">
+                                <p className="font-bold text-foreground leading-snug break-words">{s.text}</p>
+                                {s.detail && <p className="mt-0.5 text-[11px] text-muted-foreground">{s.detail}</p>}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })()}
 
-                {renderStateDiff(inspectingLog.prevState, inspectingLog.nextState)}
+                {/* ── Technical field diff — collapsed by default ──── */}
+                {(inspectingLog.prevState || inspectingLog.nextState) && (
+                  <div className="border-t pt-3">
+                    <button
+                      onClick={() => setShowTechnicalDiff((v) => !v)}
+                      aria-expanded={showTechnicalDiff}
+                      className="w-full flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <FileDiff className="h-4 w-4 text-primary" />
+                      <span>Technical field diff</span>
+                      {showTechnicalDiff ? <ChevronUp className="h-3.5 w-3.5 ml-auto" /> : <ChevronDown className="h-3.5 w-3.5 ml-auto" />}
+                    </button>
+                    {showTechnicalDiff && (
+                      <div className="mt-3">
+                        <p className="mb-2 text-[11px] text-muted-foreground italic">
+                          Only attributes that changed are listed below — unchanged fields are hidden.
+                        </p>
+                        {renderStateDiff(inspectingLog.prevState, inspectingLog.nextState)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Modal Footer with Action Navigation */}

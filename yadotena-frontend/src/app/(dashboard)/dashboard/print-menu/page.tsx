@@ -40,6 +40,9 @@ export default function PrintableMenuPage() {
   const [mode, setMode] = useState<Mode>("design");
   const [template, setTemplate] = useState<MenuTemplate>(() => loadTemplate());
   const [savedFlash, setSavedFlash] = useState(false);
+  // On phones the editor and preview can't sit side by side, so the design
+  // workspace gets an internal Edit / Live Preview switch (both stay in sync).
+  const [mobilePane, setMobilePane] = useState<"editor" | "preview">("editor");
 
   // Auto-save whenever the template changes; flash a subtle "Saved" chip.
   useEffect(() => {
@@ -273,9 +276,32 @@ export default function PrintableMenuPage() {
 
       {/* ── Design mode: editor + live sheet ───────────────────────── */}
       {mode === "design" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(300px,360px)_1fr] gap-6 items-start">
+        <div className="space-y-4">
+          {/* Mobile: switch between the settings and the live sheet. */}
+          <div className="md:hidden print:hidden sticky top-16 z-30 flex items-center gap-1 bg-background/90 backdrop-blur border p-1 rounded-2xl text-xs font-bold shadow-sm">
+            {(
+              [
+                { id: "editor" as const, label: "⚙️ Edit settings" },
+                { id: "preview" as const, label: "👁 Live preview" },
+              ]
+            ).map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setMobilePane(t.id)}
+                aria-pressed={mobilePane === t.id}
+                className={cn(
+                  "flex-1 py-2 px-3 rounded-xl transition-all",
+                  mobilePane === t.id ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(280px,320px)_1fr] lg:grid-cols-[minmax(300px,360px)_1fr] gap-6 items-start">
           {/* Editor panel */}
-          <div className="space-y-4 print:hidden">
+          <div className={cn("space-y-4 print:hidden", mobilePane === "preview" && "hidden md:block")}>
             {/* Page & theme */}
             <section className="bg-card rounded-2xl border shadow-sm p-4 space-y-3.5">
               <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Page &amp; Theme</h3>
@@ -560,7 +586,13 @@ export default function PrintableMenuPage() {
           </div>
 
           {/* Live sheet preview */}
-          <div ref={previewRef} className="bg-muted/30 border rounded-2xl p-4 overflow-x-auto lg:sticky lg:top-4 print:hidden">
+          <div
+            ref={previewRef}
+            className={cn(
+              "bg-muted/30 border rounded-2xl p-4 overflow-x-auto md:sticky md:top-4 print:hidden",
+              mobilePane === "editor" && "hidden md:block"
+            )}
+          >
             <div className="flex items-center justify-between mb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
               <span>Live preview · {template.page.size} · {sections.length} sections</span>
               <span>{Math.round(zoom * 100)}%</span>
@@ -576,6 +608,7 @@ export default function PrintableMenuPage() {
                 />
               </div>
             </div>
+          </div>
           </div>
         </div>
       )}

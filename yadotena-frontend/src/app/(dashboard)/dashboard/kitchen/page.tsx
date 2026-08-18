@@ -179,9 +179,21 @@ export default function KitchenDashboard() {
           : `${message} — Kitchen state refreshed.`
       );
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       setUpdatingOrderId(null);
-      if (soundEnabled) soundAlerts.playActionConfirm();
+      if (soundEnabled) {
+        // Play the RIGHT sound for each kitchen action
+        const { action } = variables;
+        if (action === "ready") {
+          soundAlerts.playOrderReady();   // 🍽️ "Ding-ding!" — food ready for pickup
+        } else if (action === "start") {
+          soundAlerts.playActionConfirm(); // ✅ Kitchen started prep
+        } else if (action === "serve") {
+          soundAlerts.playOrderCompleted(); // ✅ Served to customer
+        } else if (action === "cancel") {
+          soundAlerts.playError();          // ❌ Item cancelled
+        }
+      }
     },
     onSettled: () => {
       setUpdatingOrderId(null);

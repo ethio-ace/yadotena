@@ -14,6 +14,15 @@ interface SoundNotificationContextType {
   setVolume: (val: number) => void;
   pendingOrders: Order[];
   pendingServiceRequests: ServiceRequest[];
+  // Play specific sounds (used by pages)
+  playNewOrder: () => void;
+  playOrderReady: () => void;
+  playOrderCompleted: () => void;
+  playWaiterCall: () => void;
+  playBillRequest: () => void;
+  playPaymentReceived: () => void;
+  playActionConfirm: () => void;
+  playError: () => void;
   // Test sounds
   testNewOrder: () => void;
   testWaiterCall: () => void;
@@ -149,7 +158,56 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
     prevRequestCountRef.current = pendingServiceRequests.length;
   }, [isMuted, volume, pendingOrders.length, pendingServiceRequests.length, session?.user?.role]);
 
-  // Test sound functions
+  // Play-specific sound functions (for pages to call directly)
+  const playNewOrder = useCallback(() => {
+    if (isMuted) return;
+    unlockAudio();
+    soundAlerts.playNewOrder(volume);
+  }, [isMuted, unlockAudio, volume]);
+
+  const playOrderReady = useCallback(() => {
+    if (isMuted) return;
+    unlockAudio();
+    soundAlerts.playOrderReady(volume);
+  }, [isMuted, unlockAudio, volume]);
+
+  const playOrderCompleted = useCallback(() => {
+    if (isMuted) return;
+    unlockAudio();
+    soundAlerts.playOrderCompleted(volume);
+  }, [isMuted, unlockAudio, volume]);
+
+  const playWaiterCall = useCallback(() => {
+    if (isMuted) return;
+    unlockAudio();
+    soundAlerts.playWaiterCall(volume);
+  }, [isMuted, unlockAudio, volume]);
+
+  const playBillRequest = useCallback(() => {
+    if (isMuted) return;
+    unlockAudio();
+    soundAlerts.playBillRequest(volume);
+  }, [isMuted, unlockAudio, volume]);
+
+  const playPaymentReceived = useCallback(() => {
+    if (isMuted) return;
+    unlockAudio();
+    soundAlerts.playPaymentReceived(volume);
+  }, [isMuted, unlockAudio, volume]);
+
+  const playActionConfirm = useCallback(() => {
+    if (isMuted) return;
+    unlockAudio();
+    soundAlerts.playActionConfirm(volume);
+  }, [isMuted, unlockAudio, volume]);
+
+  const playError = useCallback(() => {
+    if (isMuted) return;
+    unlockAudio();
+    soundAlerts.playError(volume);
+  }, [isMuted, unlockAudio, volume]);
+
+  // Test sound functions (bypass mute for testing)
   const testNewOrder = useCallback(() => {
     unlockAudio();
     soundAlerts.playNewOrder(volume);
@@ -188,6 +246,14 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
         setVolume,
         pendingOrders,
         pendingServiceRequests,
+        playNewOrder,
+        playOrderReady,
+        playOrderCompleted,
+        playWaiterCall,
+        playBillRequest,
+        playPaymentReceived,
+        playActionConfirm,
+        playError,
         testNewOrder,
         testWaiterCall,
         testBillRequest,
@@ -214,6 +280,14 @@ export function useSoundNotifications() {
       setVolume: () => {},
       pendingOrders: [],
       pendingServiceRequests: [],
+      playNewOrder: () => {},
+      playOrderReady: () => {},
+      playOrderCompleted: () => {},
+      playWaiterCall: () => {},
+      playBillRequest: () => {},
+      playPaymentReceived: () => {},
+      playActionConfirm: () => {},
+      playError: () => {},
       testNewOrder: () => {},
       testWaiterCall: () => {},
       testBillRequest: () => {},

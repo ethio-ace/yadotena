@@ -108,8 +108,16 @@ export default function WaiterWorkspacePage() {
   });
 
   const resolveRequestMutation = useMutation({
-    mutationFn: (id: string) => api.serviceRequests.resolve(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["serviceRequests"] }); soundAlerts.playActionConfirm(); },
+    mutationFn: ({ id, type }: { id: string; type: string }) => api.serviceRequests.resolve(id),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
+      // Play the RIGHT sound based on what was resolved
+      if (variables.type === "BILL") {
+        soundAlerts.playBillRequest();  // 🧾 Bill settled
+      } else {
+        soundAlerts.playWaiterCall();   // 🛎️ Table call answered
+      }
+    },
     onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "Couldn't resolve that request."); },
   });
 

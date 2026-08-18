@@ -162,6 +162,114 @@ export function getDateRange(
   }
 }
 
+/**
+ * The equivalent period right before `range`, used for "vs last period"
+ * comparisons. Mirrors each range key's natural predecessor:
+ * today → yesterday, this week → previous week, this month → last month,
+ * 3 months → previous 3 months, year → last year. Custom ranges shift back
+ * by exactly their own length so the comparison is apples-to-apples.
+ */
+export function getPreviousDateRange(range: DateRange, rangeKey: OwnerRange): DateRange {
+  switch (rangeKey) {
+    case "yesterday": {
+      const d = new Date(`${range.from}T00:00:00`);
+      d.setDate(d.getDate() - 1);
+      return {
+        from: fmtDate(d),
+        to: fmtDate(d),
+        fromInstant: localMidnightISO(d),
+        toInstant: localEndOfDayISO(d),
+        label: "Day Before",
+        display: displayRange(fmtDate(d), fmtDate(d)),
+      };
+    }
+    case "week": {
+      const monday = new Date(`${range.from}T00:00:00`);
+      monday.setDate(monday.getDate() - 7);
+      const sunday = new Date(`${range.to}T00:00:00`);
+      sunday.setDate(sunday.getDate() - 7);
+      return {
+        from: fmtDate(monday),
+        to: fmtDate(sunday),
+        fromInstant: localMidnightISO(monday),
+        toInstant: localEndOfDayISO(sunday),
+        label: "Last Week",
+        display: displayRange(fmtDate(monday), fmtDate(sunday)),
+      };
+    }
+    case "month": {
+      const fromDate = new Date(`${range.from}T00:00:00`);
+      const prev = new Date(fromDate.getFullYear(), fromDate.getMonth() - 1, 1);
+      const prevEnd = new Date(prev.getFullYear(), prev.getMonth() + 1, 0);
+      return {
+        from: fmtDate(prev),
+        to: fmtDate(prevEnd),
+        fromInstant: localMidnightISO(prev),
+        toInstant: localEndOfDayISO(prevEnd),
+        label: "Last Month",
+        display: displayRange(fmtDate(prev), fmtDate(prevEnd)),
+      };
+    }
+    case "quarter": {
+      const fromDate = new Date(`${range.from}T00:00:00`);
+      const prevStart = new Date(fromDate.getFullYear(), fromDate.getMonth() - 3, 1);
+      const prevEnd = new Date(fromDate.getFullYear(), fromDate.getMonth() - 1, 0);
+      return {
+        from: fmtDate(prevStart),
+        to: fmtDate(prevEnd),
+        fromInstant: localMidnightISO(prevStart),
+        toInstant: localEndOfDayISO(prevEnd),
+        label: "Previous 3 Months",
+        display: displayRange(fmtDate(prevStart), fmtDate(prevEnd)),
+      };
+    }
+    case "year": {
+      const fromDate = new Date(`${range.from}T00:00:00`);
+      return {
+        from: fmtDate(new Date(fromDate.getFullYear() - 1, 0, 1)),
+        to: fmtDate(new Date(fromDate.getFullYear() - 1, 11, 31)),
+        fromInstant: localMidnightISO(new Date(fromDate.getFullYear() - 1, 0, 1)),
+        toInstant: localEndOfDayISO(new Date(fromDate.getFullYear() - 1, 11, 31)),
+        label: "Last Year",
+        display: displayRange(
+          fmtDate(new Date(fromDate.getFullYear() - 1, 0, 1)),
+          fmtDate(new Date(fromDate.getFullYear() - 1, 11, 31))
+        ),
+      };
+    }
+    case "custom": {
+      const fromDate = new Date(`${range.from}T00:00:00`);
+      const toDate = new Date(`${range.to}T00:00:00`);
+      const days = Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
+      const prevTo = new Date(fromDate);
+      prevTo.setDate(prevTo.getDate() - 1);
+      const prevFrom = new Date(prevTo);
+      prevFrom.setDate(prevFrom.getDate() - (days - 1));
+      return {
+        from: fmtDate(prevFrom),
+        to: fmtDate(prevTo),
+        fromInstant: localMidnightISO(prevFrom),
+        toInstant: localEndOfDayISO(prevTo),
+        label: "Previous Period",
+        display: displayRange(fmtDate(prevFrom), fmtDate(prevTo)),
+      };
+    }
+    case "today":
+    default: {
+      const yesterday = new Date(`${range.from}T00:00:00`);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return {
+        from: fmtDate(yesterday),
+        to: fmtDate(yesterday),
+        fromInstant: localMidnightISO(yesterday),
+        toInstant: localEndOfDayISO(yesterday),
+        label: "Yesterday",
+        display: displayRange(fmtDate(yesterday), fmtDate(yesterday)),
+      };
+    }
+  }
+}
+
 /** Shape returned by `GET /staff/analytics?from&to` (server aggregation). */
 export interface OwnerAnalytics {
   from: string;
@@ -238,6 +346,53 @@ export interface OwnerMetrics {
   paymentMix: PaymentMixEntry[];
   /** Zero-filled daily revenue series (server-computed). */
   daily: { date: string; revenue: number }[];
+  /** Zero-filled daily expense series (same day grid as `daily`). */
+  dailyExpenses: { date: string; amount: number }[];
+  /** Revenue and order count bucketed by local hour of day (0–23). */
+  hourly: { hour: string; revenue: number; orders: number }[];
+}
+
+/**
+ * Current-vs-previous-period comparison. Percentages are rounded to one
+ * decimal; `null` means the previous period had a zero baseline (so a
+ * percentage would be meaningless/infinite).
+ */
+export interface PeriodComparison {
+  /** Human label of the previous period, e.g. "Yesterday". */
+  previousLabel: string;
+  previousRevenue: number;
+  previousPaidOrders: number;
+  previousAverageTicket: number;
+  previousExpenses: number;
+  currentNet: number;
+  previousNet: number;
+  revenuePct: number | null;
+  paidOrdersPct: number | null;
+  averageTicketPct: number | null;
+  expensesPct: number | null;
+  netPct: number | null;
+}
+
+function pctChange(current: number, previous: number): number | null {
+  if (previous === 0) return null;
+  return Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
+export function comparePeriods(current: OwnerMetrics, previous: OwnerMetrics): PeriodComparison {
+  return {
+    previousLabel: previous.range.label,
+    previousRevenue: previous.revenue,
+    previousPaidOrders: previous.paidOrders,
+    previousAverageTicket: previous.averageTicket,
+    previousExpenses: previous.expenses,
+    currentNet: current.revenueMinusExpenses,
+    previousNet: previous.revenueMinusExpenses,
+    revenuePct: pctChange(current.revenue, previous.revenue),
+    paidOrdersPct: pctChange(current.paidOrders, previous.paidOrders),
+    averageTicketPct: pctChange(current.averageTicket, previous.averageTicket),
+    expensesPct: pctChange(current.expenses, previous.expenses),
+    netPct: pctChange(current.revenueMinusExpenses, previous.revenueMinusExpenses),
+  };
 }
 
 export function computeOwnerMetrics(opts: {
@@ -317,7 +472,16 @@ export function computeOwnerMetrics(opts: {
     const key = fmtDate(new Date(o.createdAt));
     dailyByDay.set(key, (dailyByDay.get(key) ?? 0) + (o.total || 0));
   }
+  // Daily expenses on the same day grid (for revenue-vs-expense charts).
+  const expensesByDay = new Map<string, number>();
+  for (const e of expenses) {
+    if (e.date >= range.from && e.date <= range.to) {
+      expensesByDay.set(e.date, (expensesByDay.get(e.date) ?? 0) + (e.amount || 0));
+    }
+  }
+
   const daily: { date: string; revenue: number }[] = [];
+  const dailyExpenses: { date: string; amount: number }[] = [];
   const cursor = new Date(`${range.from}T00:00:00`);
   const end = new Date(`${range.to}T00:00:00`);
   // Cap the zero-filled series — multi-year spans are bucketed on demand by
@@ -326,9 +490,29 @@ export function computeOwnerMetrics(opts: {
   while (cursor <= end && guard < 400) {
     const key = fmtDate(cursor);
     daily.push({ date: key, revenue: dailyByDay.get(key) ?? 0 });
+    dailyExpenses.push({ date: key, amount: expensesByDay.get(key) ?? 0 });
     cursor.setDate(cursor.getDate() + 1);
     guard++;
   }
+
+  // Hour-of-day revenue profile — zero-filled 24 slots so quiet hours show
+  // honest empty bars instead of disappearing.
+  const hourlyByHour = new Map<number, { revenue: number; orders: number }>();
+  for (const o of paidRangeOrders) {
+    const h = new Date(o.createdAt).getHours();
+    const cur = hourlyByHour.get(h) ?? { revenue: 0, orders: 0 };
+    cur.revenue += o.total || 0;
+    cur.orders += 1;
+    hourlyByHour.set(h, cur);
+  }
+  const hourLabels = [
+    "12a", "1a", "2a", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a",
+    "12p", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p",
+  ];
+  const hourly: { hour: string; revenue: number; orders: number }[] = hourLabels.map((label, h) => {
+    const cur = hourlyByHour.get(h) ?? { revenue: 0, orders: 0 };
+    return { hour: label, revenue: cur.revenue, orders: cur.orders };
+  });
 
   return {
     range,
@@ -337,6 +521,8 @@ export function computeOwnerMetrics(opts: {
     averageTicket,
     expenses: expensesInRange,
     revenueMinusExpenses: revenue - expensesInRange,
+    dailyExpenses,
+    hourly,
     unpaidOrders,
     outOfStock,
     pendingVerification,

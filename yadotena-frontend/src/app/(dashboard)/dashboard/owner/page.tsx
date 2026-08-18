@@ -7,14 +7,19 @@ import { useSidebarCollapse } from "@/hooks/useSidebarCollapse";
 import { OwnerSidebar } from "@/components/owner/OwnerSidebar";
 import { OwnerHeader } from "@/components/owner/OwnerHeader";
 import { DateRangeSelector } from "@/components/owner/DateRangeSelector";
+import { ComparisonBar } from "@/components/owner/PeriodCompare";
 import { BusinessSnapshot } from "@/components/owner/BusinessSnapshot";
 import { AttentionCenter } from "@/components/owner/AttentionCenter";
+import { RevenueExpenseChart } from "@/components/owner/RevenueExpenseChart";
+import { HourlyProfile } from "@/components/owner/HourlyProfile";
+import { Scale, Clock } from "lucide-react";
 import { TopProducts } from "@/components/owner/TopProducts";
 import { PaymentMix } from "@/components/owner/PaymentMix";
 import { ExpensesCard } from "@/components/owner/ExpensesCard";
 import { TodayActivity } from "@/components/owner/TodayActivity";
 import { useOwnerOps } from "@/hooks/useOwnerOps";
 import { CustomRange } from "@/lib/owner";
+import { formatETB } from "@/lib/currency";
 import { greetingForHour } from "@/lib/manager";
 
 const DrilldownTrend = dynamic(
@@ -35,6 +40,7 @@ export default function OwnerDashboardPage() {
     rangeKey,
     setRangeKey,
     metrics,
+    comparison,
     orders,
     expenses,
     recentActivity,
@@ -109,7 +115,8 @@ export default function OwnerDashboardPage() {
             ) : (
               <>
                 <AttentionCenter metrics={metrics} />
-                <BusinessSnapshot metrics={metrics} />
+                <ComparisonBar comparison={comparison} />
+                <BusinessSnapshot metrics={metrics} comparison={comparison} />
 
                 <div className="grid gap-4 lg:grid-cols-3">
                   <div className="lg:col-span-2">
@@ -121,6 +128,39 @@ export default function OwnerDashboardPage() {
                     />
                   </div>
                   <PaymentMix metrics={metrics} />
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <div className="lg:col-span-2 bg-card border rounded-2xl p-5 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="font-black text-sm text-foreground flex items-center gap-1.5">
+                          <Scale className="h-4 w-4 text-emerald-500" /> Revenue vs Recorded Expenses
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                          Daily bars · net in green · long periods auto-bucket to weeks
+                        </p>
+                      </div>
+                      <span className="text-[11px] font-black text-muted-foreground">
+                        Net {formatETB(metrics.revenueMinusExpenses)}
+                      </span>
+                    </div>
+                    <div className="mt-3">
+                      <RevenueExpenseChart metrics={metrics} />
+                    </div>
+                  </div>
+
+                  <div className="bg-card border rounded-2xl p-5 shadow-sm">
+                    <h3 className="font-black text-sm text-foreground flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 text-amber-500" /> Hourly Sales Profile
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                      Revenue by hour — spot rush windows
+                    </p>
+                    <div className="mt-3">
+                      <HourlyProfile metrics={metrics} />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-3">

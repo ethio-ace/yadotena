@@ -7,6 +7,8 @@ import { ChefHat, Phone, MapPin, CreditCard, QrCode } from "lucide-react";
 export interface MenuSheetSection {
   title: string;
   description?: string;
+  /** True when every item is an over-the-counter retail product. */
+  isShop?: boolean;
   items: {
     id: string;
     name: string;
@@ -128,9 +130,14 @@ export function MenuSheet({ template, sections, addons, payments, business, prin
           </div>
         </header>
 
-        {/* ── Sections ─────────────────────────────────────────────── */}
-        <div className={`mt-9 space-y-9 ${printing ? "" : ""}`}>
-          {sections.map((section) => (
+        {/* ── Café menu vs shop & groceries ───────────────────────── */}
+        {(() => {
+          const menuSections = sections.filter((s) => !s.isShop);
+          const shopSections = sections.filter((s) => s.isShop);
+          const showMenu = template.sections.showMenu && menuSections.length > 0;
+          const showShop = template.sections.showShop && shopSections.length > 0;
+
+          const renderSection = (section: MenuSheetSection) => (
             <section key={section.title} className="break-inside-avoid">
               <div className="flex items-center gap-4">
                 <h2
@@ -212,14 +219,43 @@ export function MenuSheet({ template, sections, addons, payments, business, prin
                 ))}
               </div>
             </section>
-          ))}
+          );
 
-          {sections.length === 0 && (
-            <p className="text-center italic" style={{ color: paper.muted }}>
-              No menu items yet — add dishes to the catalog first.
-            </p>
-          )}
-        </div>
+          return (
+            <div className="mt-9 space-y-9">
+              {showMenu && menuSections.map(renderSection)}
+
+              {showShop && (
+                <>
+                  {/* New page + master divider: shop is a separate department. */}
+                  {template.sections.shopOnNewPage && <div className="break-before-page" aria-hidden="true" />}
+                  <div className="flex items-center gap-4 pt-6">
+                    <span className="h-px flex-1" style={{ background: paper.rule }} />
+                    <h2
+                      className={`font-black uppercase ${scale.section}`}
+                      style={{ letterSpacing: "0.18em", color: accent, fontFamily: fontStack }}
+                    >
+                      Shop &amp; Groceries
+                    </h2>
+                    <span className="h-px flex-1" style={{ background: paper.rule }} />
+                  </div>
+                  <p className="mt-1 text-center italic" style={{ fontSize: "12px", color: paper.muted }}>
+                    Over-the-counter farm pantry — butter, honey, coffee packs &amp; spices
+                  </p>
+                  <div className="mt-6 space-y-9">
+                    {shopSections.map(renderSection)}
+                  </div>
+                </>
+              )}
+
+              {!showMenu && !showShop && (
+                <p className="text-center italic" style={{ color: paper.muted }}>
+                  No sections selected — enable café menu or shop items in the designer.
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Extras & Sides ───────────────────────────────────────── */}
         {template.extras.enabled && addons.length > 0 && (

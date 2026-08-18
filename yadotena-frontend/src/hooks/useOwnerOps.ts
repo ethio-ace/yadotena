@@ -4,7 +4,16 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Expense, MenuItem, Order, PaymentRecord } from "@/types";
-import { computeOwnerMetrics, CustomRange, getDateRange, OwnerMetrics, OwnerRange } from "@/lib/owner";
+import {
+  comparePeriods,
+  computeOwnerMetrics,
+  CustomRange,
+  getDateRange,
+  getPreviousDateRange,
+  OwnerMetrics,
+  OwnerRange,
+  PeriodComparison,
+} from "@/lib/owner";
 
 /**
  * Single source of truth for the owner's business snapshot.
@@ -31,12 +40,21 @@ export function useOwnerOps(rangeOverride?: OwnerRange, customRange?: CustomRang
   const rangeKey = isControlled ? rangeOverride : internalRangeKey;
   const setRangeKey = (r: OwnerRange) => setInternalRangeKey(r);
   const range = getDateRange(rangeKey, new Date(), customRange);
+  // The equivalent earlier window for "vs last period" deltas.
+  const previousRange = getPreviousDateRange(range, rangeKey);
 
   const orders = useQuery({
     // The cutoff is part of the key so switching ranges actually refetches
     // instead of serving the previously-fetched window.
     queryKey: ["orders", "owner", range.fromInstant],
     queryFn: () => api.orders.getAllSince(range.fromInstant),
+    refetchInterval: 60_000,
+  });
+
+  const previousOrders = useQuery({
+    queryKey: ["orders", "owner", "prev", previousRange.fromInstant],
+    queryFn: () => api.orders.getAllSince(previousRange.fromInstant),
+    // Only needed for the comparison; refresh on the same slow cadence.
     refetchInterval: 60_000,
   });
 
@@ -76,11 +94,34 @@ export function useOwnerOps(rangeOverride?: OwnerRange, customRange?: CustomRang
     [range, expenses.data, orders.data, menu.data, payments.data]
   );
 
+  // Previous-period metrics + deltas, derived from the same computation so
+  // the comparison is always apples-to-apples.
+  const previousMetrics: OwnerMetrics = useMemo(
+    () =>
+      computeOwnerMetrics({
+        range: previousRange,
+        expenses: (expenses.data ?? []) as Expense[],
+        orders: previousOrders.data ?? [],
+        menuItems: menu.data ?? [],
+        payments: (payments.data ?? []) as PaymentRecord[],
+      }),
+    [previousRange, expenses.data, previousOrders.data, menu.data, payments.data]
+  );
+
+  const comparison: PeriodComparison = useMemo(
+    () => comparePeriods(metrics, previousMetrics),
+    [metrics, previousMetrics]
+  );
+
   return {
     rangeKey,
     setRangeKey,
     range,
     metrics,
+    /** Metrics for the equivalent earlier period (e.g. yesterday / last week). */
+    previousMetrics,
+    /** Deltas comparing `metrics` to the previous period. */
+    comparison,
     /** Raw range-filtered orders (shared query — same cache the overview uses). */
     orders: (orders.data ?? []) as Order[],
     /** Live menu (used to join order items back to category / retail channel). */
@@ -88,15 +129,17 @@ export function useOwnerOps(rangeOverride?: OwnerRange, customRange?: CustomRang
     /** Recorded expenses (date + amount) — drawn as the second analytics series. */
     expenses: (expenses.data ?? []) as Expense[],
     recentActivity: activity.data ?? [],
-    isLoading: orders.isLoading || expenses.isLoading || menu.isLoading,
+    isLoading: orders.isLoading || previousOrders.isLoading || expenses.isLoading || menu.isLoading,
     isError:
       orders.isError ||
+      previousOrders.isError ||
       expenses.isError ||
       menu.isError ||
       payments.isError ||
       activity.isError,
     refetchAll: () => {
       orders.refetch();
+      previousOrders.refetch();
       expenses.refetch();
       menu.refetch();
       payments.refetch();

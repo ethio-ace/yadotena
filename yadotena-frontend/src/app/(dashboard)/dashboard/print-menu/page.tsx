@@ -17,6 +17,7 @@ import {
   saveTemplate,
 } from "@/lib/menuTemplate";
 import { MenuSheet } from "@/components/dashboard/MenuSheet";
+import { isRetailProduct } from "@/lib/orderUtils";
 import {
   Printer,
   ShieldAlert,
@@ -82,6 +83,8 @@ export default function PrintableMenuPage() {
   const availableItems = useMemo(() => menu.filter((m) => m.available !== false), [menu]);
 
   // Group dishes into sections: DB categories first (sort order), leftovers last.
+  // Each section is tagged as café menu or shop based on its items (the same
+  // retail heuristic the customer storefront uses).
   const sections = useMemo(() => {
     const bucket = new Map<string, (typeof availableItems)[number][]>();
     const put = (key: string, item: (typeof availableItems)[number]) => {
@@ -93,20 +96,32 @@ export default function PrintableMenuPage() {
       put(inDb ? `cat:${item.categoryId}` : `name:${item.category || "Uncategorized"}`, item);
     }
 
-    const ordered: { title: string; description?: string; items: typeof availableItems }[] = [];
+    const ordered: { title: string; description?: string; isShop: boolean; items: typeof availableItems }[] = [];
     for (const cat of categories) {
       const items = bucket.get(`cat:${cat.id}`);
       if (items?.length) {
-        ordered.push({ title: cat.name, description: cat.description, items });
+        ordered.push({
+          title: cat.name,
+          description: cat.description,
+          isShop: items.every((i) => isRetailProduct(i)),
+          items,
+        });
         bucket.delete(`cat:${cat.id}`);
       }
     }
     for (const [key, items] of bucket) {
       if (!items.length) continue;
-      ordered.push({ title: key.startsWith("name:") ? key.slice(5) : key.replace(/^cat:/, ""), items });
+      ordered.push({
+        title: key.startsWith("name:") ? key.slice(5) : key.replace(/^cat:/, ""),
+        isShop: items.every((i) => isRetailProduct(i)),
+        items,
+      });
     }
     return ordered;
   }, [availableItems, categories]);
+
+  const shopSectionCount = sections.filter((s) => s.isShop).length;
+  const menuSectionCount = sections.length - shopSectionCount;
 
   // Sections actually shown on the sheet, honoring the template's selection.
   const sheetSections = useMemo(() => {
@@ -411,6 +426,27 @@ export default function PrintableMenuPage() {
             {/* Sections & items */}
             <section className="bg-card rounded-2xl border shadow-sm p-4 space-y-3">
               <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Sections &amp; Items</h3>
+
+              <div className="space-y-1 rounded-xl border border-dashed border-muted/70 bg-muted/20 p-3">
+                <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-2">Include on sheet</p>
+                <Toggle
+                  label={`Café menu · ${menuSectionCount} sections`}
+                  checked={template.sections.showMenu}
+                  onChange={(v) => patchSections({ showMenu: v })}
+                />
+                <Toggle
+                  label={`Shop items · ${shopSectionCount} sections`}
+                  checked={template.sections.showShop}
+                  onChange={(v) => patchSections({ showShop: v })}
+                />
+                {template.sections.showShop && shopSectionCount > 0 && (
+                  <Toggle
+                    label="Shop on its own page"
+                    checked={template.sections.shopOnNewPage}
+                    onChange={(v) => patchSections({ shopOnNewPage: v })}
+                  />
+                )}
+              </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-sm font-bold text-foreground">Categories</span>

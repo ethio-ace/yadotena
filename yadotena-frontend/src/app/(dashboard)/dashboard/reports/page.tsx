@@ -24,6 +24,9 @@ import { CustomersReport } from "@/components/owner/reports/CustomersReport";
 import { useOwnerOps } from "@/hooks/useOwnerOps";
 import { computeSalesBreakdown, CustomRange, OwnerRange } from "@/lib/owner";
 import { formatETB } from "@/lib/currency";
+import { ComparisonBar, Delta } from "@/components/owner/PeriodCompare";
+import { RevenueExpenseChart } from "@/components/owner/RevenueExpenseChart";
+import { HourlyProfile } from "@/components/owner/HourlyProfile";
 import {
   Wallet,
   Receipt,
@@ -35,6 +38,8 @@ import {
   Layers,
   Store,
   Sparkles,
+  Clock,
+  Scale,
 } from "lucide-react";
 
 const RANGE_KEYS: OwnerRange[] = ["today", "yesterday", "week", "month", "quarter", "year", "custom"];
@@ -52,7 +57,7 @@ function AnalyticsHub() {
         }
       : undefined;
 
-  const { metrics, orders, menuItems, expenses, isLoading } = useOwnerOps(rangeKey, customRange);
+  const { metrics, comparison, orders, menuItems, expenses, isLoading } = useOwnerOps(rangeKey, customRange);
 
   const [tab, setTab] = useState<ReportTabKey>("revenue");
 
@@ -118,6 +123,9 @@ function AnalyticsHub() {
         </div>
       ) : tab === "revenue" ? (
         <>
+          {/* Comparison vs the equivalent previous period */}
+          <ComparisonBar comparison={comparison} />
+
           {/* Summary */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
             <div className="bg-card border rounded-2xl p-5 shadow-sm">
@@ -129,6 +137,10 @@ function AnalyticsHub() {
               </div>
               <h2 className="mt-2 text-2xl font-black text-foreground">{formatETB(metrics.revenue)}</h2>
               <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">Paid orders only</p>
+              <div className="mt-2 flex items-center gap-1.5">
+                <Delta pct={comparison.revenuePct} />
+                <span className="text-[10px] font-semibold text-muted-foreground">vs {comparison.previousLabel}</span>
+              </div>
             </div>
 
             <div className="bg-card border rounded-2xl p-5 shadow-sm">
@@ -140,6 +152,10 @@ function AnalyticsHub() {
               </div>
               <h2 className="mt-2 text-2xl font-black text-foreground">{metrics.paidOrders}</h2>
               <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">In this period</p>
+              <div className="mt-2 flex items-center gap-1.5">
+                <Delta pct={comparison.paidOrdersPct} />
+                <span className="text-[10px] font-semibold text-muted-foreground">vs {comparison.previousLabel}</span>
+              </div>
             </div>
 
             <div className="bg-card border rounded-2xl p-5 shadow-sm">
@@ -151,6 +167,10 @@ function AnalyticsHub() {
               </div>
               <h2 className="mt-2 text-2xl font-black text-foreground">{formatETB(metrics.averageTicket)}</h2>
               <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">Revenue ÷ orders</p>
+              <div className="mt-2 flex items-center gap-1.5">
+                <Delta pct={comparison.averageTicketPct} />
+                <span className="text-[10px] font-semibold text-muted-foreground">vs {comparison.previousLabel}</span>
+              </div>
             </div>
 
             <div className="bg-card border rounded-2xl p-5 shadow-sm">
@@ -162,6 +182,44 @@ function AnalyticsHub() {
               </div>
               <h2 className="mt-2 text-2xl font-black text-foreground">{formatETB(metrics.expenses)}</h2>
               <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">Recorded this period</p>
+              <div className="mt-2 flex items-center gap-1.5">
+                <Delta pct={comparison.expensesPct} invert />
+                <span className="text-[10px] font-semibold text-muted-foreground">vs {comparison.previousLabel}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Revenue vs expenses + hourly profile */}
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="bg-card border rounded-2xl p-5 shadow-sm lg:col-span-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-black text-sm text-foreground flex items-center gap-1.5">
+                    <Scale className="h-4 w-4 text-emerald-500" /> Revenue vs Recorded Expenses
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                    Daily bars — net (rev − exp) in green; long periods auto-bucket to weeks
+                  </p>
+                </div>
+                <span className="text-[11px] font-black text-muted-foreground">
+                  Net {formatETB(metrics.revenueMinusExpenses)}
+                </span>
+              </div>
+              <div className="mt-3">
+                <RevenueExpenseChart metrics={metrics} />
+              </div>
+            </div>
+
+            <div className="bg-card border rounded-2xl p-5 shadow-sm lg:col-span-2">
+              <h3 className="font-black text-sm text-foreground flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-amber-500" /> Hourly Sales Profile
+              </h3>
+              <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                Paid revenue by hour of day — spot your rush windows
+              </p>
+              <div className="mt-3">
+                <HourlyProfile metrics={metrics} />
+              </div>
             </div>
           </div>
 

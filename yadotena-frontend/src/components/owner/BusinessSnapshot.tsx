@@ -1,11 +1,14 @@
 "use client";
 
-import { OwnerMetrics } from "@/lib/owner";
+import { OwnerMetrics, PeriodComparison } from "@/lib/owner";
 import { formatETB } from "@/lib/currency";
 import { Wallet, Receipt, TrendingUp, Banknote, Scale } from "lucide-react";
+import { Delta } from "@/components/owner/PeriodCompare";
 
 interface BusinessSnapshotProps {
   metrics: OwnerMetrics;
+  /** Deltas vs the previous equivalent period, shown as chips on each KPI. */
+  comparison?: PeriodComparison;
 }
 
 /**
@@ -13,7 +16,7 @@ interface BusinessSnapshotProps {
  * are honest — the difference is labeled "Revenue − Recorded Expenses",
  * never "profit", because the system has no cost-of-goods data.
  */
-export function BusinessSnapshot({ metrics }: BusinessSnapshotProps) {
+export function BusinessSnapshot({ metrics, comparison }: BusinessSnapshotProps) {
   const { revenue, paidOrders, averageTicket, expenses, revenueMinusExpenses } = metrics;
   const diffIsPositive = revenueMinusExpenses >= 0;
 
@@ -37,6 +40,14 @@ export function BusinessSnapshot({ metrics }: BusinessSnapshotProps) {
           <p className="mt-1 text-[11px] text-muted-foreground font-semibold">
             Paid orders in period · {metrics.range.display}
           </p>
+          {comparison && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <Delta pct={comparison.revenuePct} />
+              <span className="text-[10px] font-semibold text-muted-foreground">
+                vs {comparison.previousLabel} · {formatETB(comparison.previousRevenue)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Paid orders + average ticket */}
@@ -54,6 +65,13 @@ export function BusinessSnapshot({ metrics }: BusinessSnapshotProps) {
             <TrendingUp className="h-3 w-3" />
             Avg {formatETB(averageTicket)} / order
           </p>
+          {comparison && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t">
+              <Delta pct={comparison.paidOrdersPct} />
+              <Delta pct={comparison.averageTicketPct} />
+              <span className="text-[10px] font-semibold text-muted-foreground">orders · ticket vs {comparison.previousLabel}</span>
+            </div>
+          )}
         </div>
 
         {/* Recorded expenses */}
@@ -70,6 +88,14 @@ export function BusinessSnapshot({ metrics }: BusinessSnapshotProps) {
           <p className="mt-1 text-[11px] text-muted-foreground font-semibold">
             {metrics.range.label.toLowerCase()} recorded costs
           </p>
+          {comparison && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <Delta pct={comparison.expensesPct} invert />
+              <span className="text-[10px] font-semibold text-muted-foreground">
+                vs {comparison.previousLabel} · {formatETB(comparison.previousExpenses)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Revenue minus recorded expenses — honest difference, not profit */}
@@ -102,6 +128,14 @@ export function BusinessSnapshot({ metrics }: BusinessSnapshotProps) {
           >
             {formatETB(revenueMinusExpenses)}
           </div>
+          {comparison && (
+            <div className="flex items-center gap-1.5">
+              <Delta pct={comparison.netPct} />
+              <span className="text-[10px] font-semibold text-muted-foreground">
+                vs {comparison.previousLabel} · {formatETB(comparison.previousNet)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </section>

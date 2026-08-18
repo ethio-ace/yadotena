@@ -29,6 +29,12 @@ export interface MenuTemplate {
     mode: "all" | "selected";
     selectedCategoryIds: string[];
     layout: ItemLayout;
+    /** Café dishes (kitchen-prepared items). */
+    showMenu: boolean;
+    /** Over-the-counter retail products (butter, honey, spices, coffee packs). */
+    showShop: boolean;
+    /** Start the shop section on a fresh page for a clean visual split. */
+    shopOnNewPage: boolean;
     showDescription: boolean;
     showPrice: boolean;
     showTags: boolean;
@@ -72,6 +78,9 @@ export const DEFAULT_TEMPLATE: MenuTemplate = {
     mode: "all",
     selectedCategoryIds: [],
     layout: "grid2",
+    showMenu: true,
+    showShop: true,
+    shopOnNewPage: true,
     showDescription: true,
     showPrice: true,
     showTags: true,

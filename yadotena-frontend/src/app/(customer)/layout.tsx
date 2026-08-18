@@ -4,18 +4,21 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Receipt, Search } from "lucide-react";
+import { BookOpen, Receipt, Search, Camera } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
-import { CustomerDineInProvider } from "@/contexts/CustomerDineInContext";
+import { CustomerDineInProvider, useCustomerDineIn } from "@/contexts/CustomerDineInContext";
 import { CustomerTableBanner } from "@/components/customer/CustomerTableBanner";
 import { TablePickerModal } from "@/components/customer/TablePickerModal";
 import { CustomerDineInCart } from "@/components/customer/CustomerDineInCart";
+import { QRScannerModal } from "@/components/customer/QRScannerModal";
 
 function CustomerHeader() {
   const pathname = usePathname();
   const router = useRouter();
+  const { setIsQRScannerOpen } = useCustomerDineIn();
+
   const [trackOpen, setTrackOpen] = useState(false);
   const [trackValue, setTrackValue] = useState("");
 
@@ -79,6 +82,17 @@ function CustomerHeader() {
             </Button>
           </Link>
 
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full text-xs font-bold h-9 px-3 gap-1 border-primary/30 text-primary hover:bg-primary/10"
+            onClick={() => setIsQRScannerOpen(true)}
+            title="Scan QR Code"
+          >
+            <Camera className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">Scan QR</span>
+          </Button>
+
           <div className="h-4 w-[1px] bg-border mx-1 hidden sm:block" />
 
           {/* Track Order by number */}
@@ -128,15 +142,26 @@ function CustomerHeader() {
   );
 }
 
+function GlobalCustomerModals() {
+  const { isQRScannerOpen, setIsQRScannerOpen } = useCustomerDineIn();
+
+  return (
+    <>
+      <TablePickerModal />
+      <CustomerDineInCart />
+      <QRScannerModal isOpen={isQRScannerOpen} onClose={() => setIsQRScannerOpen(false)} />
+    </>
+  );
+}
+
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   return (
     <CustomerDineInProvider>
       <div className="min-h-screen bg-background relative shadow-2xl flex flex-col">
         <CustomerHeader />
         
-        {/* Table Picker & Cart UI Modals */}
-        <TablePickerModal />
-        <CustomerDineInCart />
+        {/* Global Modals */}
+        <GlobalCustomerModals />
 
         {/* Main Content Area */}
         <main className="flex-1 pb-20 sm:pb-8">

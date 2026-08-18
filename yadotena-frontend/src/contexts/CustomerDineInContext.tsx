@@ -1,10 +1,11 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
-import { MenuItem, Table } from "@/types";
+import { MenuItem, Table, Order } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { isShopProductItem } from "@/lib/orderUtils";
+import { findActiveOrderForTable } from "@/lib/tableUtils";
 
 export interface SelectedAddon {
   id: string;
@@ -26,6 +27,7 @@ interface CustomerDineInContextType {
   tableId: string | null;
   tableName: string;
   activeTable: Table | null;
+  activeTableOrder: Order | null;
   cart: CustomerCartItem[];
   setTableId: (id: string | null) => void;
   clearTable: () => void;
@@ -47,6 +49,8 @@ interface CustomerDineInContextType {
   setIsCartOpen: (open: boolean) => void;
   isTablePickerOpen: boolean;
   setIsTablePickerOpen: (open: boolean) => void;
+  isQRScannerOpen: boolean;
+  setIsQRScannerOpen: (open: boolean) => void;
 }
 
 const STORAGE_TABLE_KEY = "yadotena_customer_table_id";
@@ -59,12 +63,26 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
   const [cart, setCart] = useState<CustomerCartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isTablePickerOpen, setIsTablePickerOpen] = useState(false);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Fetch table roster to resolve human table names
   const { data: tables = [] } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
+  });
+
+  // Fetch active orders to detect if table already has an active order running
+  const { data: allOrders = [] } = useQuery({
+    queryKey: ["orders", "active-dinein-check"],
+    queryFn: async () => {
+      try {
+        return await api.orders.getAll();
+      } catch {
+        return [];
+      }
+    },
+    refetchInterval: 8000,
   });
 
   // Restore tableId & cart from localStorage on client load
@@ -120,6 +138,13 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
     const cleanId = tableId.replace(/^(tbl-|t)/i, "");
     return `Table ${cleanId}`;
   }, [tableId, activeTable]);
+
+  // Check if table currently has an active running order in progress
+  const activeTableOrder = useMemo(() => {
+    if (!tableId) return null;
+    const target = activeTable || ({ id: tableId, name: tableName } as Table);
+    return findActiveOrderForTable(target, allOrders) || null;
+  }, [tableId, activeTable, tableName, allOrders]);
 
   const addToCart = (
     menuItem: MenuItem,
@@ -205,6 +230,7 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
         tableId,
         tableName,
         activeTable,
+        activeTableOrder,
         cart,
         setTableId,
         clearTable,
@@ -221,6 +247,8 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
         setIsCartOpen,
         isTablePickerOpen,
         setIsTablePickerOpen,
+        isQRScannerOpen,
+        setIsQRScannerOpen,
       }}
     >
       {children}

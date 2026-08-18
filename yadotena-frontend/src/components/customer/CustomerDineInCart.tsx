@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  ShoppingBag, X, Plus, Minus, Trash2, UtensilsCrossed, Sparkles, AlertCircle, Loader2, ArrowRight
+  ShoppingBag, X, Plus, Minus, Trash2, UtensilsCrossed, Sparkles, AlertCircle, Loader2, ArrowRight, Layers
 } from "lucide-react";
 
 export function CustomerDineInCart() {
@@ -17,6 +17,7 @@ export function CustomerDineInCart() {
   const {
     tableId,
     tableName,
+    activeTableOrder,
     cart,
     isCartOpen,
     setIsCartOpen,
@@ -37,6 +38,8 @@ export function CustomerDineInCart() {
 
   if (itemCount === 0 && !isCartOpen) return null;
 
+  const activeTicket = activeTableOrder ? activeTableOrder.id.slice(-6).toUpperCase() : null;
+
   const handleSubmitOrder = async () => {
     if (!tableId) {
       setErrorMsg("Please select your table before placing an order.");
@@ -50,9 +53,7 @@ export function CustomerDineInCart() {
     setErrorMsg(null);
 
     try {
-      // Map cart items into API wire format
       const payloadItems = cart.map((cItem) => {
-        // Collect addon names or IDs
         const addonStrings = cItem.selectedAddons.map((a) => a.name || a.id);
         return {
           menuItemId: cItem.menuItem.id,
@@ -62,19 +63,29 @@ export function CustomerDineInCart() {
         };
       });
 
-      const newOrder = await api.orders.create({
-        type: "DINE_IN",
-        tableId: tableId,
-        customerName: customerName.trim() || undefined,
-        paymentStatus: "PENDING",
-        items: payloadItems,
-      });
+      let targetOrderId: string;
 
-      // Save recent order to localStorage for tracking history
+      if (activeTableOrder) {
+        // Append items directly to existing active table order
+        const updated = await api.orders.addItems(activeTableOrder.id, payloadItems);
+        targetOrderId = updated.id;
+      } else {
+        // Create new table order
+        const newOrder = await api.orders.create({
+          type: "DINE_IN",
+          tableId: tableId,
+          customerName: customerName.trim() || undefined,
+          paymentStatus: "PENDING",
+          items: payloadItems,
+        });
+        targetOrderId = newOrder.id;
+      }
+
+      // Save to recent orders
       if (typeof window !== "undefined") {
         try {
           const recent = JSON.parse(localStorage.getItem("yadotena_recent_orders") || "[]");
-          recent.unshift({ id: newOrder.id, date: new Date().toISOString(), total: newOrder.total });
+          recent.unshift({ id: targetOrderId, date: new Date().toISOString(), total });
           localStorage.setItem("yadotena_recent_orders", JSON.stringify(recent.slice(0, 10)));
         } catch (e) {
           console.error("Failed saving recent order", e);
@@ -83,7 +94,7 @@ export function CustomerDineInCart() {
 
       clearCart();
       setIsCartOpen(false);
-      router.push(`/order/${encodeURIComponent(newOrder.id)}`);
+      router.push(`/order/${encodeURIComponent(targetOrderId)}`);
     } catch (err: any) {
       console.error("Failed to place dine-in order:", err);
       setErrorMsg(err.message || "Could not submit your order. Please try again.");
@@ -109,7 +120,7 @@ export function CustomerDineInCart() {
               <div className="text-left">
                 <div className="font-black text-base leading-tight">Your Table Order</div>
                 <div className="text-xs text-primary-foreground/80 font-medium">
-                  {tableName || "Seated Dining"} · {cart.length} {cart.length === 1 ? "dish" : "dishes"}
+                  {tableName || "Seated Dining"} {activeTicket ? `(Append to #${activeTicket})` : ""} · {cart.length} {cart.length === 1 ? "dish" : "dishes"}
                 </div>
               </div>
             </div>
@@ -130,7 +141,7 @@ export function CustomerDineInCart() {
           <div className="fixed inset-0" onClick={() => !isSubmitting && setIsCartOpen(false)} />
 
           <div className="relative w-full max-w-lg bg-card border rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden z-10 animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[92vh]">
-            
+
             {/* Header */}
             <div className="px-6 py-4 border-b flex items-center justify-between bg-muted/30">
               <div className="flex items-center gap-3">
@@ -168,6 +179,19 @@ export function CustomerDineInCart() {
                   >
                     Select Table
                   </Button>
+                </div>
+              )}
+
+              {/* Notice if table has active order */}
+              {activeTableOrder && (
+                <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 space-y-1.5 text-xs text-amber-800 dark:text-amber-300">
+                  <div className="flex items-center gap-2 font-black text-sm">
+                    <Layers className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <span>Active Order #{activeTicket} in Progress</span>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {tableName} already has an open ticket. These new items will be added as a new round for the kitchen to cook!
+                  </p>
                 </div>
               )}
 
@@ -225,7 +249,6 @@ export function CustomerDineInCart() {
                         </div>
                       </div>
 
-                      {/* Selected add-ons */}
                       {item.selectedAddons.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {item.selectedAddons.map((addon) => (
@@ -240,7 +263,6 @@ export function CustomerDineInCart() {
                         </div>
                       )}
 
-                      {/* Special instructions note */}
                       {item.specialInstructions && (
                         <p className="text-xs text-amber-600 dark:text-amber-400 italic">
                           &ldquo;{item.specialInstructions}&rdquo;
@@ -252,7 +274,7 @@ export function CustomerDineInCart() {
               )}
 
               {/* Customer Name Input */}
-              {cart.length > 0 && (
+              {cart.length > 0 && !activeTableOrder && (
                 <div className="pt-3 border-t space-y-1.5">
                   <label className="text-xs font-bold text-foreground block">
                     Guest Name (Optional)
@@ -282,7 +304,7 @@ export function CustomerDineInCart() {
                     <span>{formatETB(serviceCharge)}</span>
                   </div>
                   <div className="flex justify-between items-center pt-2 border-t font-black text-sm text-foreground">
-                    <span>TOTAL DUE</span>
+                    <span>NEW ROUND TOTAL</span>
                     <span className="text-lg text-emerald-600 dark:text-emerald-400">
                       {formatETB(total)}
                     </span>
@@ -302,12 +324,16 @@ export function CustomerDineInCart() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>Sending Order to Kitchen...</span>
+                      <span>Sending to Kitchen...</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="h-5 w-5" />
-                      <span>Place Order for {tableName || "Table"} ({formatETB(total)})</span>
+                      <span>
+                        {activeTableOrder
+                          ? `Append Round to #${activeTicket} (${formatETB(total)})`
+                          : `Place Order for ${tableName || "Table"} (${formatETB(total)})`}
+                      </span>
                     </>
                   )}
                 </Button>

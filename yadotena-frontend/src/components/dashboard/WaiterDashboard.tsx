@@ -98,7 +98,7 @@ export default function WaiterDashboard() {
                     }
                     resolveRequest.mutate({ id: req.id });
                   }}
-                  disabled={resolveRequest.isPending}
+                  disabled={resolveRequest.isPending && resolveRequest.variables?.id === req.id}
                   className="rounded-xl h-10 px-5 font-bold bg-foreground text-background hover:bg-foreground/90 shadow-md w-full sm:w-auto"
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />

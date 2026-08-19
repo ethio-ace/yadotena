@@ -282,11 +282,15 @@ export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
                     <Button
                       size="sm"
                       onClick={() => updateStatusMutation.mutate({ id: order.id, status: "COMPLETED" })}
-                      disabled={updateStatusMutation.isPending}
+                      disabled={updateStatusMutation.isPending && updateStatusMutation.variables?.id === order.id}
                       className="w-full h-9 text-xs font-black rounded-xl bg-primary text-primary-foreground gap-1.5 shadow-sm"
                     >
                       <Truck className="h-3.5 w-3.5" />
-                      <span>Dispatch / Handed & Mark Complete</span>
+                      <span>
+                        {updateStatusMutation.isPending && updateStatusMutation.variables?.id === order.id
+                          ? "Dispatching..."
+                          : "Dispatch / Handed & Mark Complete"}
+                      </span>
                     </Button>
                   </div>
 

@@ -107,7 +107,7 @@ export function ActiveOrdersTab({ ordersOverride }: ActiveOrdersTabProps) {
                 actionText={actionText}
                 actionVariant={actionVariant}
                 onAction={() => updateStatus.mutate({ id: order.id, status: nextStatus })}
-                isLoading={updateStatus.isPending}
+                isLoading={updateStatus.isPending && updateStatus.variables?.id === order.id}
                 isUrgent={order.status === "PENDING"}
                 addonMap={addonMap}
                 onAddItems={() => setShowExtraSelectionForOrder(order)}

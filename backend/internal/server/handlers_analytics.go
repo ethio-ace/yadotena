@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -220,17 +221,21 @@ func (s *Server) getAnalyticsOverview(w http.ResponseWriter, r *http.Request) {
 	var resp OverviewResponse
 
 	// Current period revenue
+	var revCurStr string
 	_ = s.Pool.QueryRow(ctx, `
-		SELECT COALESCE(SUM(total), 0) FROM orders
+		SELECT COALESCE(SUM(total)::text, '0') FROM orders
 		WHERE status NOT IN ('CANCELLED','DRAFT')
-		AND created_at::date BETWEEN $1 AND $2`, start, end).Scan(&resp.Revenue.Current)
+		AND created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&revCurStr)
+	resp.Revenue.Current = safeScanFloat(revCurStr)
 
 	// Previous period revenue
 	if compStart != "" && compEnd != "" {
+		var revPrevStr string
 		_ = s.Pool.QueryRow(ctx, `
-			SELECT COALESCE(SUM(total), 0) FROM orders
+			SELECT COALESCE(SUM(total)::text, '0') FROM orders
 			WHERE status NOT IN ('CANCELLED','DRAFT')
-			AND created_at::date BETWEEN $1 AND $2`, compStart, compEnd).Scan(&resp.Revenue.Previous)
+			AND created_at::date BETWEEN $1::date AND $2::date`, compStart, compEnd).Scan(&revPrevStr)
+		resp.Revenue.Previous = safeScanFloat(revPrevStr)
 	}
 
 	// Current period orders
@@ -268,10 +273,12 @@ func (s *Server) getAnalyticsOverview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Unpaid amount
+	var unpaidStr string
 	_ = s.Pool.QueryRow(ctx, `
-		SELECT COALESCE(SUM(total), 0) FROM orders
+		SELECT COALESCE(SUM(total)::text, '0') FROM orders
 		WHERE payment_status != 'PAID' AND status NOT IN ('CANCELLED','DRAFT')
-		AND created_at::date BETWEEN $1 AND $2`, start, end).Scan(&resp.UnpaidAmount)
+		AND created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&unpaidStr)
+	resp.UnpaidAmount = safeScanFloat(unpaidStr)
 
 	// Live operational metrics
 	_ = s.Pool.QueryRow(ctx, `
@@ -315,15 +322,19 @@ func (s *Server) getAnalyticsSales(w http.ResponseWriter, r *http.Request) {
 	var resp SalesAnalytics
 
 	// Revenue
+	var revCurStr string
 	_ = s.Pool.QueryRow(ctx, `
-		SELECT COALESCE(SUM(total), 0) FROM orders
+		SELECT COALESCE(SUM(total)::text, '0') FROM orders
 		WHERE status NOT IN ('CANCELLED','DRAFT')
-		AND created_at::date BETWEEN $1 AND $2`, start, end).Scan(&resp.Revenue.Current)
+		AND created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&revCurStr)
+	resp.Revenue.Current = safeScanFloat(revCurStr)
 	if compStart != "" && compEnd != "" {
+		var revPrevStr string
 		_ = s.Pool.QueryRow(ctx, `
-			SELECT COALESCE(SUM(total), 0) FROM orders
+			SELECT COALESCE(SUM(total)::text, '0') FROM orders
 			WHERE status NOT IN ('CANCELLED','DRAFT')
-			AND created_at::date BETWEEN $1 AND $2`, compStart, compEnd).Scan(&resp.Revenue.Previous)
+			AND created_at::date BETWEEN $1::date AND $2::date`, compStart, compEnd).Scan(&revPrevStr)
+		resp.Revenue.Previous = safeScanFloat(revPrevStr)
 	}
 	resp.Revenue.Delta = resp.Revenue.Current - resp.Revenue.Previous
 	if resp.Revenue.Previous > 0 {
@@ -348,16 +359,16 @@ func (s *Server) getAnalyticsSales(w http.ResponseWriter, r *http.Request) {
 
 	// Items sold
 	_ = s.Pool.QueryRow(ctx, `
-		SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi
+		SELECT COUNT(*) FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1 AND $2`, start, end).Scan(&resp.ItemsSold.Current)
+		AND o.created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&resp.ItemsSold.Current)
 	if compStart != "" && compEnd != "" {
 		_ = s.Pool.QueryRow(ctx, `
-			SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi
+			SELECT COUNT(*) FROM order_items oi
 			JOIN orders o ON o.id = oi.order_id
 			WHERE o.status NOT IN ('CANCELLED','DRAFT')
-			AND o.created_at::date BETWEEN $1 AND $2`, compStart, compEnd).Scan(&resp.ItemsSold.Previous)
+			AND o.created_at::date BETWEEN $1::date AND $2::date`, compStart, compEnd).Scan(&resp.ItemsSold.Previous)
 	}
 	resp.ItemsSold.Delta = resp.ItemsSold.Current - resp.ItemsSold.Previous
 	if resp.ItemsSold.Previous > 0 {
@@ -403,37 +414,43 @@ func (s *Server) getAnalyticsMenu(w http.ResponseWriter, r *http.Request) {
 		AND o.created_at::date BETWEEN $1 AND $2`, start, end).Scan(&resp.TotalItemsSold)
 
 	// Menu revenue
+	var menuRevStr string
 	_ = s.Pool.QueryRow(ctx, `
-		SELECT COALESCE(SUM(o.total), 0) FROM orders o
+		SELECT COALESCE(SUM(o.total)::text, '0') FROM orders o
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1 AND $2`, start, end).Scan(&resp.MenuRevenue)
+		AND o.created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&menuRevStr)
+	resp.MenuRevenue = safeScanFloat(menuRevStr)
 
 	// Item performance
 	rows, err := s.Pool.Query(ctx, `
 		SELECT oi.menu_item_id, oi.name,
 			COALESCE(m.category, 'General') as category,
 			SUM(oi.quantity) as units,
-			SUM(oi.price * oi.quantity)::float8 as revenue,
-			COALESCE(AVG(oi.price), 0)::float8 as avg_price
+			COALESCE(SUM(oi.price * oi.quantity)::text, '0') as revenue,
+			COALESCE(AVG(oi.price)::text, '0') as avg_price
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		LEFT JOIN menu_items m ON m.id = oi.menu_item_id
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1 AND $2
+		AND o.created_at::date BETWEEN $1::date AND $2::date
 		GROUP BY oi.menu_item_id, oi.name, m.category
-		ORDER BY revenue DESC
+		ORDER BY SUM(oi.price * oi.quantity) DESC
 		LIMIT 50`, start, end)
 
 	resp.Items = make([]MenuItemAnalytics, 0)
 	if err == nil {
 		for rows.Next() {
 			var item MenuItemAnalytics
-			if err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.UnitsSold, &item.Revenue, &item.AvgPrice); err == nil {
-				if resp.MenuRevenue > 0 {
-					item.Share = (item.Revenue / resp.MenuRevenue) * 100
-				}
-				resp.Items = append(resp.Items, item)
+			var revStr, avgStr string
+			if err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.UnitsSold, &revStr, &avgStr); err != nil {
+				continue
 			}
+			item.Revenue = safeScanFloat(revStr)
+			item.AvgPrice = safeScanFloat(avgStr)
+			if resp.MenuRevenue > 0 {
+				item.Share = (item.Revenue / resp.MenuRevenue) * 100
+			}
+			resp.Items = append(resp.Items, item)
 		}
 		rows.Close()
 	}
@@ -453,17 +470,21 @@ func (s *Server) getAnalyticsPayments(w http.ResponseWriter, r *http.Request) {
 	var resp PaymentAnalytics
 
 	// Collected
+	var collectedStr string
 	_ = s.Pool.QueryRow(ctx, `
-		SELECT COALESCE(SUM(amount), 0) FROM payments
+		SELECT COALESCE(SUM(amount)::text, '0') FROM payments
 		WHERE status = 'COMPLETED'
-		AND created_at::date BETWEEN $1 AND $2`, start, end).Scan(&resp.Collected)
+		AND created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&collectedStr)
+	resp.Collected = safeScanFloat(collectedStr)
 
 	// Outstanding
+	var outstandingStr string
 	_ = s.Pool.QueryRow(ctx, `
-		SELECT COALESCE(SUM(total), 0) FROM orders
+		SELECT COALESCE(SUM(total)::text, '0') FROM orders
 		WHERE payment_status != 'PAID'
 		AND status NOT IN ('CANCELLED','DRAFT','COMPLETED')
-		AND created_at::date BETWEEN $1 AND $2`, start, end).Scan(&resp.Outstanding)
+		AND created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&outstandingStr)
+	resp.Outstanding = safeScanFloat(outstandingStr)
 
 	// Payment count
 	_ = s.Pool.QueryRow(ctx, `
@@ -479,20 +500,27 @@ func (s *Server) getAnalyticsPayments(w http.ResponseWriter, r *http.Request) {
 	resp.Methods = s.getPaymentMethods(ctx, start, end, resp.Collected)
 
 	writeJSON(w, 200, resp)
-}
-
-// ═══════════════════════════════════════════════════════════════════════
+}// ═══════════════════════════════════════════════════════════════════════
 // Helper Queries
 // ═══════════════════════════════════════════════════════════════════════
+
+// safeScanFloat reads a PostgreSQL numeric column as text then parses to float64.
+// This avoids pgx NUMERIC → float64 scan failures that silently drop rows.
+func safeScanFloat(s string) float64 {
+	var v float64
+	fmt.Sscanf(s, "%f", &v)
+	return v
+}
 
 func (s *Server) getRevenueTrend(ctx context.Context, start, end, compStart, compEnd string) []TrendPoint {
 	points := make([]TrendPoint, 0)
 
 	rows, err := s.Pool.Query(ctx, `
-		SELECT created_at::date as day, COALESCE(SUM(total), 0)::float8
+		SELECT to_char(created_at, 'YYYY-MM-DD') as day,
+			COALESCE(SUM(total)::numeric, 0)::numeric
 		FROM orders
 		WHERE status NOT IN ('CANCELLED','DRAFT')
-		AND created_at::date BETWEEN $1 AND $2
+		AND created_at::date BETWEEN $1::date AND $2::date
 		GROUP BY day ORDER BY day`, start, end)
 	if err != nil {
 		return points
@@ -502,16 +530,19 @@ func (s *Server) getRevenueTrend(ctx context.Context, start, end, compStart, com
 	compMap := make(map[string]float64)
 	if compStart != "" && compEnd != "" {
 		compRows, err := s.Pool.Query(ctx, `
-			SELECT created_at::date as day, COALESCE(SUM(total), 0)::float8
+			SELECT to_char(created_at, 'YYYY-MM-DD') as day,
+				COALESCE(SUM(total)::numeric, 0)::numeric
 			FROM orders
 			WHERE status NOT IN ('CANCELLED','DRAFT')
-			AND created_at::date BETWEEN $1 AND $2
+			AND created_at::date BETWEEN $1::date AND $2::date
 			GROUP BY day ORDER BY day`, compStart, compEnd)
 		if err == nil {
 			for compRows.Next() {
 				var day string
-				var val float64
-				if err := compRows.Scan(&day, &val); err == nil {
+				var valStr string
+				if err := compRows.Scan(&day, &valStr); err == nil {
+					var val float64
+					fmt.Sscanf(valStr, "%f", &val)
 					compMap[day] = val
 				}
 			}
@@ -521,14 +552,17 @@ func (s *Server) getRevenueTrend(ctx context.Context, start, end, compStart, com
 
 	for rows.Next() {
 		var day string
-		var val float64
-		if err := rows.Scan(&day, &val); err == nil {
-			p := TrendPoint{Label: day, Value: val}
-			if cv, ok := compMap[day]; ok {
-				p.Compare = cv
-			}
-			points = append(points, p)
+		var valStr string
+		if err := rows.Scan(&day, &valStr); err != nil {
+			continue
 		}
+		var val float64
+		fmt.Sscanf(valStr, "%f", &val)
+		p := TrendPoint{Label: day, Value: val}
+		if cv, ok := compMap[day]; ok {
+			p.Compare = cv
+		}
+		points = append(points, p)
 	}
 	return points
 }
@@ -537,14 +571,14 @@ func (s *Server) getTopSellers(ctx context.Context, start, end string, limit int
 	sellers := make([]TopSeller, 0)
 	rows, err := s.Pool.Query(ctx, `
 		SELECT oi.name, COALESCE(m.category, 'General') as category,
-			SUM(oi.quantity) as units, SUM(oi.price * oi.quantity)::float8 as revenue
+			SUM(oi.quantity) as units, COALESCE(SUM(oi.price * oi.quantity)::text, '0') as revenue
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		LEFT JOIN menu_items m ON m.id = oi.menu_item_id
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1 AND $2
+		AND o.created_at::date BETWEEN $1::date AND $2::date
 		GROUP BY oi.name, m.category
-		ORDER BY revenue DESC
+		ORDER BY SUM(oi.price * oi.quantity) DESC
 		LIMIT $3`, start, end, limit)
 	if err != nil {
 		return sellers
@@ -553,9 +587,12 @@ func (s *Server) getTopSellers(ctx context.Context, start, end string, limit int
 
 	for rows.Next() {
 		var s TopSeller
-		if err := rows.Scan(&s.Name, &s.Category, &s.Units, &s.Revenue); err == nil {
-			sellers = append(sellers, s)
+		var revStr string
+		if err := rows.Scan(&s.Name, &s.Category, &s.Units, &revStr); err != nil {
+			continue
 		}
+		s.Revenue = safeScanFloat(revStr)
+		sellers = append(sellers, s)
 	}
 	return sellers
 }
@@ -564,11 +601,11 @@ func (s *Server) getHourlySales(ctx context.Context, start, end string) []Hourly
 	points := make([]HourlySalesPoint, 0)
 	rows, err := s.Pool.Query(ctx, `
 		SELECT EXTRACT(HOUR FROM created_at)::int as hour,
-			COALESCE(SUM(total), 0)::float8 as revenue,
+			COALESCE(SUM(total)::text, '0') as revenue,
 			COUNT(*) as orders
 		FROM orders
 		WHERE status NOT IN ('CANCELLED','DRAFT')
-		AND created_at::date BETWEEN $1 AND $2
+		AND created_at::date BETWEEN $1::date AND $2::date
 		GROUP BY hour ORDER BY hour`, start, end)
 	if err != nil {
 		return points
@@ -577,9 +614,12 @@ func (s *Server) getHourlySales(ctx context.Context, start, end string) []Hourly
 
 	for rows.Next() {
 		var p HourlySalesPoint
-		if err := rows.Scan(&p.Hour, &p.Revenue, &p.Orders); err == nil {
-			points = append(points, p)
+		var revStr string
+		if err := rows.Scan(&p.Hour, &revStr, &p.Orders); err != nil {
+			continue
 		}
+		p.Revenue = safeScanFloat(revStr)
+		points = append(points, p)
 	}
 	return points
 }
@@ -588,23 +628,25 @@ func (s *Server) getCategorySales(ctx context.Context, start, end string) []Cate
 	cats := make([]CategorySales, 0)
 	
 	var totalRevenue float64
+	var totalRevStr string
 	_ = s.Pool.QueryRow(ctx, `
-		SELECT COALESCE(SUM(oi.price * oi.quantity), 0)::float8
+		SELECT COALESCE(SUM(oi.price * oi.quantity)::text, '0')
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1 AND $2`, start, end).Scan(&totalRevenue)
+		AND o.created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&totalRevStr)
+	totalRevenue = safeScanFloat(totalRevStr)
 
 	rows, err := s.Pool.Query(ctx, `
 		SELECT COALESCE(m.category, 'Other') as category,
 			SUM(oi.quantity) as units,
-			SUM(oi.price * oi.quantity)::float8 as revenue
+			COALESCE(SUM(oi.price * oi.quantity)::text, '0') as revenue
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		LEFT JOIN menu_items m ON m.id = oi.menu_item_id
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1 AND $2
-		GROUP BY category ORDER BY revenue DESC`, start, end)
+		AND o.created_at::date BETWEEN $1::date AND $2::date
+		GROUP BY category ORDER BY SUM(oi.price * oi.quantity) DESC`, start, end)
 	if err != nil {
 		return cats
 	}
@@ -612,12 +654,15 @@ func (s *Server) getCategorySales(ctx context.Context, start, end string) []Cate
 
 	for rows.Next() {
 		var c CategorySales
-		if err := rows.Scan(&c.Category, &c.Units, &c.Revenue); err == nil {
-			if totalRevenue > 0 {
-				c.Share = (c.Revenue / totalRevenue) * 100
-			}
-			cats = append(cats, c)
+		var revStr string
+		if err := rows.Scan(&c.Category, &c.Units, &revStr); err != nil {
+			continue
 		}
+		c.Revenue = safeScanFloat(revStr)
+		if totalRevenue > 0 {
+			c.Share = (c.Revenue / totalRevenue) * 100
+		}
+		cats = append(cats, c)
 	}
 	return cats
 }
@@ -627,11 +672,11 @@ func (s *Server) getPaymentMethods(ctx context.Context, start, end string, total
 	rows, err := s.Pool.Query(ctx, `
 		SELECT COALESCE(method, 'Unknown') as method,
 			COUNT(*) as transactions,
-			COALESCE(SUM(amount), 0)::float8 as amount
+			COALESCE(SUM(amount)::text, '0') as amount
 		FROM payments
 		WHERE status = 'COMPLETED'
-		AND created_at::date BETWEEN $1 AND $2
-		GROUP BY method ORDER BY amount DESC`, start, end)
+		AND created_at::date BETWEEN $1::date AND $2::date
+		GROUP BY method ORDER BY SUM(amount) DESC`, start, end)
 	if err != nil {
 		return methods
 	}
@@ -639,12 +684,15 @@ func (s *Server) getPaymentMethods(ctx context.Context, start, end string, total
 
 	for rows.Next() {
 		var m PaymentMethodBreakdown
-		if err := rows.Scan(&m.Method, &m.Transactions, &m.Amount); err == nil {
-			if total > 0 {
-				m.Share = (m.Amount / total) * 100
-			}
-			methods = append(methods, m)
+		var amtStr string
+		if err := rows.Scan(&m.Method, &m.Transactions, &amtStr); err != nil {
+			continue
 		}
+		m.Amount = safeScanFloat(amtStr)
+		if total > 0 {
+			m.Share = (m.Amount / total) * 100
+		}
+		methods = append(methods, m)
 	}
 	return methods
 }

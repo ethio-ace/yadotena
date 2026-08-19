@@ -1,13 +1,65 @@
 "use client";
 
 import { useMemo } from "react";
-import { DateRange, computeAddonPopularity } from "@/lib/owner";
-import { Order } from "@/types";
+import { DateRange } from "@/lib/owner";
+import { Order, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { Layers, Plus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/services/api";
+
+interface AddonRow {
+  id: string;
+  name: string;
+  units: number;
+  orderCount: number;
+}
 
 export function AddonsReport({ range, orders }: { range: DateRange; orders: Order[] }) {
-  const rows = useMemo(() => computeAddonPopularity({ range, orders }), [range, orders]);
+  // Fetch addon master list to look up names by ID
+  const { data: addons = [] } = useQuery<AddonItem[]>({
+    queryKey: ["addons"],
+    queryFn: () => api.addons.getAll(),
+  });
+
+  const addonMap = useMemo(() => {
+    const m = new Map<string, { name: string; price: number }>();
+    for (const a of addons) {
+      m.set(a.id, { name: a.name, price: a.price ?? 0 });
+    }
+    return m;
+  }, [addons]);
+
+  const rows = useMemo(() => {
+    const filtered = orders.filter(
+      (o) =>
+        (o.paymentStatus === "PAID" || o.status === "COMPLETED" || o.status === "SERVED") &&
+        o.createdAt &&
+        new Date(o.createdAt) >= new Date(range.fromInstant) &&
+        new Date(o.createdAt) <= new Date(range.toInstant)
+    );
+
+    const map = new Map<string, AddonRow>();
+    for (const o of filtered) {
+      for (const item of o.items ?? []) {
+        for (const addonId of item.selectedAddons ?? []) {
+          // selectedAddons may be string IDs or objects with id field
+          const id = typeof addonId === "string" ? addonId : (addonId as any).id || String(addonId);
+          const cur = map.get(id) ?? {
+            id,
+            name: addonMap.get(id)?.name || id,
+            units: 0,
+            orderCount: 0,
+          };
+          cur.units += item.quantity || 1;
+          cur.orderCount += 1;
+          map.set(id, cur);
+        }
+      }
+    }
+    return [...map.values()].sort((a, b) => b.units - a.units);
+  }, [range, orders, addonMap]);
+
   const maxUnits = rows.length > 0 ? rows[0].units : 0;
 
   return (
@@ -42,11 +94,11 @@ export function AddonsReport({ range, orders }: { range: DateRange; orders: Orde
           {rows.map((a) => {
             const pct = maxUnits > 0 ? (a.units / maxUnits) * 100 : 0;
             return (
-              <div key={a.id || a.name}>
+              <div key={a.id}>
                 <div className="flex items-center justify-between text-xs font-bold">
                   <span className="text-foreground">{a.name}</span>
                   <span className="text-muted-foreground">
-                    {a.units} sold · {a.orderCount} orders · {formatETB(a.revenue)}
+                    {a.units} sold · {a.orderCount} order{a.orderCount === 1 ? "" : "s"}
                   </span>
                 </div>
                 <div className="mt-1.5 h-2 rounded-full bg-muted overflow-hidden">

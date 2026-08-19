@@ -9,7 +9,7 @@ export type ReportTabKey =
   | "popularity"
   | "staff"
   | "expenses"
-  | "customers";
+  | "order-types";
 
 const TABS: { key: ReportTabKey; label: string }[] = [
   { key: "revenue", label: "Revenue & Sales" },
@@ -18,7 +18,7 @@ const TABS: { key: ReportTabKey; label: string }[] = [
   { key: "popularity", label: "Popularity Trends" },
   { key: "staff", label: "Staff & Roles" },
   { key: "expenses", label: "Expense Report" },
-  { key: "customers", label: "Customers" },
+  { key: "order-types", label: "Order Types" },
 ];
 
 export function ReportsTabs({

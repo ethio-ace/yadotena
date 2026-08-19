@@ -20,7 +20,7 @@ import { AddonsReport } from "@/components/owner/reports/AddonsReport";
 import { PopularityReport } from "@/components/owner/reports/PopularityReport";
 import { StaffReport } from "@/components/owner/reports/StaffReport";
 import { ExpensesReport } from "@/components/owner/reports/ExpensesReport";
-import { CustomersReport } from "@/components/owner/reports/CustomersReport";
+import { OrderTypesReport } from "@/components/owner/reports/OrderTypesReport";
 import { useOwnerOps } from "@/hooks/useOwnerOps";
 import { computeSalesBreakdown, CustomRange, OwnerRange } from "@/lib/owner";
 import { formatETB } from "@/lib/currency";
@@ -44,6 +44,7 @@ import {
   Activity,
   PieChart,
   Zap,
+  Download,
 } from "lucide-react";
 
 const RANGE_KEYS: OwnerRange[] = ["today", "yesterday", "week", "month", "quarter", "year", "custom"];
@@ -158,7 +159,15 @@ function AnalyticsHub() {
       </div>
 
       {/* Report Tabs */}
-      <ReportsTabs active={tab} onChange={setTab} />
+      <div className="flex items-center justify-between gap-3">
+        <ReportsTabs active={tab} onChange={setTab} />
+        <button
+          onClick={() => window.print()}
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl border px-3.5 text-xs font-black text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+        >
+          <Download className="h-3.5 w-3.5" /> Export PDF
+        </button>
+      </div>
 
       {loading ? (
         <div className="space-y-6">
@@ -569,7 +578,7 @@ function AnalyticsHub() {
       ) : tab === "expenses" ? (
         <ExpensesReport range={metrics.range} expenses={expenses} />
       ) : (
-        <CustomersReport range={metrics.range} orders={orders} />
+        <OrderTypesReport range={metrics.range} orders={orders} />
       )}
     </div>
   );

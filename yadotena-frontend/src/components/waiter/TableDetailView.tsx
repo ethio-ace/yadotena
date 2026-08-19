@@ -3,9 +3,8 @@
 import { useMemo } from "react";
 import { Table, Order, MenuItem, MenuCategory, AddonItem } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount, itemStatus, hasItemStatuses, statusChipClass, statusLabel, statusDotClass } from "@/lib/kitchen";
-import { ArrowLeft, Plus, Eye, CreditCard, AlertTriangle, CircleCheck, RotateCcw } from "lucide-react";
-import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
+import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount, itemStatus, hasItemStatuses, statusChipClass, statusLabel, statusDotClass, formatElapsed } from "@/lib/kitchen";
+import { ArrowLeft, Plus, Eye, CreditCard, AlertTriangle, Clock, Check } from "lucide-react";
 import { TableAddItemsPanel } from "@/components/waiter/TableAddItemsPanel";
 import type { CartItem } from "@/components/waiter/CafeOrderBuilder";
 
@@ -29,220 +28,202 @@ export function TableDetailView({
 }: TableDetailViewProps) {
   const addonMap = useMemo(() => Object.fromEntries(allAddons.map((a) => [a.id, a.name])), [allAddons]);
 
-  // The live state is the order, not the stored table flag — a table with no
-  // active order is free even if its status field is stale from a past session,
-  // and a table with an open ticket is occupied regardless of the stored label.
-  const displayStatus = activeOrder ? "Occupied" : "Open";
+  const elapsed = activeOrder
+    ? Math.max(0, Math.floor((Date.now() - new Date(activeOrder.createdAt).getTime()) / 1000))
+    : 0;
 
   return (
-    <div className="animate-in fade-in duration-200">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground mb-4 active:scale-95 transition-all"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
+    <div className="flex flex-col h-full animate-in fade-in duration-200">
+      {/* Header */}
+      <div className="px-4 sm:px-6 pt-4 pb-3 border-b bg-card shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back
+          </button>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px] items-start">
-        {/* LEFT — table + live order */}
-        <div className="bg-card border rounded-3xl p-5 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-black">{table.name || `Table ${table.id}`}</h2>
-              <p className="text-xs text-muted-foreground font-medium">
-                {table.capacity} seats · {displayStatus}
-                {activeOrder && (
-                  <>
-                    <span className="ml-1.5 font-bold text-amber-600 dark:text-amber-400">
-                      · #{activeOrder.id.slice(-6).toUpperCase()}
-                    </span>
-                    <span className="ml-1.5 inline-flex items-center gap-1">
-                      <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(activeOrder.status)}`} />
-                      {statusLabel(activeOrder.status)}
-                    </span>
-                  </>
-                )}
-              </p>
-            </div>
-            <div className={`h-3 w-3 rounded-full ${activeOrder ? "bg-amber-500" : "bg-emerald-500"}`} />
-          </div>
-
-          {activeOrder ? (
-            <>
-              {/* Order Stepper */}
-              <div className="border-t pt-4">
-                <OrderProgressStepper status={activeOrder.status} />
-              </div>
-
-              {/* Items & Resolved Addons */}
-              <div className="space-y-2 pt-2">
-                <div className="flex justify-between items-center text-xs font-bold uppercase text-muted-foreground">
-                  <span>Current Order #{activeOrder.id.slice(-6).toUpperCase()}</span>
-                  <span>
-                    {roundCount(activeOrder) > 1 && (
-                      <span className="text-amber-600 dark:text-amber-400 mr-1.5">{roundCount(activeOrder)} rounds · </span>
-                    )}
-                    {activeOrder.items?.length || 0} items
-                  </span>
-                </div>
-
-                {/* Every round's status at a glance — R1 and R2 never blend together */}
-                <div className="flex flex-wrap gap-1.5">
-                  {groupItemsByRound(activeOrder.items).map(({ round, items }) => {
-                    const fallback = hasItemStatuses(activeOrder.items) ? undefined : activeOrder.status;
-                    const rStatus = roundStatus(items, fallback);
-                    const extended = round > 1;
-                    return (
-                      <span
-                        key={round}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wide ${
-                          extended
-                            ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                            : "border-border bg-muted/50 text-muted-foreground"
-                        }`}
-                      >
-                        <span className={`h-2 w-2 rounded-full ${statusDotClass(rStatus)}`} />
-                        R{round} · {statusLabel(rStatus)}
-                      </span>
-                    );
-                  })}
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-foreground/15 bg-background text-[10px] font-black uppercase tracking-wide text-foreground">
-                    {formatETB(activeOrder.total)}
-                  </span>
-                </div>
-
-                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                  {groupItemsByRound(activeOrder.items).map(({ round, items }) => {
-                    // Legacy orders (pre per-item status) inherit the order status.
-                    const fallback = hasItemStatuses(activeOrder.items) ? undefined : activeOrder.status;
-                    const rStatus = roundStatus(items, fallback);
-                    const extended = round > 1;
-                    return (
-                      <div
-                        key={round}
-                        className={`rounded-2xl border overflow-hidden ${extended ? "border-amber-500/40" : "border-border"}`}
-                      >
-                        {/* Round ticket header */}
-                        <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/40 border-b">
-                          <div className="flex items-center gap-2 min-w-0">
-                            {extended && <RotateCcw className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
-                            <span className={`text-[10px] font-black uppercase tracking-wider ${extended ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
-                              {extended ? `Round ${round} · Added later` : "Round 1 · Original"}
-                            </span>
-                            <span className="text-[11px] text-muted-foreground font-medium shrink-0">
-                              {items.length} item{items.length !== 1 ? "s" : ""}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide ${statusChipClass(rStatus)}`}>
-                              {statusLabel(rStatus)}
-                            </span>
-                            <span className="font-mono text-[11px] font-bold text-muted-foreground">
-                              {formatETB(roundTotal(items))}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="p-3 space-y-2 bg-background/40">
-                          {items.map((item, i) => {
-                            const aNames = addonNames(item.selectedAddons, addonMap);
-                            const itStatus = hasItemStatuses(activeOrder.items) ? itemStatus(item) : activeOrder.status;
-                            return (
-                              <div key={item.id || i} className="p-3 rounded-xl border bg-background space-y-1 text-sm">
-                                <div className="flex justify-between font-bold items-center gap-2">
-                                  <span className="min-w-0">
-                                    <span className="text-amber-500 font-extrabold mr-1.5">{item.quantity}×</span>
-                                    {item.name}
-                                  </span>
-                                  <span className="flex items-center gap-2 shrink-0">
-                                    {itStatus !== rStatus && itStatus !== "PENDING" && (
-                                      <span className="px-1.5 py-0.5 rounded bg-muted text-[9px] font-black uppercase text-muted-foreground">{itStatus}</span>
-                                    )}
-                                    <span className="font-mono text-xs text-muted-foreground">{formatETB(item.price * item.quantity)}</span>
-                                  </span>
-                                </div>
-
-                                {aNames.length > 0 && (
-                                  <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
-                                    {aNames.map((aName, aIdx) => (
-                                      <div key={aIdx} className="flex items-center gap-1 text-foreground">
-                                        <span className="text-amber-500 font-bold">+</span>
-                                        <span>{aName}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {item.specialInstructions && (
-                                  <div className="mt-1 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1">
-                                    <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" />
-                                    <span>⚠ {item.specialInstructions}</span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="pt-3 border-t space-y-0.5">
-                  <div className="flex justify-between font-black text-base">
-                    <span>Total Amount</span>
-                    <span className="text-amber-600 dark:text-amber-400">{formatETB(activeOrder.total)}</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground font-medium text-right">
-                    Includes VAT & service charge
-                  </p>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={() => onSettleOrder(activeOrder)}
-                  className="h-13 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-emerald-600/20"
-                >
-                  <CreditCard className="h-5 w-5" /> Settle Bill
-                </button>
-                <button
-                  onClick={() => onViewOrder(activeOrder)}
-                  className="h-13 rounded-2xl border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-accent/50 flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Eye className="h-4 w-4" /> View Full Ticket
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="border-t pt-4 text-center space-y-3">
-              <div className="mx-auto h-14 w-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-                <CircleCheck className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <p className="text-sm text-muted-foreground">Table is free — no open order.</p>
+          {activeOrder && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => onCreateOrder(table)}
-                className="w-full h-13 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-amber-600/20"
+                onClick={() => onViewOrder(activeOrder)}
+                className="h-8 px-3 rounded-lg border text-xs font-bold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
               >
-                <Plus className="h-5 w-5" /> New Café Order
+                <Eye className="h-3.5 w-3.5" />
+                Ticket
+              </button>
+              <button
+                onClick={() => onSettleOrder(activeOrder)}
+                className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                Settle
               </button>
             </div>
           )}
         </div>
 
-        {/* RIGHT — sticky add-items panel */}
-        {activeOrder && (
-          <div className="lg:sticky lg:top-4">
-            <TableAddItemsPanel
-              order={activeOrder}
-              menu={menu}
-              categories={categories}
-              allAddons={allAddons}
-              isSubmitting={isAppending}
-              onAppend={(items) => onAppendItems(activeOrder, items)}
-              onCollapse={onBack}
-            />
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-black leading-none">
+              {table.name || `Table ${table.id.replace(/^t/i, "")}`}
+            </h1>
+            <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+              {table.capacity} seats
+              {activeOrder && (
+                <>
+                  <span className="mx-1">·</span>
+                  <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                    #{activeOrder.id.slice(-6).toUpperCase()}
+                  </span>
+                  <span className="mx-1">·</span>
+                  <span className="flex items-center gap-1 inline-flex">
+                    <Clock className="h-2.5 w-2.5" />
+                    {formatElapsed(elapsed)}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          {activeOrder && (
+            <div className="text-right">
+              <p className="text-lg font-black leading-none">{formatETB(activeOrder.total)}</p>
+              <p className={`text-[10px] font-black uppercase mt-0.5 ${
+                activeOrder.paymentStatus === "PAID"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-red-500"
+              }`}>
+                {activeOrder.paymentStatus === "PAID" ? "Paid" : "Unpaid"}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Main content area */}
+      <div className="flex-1 overflow-hidden">
+        {activeOrder ? (
+          <div className="flex flex-col lg:flex-row h-full">
+            {/* LEFT — Current order ticket */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 min-h-0">
+              {/* Round status badges */}
+              <div className="flex flex-wrap gap-1.5">
+                {groupItemsByRound(activeOrder.items).map(({ round, items }) => {
+                  const fallback = hasItemStatuses(activeOrder.items) ? undefined : activeOrder.status;
+                  const rStatus = roundStatus(items, fallback);
+                  const extended = round > 1;
+                  return (
+                    <span
+                      key={round}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wide ${
+                        extended
+                          ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                          : "border-border bg-muted/50 text-muted-foreground"
+                      }`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(rStatus)}`} />
+                      R{round} · {statusLabel(rStatus)}
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* Items grouped by round */}
+              {groupItemsByRound(activeOrder.items).map(({ round, items }) => {
+                const fallback = hasItemStatuses(activeOrder.items) ? undefined : activeOrder.status;
+                const rStatus = roundStatus(items, fallback);
+                const extended = round > 1;
+
+                return (
+                  <div key={round} className="border rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${
+                        extended ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                      }`}>
+                        {extended ? `Round ${round} · Added later` : "Round 1"}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${statusChipClass(rStatus)}`}>
+                          {statusLabel(rStatus)}
+                        </span>
+                        <span className="font-mono text-[11px] font-bold text-muted-foreground">
+                          {formatETB(roundTotal(items))}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 space-y-1.5">
+                      {items.map((item, i) => {
+                        const aNames = addonNames(item.selectedAddons, addonMap);
+                        return (
+                          <div key={item.id || i} className="flex items-start justify-between gap-2 py-1.5 border-b border-border/30 last:border-0">
+                            <div className="min-w-0">
+                              <div className="text-sm font-bold">
+                                <span className="text-amber-500 font-extrabold mr-1">{item.quantity}×</span>
+                                {item.name}
+                              </div>
+                              {aNames.length > 0 && (
+                                <div className="text-[10px] text-muted-foreground pl-3 mt-0.5">
+                                  + {aNames.join(", ")}
+                                </div>
+                              )}
+                              {item.specialInstructions && (
+                                <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 pl-3 mt-0.5 flex items-center gap-1">
+                                  <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                                  {item.specialInstructions}
+                                </div>
+                              )}
+                            </div>
+                            <span className="font-mono text-xs text-muted-foreground shrink-0">
+                              {formatETB(item.price * item.quantity)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Total */}
+              <div className="pt-2 border-t flex justify-between items-center">
+                <span className="text-sm font-black">Total</span>
+                <span className="text-lg font-black text-amber-600 dark:text-amber-400">
+                  {formatETB(activeOrder.total)}
+                </span>
+              </div>
+            </div>
+
+            {/* RIGHT — Add items panel (persistent on desktop, slide-up on mobile) */}
+            <div className="lg:w-[380px] lg:border-l border-t lg:border-t-0 bg-muted/20 shrink-0 overflow-y-auto h-full">
+              <TableAddItemsPanel
+                order={activeOrder}
+                menu={menu}
+                categories={categories}
+                allAddons={allAddons}
+                isSubmitting={isAppending}
+                onAppend={(items) => onAppendItems(activeOrder, items)}
+                onCollapse={onBack}
+              />
+            </div>
+          </div>
+        ) : (
+          /* Empty table state */
+          <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+            <div className="h-16 w-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-4">
+              <Check className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <p className="text-sm font-bold text-foreground mb-1">Table is available</p>
+            <p className="text-xs text-muted-foreground mb-6">No open order for this table.</p>
+            <button
+              onClick={() => onCreateOrder(table)}
+              className="h-14 px-8 rounded-2xl bg-amber-500 text-amber-950 font-black text-sm flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-amber-500/20"
+            >
+              <Plus className="h-5 w-5" />
+              New Café Order
+            </button>
           </div>
         )}
       </div>

@@ -209,6 +209,12 @@ func (s *Server) mountCoreRoutes(r chi.Router) {
 			r.Patch("/settings", s.updateSettings)
 			r.Get("/reports/summary", s.getReportsSummary)
 
+			// Analytics endpoints
+			r.Get("/analytics/overview", s.getAnalyticsOverview)
+			r.Get("/analytics/sales", s.getAnalyticsSales)
+			r.Get("/analytics/menu", s.getAnalyticsMenu)
+			r.Get("/analytics/payments", s.getAnalyticsPayments)
+
 			r.Get("/staff/analytics", s.analytics)
 			r.Get("/staff/activity", s.listActivity)
 		})

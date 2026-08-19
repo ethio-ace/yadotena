@@ -4,13 +4,16 @@ import { useState, useEffect } from "react";
 import { analytics, PeriodPreset, PaymentAnalytics } from "@/services/analytics";
 import { AnalyticsToolbar } from "@/components/analytics/AnalyticsToolbar";
 import { formatETB } from "@/lib/currency";
-import { CreditCard, Banknote, Smartphone, TrendingUp } from "lucide-react";
+import { CreditCard, Banknote, Smartphone, Building2, Download } from "lucide-react";
+import { exportGenericCSV } from "@/lib/export";
 
 const METHOD_ICONS: Record<string, React.ReactNode> = {
-  cash: <Banknote className="h-4 w-4" />,
-  cbe_birr: <Smartphone className="h-4 w-4" />,
-  telebirr: <Smartphone className="h-4 w-4" />,
-  bank: <CreditCard className="h-4 w-4" />,
+  cash: <Banknote className="h-4 w-4 text-emerald-500" />,
+  cbe_birr: <Smartphone className="h-4 w-4 text-purple-500" />,
+  telebirr: <Smartphone className="h-4 w-4 text-sky-500" />,
+  cbe: <Building2 className="h-4 w-4 text-purple-600" />,
+  boa: <CreditCard className="h-4 w-4 text-amber-500" />,
+  bank: <CreditCard className="h-4 w-4 text-amber-500" />,
 };
 
 export default function PaymentsAnalyticsPage() {
@@ -26,11 +29,31 @@ export default function PaymentsAnalyticsPage() {
       .finally(() => setLoading(false));
   }, [period]);
 
+  const handleExportCSV = () => {
+    if (!data) return;
+    const rows = data.methods.map((m) => ({
+      Method: m.method.replace(/_/g, " ").toUpperCase(),
+      Transactions: m.transactions,
+      "Total Amount (ETB)": m.amount,
+      "Share (%)": m.share.toFixed(1),
+    }));
+    exportGenericCSV("Payment_Breakdown", rows);
+  };
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-black">Payment Analytics</h1>
-        <p className="text-sm text-muted-foreground mt-1">Collection status, payment methods, and transaction breakdown</p>
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black">Payment Analytics</h1>
+          <p className="text-sm text-muted-foreground mt-1">Collection status, payment methods, and transaction breakdown</p>
+        </div>
+        <button
+          onClick={handleExportCSV}
+          disabled={!data || data.methods.length === 0}
+          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-bold transition-all border disabled:opacity-50"
+        >
+          <Download className="h-3.5 w-3.5" /> Export CSV
+        </button>
       </div>
 
       <AnalyticsToolbar period={period} onPeriodChange={setPeriod} />
@@ -45,75 +68,80 @@ export default function PaymentsAnalyticsPage() {
         <>
           {/* Summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl border bg-card">
+            <div className="p-4 rounded-xl border bg-card shadow-sm">
               <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Collected</span>
               <p className="text-2xl font-black mt-1 text-emerald-600 dark:text-emerald-400">{formatETB(data.collected)}</p>
             </div>
-            <div className="p-4 rounded-xl border bg-card">
+            <div className="p-4 rounded-xl border bg-card shadow-sm">
               <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Outstanding</span>
               <p className="text-2xl font-black mt-1 text-amber-600 dark:text-amber-400">{formatETB(data.outstanding)}</p>
             </div>
-            <div className="p-4 rounded-xl border bg-card">
+            <div className="p-4 rounded-xl border bg-card shadow-sm">
               <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Transactions</span>
-              <p className="text-2xl font-black mt-1">{data.paymentCount}</p>
+              <p className="text-2xl font-black mt-1 text-foreground">{data.paymentCount}</p>
             </div>
-            <div className="p-4 rounded-xl border bg-card">
+            <div className="p-4 rounded-xl border bg-card shadow-sm">
               <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Avg Payment</span>
-              <p className="text-2xl font-black mt-1">{formatETB(data.avgPayment)}</p>
+              <p className="text-2xl font-black mt-1 text-foreground">{formatETB(data.avgPayment)}</p>
             </div>
           </div>
 
           {/* Payment Methods */}
-          <div className="p-6 rounded-xl border bg-card">
-            <h3 className="text-sm font-bold mb-4">Payment Methods</h3>
-            <div className="space-y-3">
+          <div className="p-6 rounded-xl border bg-card shadow-sm">
+            <h3 className="text-sm font-black mb-4 text-foreground">Payment Methods Breakdown</h3>
+            <div className="space-y-4">
               {data.methods.map((method) => (
-                <div key={method.method} className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
-                    {METHOD_ICONS[method.method.toLowerCase()] || <CreditCard className="h-4 w-4" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold capitalize">{method.method.replace(/_/g, " ")}</span>
-                      <span className="text-sm font-bold">{formatETB(method.amount)}</span>
+                <div key={method.method} className="border bg-background/50 rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+                      {METHOD_ICONS[method.method.toLowerCase()] || <CreditCard className="h-4 w-4" />}
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-foreground/80 rounded-full transition-all"
-                          style={{ width: `${method.share}%` }}
-                        />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black uppercase tracking-wider text-foreground">{method.method.replace(/_/g, " ")}</span>
+                        <span className="text-sm font-black text-foreground">{formatETB(method.amount)}</span>
                       </div>
-                      <span className="text-[10px] text-muted-foreground w-16 text-right">
-                        {method.transactions} txns · {method.share.toFixed(0)}%
-                      </span>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-[10px] text-muted-foreground font-semibold">
+                          {method.transactions} transaction{method.transactions === 1 ? "" : "s"}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-semibold">
+                          {method.share.toFixed(1)}% share
+                        </span>
+                      </div>
                     </div>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-amber-500/80 rounded-full transition-all"
+                      style={{ width: `${method.share}%` }}
+                    />
                   </div>
                 </div>
               ))}
             </div>
             {data.methods.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">No payments recorded for this period.</p>
+              <p className="text-sm text-muted-foreground text-center py-6">No payments recorded for this period.</p>
             )}
           </div>
 
-          {/* Collection Rate */}
-          <div className="p-6 rounded-xl border bg-card">
-            <h3 className="text-sm font-bold mb-2">Collection Status</h3>
+          {/* Collection Status */}
+          <div className="p-6 rounded-xl border bg-card shadow-sm">
+            <h3 className="text-sm font-black mb-2 text-foreground">Collection Status</h3>
             <div className="flex items-center gap-4">
-              <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden">
+              <div className="flex-1 h-3.5 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all"
                   style={{ width: `${data.collected + data.outstanding > 0 ? (data.collected / (data.collected + data.outstanding)) * 100 : 0}%` }}
                 />
               </div>
-              <span className="text-sm font-bold">
+              <span className="text-sm font-black text-foreground">
                 {data.collected + data.outstanding > 0
                   ? `${((data.collected / (data.collected + data.outstanding)) * 100).toFixed(0)}%`
                   : "—"}
               </span>
             </div>
-            <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between mt-2 text-xs font-semibold text-muted-foreground">
               <span>{formatETB(data.collected)} collected</span>
               <span>{formatETB(data.outstanding)} outstanding</span>
             </div>

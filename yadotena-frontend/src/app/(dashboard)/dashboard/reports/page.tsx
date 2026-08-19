@@ -18,6 +18,8 @@ const DrilldownTrend = dynamic(
 import { MenuCategoriesReport } from "@/components/owner/reports/MenuCategoriesReport";
 import { AddonsReport } from "@/components/owner/reports/AddonsReport";
 import { PopularityReport } from "@/components/owner/reports/PopularityReport";
+import { CustomersReport } from "@/components/owner/reports/CustomersReport";
+import { PaymentsReport } from "@/components/owner/reports/PaymentsReport";
 import { StaffReport } from "@/components/owner/reports/StaffReport";
 import { ExpensesReport } from "@/components/owner/reports/ExpensesReport";
 import { OrderTypesReport } from "@/components/owner/reports/OrderTypesReport";
@@ -590,6 +592,10 @@ function AnalyticsHub() {
         <AddonsReport range={metrics.range} orders={orders} />
       ) : tab === "popularity" ? (
         <PopularityReport range={metrics.range} orders={orders} menuItems={menuItems} />
+      ) : tab === "customers" ? (
+        <CustomersReport range={metrics.range} orders={orders} />
+      ) : tab === "payments" ? (
+        <PaymentsReport range={metrics.range} orders={orders} />
       ) : tab === "staff" ? (
         <StaffReport range={metrics.range} />
       ) : tab === "expenses" ? (

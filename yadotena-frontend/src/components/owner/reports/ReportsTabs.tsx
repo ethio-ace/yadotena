@@ -7,6 +7,8 @@ export type ReportTabKey =
   | "menu"
   | "addons"
   | "popularity"
+  | "customers"
+  | "payments"
   | "staff"
   | "expenses"
   | "order-types";
@@ -16,6 +18,8 @@ const TABS: { key: ReportTabKey; label: string }[] = [
   { key: "menu", label: "Menu & Categories" },
   { key: "addons", label: "Add-ons" },
   { key: "popularity", label: "Popularity Trends" },
+  { key: "customers", label: "Customer Attribution" },
+  { key: "payments", label: "Payment Breakdown" },
   { key: "staff", label: "Staff & Roles" },
   { key: "expenses", label: "Expense Report" },
   { key: "order-types", label: "Order Types" },

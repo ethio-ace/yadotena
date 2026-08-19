@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -412,42 +413,49 @@ func (s *Server) getAnalyticsMenu(w http.ResponseWriter, r *http.Request) {
 		SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1 AND $2`, start, end).Scan(&resp.TotalItemsSold)
+		AND (o.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date`, start, end).Scan(&resp.TotalItemsSold)
 
 	// Menu revenue
 	var menuRevStr string
 	_ = s.Pool.QueryRow(ctx, `
 		SELECT COALESCE(SUM(o.total)::text, '0') FROM orders o
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&menuRevStr)
+		AND (o.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date`, start, end).Scan(&menuRevStr)
 	resp.MenuRevenue = safeScanFloat(menuRevStr)
 
 	// Item performance
 	rows, err := s.Pool.Query(ctx, `
 		SELECT oi.menu_item_id, oi.name,
-			COALESCE(m.category, 'General') as category,
+			COALESCE(mc.name, 'General') as category,
+			COALESCE(mc.id, '') as category_id,
 			SUM(oi.quantity) as units,
 			COALESCE(SUM(oi.price * oi.quantity)::text, '0') as revenue,
 			COALESCE(AVG(oi.price)::text, '0') as avg_price
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		LEFT JOIN menu_items m ON m.id = oi.menu_item_id
+		LEFT JOIN menu_categories mc ON mc.id = m.category_id
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1::date AND $2::date
-		GROUP BY oi.menu_item_id, oi.name, m.category
+		AND (o.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date
+		GROUP BY oi.menu_item_id, oi.name, mc.name, mc.id
 		ORDER BY SUM(oi.price * oi.quantity) DESC
-		LIMIT 50`, start, end)
+		LIMIT 100`, start, end)
 
 	resp.Items = make([]MenuItemAnalytics, 0)
 	if err == nil {
 		for rows.Next() {
 			var item MenuItemAnalytics
-			var revStr, avgStr string
-			if err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.UnitsSold, &revStr, &avgStr); err != nil {
+			var catID, revStr, avgStr string
+			if err := rows.Scan(&item.ID, &item.Name, &item.Category, &catID, &item.UnitsSold, &revStr, &avgStr); err != nil {
 				continue
 			}
 			item.Revenue = safeScanFloat(revStr)
 			item.AvgPrice = safeScanFloat(avgStr)
+			if strings.HasPrefix(catID, "cat-shop") || strings.HasPrefix(item.ID, "shop-") {
+				item.Type = "retail"
+			} else {
+				item.Type = "prepared"
+			}
 			if resp.MenuRevenue > 0 {
 				item.Share = (item.Revenue / resp.MenuRevenue) * 100
 			}
@@ -474,8 +482,8 @@ func (s *Server) getAnalyticsPayments(w http.ResponseWriter, r *http.Request) {
 	var collectedStr string
 	_ = s.Pool.QueryRow(ctx, `
 		SELECT COALESCE(SUM(amount)::text, '0') FROM payments
-		WHERE status = 'COMPLETED'
-		AND created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&collectedStr)
+		WHERE status IN ('PAID', 'COMPLETED')
+		AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date`, start, end).Scan(&collectedStr)
 	resp.Collected = safeScanFloat(collectedStr)
 
 	// Outstanding
@@ -484,14 +492,14 @@ func (s *Server) getAnalyticsPayments(w http.ResponseWriter, r *http.Request) {
 		SELECT COALESCE(SUM(total)::text, '0') FROM orders
 		WHERE payment_status != 'PAID'
 		AND status NOT IN ('CANCELLED','DRAFT','COMPLETED')
-		AND created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&outstandingStr)
+		AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date`, start, end).Scan(&outstandingStr)
 	resp.Outstanding = safeScanFloat(outstandingStr)
 
 	// Payment count
 	_ = s.Pool.QueryRow(ctx, `
 		SELECT COUNT(*) FROM payments
-		WHERE status = 'COMPLETED'
-		AND created_at::date BETWEEN $1 AND $2`, start, end).Scan(&resp.PaymentCount)
+		WHERE status IN ('PAID', 'COMPLETED')
+		AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date`, start, end).Scan(&resp.PaymentCount)
 
 	if resp.PaymentCount > 0 {
 		resp.AvgPayment = resp.Collected / float64(resp.PaymentCount)
@@ -743,8 +751,8 @@ func (s *Server) getPaymentMethods(ctx context.Context, start, end string, total
 			COUNT(*) as transactions,
 			COALESCE(SUM(amount)::text, '0') as amount
 		FROM payments
-		WHERE status = 'COMPLETED'
-		AND created_at::date BETWEEN $1::date AND $2::date
+		WHERE status IN ('PAID', 'COMPLETED')
+		AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date
 		GROUP BY method ORDER BY SUM(amount) DESC`, start, end)
 	if err != nil {
 		return methods

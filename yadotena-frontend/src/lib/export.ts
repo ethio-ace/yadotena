@@ -26,6 +26,19 @@ export function downloadCSV(filename: string, csvContent: string) {
 }
 
 /**
+ * Export any array of objects as a CSV file
+ */
+export function exportGenericCSV(filename: string, rows: Record<string, any>[]) {
+  if (!rows || rows.length === 0) return;
+  const headers = Object.keys(rows[0]);
+  const lines: string[] = [headers.map(escapeCSV).join(",")];
+  for (const row of rows) {
+    lines.push(headers.map((h) => escapeCSV(row[h])).join(","));
+  }
+  downloadCSV(`${filename}_${dateSuffix()}.csv`, lines.join("\n"));
+}
+
+/**
  * Export Sales Analytics data as CSV
  */
 export function exportSalesAnalyticsCSV(data: {

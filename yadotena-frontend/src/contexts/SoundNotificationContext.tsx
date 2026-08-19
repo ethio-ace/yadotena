@@ -112,6 +112,7 @@ export function SoundNotificationProvider({ children }: { children: React.ReactN
   const { data: serviceRequests = [] } = useQuery({
     queryKey: ["serviceRequests"],
     queryFn: api.serviceRequests.getAll,
+    staleTime: 5000,
   });
 
   // Filter for unacknowledged orders (PENDING status) and pending waiter/bill requests

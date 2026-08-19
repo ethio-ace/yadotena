@@ -23,10 +23,7 @@ export default function WaiterDashboard() {
 
   const resolveRequest = useMutation({
     mutationFn: ({ id }: { id: string }) => api.serviceRequests.resolve(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
-      queryClient.invalidateQueries({ queryKey: ["tables"] });
-    },
+    // Ably handles realtime invalidation — no manual invalidateQueries needed.
   });
 
   const pendingRequests = serviceRequests.filter(r => r.status === "PENDING");

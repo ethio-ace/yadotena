@@ -150,10 +150,7 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
 
   const resolveMutation = useMutation({
     mutationFn: api.serviceRequests.resolve,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
-      queryClient.invalidateQueries({ queryKey: ["tables"] });
-    },
+    // Ably handles realtime invalidation — no manual invalidateQueries needed.
   });
 
   const showPendingOrders = pendingOrders.length > 0 && userRole !== "WAITER";

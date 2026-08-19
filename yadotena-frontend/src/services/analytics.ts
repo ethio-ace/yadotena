@@ -138,7 +138,7 @@ function buildParams(period: PeriodPreset, range?: DateRange, compRange?: DateRa
 
 async function fetchAnalytics<T>(endpoint: string, period: PeriodPreset, range?: DateRange, compRange?: DateRange): Promise<T> {
   const params = buildParams(period, range, compRange);
-  const res = await fetch(`${API_BASE}/api/analytics/${endpoint}?${params}`);
+  const res = await fetch(`${API_BASE}/api/v1/analytics/${endpoint}?${params}`);
   if (!res.ok) throw new Error(`Analytics fetch failed: ${res.status}`);
   return res.json();
 }

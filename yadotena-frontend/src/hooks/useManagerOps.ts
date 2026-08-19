@@ -45,7 +45,7 @@ export function useManagerOps() {
   const serviceRequests = useQuery({
     queryKey: ["serviceRequests"],
     queryFn: api.serviceRequests.getAll,
-    refetchInterval: 15000,
+    staleTime: 5000,
   });
 
   const payments = useQuery({

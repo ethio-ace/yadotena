@@ -55,7 +55,7 @@ export default function WaiterWorkspacePage() {
   const { data: menu = [] } = useQuery<MenuItem[]>({ queryKey: ["menu"], queryFn: api.menu.getAll });
   const { data: categories = [] } = useQuery<MenuCategory[]>({ queryKey: ["categories"], queryFn: api.categories.getAll, enabled: builderOpen });
   const { data: allAddons = [] } = useQuery<AddonItem[]>({ queryKey: ["addons"], queryFn: () => api.addons.getAll(), enabled: builderOpen });
-  const { data: serviceRequests = [] } = useQuery<ServiceRequest[]>({ queryKey: ["serviceRequests"], queryFn: api.serviceRequests.getAll });
+  const { data: serviceRequests = [] } = useQuery<ServiceRequest[]>({ queryKey: ["serviceRequests"], queryFn: api.serviceRequests.getAll, staleTime: 5000 });
 
   // Inline toast for action feedback — POS screens shouldn't block on alert().
   const [toast, setToast] = useState<{ message: string; kind: "error" | "success" } | null>(null);
@@ -117,8 +117,7 @@ export default function WaiterWorkspacePage() {
   const resolveRequestMutation = useMutation({
     mutationFn: ({ id, type }: { id: string; type: string }) => api.serviceRequests.resolve(id),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["serviceRequests"] });
-      // Play the RIGHT sound based on what was resolved
+      // Ably handles realtime invalidation — no manual invalidateQueries needed.
       if (variables.type === "BILL") {
         soundAlerts.playBillRequest();  // 🧾 Bill settled
       } else {

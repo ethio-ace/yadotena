@@ -1,255 +1,315 @@
 import { Order } from "@/types";
-import { DateRange, OwnerMetrics, computeCategoryReport, computeCustomers } from "@/lib/owner";
+import { DateRange, OwnerMetrics, computeCategoryReport, parseDate } from "@/lib/owner";
+import { formatETB } from "./currency";
 
 /**
- * Escapes fields for CSV format
+ exportFullReportPDF generates a clean, executive-styled printable PDF report
+ containing complete operational & financial metrics for the selected range.
+ Uses window.open() + window.print() for 100% sharp browser PDF generation.
  */
-function escapeCSV(val: any): string {
-  if (val === null || val === undefined) return '""';
-  const str = String(val).replace(/"/g, '""');
-  return `"${str}"`;
-}
-
-/**
- * Trigger browser download for a CSV string
- */
-export function downloadCSV(filename: string, csvContent: string) {
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Export any array of objects as a CSV file
- */
-export function exportGenericCSV(filename: string, rows: Record<string, any>[]) {
-  if (!rows || rows.length === 0) return;
-  const headers = Object.keys(rows[0]);
-  const lines: string[] = [headers.map(escapeCSV).join(",")];
-  for (const row of rows) {
-    lines.push(headers.map((h) => escapeCSV(row[h])).join(","));
-  }
-  downloadCSV(`${filename}_${dateSuffix()}.csv`, lines.join("\n"));
-}
-
-/**
- * Export Sales Analytics data as CSV
- */
-export function exportSalesAnalyticsCSV(data: {
-  period: string;
-  revenue: { current: number; previous: number };
-  orders: { current: number; previous: number };
-  avgTicket: { current: number; previous: number };
-  itemsSold: { current: number; previous: number };
-  hourlySales: { hour: number; revenue: number; orders: number }[];
-  categorySales: { category: string; units: number; revenue: number; share: number }[];
-}) {
-  const lines: string[] = [];
-
-  lines.push("YADOTENA - SALES ANALYTICS REPORT");
-  lines.push(`Period: ${data.period.toUpperCase()}`);
-  lines.push(`Exported At: ${new Date().toLocaleString()}`);
-  lines.push("");
-
-  lines.push("SUMMARY METRICS");
-  lines.push("Metric,Current,Previous");
-  lines.push(`Total Revenue,${data.revenue.current.toFixed(2)} ETB,${data.revenue.previous.toFixed(2)} ETB`);
-  lines.push(`Total Orders,${data.orders.current},${data.orders.previous}`);
-  lines.push(`Average Ticket,${data.avgTicket.current.toFixed(2)} ETB,${data.avgTicket.previous.toFixed(2)} ETB`);
-  lines.push(`Items Sold,${data.itemsSold.current},${data.itemsSold.previous}`);
-  lines.push("");
-
-  lines.push("HOURLY SALES BREAKDOWN");
-  lines.push("Hour,Revenue (ETB),Orders");
-  for (const h of data.hourlySales) {
-    lines.push(`"${fmtHour(h.hour)}",${h.revenue.toFixed(2)},${h.orders}`);
-  }
-  lines.push("");
-
-  lines.push("CATEGORY PERFORMANCE");
-  lines.push("Category,Units Sold,Revenue (ETB),Share (%)");
-  for (const c of data.categorySales) {
-    lines.push(`"${c.category}",${c.units},${c.revenue.toFixed(2)},${c.share.toFixed(1)}%`);
-  }
-
-  downloadCSV(`yadotena_sales_analytics_${data.period}_${dateSuffix()}.csv`, lines.join("\n"));
-}
-
-/**
- * Export Reports Hub Active Tab data as CSV
- */
-export function exportReportTabCSV(
-  activeTab: string,
-  range: DateRange,
-  metrics: OwnerMetrics,
-  orders: Order[],
-  rawExpenses?: { id: string; amount: number; category: string; description: string; date: string; paymentMethod?: string }[],
-  addonsMap?: Map<string, { name: string; price: number }>
-) {
-  const lines: string[] = [];
-  const rangeLabel = `${range.from} to ${range.to}`;
-
-  if (activeTab === "sales") {
-    lines.push("YADOTENA - DAILY SALES BREAKDOWN REPORT");
-    lines.push(`Date Range: ${rangeLabel}`);
-    lines.push("Date,Revenue (ETB),Expenses (ETB),Net Profit (ETB)");
-    metrics.daily.forEach((d, i) => {
-      const exp = metrics.dailyExpenses[i]?.amount ?? 0;
-      const net = d.revenue - exp;
-      lines.push(`"${d.date}",${d.revenue.toFixed(2)},${exp.toFixed(2)},${net.toFixed(2)}`);
-    });
-  } else if (activeTab === "addons") {
-    lines.push("YADOTENA - ADD-ON POPULARITY REPORT");
-    lines.push(`Date Range: ${rangeLabel}`);
-    lines.push("Add-on Name,Units Sold,Order Count,Est Revenue (ETB)");
-
-    const map = new Map<string, { name: string; units: number; orderCount: number; revenue: number }>();
-    const filtered = orders.filter(
-      (o) =>
-        (o.paymentStatus === "PAID" || o.status === "COMPLETED" || o.status === "SERVED") &&
-        o.createdAt &&
-        new Date(o.createdAt) >= new Date(range.fromInstant) &&
-        new Date(o.createdAt) <= new Date(range.toInstant)
-    );
-
-    for (const o of filtered) {
-      for (const item of o.items ?? []) {
-        const itemQty = item.quantity || 1;
-        for (const addonId of item.selectedAddons ?? []) {
-          const isObj = typeof addonId === "object" && addonId !== null;
-          const id = isObj ? (addonId as any).id || String(addonId) : String(addonId);
-          const master = addonsMap?.get(id);
-          const name = master?.name || (isObj ? (addonId as any).name : id);
-          const price = master?.price ?? (isObj ? (addonId as any).price : 0);
-
-          const cur = map.get(id) ?? { id, name, units: 0, orderCount: 0, revenue: 0 };
-          cur.name = name;
-          cur.units += itemQty;
-          cur.orderCount += 1;
-          cur.revenue += price * itemQty;
-          map.set(id, cur);
-        }
-      }
-    }
-
-    [...map.values()]
-      .sort((a, b) => b.units - a.units)
-      .forEach((a) => {
-        lines.push(`"${a.name}",${a.units},${a.orderCount},${a.revenue.toFixed(2)}`);
-      });
-  } else if (activeTab === "categories") {
-    lines.push("YADOTENA - CATEGORY PERFORMANCE REPORT");
-    lines.push(`Date Range: ${rangeLabel}`);
-    lines.push("Category,Units Sold,Revenue (ETB)");
-    const cats = computeCategoryReport({ range, orders });
-    cats.forEach((c) => {
-      lines.push(`"${c.category}",${c.quantity},${c.revenue.toFixed(2)}`);
-    });
-  } else if (activeTab === "customers") {
-    lines.push("YADOTENA - CUSTOMER SALES ATTRIBUTION REPORT");
-    lines.push(`Date Range: ${rangeLabel}`);
-    lines.push("Customer Name,Phone Number,Total Paid Orders,Total Spent (ETB)");
-    const custs = computeCustomers({ range, orders });
-    custs.forEach((c) => {
-      lines.push(`"${c.name}","${c.phone || "N/A"}",${c.orders},${c.revenue.toFixed(2)}`);
-    });
-  } else if (activeTab === "expenses") {
-    lines.push("YADOTENA - EXPENSE MANAGEMENT REPORT");
-    lines.push(`Date Range: ${rangeLabel}`);
-    lines.push("Date,Category,Description,Payment Method,Amount (ETB)");
-    (rawExpenses || [])
-      .filter((e) => e.date >= range.from && e.date <= range.to)
-      .forEach((e) => {
-        lines.push(`"${e.date}","${e.category}","${e.description}","${e.paymentMethod || "N/A"}",${e.amount.toFixed(2)}`);
-      });
-  } else {
-    // Default summary
-    lines.push("YADOTENA - OVERVIEW SUMMARY REPORT");
-    lines.push(`Date Range: ${rangeLabel}`);
-    lines.push(`Total Revenue: ${metrics.revenue.toFixed(2)} ETB`);
-    lines.push(`Total Paid Orders: ${metrics.paidOrders}`);
-    lines.push(`Average Ticket: ${metrics.averageTicket.toFixed(2)} ETB`);
-    lines.push(`Total Expenses: ${metrics.expenses.toFixed(2)} ETB`);
-    lines.push(`Net Operating Profit: ${metrics.revenueMinusExpenses.toFixed(2)} ETB`);
-  }
-
-  downloadCSV(`yadotena_report_${activeTab}_${dateSuffix()}.csv`, lines.join("\n"));
-}
-
-/**
- * Export Full Multi-Section Reports Hub Document as CSV
- */
-export function exportFullReportCSV(
+export function exportFullReportPDF(
   range: DateRange,
   metrics: OwnerMetrics,
   orders: Order[],
   rawExpenses?: { id: string; amount: number; category: string; description: string; date: string; paymentMethod?: string }[]
 ) {
-  const lines: string[] = [];
-  const rangeLabel = `${range.from} to ${range.to}`;
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    alert("Please allow popups to export the PDF report.");
+    return;
+  }
 
-  lines.push("=========================================================");
-  lines.push("YADOTENA RESTAURANT & SHOP - FULL OPERATIONAL & FINANCIAL REPORT");
-  lines.push(`Date Range: ${rangeLabel}`);
-  lines.push(`Generated At: ${new Date().toLocaleString()}`);
-  lines.push("=========================================================");
-  lines.push("");
-
-  lines.push("SECTION 1: KEY PERFORMANCE INDICATORS");
-  lines.push(`Gross Sales Revenue,${metrics.revenue.toFixed(2)} ETB`);
-  lines.push(`Paid Orders Count,${metrics.paidOrders}`);
-  lines.push(`Average Order Ticket,${metrics.averageTicket.toFixed(2)} ETB`);
-  lines.push(`Total Recorded Expenses,${metrics.expenses.toFixed(2)} ETB`);
-  lines.push(`Net Operating Profit,${metrics.revenueMinusExpenses.toFixed(2)} ETB`);
-  lines.push(`Unpaid Orders Count,${metrics.unpaidOrders}`);
-  lines.push("");
-
-  lines.push("SECTION 2: DAILY SALES BREAKDOWN");
-  lines.push("Date,Revenue (ETB),Expenses (ETB),Net Profit (ETB)");
-  metrics.daily.forEach((d, i) => {
-    const exp = metrics.dailyExpenses[i]?.amount ?? 0;
-    const net = d.revenue - exp;
-    lines.push(`"${d.date}",${d.revenue.toFixed(2)},${exp.toFixed(2)},${net.toFixed(2)}`);
+  const rangeLabel = range.display || `${range.from} to ${range.to}`;
+  const generatedAt = new Date().toLocaleString("en-US", {
+    dateStyle: "full",
+    timeStyle: "medium",
   });
-  lines.push("");
 
-  lines.push("SECTION 3: CATEGORY SALES PERFORMANCE");
-  lines.push("Category,Units Sold,Revenue (ETB)");
-  const cats = computeCategoryReport({ range, orders });
-  cats.forEach((c) => {
-    lines.push(`"${c.category}",${c.quantity},${c.revenue.toFixed(2)}`);
-  });
-  lines.push("");
+  const categories = computeCategoryReport({ range, orders });
+  const filteredExpenses = (rawExpenses || []).filter(
+    (e) => e.date >= range.from && e.date <= range.to
+  );
 
-  lines.push("SECTION 4: CUSTOMER ATTRIBUTION");
-  lines.push("Customer Name,Phone,Paid Orders,Total Spend (ETB)");
-  const custs = computeCustomers({ range, orders });
-  custs.forEach((c) => {
-    lines.push(`"${c.name}","${c.phone || ""}",${c.orders},${c.revenue.toFixed(2)}`);
-  });
-  lines.push("");
+  const marginPct =
+    metrics.revenue > 0
+      ? (((metrics.revenue - metrics.expenses) / metrics.revenue) * 100).toFixed(1)
+      : "0.0";
 
-  lines.push("SECTION 5: EXPENSES LOG");
-  lines.push("Date,Category,Description,Method,Amount (ETB)");
-  (rawExpenses || [])
-    .filter((e) => e.date >= range.from && e.date <= range.to)
-    .forEach((e) => {
-      lines.push(`"${e.date}","${e.category}","${e.description}","${e.paymentMethod || "N/A"}",${e.amount.toFixed(2)}`);
-    });
+  // Paid orders channel breakdown
+  const paidOrders = orders.filter((o) => o.paymentStatus === "PAID");
+  const dineIn = paidOrders.filter((o) => o.type === "DINE_IN");
+  const takeaway = paidOrders.filter((o) => o.type === "TAKEAWAY");
+  const delivery = paidOrders.filter((o) => o.type === "DELIVERY");
 
-  downloadCSV(`yadotena_full_report_${dateSuffix()}.csv`, lines.join("\n"));
-}
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Yadotena Executive Operations Report - ${rangeLabel}</title>
+  <style>
+    @media print {
+      @page { margin: 15mm; size: A4 portrait; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #0f172a;
+      background: #ffffff;
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 3px solid #f59e0b;
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    .brand {
+      font-size: 24px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+    .brand span { color: #f59e0b; }
+    .title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+    .meta {
+      text-align: right;
+      font-size: 12px;
+      color: #475569;
+    }
+    .meta strong { color: #0f172a; }
+    
+    .section-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 28px;
+      margin-bottom: 12px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+    .kpi-val {
+      font-size: 18px;
+      font-weight: 900;
+      color: #0f172a;
+      margin-top: 4px;
+    }
+    .kpi-sub {
+      font-size: 10px;
+      color: #16a34a;
+      font-weight: 700;
+      margin-top: 2px;
+    }
 
-function fmtHour(h: number): string {
-  return `${String(h).padStart(2, "0")}:00`;
-}
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 800;
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 2px solid #cbd5e1;
+    }
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #1e293b;
+    }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .text-right { text-align: right; }
+    
+    .footer {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 11px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+    .print-btn {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      background: #f59e0b;
+      color: #78350f;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <button onclick="window.print()" class="print-btn no-print">Print / Download PDF</button>
 
-function dateSuffix(): string {
-  return new Date().toISOString().slice(0, 10);
+  <div class="header">
+    <div>
+      <div class="brand">YADOTENA <span>MANAGEMENT</span></div>
+      <div class="title">Official Executive Operations & Financial Report</div>
+    </div>
+    <div class="meta">
+      <div>Reporting Period: <strong>${rangeLabel}</strong></div>
+      <div>Generated On: <strong>${generatedAt}</strong></div>
+    </div>
+  </div>
+
+  <div class="section-title">1. Executive Financial Snapshot</div>
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Gross Revenue</div>
+      <div class="kpi-val">${formatETB(metrics.revenue)}</div>
+      <div class="kpi-sub">Total Paid Volume</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Operating Net Profit</div>
+      <div class="kpi-val">${formatETB(metrics.revenueMinusExpenses)}</div>
+      <div class="kpi-sub">${marginPct}% Operating Margin</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Paid Orders</div>
+      <div class="kpi-val">${metrics.paidOrders}</div>
+      <div class="kpi-sub">Completed Transactions</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Average Order Ticket</div>
+      <div class="kpi-val">${formatETB(metrics.averageTicket)}</div>
+      <div class="kpi-sub">Avg Spend / Guest</div>
+    </div>
+  </div>
+
+  <div class="section-title">2. Fulfillment & Channel Distribution</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Channel / Order Type</th>
+        <th class="text-right">Completed Orders</th>
+        <th class="text-right">Share of Orders (%)</th>
+        <th class="text-right">Gross Revenue (ETB)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Dine-In Restaurant</strong></td>
+        <td class="text-right">${dineIn.length}</td>
+        <td class="text-right">${paidOrders.length > 0 ? Math.round((dineIn.length / paidOrders.length) * 100) : 0}%</td>
+        <td class="text-right">${formatETB(dineIn.reduce((sum, o) => sum + (o.total || 0), 0))}</td>
+      </tr>
+      <tr>
+        <td><strong>Takeaway & Over-the-Counter</strong></td>
+        <td class="text-right">${takeaway.length}</td>
+        <td class="text-right">${paidOrders.length > 0 ? Math.round((takeaway.length / paidOrders.length) * 100) : 0}%</td>
+        <td class="text-right">${formatETB(takeaway.reduce((sum, o) => sum + (o.total || 0), 0))}</td>
+      </tr>
+      <tr>
+        <td><strong>Door Delivery Service</strong></td>
+        <td class="text-right">${delivery.length}</td>
+        <td class="text-right">${paidOrders.length > 0 ? Math.round((delivery.length / paidOrders.length) * 100) : 0}%</td>
+        <td class="text-right">${formatETB(delivery.reduce((sum, o) => sum + (o.total || 0), 0))}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">3. Category Sales Performance</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Product Category</th>
+        <th class="text-right">Total Units Sold</th>
+        <th class="text-right">Gross Revenue (ETB)</th>
+        <th class="text-right">Category Share (%)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${categories
+        .map(
+          (c) => `
+        <tr>
+          <td><strong>${c.category}</strong></td>
+          <td class="text-right">${c.quantity}</td>
+          <td class="text-right">${formatETB(c.revenue)}</td>
+          <td class="text-right">${metrics.revenue > 0 ? ((c.revenue / metrics.revenue) * 100).toFixed(1) : 0}%</td>
+        </tr>`
+        )
+        .join("")}
+    </tbody>
+  </table>
+
+  <div class="section-title">4. Operational Expense Audit Log</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Expense Category</th>
+        <th>Description</th>
+        <th>Payment Method</th>
+        <th class="text-right">Amount (ETB)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${filteredExpenses.length > 0 ? filteredExpenses
+        .slice(0, 50)
+        .map(
+          (e) => `
+        <tr>
+          <td>${e.date}</td>
+          <td><strong>${e.category}</strong></td>
+          <td>${e.description}</td>
+          <td>${e.paymentMethod || "Bank Transfer"}</td>
+          <td class="text-right">${formatETB(e.amount)}</td>
+        </tr>`
+        )
+        .join("") : '<tr><td colspan="5" style="text-align:center;">No expenses recorded for this period.</td></tr>'}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <div>Confidential · Yadotena Enterprise Management System</div>
+    <div>Page 1 of 1</div>
+  </div>
+</body>
+</html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
 }

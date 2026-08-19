@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { analytics, PeriodPreset, MenuAnalytics } from "@/services/analytics";
 import { AnalyticsToolbar } from "@/components/analytics/AnalyticsToolbar";
 import { formatETB } from "@/lib/currency";
-import { Search, Download } from "lucide-react";
-import { exportGenericCSV } from "@/lib/export";
+import { Search } from "lucide-react";
 
 export default function MenuAnalyticsPage() {
   const [period, setPeriod] = useState<PeriodPreset>("today");

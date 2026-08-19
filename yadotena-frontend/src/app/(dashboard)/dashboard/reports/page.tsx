@@ -18,7 +18,6 @@ const DrilldownTrend = dynamic(
 import { MenuCategoriesReport } from "@/components/owner/reports/MenuCategoriesReport";
 import { AddonsReport } from "@/components/owner/reports/AddonsReport";
 import { PopularityReport } from "@/components/owner/reports/PopularityReport";
-import { CustomersReport } from "@/components/owner/reports/CustomersReport";
 import { PaymentsReport } from "@/components/owner/reports/PaymentsReport";
 import { StaffReport } from "@/components/owner/reports/StaffReport";
 import { ExpensesReport } from "@/components/owner/reports/ExpensesReport";
@@ -26,7 +25,7 @@ import { OrderTypesReport } from "@/components/owner/reports/OrderTypesReport";
 import { useOwnerOps } from "@/hooks/useOwnerOps";
 import { computeSalesBreakdown, CustomRange, OwnerRange } from "@/lib/owner";
 import { formatETB } from "@/lib/currency";
-import { exportReportTabCSV, exportFullReportCSV } from "@/lib/export";
+import { exportFullReportPDF } from "@/lib/export";
 import { ComparisonBar, Delta } from "@/components/owner/PeriodCompare";
 import { RevenueExpenseChart } from "@/components/owner/RevenueExpenseChart";
 import { HourlyProfile } from "@/components/owner/HourlyProfile";
@@ -168,16 +167,10 @@ function AnalyticsHub() {
         <ReportsTabs active={tab} onChange={setTab} />
         <div className="flex items-center gap-2">
           <button
-            onClick={() => exportFullReportCSV(metrics.range, metrics, orders, expenses)}
+            onClick={() => exportFullReportPDF(metrics.range, metrics, orders, expenses)}
             className="inline-flex h-9 items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-amber-950 px-4 text-xs font-black shadow-sm transition-all"
           >
-            <FileSpreadsheet className="h-4 w-4" /> Export Complete Report
-          </button>
-          <button
-            onClick={() => window.print()}
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl border bg-card px-3 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors shadow-sm"
-          >
-            <Printer className="h-3.5 w-3.5" /> PDF
+            <Printer className="h-4 w-4" /> Export Complete PDF Report
           </button>
         </div>
       </div>
@@ -586,8 +579,6 @@ function AnalyticsHub() {
         <AddonsReport range={metrics.range} orders={orders} />
       ) : tab === "popularity" ? (
         <PopularityReport range={metrics.range} orders={orders} menuItems={menuItems} />
-      ) : tab === "customers" ? (
-        <CustomersReport range={metrics.range} orders={orders} />
       ) : tab === "payments" ? (
         <PaymentsReport range={metrics.range} orders={orders} />
       ) : tab === "staff" ? (

@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { analytics, PeriodPreset, PaymentAnalytics } from "@/services/analytics";
 import { AnalyticsToolbar } from "@/components/analytics/AnalyticsToolbar";
 import { formatETB } from "@/lib/currency";
-import { CreditCard, Banknote, Smartphone, Building2, Download } from "lucide-react";
-import { exportGenericCSV } from "@/lib/export";
+import { CreditCard, Banknote, Smartphone, Building2 } from "lucide-react";
 
 const METHOD_ICONS: Record<string, React.ReactNode> = {
   cash: <Banknote className="h-4 w-4 text-emerald-500" />,

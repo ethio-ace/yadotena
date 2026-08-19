@@ -711,14 +711,6 @@ export function computeAddonPopularity(opts: {
   return [...map.values()].sort((a, b) => b.units - a.units || b.revenue - a.revenue);
 }
 
-/** One ranked customer row (grouped from PAID orders in the range). */
-export interface CustomerReportRow {
-  name: string;
-  phone: string;
-  orders: number;
-  revenue: number;
-}
-
 export interface CategoryReportRow {
   category: string;
   quantity: number;
@@ -731,8 +723,8 @@ export function computeCategoryReport(opts: { range: DateRange; orders: Order[] 
     (o) =>
       (o.paymentStatus === "PAID" || o.status === "COMPLETED" || o.status === "SERVED") &&
       o.createdAt &&
-      new Date(o.createdAt) >= new Date(range.fromInstant) &&
-      new Date(o.createdAt) <= new Date(range.toInstant)
+      parseDate(o.createdAt) >= parseDate(range.fromInstant) &&
+      parseDate(o.createdAt) <= parseDate(range.toInstant)
   );
 
   const map = new Map<string, CategoryReportRow>();
@@ -748,28 +740,6 @@ export function computeCategoryReport(opts: { range: DateRange; orders: Order[] 
     }
   }
   return [...map.values()].sort((a, b) => b.revenue - a.revenue);
-}
-
-export function computeCustomers(opts: { range: DateRange; orders: Order[] }): CustomerReportRow[] {
-  const { range, orders } = opts;
-  const paidRangeOrders = orders.filter(
-    (o) =>
-      o.paymentStatus === "PAID" &&
-      o.createdAt &&
-      new Date(o.createdAt) >= new Date(range.fromInstant) &&
-      new Date(o.createdAt) <= new Date(range.toInstant)
-  );
-  const map = new Map<string, CustomerReportRow>();
-  for (const o of paidRangeOrders) {
-    const name = o.customerName?.trim() || "Walk-in";
-    const cur =
-      map.get(name) ?? { name, phone: o.customerPhone || "", orders: 0, revenue: 0 };
-    cur.orders += 1;
-    cur.revenue += o.total || 0;
-    if (o.customerPhone && !cur.phone) cur.phone = o.customerPhone;
-    map.set(name, cur);
-  }
-  return [...map.values()].sort((a, b) => b.revenue - a.revenue || b.orders - a.orders);
 }
 
 /** Expense report: category rollups + the individual entries in the range. */

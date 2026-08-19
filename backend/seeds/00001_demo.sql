@@ -1,10 +1,10 @@
 -- ============================================================================
--- YADOTENA SEED DATA (Comprehensive 90-Day Real World Restaurant & Shop Operations)
+-- YADOTENA SEED DATA (Comprehensive 2-Year Real-World Restaurant & Shop Operations)
 -- ============================================================================
--- Clean reference catalog (users, tables, categories, menu items, addons)
--- plus a dynamic 90-day operational dataset relative to now() for live testing
--- across all analytics periods (Today, Yesterday, This Week, Last Week,
--- This Month, Last Month, This Year).
+-- Reference catalog (users, tables, categories, menu items, addons)
+-- plus a dynamic 730-day (2-year) operational dataset relative to CURRENT_DATE
+-- with rich add-on combinations, realistic intraday patterns, payment mix, and expenses.
+-- NO customer PII data is stored or generated (anonymous walk-in dining & orders).
 -- ============================================================================
 
 -- 1. USERS & ROLES
@@ -110,16 +110,21 @@ ON CONFLICT (id) DO UPDATE SET
   dietary_tags = EXCLUDED.dietary_tags,
   updated_at = now();
 
--- 5. ADDONS & MODIFIERS
+-- 5. RICH ADDONS & MODIFIERS
 INSERT INTO menu_item_addons (id, name, description, price, image_url, category_id, menu_item_id, is_global, is_active, sort_order) VALUES
 ('addon-gl-01', 'Eco Takeaway Box', 'Biodegradable food container for transport.', 25.00, 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300', NULL, NULL, true, true, 1),
 ('addon-gl-02', 'Extra Fresh Injera', 'Soft teff sourdough injera flatbread.', 50.00, 'https://images.unsplash.com/photo-1604329760661-e7b0c7f4f6c8?w=300', NULL, NULL, true, true, 2),
+('addon-gl-03', 'Extra Awaze Chili Dip', 'Spicy red pepper awaze sauce.', 35.00, 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=300', NULL, NULL, true, true, 3),
+('addon-gl-04', 'Extra Mitmita Shaker', 'Fiery hot mitmita spice shaker.', 30.00, 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=300', NULL, NULL, true, true, 4),
 ('addon-cat-01', 'Extra Melted Niter Kibbeh', 'Warm spiced clarified butter topping.', 60.00, 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=300', 'cat-traditional', NULL, false, true, 1),
 ('addon-cat-02', 'Fresh Ayib (Cottage Cheese)', 'Cool creamy ayib cheese crumble.', 80.00, 'https://images.unsplash.com/photo-1552767059-ce182ead8c1b?w=300', 'cat-traditional', NULL, false, true, 2),
 ('addon-cat-03', 'Double Shot Yirgacheffe Espresso', 'Extra single-origin espresso shot.', 40.00, 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=300', 'cat-beverages', NULL, false, true, 1),
+('addon-cat-04', 'Wild Highland Honey Drizzle', '100% pure mountain honey drizzle.', 45.00, 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?w=300', 'cat-beverages', NULL, false, true, 2),
+('addon-cat-05', 'Organic Oat Milk Swap', 'Plant-based creamy oat milk alternative.', 50.00, 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=300', 'cat-beverages', NULL, false, true, 3),
 ('addon-item-01', 'Extra Hard-Boiled Organic Egg', 'Farm-fresh hard-boiled egg for your stew.', 30.00, 'https://images.unsplash.com/photo-1518569656558-1f25e69d93d7?w=300', NULL, 'item-trad-01', false, true, 1),
 ('addon-item-02', 'Extra Melted Buffalo Mozzarella', 'More creamy buffalo mozzarella on top.', 90.00, 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=300', NULL, 'item-pizza-01', false, true, 1),
-('addon-item-03', 'Wild Forest Honey & Ergo Dip', 'Side of wild honey and cool ergo.', 70.00, 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?w=300', NULL, 'item-brk-01', false, true, 1)
+('addon-item-03', 'Wild Forest Honey & Ergo Dip', 'Side of wild honey and cool ergo.', 70.00, 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?w=300', NULL, 'item-brk-01', false, true, 1),
+('addon-item-04', 'Extra Garlic Rosemary Butter Sauce', 'Rich ribeye steak butter glaze.', 75.00, 'https://images.unsplash.com/photo-1600891964092-4316c288032e?w=300', NULL, 'item-main-01', false, true, 1)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
@@ -127,10 +132,10 @@ ON CONFLICT (id) DO UPDATE SET
   is_active = EXCLUDED.is_active;
 
 -- ============================================================================
--- 6. RESET TRANSACTION & HISTORICAL SEED GENERATOR (PL/pgSQL)
+-- 6. RESET TRANSACTION & 2-YEAR HISTORICAL SEED GENERATOR (PL/pgSQL)
 -- ============================================================================
--- Safely re-seed dynamic orders, payments, expenses, activity, and sessions
--- so running `go run cmd/seed/main.go` creates a clean 90-day operational profile.
+-- Truncate operational tables and populate 730 days (2 full years) of operations.
+-- Anonymous dining: NO customer PII data stored or generated.
 
 TRUNCATE order_item_addons, order_items, payments, service_requests, dining_sessions, activity_logs, expenses, orders RESTART IDENTITY CASCADE;
 
@@ -143,134 +148,169 @@ DECLARE
   cur_ord_id TEXT;
   cur_type TEXT;
   cur_table TEXT;
-  cur_cust TEXT;
-  cur_phone TEXT;
   cur_addr TEXT;
   cur_time TIMESTAMP;
   subtot NUMERIC(10,2);
+  addon_sum NUMERIC(10,2);
   tax_val NUMERIC(10,2);
   svc_val NUMERIC(10,2);
   fee_val NUMERIC(10,2);
   total_val NUMERIC(10,2);
   pay_method TEXT;
   
-  -- Item selection variables
+  -- Item & Addon selection variables
   item_id_1 TEXT; name_1 TEXT; price_1 NUMERIC(10,2); qty_1 INT;
   item_id_2 TEXT; name_2 TEXT; price_2 NUMERIC(10,2); qty_2 INT;
+  oi_id_1 TEXT; oi_id_2 TEXT;
+  
+  addons_json_1 JSONB;
+  addons_json_2 JSONB;
 
-  names TEXT[] := ARRAY['Abebe Kebede', 'Tigist Alemu', 'Dawit Haile', 'Helen Gebre', 'Sara Tefera', 'Yonas Bekele', 'Kaleb Girma', 'Hanna Tadesse', 'Ruth Solomon', 'Bethel Tesfaye', 'Biniam Worku', 'Lydia Assefa', 'Mulugeta Fanuel', 'Selamawit Desta', 'Solomon Tadesse', 'Zewdu Hailu', 'Eleni Mengistu', 'Frehiwot Kassahun', 'Getachew Molla', 'Hiwot Berhanu'];
-  phones TEXT[] := ARRAY['+251 91 123 4567', '+251 91 234 5678', '+251 91 345 6789', '+251 91 456 7890', '+251 91 567 8901', '+251 91 678 9012', '+251 91 789 0123', '+251 91 890 1234', '+251 91 901 2345', '+251 91 012 3456'];
   tables TEXT[] := ARRAY['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10'];
-  methods TEXT[] := ARRAY['TELEBIRR', 'CBE', 'CASH', 'TELEBIRR', 'CBE', 'BOA', 'CASH'];
+  methods TEXT[] := ARRAY['TELEBIRR', 'CBE', 'CASH', 'TELEBIRR', 'CBE', 'BOA', 'CASH', 'TELEBIRR', 'CBE'];
 BEGIN
 
-  -- A. HISTORICAL ORDERS GENERATOR (90 DAYS BACK TO DAY -1)
-  FOR day_offset IN 1..90 LOOP
-    -- Higher volume on weekends / recent weeks (3-6 orders/day)
-    orders_per_day := 3 + (day_offset % 4);
+  -- A. HISTORICAL ORDERS GENERATOR (730 DAYS BACK TO DAY -1)
+  FOR day_offset IN 1..730 LOOP
+    -- Realistic daily volume (5 to 14 orders/day with weekend peaks)
+    orders_per_day := 5 + (day_offset % 7) + (CASE WHEN (day_offset % 7) >= 5 THEN 3 ELSE 0 END);
     
     FOR h_idx IN 1..orders_per_day LOOP
       ord_num := ord_num + 1;
       cur_ord_id := 'ord-hist-' || ord_num;
       
-      -- Calculate timestamp spread across peak EAT operational hours (8:00 to 21:00)
-      cur_time := (CURRENT_DATE - (day_offset || ' days')::INTERVAL) + (8 + ((h_idx * 3 + day_offset) % 13) || ' hours')::INTERVAL + ((h_idx * 17) % 55 || ' minutes')::INTERVAL;
+      -- Timestamp spread across operational hours (7:30 to 22:00)
+      cur_time := (CURRENT_DATE - (day_offset || ' days')::INTERVAL) + (7 + ((h_idx * 2 + day_offset) % 15) || ' hours')::INTERVAL + ((h_idx * 13 + day_offset * 3) % 55 || ' minutes')::INTERVAL;
       
-      -- Distribute order types (65% Dine-In, 20% Takeaway, 15% Delivery)
+      -- Order types (60% Dine-In, 25% Takeaway, 15% Delivery) - NO customer PII
       IF (ord_num % 10) < 6 THEN
         cur_type := 'DINE_IN';
         cur_table := tables[1 + (ord_num % 10)];
-        cur_cust := names[1 + (ord_num % 20)];
-        cur_phone := phones[1 + (ord_num % 10)];
         cur_addr := NULL;
         fee_val := 0.00;
-      ELSIF (ord_num % 10) < 8 THEN
+      ELSIF (ord_num % 10) < 85 THEN
         cur_type := 'TAKEAWAY';
         cur_table := NULL;
-        cur_cust := names[1 + (ord_num % 20)];
-        cur_phone := phones[1 + (ord_num % 10)];
         cur_addr := NULL;
         fee_val := 0.00;
       ELSE
         cur_type := 'DELIVERY';
         cur_table := NULL;
-        cur_cust := names[1 + (ord_num % 20)];
-        cur_phone := phones[1 + (ord_num % 10)];
-        cur_addr := 'Bole Atlas / Kazanchis, Addis Ababa';
+        cur_addr := 'Addis Ababa Area Delivery Zone';
         fee_val := 50.00;
       END IF;
 
-      -- Pick Item 1
-      CASE (ord_num % 8)
+      -- Pick Primary Item
+      CASE (ord_num % 10)
         WHEN 0 THEN item_id_1 := 'item-trad-01'; name_1 := 'Special Doro Wat Platter'; price_1 := 550.00;
         WHEN 1 THEN item_id_1 := 'item-trad-02'; name_1 := 'Sizzling Beef Tibs Special'; price_1 := 480.00;
         WHEN 2 THEN item_id_1 := 'item-brk-01';  name_1 := 'Special Chechebsa with Honey & Ergo'; price_1 := 240.00;
         WHEN 3 THEN item_id_1 := 'item-main-01'; name_1 := 'Prime Ribeye Steak with Herb Mash'; price_1 := 890.00;
         WHEN 4 THEN item_id_1 := 'item-pizza-01';name_1 := 'Artisanal Wood-Fired Margherita'; price_1 := 580.00;
         WHEN 5 THEN item_id_1 := 'item-trad-03'; name_1 := 'Grand Fasting Beyaynetu Platter'; price_1 := 360.00;
-        WHEN 6 THEN item_id_1 := 'shop-tomoca-250g'; name_1 := 'Tomoca Premium Ground Coffee (250g)'; price_1 := 380.00;
-        ELSE        item_id_1 := 'shop-butter-1kg';  name_1 := 'Traditional Spiced Butter (1kg Jar)'; price_1 := 980.00;
+        WHEN 6 THEN item_id_1 := 'item-pizza-02';name_1 := 'Yadotena Meat Lovers Special Pizza'; price_1 := 680.00;
+        WHEN 7 THEN item_id_1 := 'shop-tomoca-250g'; name_1 := 'Tomoca Premium Ground Coffee (250g)'; price_1 := 380.00;
+        WHEN 8 THEN item_id_1 := 'shop-butter-1kg';  name_1 := 'Traditional Spiced Butter (1kg Jar)'; price_1 := 980.00;
+        ELSE        item_id_1 := 'item-trad-04'; name_1 := 'Shiro Tegabino with Spiced Kibe'; price_1 := 280.00;
       END CASE;
       qty_1 := 1 + (ord_num % 2);
 
-      -- Pick Item 2 (Beverage or Dairy)
-      CASE (ord_num % 5)
+      -- Pick Secondary Item (Beverage/Dessert/Dairy)
+      CASE (ord_num % 6)
         WHEN 0 THEN item_id_2 := 'item-bev-01'; name_2 := 'Traditional Ethiopian Jebena Buna'; price_2 := 120.00;
         WHEN 1 THEN item_id_2 := 'item-bev-02'; name_2 := 'Signature Double Macchiato'; price_2 := 150.00;
         WHEN 2 THEN item_id_2 := 'item-bev-03'; name_2 := 'Fresh Layered Mango-Avocado Juice'; price_2 := 190.00;
         WHEN 3 THEN item_id_2 := 'item-milk-01';name_2 := 'Pure Farm-Fresh Cow Milk'; price_2 := 120.00;
+        WHEN 4 THEN item_id_2 := 'item-des-01'; name_2 := 'Molten Chocolate Lava Cake'; price_2 := 320.00;
         ELSE        item_id_2 := 'item-milk-03';name_2 := 'Signature Yadotena Cream Milkshake'; price_2 := 260.00;
       END CASE;
       qty_2 := 1 + ((ord_num + 1) % 2);
 
-      -- Calculate Totals
-      subtot := (price_1 * qty_1) + (price_2 * qty_2);
+      -- Attach Addons dynamically to items
+      addon_sum := 0.00;
+      oi_id_1 := 'oi-' || cur_ord_id || '-1';
+      oi_id_2 := 'oi-' || cur_ord_id || '-2';
+      
+      IF (ord_num % 3) = 0 THEN
+        addons_json_1 := '["addon-gl-02", "addon-cat-01"]'::jsonb;
+        addon_sum := addon_sum + 110.00;
+      ELSIF (ord_num % 3) = 1 THEN
+        addons_json_1 := '["addon-gl-01"]'::jsonb;
+        addon_sum := addon_sum + 25.00;
+      ELSE
+        addons_json_1 := '[]'::jsonb;
+      END IF;
+
+      IF (ord_num % 4) = 0 THEN
+        addons_json_2 := '["addon-cat-03"]'::jsonb;
+        addon_sum := addon_sum + 40.00;
+      ELSE
+        addons_json_2 := '[]'::jsonb;
+      END IF;
+
+      -- Financial Breakdown
+      subtot := (price_1 * qty_1) + (price_2 * qty_2) + addon_sum;
       tax_val := ROUND(subtot * 0.15, 2);
       svc_val := ROUND(subtot * 0.10, 2);
       total_val := subtot + tax_val + svc_val + fee_val;
-      pay_method := methods[1 + (ord_num % 7)];
+      pay_method := methods[1 + (ord_num % 9)];
 
-      -- Insert Historical Order (All COMPLETED & PAID)
+      -- Insert Anonymous Order
       INSERT INTO orders (id, type, status, payment_status, table_id, customer_name, customer_phone, delivery_address, subtotal, tax, service_charge, delivery_fee, total, created_at, updated_at)
-      VALUES (cur_ord_id, cur_type, 'COMPLETED', 'PAID', cur_table, cur_cust, cur_phone, cur_addr, subtot, tax_val, svc_val, fee_val, total_val, cur_time, cur_time + interval '45 minutes');
+      VALUES (cur_ord_id, cur_type, 'COMPLETED', 'PAID', cur_table, NULL, NULL, cur_addr, subtot, tax_val, svc_val, fee_val, total_val, cur_time, cur_time + interval '40 minutes');
 
-      -- Insert Order Items
+      -- Insert Order Line Items
       INSERT INTO order_items (id, order_id, menu_item_id, name, price, quantity, special_instructions, selected_addons, round_number, status, started_at, completed_at)
       VALUES 
-      ('oi-' || cur_ord_id || '-1', cur_ord_id, item_id_1, name_1, price_1, qty_1, NULL, '[]'::jsonb, 1, 'SERVED', cur_time + interval '5 minutes', cur_time + interval '25 minutes'),
-      ('oi-' || cur_ord_id || '-2', cur_ord_id, item_id_2, name_2, price_2, qty_2, NULL, '[]'::jsonb, 1, 'SERVED', cur_time + interval '5 minutes', cur_time + interval '15 minutes');
+      (oi_id_1, cur_ord_id, item_id_1, name_1, price_1, qty_1, NULL, addons_json_1, 1, 'SERVED', cur_time + interval '5 minutes', cur_time + interval '25 minutes'),
+      (oi_id_2, cur_ord_id, item_id_2, name_2, price_2, qty_2, NULL, addons_json_2, 1, 'SERVED', cur_time + interval '5 minutes', cur_time + interval '15 minutes');
+
+      -- Insert Order Item Addons Join
+      IF (ord_num % 3) = 0 THEN
+        INSERT INTO order_item_addons (order_item_id, addon_id, name, price) VALUES
+        (oi_id_1, 'addon-gl-02', 'Extra Fresh Injera', 50.00),
+        (oi_id_1, 'addon-cat-01', 'Extra Melted Niter Kibbeh', 60.00);
+      ELSIF (ord_num % 3) = 1 THEN
+        INSERT INTO order_item_addons (order_item_id, addon_id, name, price) VALUES
+        (oi_id_1, 'addon-gl-01', 'Eco Takeaway Box', 25.00);
+      END IF;
+
+      IF (ord_num % 4) = 0 THEN
+        INSERT INTO order_item_addons (order_item_id, addon_id, name, price) VALUES
+        (oi_id_2, 'addon-cat-03', 'Double Shot Yirgacheffe Espresso', 40.00);
+      END IF;
 
       -- Insert Payment Record
       INSERT INTO payments (order_id, method, amount, status, transaction_ref, created_at)
-      VALUES (cur_ord_id, pay_method, total_val, 'PAID', 'TXN-' || ord_num, cur_time + interval '40 minutes');
+      VALUES (cur_ord_id, pay_method, total_val, 'PAID', 'TXN-' || ord_num, cur_time + interval '35 minutes');
 
     END LOOP;
   END LOOP;
 
-  -- B. EXPENSES GENERATOR (LAST 90 DAYS)
-  FOR day_offset IN 1..90 LOOP
-    -- Monthly Rent (1st of month)
-    IF day_offset IN (90, 60, 30) THEN
+  -- B. OPERATIONAL EXPENSES GENERATOR (LAST 730 DAYS - 24 MONTHS)
+  FOR day_offset IN 1..730 LOOP
+    -- Monthly Building Rent (1st of month)
+    IF (day_offset % 30) = 0 THEN
       INSERT INTO expenses (id, amount, category, description, date, recorded_by_id, payment_method, created_at)
-      VALUES ('exp-rent-' || day_offset, 45000.00, 'Rent', 'Monthly Commercial Building Rent', CURRENT_DATE - day_offset, 'usr-mgr-1', 'Bank Transfer', (CURRENT_DATE - day_offset) + interval '09:00:00');
+      VALUES ('exp-rent-' || day_offset, 48000.00, 'Rent', 'Monthly Commercial Building Lease', CURRENT_DATE - day_offset, 'usr-mgr-1', 'Bank Transfer', (CURRENT_DATE - day_offset) + interval '09:00:00');
     END IF;
 
     -- Monthly Staff Payroll (28th of month)
-    IF day_offset IN (88, 58, 28) THEN
+    IF (day_offset % 30) = 28 THEN
       INSERT INTO expenses (id, amount, category, description, date, recorded_by_id, payment_method, created_at)
-      VALUES ('exp-sal-' || day_offset, 68000.00, 'Salaries', 'Monthly Kitchen & Waiter Staff Payroll', CURRENT_DATE - day_offset, 'usr-mgr-1', 'Bank Transfer', (CURRENT_DATE - day_offset) + interval '16:00:00');
+      VALUES ('exp-sal-' || day_offset, 72000.00, 'Salaries', 'Monthly Kitchen, Waiter & Support Staff Payroll', CURRENT_DATE - day_offset, 'usr-mgr-1', 'Bank Transfer', (CURRENT_DATE - day_offset) + interval '16:00:00');
     END IF;
 
-    -- Bi-weekly Inventory & Ingredients Purchase (every 4 days)
-    IF day_offset % 4 = 0 THEN
+    -- Ingredients & Farm Dairy Inventory (every 3 days)
+    IF (day_offset % 3) = 0 THEN
       INSERT INTO expenses (id, amount, category, description, date, recorded_by_id, payment_method, created_at)
-      VALUES ('exp-ing-' || day_offset, 12500.00 + (day_offset * 45 % 3500), 'Ingredients', 'Fresh beef, poultry, spices & farm dairy restock', CURRENT_DATE - day_offset, 'usr-mgr-1', 'Telebirr', (CURRENT_DATE - day_offset) + interval '11:30:00');
+      VALUES ('exp-ing-' || day_offset, 11500.00 + (day_offset * 37 % 4500), 'Ingredients', 'Fresh beef, poultry, spices & farm dairy restock', CURRENT_DATE - day_offset, 'usr-mgr-1', 'Telebirr', (CURRENT_DATE - day_offset) + interval '11:30:00');
     END IF;
 
-    -- Monthly Utilities (15th of month)
-    IF day_offset IN (75, 45, 15) THEN
+    -- Monthly Utilities & Power (15th of month)
+    IF (day_offset % 30) = 15 THEN
       INSERT INTO expenses (id, amount, category, description, date, recorded_by_id, payment_method, created_at)
-      VALUES ('exp-util-' || day_offset, 5800.00, 'Utilities', 'Commercial Power, Water & Fiber Internet', CURRENT_DATE - day_offset, 'usr-mgr-1', 'Telebirr', (CURRENT_DATE - day_offset) + interval '14:00:00');
+      VALUES ('exp-util-' || day_offset, 6400.00, 'Utilities', 'Commercial Electric Power, Water & Fiber Internet', CURRENT_DATE - day_offset, 'usr-mgr-1', 'Telebirr', (CURRENT_DATE - day_offset) + interval '14:00:00');
     END IF;
   END LOOP;
 
@@ -280,36 +320,34 @@ END $$;
 -- 7. TODAY'S LIVE OPERATIONS (Fresh Active Tickets & Realtime Kitchen Rounds)
 -- ============================================================================
 INSERT INTO orders (id, type, status, payment_status, table_id, customer_name, customer_phone, delivery_address, subtotal, tax, service_charge, delivery_fee, total, created_at, updated_at) VALUES
--- Fresh NEW ticket (just placed)
-('ord-100007', 'DINE_IN', 'PENDING', 'PENDING', 't8', 'Helen G.', '+251 91 345 6789', NULL,
+('ord-100007', 'DINE_IN', 'PENDING', 'PENDING', 't8', NULL, NULL, NULL,
   350.00, 52.50, 35.00, 0.00, 437.50, now() - interval '1 minute', now() - interval '1 minute'),
 
--- Fresh NEW delivery (paid, awaiting kitchen)
-('ord-100006', 'DELIVERY', 'PENDING', 'PAID', NULL, 'Abebe Kebede', '+251 91 123 4567', 'Bole Medhanialem, Addis Ababa',
+('ord-100006', 'DELIVERY', 'PENDING', 'PAID', NULL, NULL, NULL, 'Bole Medhanialem, Addis Ababa',
   1360.00, 204.00, 136.00, 50.00, 1750.00, now() - interval '2 minutes', now() - interval '2 minutes'),
 
--- Multi-Round Live Ticket (Round 1 READY, Round 2 PREPARING)
-('ord-100004', 'DINE_IN', 'PREPARING', 'PENDING', 't6', 'Sara Tefera', '+251 91 234 5678', NULL,
+('ord-100004', 'DINE_IN', 'PREPARING', 'PENDING', 't6', NULL, NULL, NULL,
   1390.00, 208.50, 139.00, 0.00, 1737.50, now() - interval '25 minutes', now() - interval '6 minutes'),
 
--- Active Cooking Queue
-('ord-100001', 'DINE_IN', 'PREPARING', 'PENDING', 't3', 'Dawit Haile', '+251 91 456 7890', NULL,
+('ord-100001', 'DINE_IN', 'PREPARING', 'PENDING', 't3', NULL, NULL, NULL,
   1580.00, 237.00, 158.00, 0.00, 1975.00, now() - interval '12 minutes', now() - interval '8 minutes'),
-('ord-100002', 'DINE_IN', 'PREPARING', 'PENDING', 't4', 'Meron Alemu', '+251 91 567 8901', NULL,
+
+('ord-100002', 'DINE_IN', 'PREPARING', 'PENDING', 't4', NULL, NULL, NULL,
   720.00, 108.00, 72.00, 0.00, 900.00, now() - interval '9 minutes', now() - interval '5 minutes'),
-('ord-100005', 'TAKEAWAY', 'PREPARING', 'PAID', NULL, 'Yonas Bekele', '+251 91 678 9012', NULL,
+
+('ord-100005', 'TAKEAWAY', 'PREPARING', 'PAID', NULL, NULL, NULL, NULL,
   470.00, 70.50, 47.00, 0.00, 587.50, now() - interval '8 minutes', now() - interval '4 minutes'),
-('ord-100008', 'DINE_IN', 'PREPARING', 'PENDING', 't7', 'Hanna Tadesse', '+251 91 789 0123', NULL,
+
+('ord-100008', 'DINE_IN', 'PREPARING', 'PENDING', 't7', NULL, NULL, NULL,
   400.00, 60.00, 40.00, 0.00, 500.00, now() - interval '11 minutes', now() - interval '6 minutes'),
 
--- Ready for Waiter Pickup
-('ord-100003', 'DINE_IN', 'READY', 'PENDING', 't5', 'Kaleb Girma', '+251 91 890 1234', NULL,
+('ord-100003', 'DINE_IN', 'READY', 'PENDING', 't5', NULL, NULL, NULL,
   670.00, 100.50, 67.00, 0.00, 837.50, now() - interval '18 minutes', now() - interval '2 minutes'),
 
--- Today's Completed Tickets (Settled & Served)
-('ord-200001', 'DINE_IN', 'COMPLETED', 'PAID', 't9', 'Ruth Solomon', '+251 91 901 2345', NULL,
+('ord-200001', 'DINE_IN', 'COMPLETED', 'PAID', 't9', NULL, NULL, NULL,
   1710.00, 256.50, 171.00, 0.00, 2137.50, now() - interval '3 hours', now() - interval '2 hours'),
-('ord-200002', 'DINE_IN', 'COMPLETED', 'PAID', 't10', 'Bethel Tesfaye', '+251 91 012 3456', NULL,
+
+('ord-200002', 'DINE_IN', 'COMPLETED', 'PAID', 't10', NULL, NULL, NULL,
   680.00, 102.00, 68.00, 0.00, 850.00, now() - interval '5 hours', now() - interval '4 hours')
 ON CONFLICT (id) DO UPDATE SET
   type = EXCLUDED.type,
@@ -395,7 +433,7 @@ INSERT INTO service_requests (id, table_id, type, status, notes, created_at, res
 -- Activity Logs
 INSERT INTO activity_logs (id, user_id, user_name, user_role, action, entity_type, entity_id, description, created_at) VALUES
 ('act-1001', 'usr-waiter-1', 'Tigist Waiter', 'WAITER', 'ORDER_CREATED', 'orders', 'ord-100007', 'Created dine-in order #100007 for Table 08', now() - interval '1 minute'),
-('act-1002', 'usr-waiter-1', 'Tigist Waiter', 'WAITER', 'ORDER_CREATED', 'orders', 'ord-100006', 'Created delivery order #100006 for Abebe Kebede', now() - interval '2 minutes'),
+('act-1002', 'usr-waiter-1', 'Tigist Waiter', 'WAITER', 'ORDER_CREATED', 'orders', 'ord-100006', 'Created delivery order #100006', now() - interval '2 minutes'),
 ('act-1003', 'usr-chef-1', 'Dawit Kitchen Chef', 'CHEF', 'KITCHEN_START', 'orders', 'ord-100004', 'Started preparing round 2 of order #100004', now() - interval '3 minutes'),
 ('act-1004', 'usr-chef-1', 'Dawit Kitchen Chef', 'CHEF', 'KITCHEN_READY', 'orders', 'ord-100003', 'Marked round 1 of order #100003 ready for pickup', now() - interval '2 minutes'),
 ('act-1005', 'usr-waiter-1', 'Tigist Waiter', 'WAITER', 'PAYMENT_RECEIVED', 'payments', 'ord-100005', 'Collected Telebirr payment 587.50 ETB for order #100005', now() - interval '8 minutes');

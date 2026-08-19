@@ -5,9 +5,8 @@ import { analytics, PeriodPreset, SalesAnalytics } from "@/services/analytics";
 import { AnalyticsToolbar } from "@/components/analytics/AnalyticsToolbar";
 import { MetricCard } from "@/components/analytics/MetricCard";
 import { RevenueTrendChart } from "@/components/analytics/RevenueTrendChart";
-import { BarChart3, ShoppingBag, Receipt, TrendingUp, Download, Clock, Layers } from "lucide-react";
+import { BarChart3, ShoppingBag, Receipt, TrendingUp, Clock, Layers } from "lucide-react";
 import { formatETB } from "@/lib/currency";
-import { exportSalesAnalyticsCSV } from "@/lib/export";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 
 export default function SalesAnalyticsPage() {

@@ -7,7 +7,6 @@ export type ReportTabKey =
   | "menu"
   | "addons"
   | "popularity"
-  | "customers"
   | "payments"
   | "staff"
   | "expenses"
@@ -18,7 +17,6 @@ const TABS: { key: ReportTabKey; label: string }[] = [
   { key: "menu", label: "Menu & Categories" },
   { key: "addons", label: "Add-ons" },
   { key: "popularity", label: "Popularity Trends" },
-  { key: "customers", label: "Customer Attribution" },
   { key: "payments", label: "Payment Breakdown" },
   { key: "staff", label: "Staff & Roles" },
   { key: "expenses", label: "Expense Report" },
@@ -42,7 +40,7 @@ export function ReportsTabs({
           className={cn(
             "px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all border",
             active === t.key
-              ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+              ? "bg-amber-500 text-amber-950 border-amber-500 shadow-sm"
               : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/50"
           )}
         >

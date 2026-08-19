@@ -138,7 +138,16 @@ function buildParams(period: PeriodPreset, range?: DateRange, compRange?: DateRa
 
 async function fetchAnalytics<T>(endpoint: string, period: PeriodPreset, range?: DateRange, compRange?: DateRange): Promise<T> {
   const params = buildParams(period, range, compRange);
-  const res = await fetch(`${API_BASE}/api/v1/analytics/${endpoint}?${params}`);
+  const headers: Record<string, string> = {
+    "Accept": "application/json",
+  };
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("token") || localStorage.getItem("access_token") || localStorage.getItem("auth_token");
+    if (token) {
+      headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+    }
+  }
+  const res = await fetch(`${API_BASE}/api/v1/analytics/${endpoint}?${params}`, { headers });
   if (!res.ok) throw new Error(`Analytics fetch failed: ${res.status}`);
   return res.json();
 }

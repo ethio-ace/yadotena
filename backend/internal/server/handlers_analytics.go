@@ -130,8 +130,9 @@ type PaymentMethodBreakdown struct {
 // ═══════════════════════════════════════════════════════════════════════
 
 func parsePeriod(r *http.Request) (start, end, compStart, compEnd string) {
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	loc := time.FixedZone("EAT", 3*3600) // Africa/Addis_Ababa
+	now := time.Now().In(loc)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 
 	period := r.URL.Query().Get("period")
 	switch period {
@@ -169,29 +170,29 @@ func parsePeriod(r *http.Request) (start, end, compStart, compEnd string) {
 		compStart = prevWeekStart2.Format("2006-01-02")
 		compEnd = prevWeekEnd2.Format("2006-01-02")
 	case "this_month":
-		monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
+		monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 		start = monthStart.Format("2006-01-02")
 		end = today.Format("2006-01-02")
 		prevMonthEnd := monthStart.AddDate(0, 0, -1)
-		prevMonthStart := time.Date(prevMonthEnd.Year(), prevMonthEnd.Month(), 1, 0, 0, 0, 0, time.Local)
+		prevMonthStart := time.Date(prevMonthEnd.Year(), prevMonthEnd.Month(), 1, 0, 0, 0, 0, loc)
 		compStart = prevMonthStart.Format("2006-01-02")
 		compEnd = prevMonthEnd.Format("2006-01-02")
 	case "last_month":
-		monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
+		monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 		lastMonthEnd := monthStart.AddDate(0, 0, -1)
-		lastMonthStart := time.Date(lastMonthEnd.Year(), lastMonthEnd.Month(), 1, 0, 0, 0, 0, time.Local)
+		lastMonthStart := time.Date(lastMonthEnd.Year(), lastMonthEnd.Month(), 1, 0, 0, 0, 0, loc)
 		start = lastMonthStart.Format("2006-01-02")
 		end = lastMonthEnd.Format("2006-01-02")
 		prevMonthEnd2 := lastMonthStart.AddDate(0, 0, -1)
-		prevMonthStart2 := time.Date(prevMonthEnd2.Year(), prevMonthEnd2.Month(), 1, 0, 0, 0, 0, time.Local)
+		prevMonthStart2 := time.Date(prevMonthEnd2.Year(), prevMonthEnd2.Month(), 1, 0, 0, 0, 0, loc)
 		compStart = prevMonthStart2.Format("2006-01-02")
 		compEnd = prevMonthEnd2.Format("2006-01-02")
 	case "this_year":
-		yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.Local)
+		yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, loc)
 		start = yearStart.Format("2006-01-02")
 		end = today.Format("2006-01-02")
 		prevYearEnd := yearStart.AddDate(0, 0, -1)
-		prevYearStart := time.Date(prevYearEnd.Year(), 1, 1, 0, 0, 0, 0, time.Local)
+		prevYearStart := time.Date(prevYearEnd.Year(), 1, 1, 0, 0, 0, 0, loc)
 		compStart = prevYearStart.Format("2006-01-02")
 		compEnd = prevYearEnd.Format("2006-01-02")
 	case "custom":
@@ -515,55 +516,116 @@ func safeScanFloat(s string) float64 {
 func (s *Server) getRevenueTrend(ctx context.Context, start, end, compStart, compEnd string) []TrendPoint {
 	points := make([]TrendPoint, 0)
 
+	if start == end {
+		// Single-day period: return 24 hourly buckets for detailed intraday trend
+		rows, err := s.Pool.Query(ctx, `
+			SELECT EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Africa/Addis_Ababa'))::int as hour,
+				COALESCE(SUM(total)::numeric, 0)::numeric
+			FROM orders
+			WHERE status NOT IN ('CANCELLED','DRAFT')
+			AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date = $1::date
+			GROUP BY hour ORDER BY hour`, start)
+		if err == nil {
+			hourMap := make(map[int]float64)
+			for rows.Next() {
+				var h int
+				var valStr string
+				if err := rows.Scan(&h, &valStr); err == nil {
+					hourMap[h] = safeScanFloat(valStr)
+				}
+			}
+			rows.Close()
+
+			compHourMap := make(map[int]float64)
+			if compStart != "" {
+				compRows, err := s.Pool.Query(ctx, `
+					SELECT EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Africa/Addis_Ababa'))::int as hour,
+						COALESCE(SUM(total)::numeric, 0)::numeric
+					FROM orders
+					WHERE status NOT IN ('CANCELLED','DRAFT')
+					AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date = $1::date
+					GROUP BY hour ORDER BY hour`, compStart)
+				if err == nil {
+					for compRows.Next() {
+						var h int
+						var valStr string
+						if err := compRows.Scan(&h, &valStr); err == nil {
+							compHourMap[h] = safeScanFloat(valStr)
+						}
+					}
+					compRows.Close()
+				}
+			}
+
+			for h := 0; h < 24; h++ {
+				label := fmt.Sprintf("%02d:00", h)
+				p := TrendPoint{Label: label, Value: hourMap[h]}
+				if cv, ok := compHourMap[h]; ok {
+					p.Compare = cv
+				}
+				points = append(points, p)
+			}
+			return points
+		}
+	}
+
+	// Multi-day period: group by date
 	rows, err := s.Pool.Query(ctx, `
-		SELECT to_char(created_at, 'YYYY-MM-DD') as day,
+		SELECT to_char((created_at AT TIME ZONE 'Africa/Addis_Ababa'), 'YYYY-MM-DD') as day,
 			COALESCE(SUM(total)::numeric, 0)::numeric
 		FROM orders
 		WHERE status NOT IN ('CANCELLED','DRAFT')
-		AND created_at::date BETWEEN $1::date AND $2::date
+		AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date
 		GROUP BY day ORDER BY day`, start, end)
 	if err != nil {
 		return points
 	}
 	defer rows.Close()
 
+	dayMap := make(map[string]float64)
+	for rows.Next() {
+		var day string
+		var valStr string
+		if err := rows.Scan(&day, &valStr); err == nil {
+			dayMap[day] = safeScanFloat(valStr)
+		}
+	}
+
 	compMap := make(map[string]float64)
 	if compStart != "" && compEnd != "" {
 		compRows, err := s.Pool.Query(ctx, `
-			SELECT to_char(created_at, 'YYYY-MM-DD') as day,
+			SELECT to_char((created_at AT TIME ZONE 'Africa/Addis_Ababa'), 'YYYY-MM-DD') as day,
 				COALESCE(SUM(total)::numeric, 0)::numeric
 			FROM orders
 			WHERE status NOT IN ('CANCELLED','DRAFT')
-			AND created_at::date BETWEEN $1::date AND $2::date
+			AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date
 			GROUP BY day ORDER BY day`, compStart, compEnd)
 		if err == nil {
 			for compRows.Next() {
 				var day string
 				var valStr string
 				if err := compRows.Scan(&day, &valStr); err == nil {
-					var val float64
-					fmt.Sscanf(valStr, "%f", &val)
-					compMap[day] = val
+					compMap[day] = safeScanFloat(valStr)
 				}
 			}
 			compRows.Close()
 		}
 	}
 
-	for rows.Next() {
-		var day string
-		var valStr string
-		if err := rows.Scan(&day, &valStr); err != nil {
-			continue
+	// Zero-fill dates between start and end
+	startDate, _ := time.Parse("2006-01-02", start)
+	endDate, _ := time.Parse("2006-01-02", end)
+	if startDate.Before(endDate) || startDate.Equal(endDate) {
+		for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+			key := d.Format("2006-01-02")
+			p := TrendPoint{Label: key, Value: dayMap[key]}
+			if cv, ok := compMap[key]; ok {
+				p.Compare = cv
+			}
+			points = append(points, p)
 		}
-		var val float64
-		fmt.Sscanf(valStr, "%f", &val)
-		p := TrendPoint{Label: day, Value: val}
-		if cv, ok := compMap[day]; ok {
-			p.Compare = cv
-		}
-		points = append(points, p)
 	}
+
 	return points
 }
 
@@ -576,7 +638,7 @@ func (s *Server) getTopSellers(ctx context.Context, start, end string, limit int
 		JOIN orders o ON o.id = oi.order_id
 		LEFT JOIN menu_items m ON m.id = oi.menu_item_id
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1::date AND $2::date
+		AND (o.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date
 		GROUP BY oi.name, m.category
 		ORDER BY SUM(oi.price * oi.quantity) DESC
 		LIMIT $3`, start, end, limit)
@@ -600,26 +662,33 @@ func (s *Server) getTopSellers(ctx context.Context, start, end string, limit int
 func (s *Server) getHourlySales(ctx context.Context, start, end string) []HourlySalesPoint {
 	points := make([]HourlySalesPoint, 0)
 	rows, err := s.Pool.Query(ctx, `
-		SELECT EXTRACT(HOUR FROM created_at)::int as hour,
+		SELECT EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Africa/Addis_Ababa'))::int as hour,
 			COALESCE(SUM(total)::text, '0') as revenue,
 			COUNT(*) as orders
 		FROM orders
 		WHERE status NOT IN ('CANCELLED','DRAFT')
-		AND created_at::date BETWEEN $1::date AND $2::date
+		AND (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date
 		GROUP BY hour ORDER BY hour`, start, end)
 	if err != nil {
 		return points
 	}
 	defer rows.Close()
 
+	hourMap := make(map[int]HourlySalesPoint)
 	for rows.Next() {
 		var p HourlySalesPoint
 		var revStr string
-		if err := rows.Scan(&p.Hour, &revStr, &p.Orders); err != nil {
-			continue
+		if err := rows.Scan(&p.Hour, &revStr, &p.Orders); err == nil {
+			p.Revenue = safeScanFloat(revStr)
+			hourMap[p.Hour] = p
 		}
-		p.Revenue = safeScanFloat(revStr)
-		points = append(points, p)
+	}
+	for h := 0; h < 24; h++ {
+		if p, ok := hourMap[h]; ok {
+			points = append(points, p)
+		} else {
+			points = append(points, HourlySalesPoint{Hour: h, Revenue: 0, Orders: 0})
+		}
 	}
 	return points
 }
@@ -634,7 +703,7 @@ func (s *Server) getCategorySales(ctx context.Context, start, end string) []Cate
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1::date AND $2::date`, start, end).Scan(&totalRevStr)
+		AND (o.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date`, start, end).Scan(&totalRevStr)
 	totalRevenue = safeScanFloat(totalRevStr)
 
 	rows, err := s.Pool.Query(ctx, `
@@ -645,7 +714,7 @@ func (s *Server) getCategorySales(ctx context.Context, start, end string) []Cate
 		JOIN orders o ON o.id = oi.order_id
 		LEFT JOIN menu_items m ON m.id = oi.menu_item_id
 		WHERE o.status NOT IN ('CANCELLED','DRAFT')
-		AND o.created_at::date BETWEEN $1::date AND $2::date
+		AND (o.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date BETWEEN $1::date AND $2::date
 		GROUP BY category ORDER BY SUM(oi.price * oi.quantity) DESC`, start, end)
 	if err != nil {
 		return cats

@@ -2,8 +2,6 @@ package audit
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -29,9 +27,9 @@ const (
 type ChangeType string
 
 const (
-	ChangeTypeUpdated  ChangeType = "UPDATED"
-	ChangeTypeAdded    ChangeType = "ADDED"
-	ChangeTypeRemoved  ChangeType = "REMOVED"
+	ChangeTypeUpdated   ChangeType = "UPDATED"
+	ChangeTypeAdded     ChangeType = "ADDED"
+	ChangeTypeRemoved   ChangeType = "REMOVED"
 	ChangeTypeUnchanged ChangeType = "UNCHANGED"
 )
 
@@ -57,55 +55,55 @@ const (
 
 // Change represents a before/after field diff
 type Change struct {
-	Field       string     `json:"field"`
-	FieldLabel  string     `json:"field_label"`
-	OldValue    *string    `json:"old_value,omitempty"`
-	NewValue    *string    `json:"new_value,omitempty"`
-	OldValueJSON any       `json:"old_value_json,omitempty"`
-	NewValueJSON any       `json:"new_value_json,omitempty"`
-	ChangeType  ChangeType `json:"change_type"`
-	SortOrder   int        `json:"sort_order"`
+	Field        string     `json:"field"`
+	FieldLabel   string     `json:"field_label"`
+	OldValue     *string    `json:"old_value,omitempty"`
+	NewValue     *string    `json:"new_value,omitempty"`
+	OldValueJSON any        `json:"old_value_json,omitempty"`
+	NewValueJSON any        `json:"new_value_json,omitempty"`
+	ChangeType   ChangeType `json:"change_type"`
+	SortOrder    int        `json:"sort_order"`
 }
 
 // Operation represents a business operation (Git commit equivalent)
 type Operation struct {
-	ID          uuid.UUID  `json:"id"`
-	Description string     `json:"description"`
-	Reason      *string    `json:"reason,omitempty"`
-	ActorID     string     `json:"actor_id"`
-	ActorName   string     `json:"actor_name"`
-	ActorRole   string     `json:"actor_role"`
-	SessionID   *string    `json:"session_id,omitempty"`
-	DeviceID    *string    `json:"device_id,omitempty"`
-	IPAddress   *string    `json:"ip_address,omitempty"`
-	UserAgent   *string    `json:"user_agent,omitempty"`
-	Status      string     `json:"status"`
-	OccurredAt  time.Time  `json:"occurred_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	ID          uuid.UUID      `json:"id"`
+	Description string         `json:"description"`
+	Reason      *string        `json:"reason,omitempty"`
+	ActorID     string         `json:"actor_id"`
+	ActorName   string         `json:"actor_name"`
+	ActorRole   string         `json:"actor_role"`
+	SessionID   *string        `json:"session_id,omitempty"`
+	DeviceID    *string        `json:"device_id,omitempty"`
+	IPAddress   *string        `json:"ip_address,omitempty"`
+	UserAgent   *string        `json:"user_agent,omitempty"`
+	Status      string         `json:"status"`
+	OccurredAt  time.Time      `json:"occurred_at"`
+	CompletedAt *time.Time     `json:"completed_at,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
+	CreatedAt   time.Time      `json:"created_at"`
 }
 
 // Event represents an immutable business action
 type Event struct {
-	ID                 uuid.UUID  `json:"id"`
-	OperationID        uuid.UUID  `json:"operation_id"`
-	ActorID            string     `json:"actor_id"`
-	ActorName          string     `json:"actor_name"`
-	ActorRole          string     `json:"actor_role"`
-	Action             string     `json:"action"`
-	EntityType         EntityType `json:"entity_type"`
-	EntityID           string     `json:"entity_id"`
-	EntityName         *string    `json:"entity_name,omitempty"`
-	RelatedEntityType  *string    `json:"related_entity_type,omitempty"`
-	RelatedEntityID    *string    `json:"related_entity_id,omitempty"`
-	RelatedEntityName  *string    `json:"related_entity_name,omitempty"`
-	BeforeSnapshot     map[string]any `json:"before_snapshot,omitempty"`
-	AfterSnapshot      map[string]any `json:"after_snapshot,omitempty"`
-	Description        string     `json:"description"`
-	Severity           Severity   `json:"severity"`
-	OccurredAt         time.Time  `json:"occurred_at"`
-	CreatedAt          time.Time  `json:"created_at"`
+	ID                uuid.UUID      `json:"id"`
+	OperationID       uuid.UUID      `json:"operation_id"`
+	ActorID           string         `json:"actor_id"`
+	ActorName         string         `json:"actor_name"`
+	ActorRole         string         `json:"actor_role"`
+	Action            string         `json:"action"`
+	EntityType        EntityType     `json:"entity_type"`
+	EntityID          string         `json:"entity_id"`
+	EntityName        *string        `json:"entity_name,omitempty"`
+	RelatedEntityType *string        `json:"related_entity_type,omitempty"`
+	RelatedEntityID   *string        `json:"related_entity_id,omitempty"`
+	RelatedEntityName *string        `json:"related_entity_name,omitempty"`
+	BeforeSnapshot    map[string]any `json:"before_snapshot,omitempty"`
+	AfterSnapshot     map[string]any `json:"after_snapshot,omitempty"`
+	Description       string         `json:"description"`
+	Severity          Severity       `json:"severity"`
+	OccurredAt        time.Time      `json:"occurred_at"`
+	CreatedAt         time.Time      `json:"created_at"`
 }
 
 // EventWithChanges includes the event and its associated changes
@@ -155,11 +153,11 @@ func (l *Logger) CreateOperation(ctx context.Context, params CreateOperationPara
 		OccurredAt:  time.Now(),
 		CreatedAt:   time.Now(),
 	}
-	
+
 	if params.Metadata != nil {
 		operation.Metadata = params.Metadata
 	}
-	
+
 	_, err := l.Pool.Exec(ctx, `
 		INSERT INTO audit_operations (
 			id, description, reason, actor_id, actor_name, actor_role,
@@ -175,7 +173,7 @@ func (l *Logger) CreateOperation(ctx context.Context, params CreateOperationPara
 	if err != nil {
 		return nil, fmt.Errorf("failed to create operation: %w", err)
 	}
-	
+
 	return operation, nil
 }
 
@@ -217,21 +215,21 @@ func (l *Logger) RecordEvent(ctx context.Context, params RecordEventParams) (*Ev
 		OccurredAt:        time.Now(),
 		CreatedAt:         time.Now(),
 	}
-	
+
 	if params.BeforeSnapshot != nil {
 		event.BeforeSnapshot = params.BeforeSnapshot
 	}
 	if params.AfterSnapshot != nil {
 		event.AfterSnapshot = params.AfterSnapshot
 	}
-	
+
 	// Begin transaction
 	tx, err := l.Pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	
+
 	// Insert event
 	_, err = tx.Exec(ctx, `
 		INSERT INTO audit_events (
@@ -250,7 +248,7 @@ func (l *Logger) RecordEvent(ctx context.Context, params RecordEventParams) (*Ev
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert event: %w", err)
 	}
-	
+
 	// Insert changes if provided
 	if len(params.Changes) > 0 {
 		for i, change := range params.Changes {
@@ -270,12 +268,12 @@ func (l *Logger) RecordEvent(ctx context.Context, params RecordEventParams) (*Ev
 			}
 		}
 	}
-	
+
 	// Commit transaction
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	
+
 	return event, nil
 }
 
@@ -328,7 +326,7 @@ func (l *Logger) GetOperationWithEvents(ctx context.Context, operationID uuid.UU
 	if err != nil {
 		return nil, err
 	}
-	
+
 	rows, err := l.Pool.Query(ctx, `
 		SELECT id, operation_id, actor_id, actor_name, actor_role,
 			   action, entity_type, entity_id, entity_name,
@@ -342,7 +340,7 @@ func (l *Logger) GetOperationWithEvents(ctx context.Context, operationID uuid.UU
 		return nil, fmt.Errorf("failed to query events: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var events []EventWithChanges
 	for rows.Next() {
 		var e EventWithChanges
@@ -356,17 +354,17 @@ func (l *Logger) GetOperationWithEvents(ctx context.Context, operationID uuid.UU
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan event: %w", err)
 		}
-		
+
 		// Get changes for this event
 		changes, err := l.GetEventChanges(ctx, e.ID)
 		if err != nil {
 			return nil, err
 		}
 		e.Changes = changes
-		
+
 		events = append(events, e)
 	}
-	
+
 	return &OperationWithEvents{
 		Operation: *op,
 		Events:    events,
@@ -385,7 +383,7 @@ func (l *Logger) GetEventChanges(ctx context.Context, eventID uuid.UUID) ([]Chan
 		return nil, fmt.Errorf("failed to query changes: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var changes []Change
 	for rows.Next() {
 		var c Change
@@ -401,7 +399,7 @@ func (l *Logger) GetEventChanges(ctx context.Context, eventID uuid.UUID) ([]Chan
 		}
 		changes = append(changes, c)
 	}
-	
+
 	return changes, nil
 }
 
@@ -410,7 +408,7 @@ func (l *Logger) GetEntityHistory(ctx context.Context, entityType EntityType, en
 	if limit <= 0 {
 		limit = 50
 	}
-	
+
 	rows, err := l.Pool.Query(ctx, `
 		SELECT id, operation_id, actor_id, actor_name, actor_role,
 			   action, entity_type, entity_id, entity_name,
@@ -425,7 +423,7 @@ func (l *Logger) GetEntityHistory(ctx context.Context, entityType EntityType, en
 		return nil, fmt.Errorf("failed to query entity history: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var events []EventWithChanges
 	for rows.Next() {
 		var e EventWithChanges
@@ -439,17 +437,17 @@ func (l *Logger) GetEntityHistory(ctx context.Context, entityType EntityType, en
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan event: %w", err)
 		}
-		
+
 		// Get changes for this event
 		changes, err := l.GetEventChanges(ctx, e.ID)
 		if err != nil {
 			return nil, err
 		}
 		e.Changes = changes
-		
+
 		events = append(events, e)
 	}
-	
+
 	return events, nil
 }
 
@@ -463,55 +461,55 @@ func (l *Logger) GetGlobalActivity(ctx context.Context, params GetActivityParams
 			   occurred_at, created_at
 		FROM audit_events
 		WHERE 1=1`
-	
+
 	args := []any{}
 	argIndex := 1
-	
+
 	// Apply filters
 	if params.ActorID != nil {
 		query += fmt.Sprintf(" AND actor_id = $%d", argIndex)
 		args = append(args, *params.ActorID)
 		argIndex++
 	}
-	
+
 	if params.EntityType != nil {
 		query += fmt.Sprintf(" AND entity_type = $%d", argIndex)
 		args = append(args, *params.EntityType)
 		argIndex++
 	}
-	
+
 	if params.Severity != nil {
 		query += fmt.Sprintf(" AND severity = $%d", argIndex)
 		args = append(args, *params.Severity)
 		argIndex++
 	}
-	
+
 	if params.Since != nil {
 		query += fmt.Sprintf(" AND occurred_at >= $%d", argIndex)
 		args = append(args, *params.Since)
 		argIndex++
 	}
-	
+
 	if params.Search != nil && *params.Search != "" {
 		query += fmt.Sprintf(" AND (to_tsvector('english', description) @@ plainto_tsquery('english', $%d) OR entity_name ILIKE '%%' || $%d || '%%')", argIndex, argIndex)
 		args = append(args, *params.Search, *params.Search)
 		argIndex++
 	}
-	
+
 	query += " ORDER BY occurred_at DESC"
-	
+
 	if params.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT $%d", argIndex)
 		args = append(args, params.Limit)
 		argIndex++
 	}
-	
+
 	rows, err := l.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query activity: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var events []EventWithChanges
 	for rows.Next() {
 		var e EventWithChanges
@@ -525,17 +523,17 @@ func (l *Logger) GetGlobalActivity(ctx context.Context, params GetActivityParams
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan event: %w", err)
 		}
-		
+
 		// Get changes for this event
 		changes, err := l.GetEventChanges(ctx, e.ID)
 		if err != nil {
 			return nil, err
 		}
 		e.Changes = changes
-		
+
 		events = append(events, e)
 	}
-	
+
 	return events, nil
 }
 
@@ -563,16 +561,16 @@ func (l *Logger) GetAttentionItems(ctx context.Context, since time.Time) ([]Even
 func (l *Logger) GetDailySummary(ctx context.Context, date time.Time) (*DailySummary, error) {
 	startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	endOfDay := startOfDay.Add(24 * time.Hour)
-	
+
 	summary := &DailySummary{
-		Date:          startOfDay,
-		TotalEvents:   0,
-		ByCategory:    make(map[string]int),
-		ByActor:       make(map[string]int),
-		ByEntity:      make(map[string]int),
-		BySeverity:    make(map[string]int),
+		Date:        startOfDay,
+		TotalEvents: 0,
+		ByCategory:  make(map[string]int),
+		ByActor:     make(map[string]int),
+		ByEntity:    make(map[string]int),
+		BySeverity:  make(map[string]int),
 	}
-	
+
 	rows, err := l.Pool.Query(ctx, `
 		SELECT action, actor_name, entity_type, severity, COUNT(*)
 		FROM audit_events
@@ -582,7 +580,7 @@ func (l *Logger) GetDailySummary(ctx context.Context, date time.Time) (*DailySum
 		return nil, fmt.Errorf("failed to query daily summary: %w", err)
 	}
 	defer rows.Close()
-	
+
 	for rows.Next() {
 		var action, actorName, entityType, severity string
 		var count int
@@ -590,25 +588,25 @@ func (l *Logger) GetDailySummary(ctx context.Context, date time.Time) (*DailySum
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan summary row: %w", err)
 		}
-		
+
 		summary.TotalEvents += count
 		summary.ByCategory[action] = count
 		summary.ByActor[actorName] = count
 		summary.ByEntity[entityType] = count
 		summary.BySeverity[severity] = count
 	}
-	
+
 	return summary, nil
 }
 
 // DailySummary represents a summary of activity for a day
 type DailySummary struct {
-	Date         time.Time         `json:"date"`
-	TotalEvents  int               `json:"total_events"`
-	ByCategory   map[string]int    `json:"by_category"`
-	ByActor      map[string]int    `json:"by_actor"`
-	ByEntity     map[string]int    `json:"by_entity"`
-	BySeverity   map[string]int    `json:"by_severity"`
+	Date        time.Time      `json:"date"`
+	TotalEvents int            `json:"total_events"`
+	ByCategory  map[string]int `json:"by_category"`
+	ByActor     map[string]int `json:"by_actor"`
+	ByEntity    map[string]int `json:"by_entity"`
+	BySeverity  map[string]int `json:"by_severity"`
 }
 
 // ============================================================================
@@ -634,36 +632,36 @@ func TimePtr(t time.Time) *time.Time {
 func ChangeFromField(field, fieldLabel string, oldVal, newVal any) Change {
 	oldStr := fmt.Sprintf("%v", oldVal)
 	newStr := fmt.Sprintf("%v", newVal)
-	
+
 	return Change{
-		Field:       field,
-		FieldLabel:  fieldLabel,
-		OldValue:    &oldStr,
-		NewValue:    &newStr,
-		ChangeType:  ChangeTypeUpdated,
+		Field:      field,
+		FieldLabel: fieldLabel,
+		OldValue:   &oldStr,
+		NewValue:   &newStr,
+		ChangeType: ChangeTypeUpdated,
 	}
 }
 
 // ChangeFromAddition creates a Change struct for an addition
 func ChangeFromAddition(field, fieldLabel string, newVal any) Change {
 	newStr := fmt.Sprintf("%v", newVal)
-	
+
 	return Change{
-		Field:       field,
-		FieldLabel:  fieldLabel,
-		NewValue:    &newStr,
-		ChangeType:  ChangeTypeAdded,
+		Field:      field,
+		FieldLabel: fieldLabel,
+		NewValue:   &newStr,
+		ChangeType: ChangeTypeAdded,
 	}
 }
 
 // ChangeFromRemoval creates a Change struct for a removal
 func ChangeFromRemoval(field, fieldLabel string, oldVal any) Change {
 	oldStr := fmt.Sprintf("%v", oldVal)
-	
+
 	return Change{
-		Field:       field,
-		FieldLabel:  fieldLabel,
-		OldValue:    &oldStr,
-		ChangeType:  ChangeTypeRemoved,
+		Field:      field,
+		FieldLabel: fieldLabel,
+		OldValue:   &oldStr,
+		ChangeType: ChangeTypeRemoved,
 	}
 }

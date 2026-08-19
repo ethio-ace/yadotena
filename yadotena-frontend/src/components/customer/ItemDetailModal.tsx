@@ -85,10 +85,6 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
   const grandTotal = unitPrice * quantity;
 
   const handleAddToCart = () => {
-    if (!tableId) {
-      setIsTablePickerOpen(true);
-      return;
-    }
     const combinedInstructions = isShopItem
       ? note.trim()
       : [selectedSpice ? `Spice: ${selectedSpice}` : "", note.trim()].filter(Boolean).join(" · ");
@@ -96,6 +92,9 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
     addToCart(item, quantity, selectedAddons, combinedInstructions);
     onClose();
     setIsCartOpen(true);
+    if (!tableId) {
+      setIsTablePickerOpen(true);
+    }
   };
 
   return (
@@ -323,11 +322,7 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
             className="w-full rounded-2xl font-black h-13 shadow-xl shadow-primary/25 text-base flex items-center justify-center gap-2"
           >
             {isShopItem ? <ShoppingBag className="h-5 w-5" /> : <Utensils className="h-5 w-5" />}
-            <span>
-              {tableId
-                ? `Add to Table Cart · ${formatETB(grandTotal)}`
-                : `Select Table to Order · ${formatETB(grandTotal)}`}
-            </span>
+            <span>Add to Cart · {formatETB(grandTotal)}</span>
           </Button>
         </div>
       </div>

@@ -2,9 +2,11 @@
 
 import { MenuItem } from "@/types";
 import { Badge } from "@/components/ui/badge";
-import { Flame, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Flame, TrendingUp, Plus } from "lucide-react";
 import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
+import { useCustomerDineIn } from "@/contexts/CustomerDineInContext";
 
 interface TopProductsRowProps {
   items: (MenuItem & { orderCount?: number })[];
@@ -15,7 +17,19 @@ interface TopProductsRowProps {
 
 /** Horizontal "Top Sellers / Most Popular" strip shown on the public menu & shop pages. */
 export function TopProductsRow({ items, title = "Top Sellers", subtitle, onSelect }: TopProductsRowProps) {
+  const { tableId, addToCart, setIsTablePickerOpen, setIsCartOpen } = useCustomerDineIn();
+
   if (!items || items.length === 0) return null;
+
+  const handleQuickAdd = (e: React.MouseEvent, item: MenuItem) => {
+    e.stopPropagation();
+    e.preventDefault();
+    addToCart(item, 1, [], "");
+    setIsCartOpen(true);
+    if (!tableId) {
+      setIsTablePickerOpen(true);
+    }
+  };
 
   return (
     <section className="space-y-3">
@@ -31,11 +45,10 @@ export function TopProductsRow({ items, title = "Top Sellers", subtitle, onSelec
 
       <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-1 px-1 pt-1">
         {items.map((item, idx) => (
-          <button
+          <div
             key={item.id}
-            type="button"
             onClick={() => onSelect(item)}
-            className="group relative flex flex-col w-40 sm:w-44 shrink-0 rounded-2xl border border-muted-foreground/15 bg-card overflow-hidden text-left hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/40 transition-all duration-300"
+            className="group relative flex flex-col w-40 sm:w-44 shrink-0 rounded-2xl border border-muted-foreground/15 bg-card overflow-hidden text-left hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/40 transition-all duration-300 cursor-pointer"
           >
             <div className="relative h-28 w-full bg-muted overflow-hidden">
               <img
@@ -51,13 +64,24 @@ export function TopProductsRow({ items, title = "Top Sellers", subtitle, onSelec
                 {item.orderCount ? `${item.orderCount} sold` : "Popular"}
               </Badge>
             </div>
-            <div className="p-3 flex flex-col gap-1 flex-1">
+            <div className="p-3 flex flex-col gap-2 flex-1 justify-between">
               <h3 className="font-bold text-xs leading-snug line-clamp-2 group-hover:text-primary transition-colors">
                 {item.name}
               </h3>
-              <span className="text-primary font-black text-sm mt-auto">{formatETB(item.price)}</span>
+              <div className="flex items-center justify-between gap-1 pt-1 border-t border-muted/40">
+                <span className="text-primary font-black text-xs">{formatETB(item.price)}</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 px-2 text-[11px] font-bold rounded-lg bg-primary text-primary-foreground gap-1"
+                  onClick={(e) => handleQuickAdd(e, item)}
+                >
+                  <Plus className="h-3 w-3" />
+                  <span>Add</span>
+                </Button>
+              </div>
             </div>
-          </button>
+          </div>
         ))}
       </div>
     </section>

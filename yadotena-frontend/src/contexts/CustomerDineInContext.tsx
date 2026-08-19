@@ -152,11 +152,6 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
     selectedAddons: SelectedAddon[],
     specialInstructions: string
   ) => {
-    // Exclude retail shop products
-    if (isShopProductItem(menuItem)) {
-      return;
-    }
-
     const addonsPrice = selectedAddons.reduce((sum, a) => sum + (a.price || 0), 0);
     const unitPrice = menuItem.price + addonsPrice;
     const itemTotal = unitPrice * quantity;

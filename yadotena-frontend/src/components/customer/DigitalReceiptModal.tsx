@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Order } from "@/types";
 import { formatETB } from "@/lib/currency";
+import { groupItemsByRound, roundTotal, roundCount } from "@/lib/kitchen";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -123,43 +124,56 @@ export function DigitalReceiptModal({
             {/* Line Items Table */}
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground border-b pb-1">
-                <span>Item</span>
+                <span>Items ({order.items?.length || 0})</span>
                 <span>Total</span>
               </div>
 
-              <div className="space-y-2.5 divide-y divide-dashed">
-                {order.items?.map((item, idx) => (
-                  <div key={item.id || idx} className={idx > 0 ? "pt-2 space-y-1" : "space-y-1"}>
-                    <div className="flex items-start justify-between text-xs gap-2">
-                      <div className="font-bold text-foreground">
-                        <span className="text-primary font-black mr-1">{item.quantity}×</span>
-                        {item.name}
+              <div className="space-y-3">
+                {groupItemsByRound(order.items).map((rg) => (
+                  <div key={rg.round} className="space-y-2">
+                    {roundCount(order) > 1 && (
+                      <div className="flex items-center justify-between text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 font-mono">
+                        <span>Round {rg.round} ({rg.round === 1 ? "Initial Order" : "Added Later"})</span>
+                        <span>{formatETB(roundTotal(rg.items))}</span>
                       </div>
-                      <div className="font-mono font-bold shrink-0">
-                        {formatETB(item.price * item.quantity)}
-                      </div>
-                    </div>
+                    )}
 
-                    {/* Add-ons list */}
-                    {item.selectedAddons && item.selectedAddons.length > 0 && (
-                      <div className="pl-4 space-y-0.5 text-[11px] text-muted-foreground font-mono">
-                        {item.selectedAddons.map((addon, aIdx) => {
-                          const addonKey = typeof addon === "string" ? addon : (addon as any)?.name || (addon as any)?.id || "";
-                          const addonName = addonMap[addonKey] || addonKey;
-                          return (
-                            <div key={aIdx} className="flex justify-between">
-                              <span>+ {addonName}</span>
+                    <div className="space-y-2 divide-y divide-dashed">
+                      {rg.items.map((item, idx) => (
+                        <div key={item.id || idx} className={idx > 0 ? "pt-2 space-y-1" : "space-y-1"}>
+                          <div className="flex items-start justify-between text-xs gap-2">
+                            <div className="font-bold text-foreground">
+                              <span className="text-primary font-black mr-1">{item.quantity}×</span>
+                              {item.name}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            <div className="font-mono font-bold shrink-0">
+                              {formatETB(item.price * item.quantity)}
+                            </div>
+                          </div>
 
-                    {item.specialInstructions && (
-                      <div className="text-[10px] italic text-amber-600 dark:text-amber-400 pl-4">
-                        Note: &ldquo;{item.specialInstructions}&rdquo;
-                      </div>
-                    )}
+                          {/* Add-ons list */}
+                          {item.selectedAddons && item.selectedAddons.length > 0 && (
+                            <div className="pl-4 space-y-0.5 text-[11px] text-muted-foreground font-mono">
+                              {item.selectedAddons.map((addon, aIdx) => {
+                                const addonKey = typeof addon === "string" ? addon : (addon as any)?.name || (addon as any)?.id || "";
+                                const addonName = addonMap[addonKey] || addonKey;
+                                return (
+                                  <div key={aIdx} className="flex justify-between">
+                                    <span>+ {addonName}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {item.specialInstructions && (
+                            <div className="text-[10px] italic text-amber-600 dark:text-amber-400 pl-4">
+                              Note: &ldquo;{item.specialInstructions}&rdquo;
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>

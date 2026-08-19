@@ -263,12 +263,12 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!tableId) {
-      setIsTablePickerOpen(true);
-      return;
-    }
+    e.preventDefault();
     addToCart(item, 1, [], "");
     setIsCartOpen(true);
+    if (!tableId) {
+      setIsTablePickerOpen(true);
+    }
   };
 
   return (
@@ -343,9 +343,14 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
               Details
             </Button>
             <Button
+              type="button"
               size="sm"
               className="rounded-xl font-black text-xs h-9 px-3 gap-1 shadow-md shadow-primary/20 bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={handleQuickAdd}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                handleQuickAdd(e);
+              }}
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add</span>

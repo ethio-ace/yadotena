@@ -26,12 +26,12 @@ export default function ShopPage() {
 
   const handleQuickAddProduct = (e: React.MouseEvent, product: MenuItem) => {
     e.stopPropagation();
-    if (!tableId) {
-      setIsTablePickerOpen(true);
-      return;
-    }
+    e.preventDefault();
     addToCart(product, 1, [], "");
     setIsCartOpen(true);
+    if (!tableId) {
+      setIsTablePickerOpen(true);
+    }
   };
 
   const { data: menu = [], isLoading: isMenuLoading } = useQuery({

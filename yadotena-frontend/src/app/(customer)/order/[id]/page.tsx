@@ -5,10 +5,10 @@ import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
-import { addonNames } from "@/lib/kitchen";
+import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount } from "@/lib/kitchen";
 import {
   ArrowLeft, BellRing, Check, CheckCircle2, CreditCard, Landmark,
-  MapPin, Printer, Receipt, Sparkles, Copy, Utensils, QrCode
+  MapPin, Printer, Receipt, Sparkles, Copy, Utensils, QrCode, Layers
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -27,6 +27,41 @@ const getStatusColor = (status: string) => {
     case "PREPARING": return "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 border-purple-300";
     case "CANCELLED": return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 border-red-300";
     default: return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 border-amber-300";
+  }
+};
+
+const getRoundCustomerStatus = (status: string) => {
+  switch (status) {
+    case "READY":
+      return {
+        label: "Ready to Serve",
+        colorClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+        dotClass: "bg-emerald-500",
+      };
+    case "PREPARING":
+      return {
+        label: "Cooking in Kitchen",
+        colorClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+        dotClass: "bg-amber-500 animate-pulse",
+      };
+    case "SERVED":
+      return {
+        label: "Served at Table",
+        colorClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30",
+        dotClass: "bg-blue-500",
+      };
+    case "CANCELLED":
+      return {
+        label: "Cancelled",
+        colorClass: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30",
+        dotClass: "bg-red-500",
+      };
+    default:
+      return {
+        label: "Kitchen Queue (Waiting)",
+        colorClass: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/30",
+        dotClass: "bg-zinc-400",
+      };
   }
 };
 
@@ -339,51 +374,117 @@ export default function OrderTrackingPage() {
             </div>
           )}
 
-          {/* Order Items List */}
-          <div className="bg-card border rounded-2xl shadow-sm p-5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-              <Receipt className="h-3.5 w-3.5" /> Order Items ({order.items?.length || 0})
-            </h3>
-            <div className="space-y-2.5">
-              {order.items?.map((item, idx) => {
-                const img = getItemImage(item.menuItemId);
-                const aNames = addonNames(item.selectedAddons, addonMap);
+          {/* Order Items & Kitchen Rounds Breakdown */}
+          <div className="bg-card border rounded-3xl shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <Layers className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-foreground leading-none">
+                    Order Items & Kitchen Rounds
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground font-medium mt-1">
+                    {order.items?.length || 0} items across {roundCount(order)} kitchen {roundCount(order) === 1 ? "round" : "rounds"}
+                  </p>
+                </div>
+              </div>
+
+              {roundCount(order) > 1 && (
+                <Badge variant="secondary" className="bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold text-xs">
+                  Multi-Round Order
+                </Badge>
+              )}
+            </div>
+
+            {/* Round Groups Loop */}
+            <div className="space-y-4">
+              {groupItemsByRound(order.items).map((rg) => {
+                const rStatus = roundStatus(rg.items, order.status);
+                const statusInfo = getRoundCustomerStatus(rStatus);
+                const rSubtotal = roundTotal(rg.items);
 
                 return (
-                  <div key={item.id || idx} className="p-3 rounded-xl border bg-background/50 space-y-1.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {img ? (
-                          <img src={img} alt={item.name} className="h-10 w-10 rounded-lg object-cover shrink-0 border" />
-                        ) : (
-                          <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center text-xs shrink-0 border border-amber-500/20">
-                            {item.quantity}×
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="font-bold text-sm truncate">{item.quantity}× {item.name}</div>
-                          {item.specialInstructions && (
-                            <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">
-                              &ldquo;{item.specialInstructions}&rdquo;
-                            </p>
-                          )}
-                        </div>
+                  <div key={rg.round} className="rounded-2xl border bg-muted/20 p-4 space-y-3">
+                    {/* Round Header Bar */}
+                    <div className="flex items-center justify-between gap-2 border-b pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="h-6 px-2.5 rounded-full bg-primary text-primary-foreground font-black text-xs flex items-center justify-center shadow-xs">
+                          Round {rg.round}
+                        </span>
+                        <span className="font-extrabold text-sm text-foreground">
+                          {rg.round === 1 ? "Initial Order" : "Added Later"}
+                        </span>
                       </div>
-                      <div className="font-mono font-bold text-sm shrink-0">
-                        {formatETB(item.price * item.quantity)}
+
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={`font-bold text-[11px] px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${statusInfo.colorClass}`}>
+                          <span className={`h-2 w-2 rounded-full ${statusInfo.dotClass}`} />
+                          {statusInfo.label}
+                        </Badge>
+                        <span className="font-mono text-xs font-bold text-muted-foreground hidden sm:inline">
+                          {formatETB(rSubtotal)}
+                        </span>
                       </div>
                     </div>
 
-                    {aNames.length > 0 && (
-                      <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
-                        {aNames.map((aName, aIdx) => (
-                          <div key={aIdx} className="flex items-center gap-1 text-foreground">
-                            <span className="text-amber-500 font-bold">+</span>
-                            <span>{aName}</span>
+                    {/* Items in this Round */}
+                    <div className="space-y-2">
+                      {rg.items.map((item, idx) => {
+                        const img = getItemImage(item.menuItemId);
+                        const aNames = addonNames(item.selectedAddons, addonMap);
+                        const iStatus = item.status || rStatus;
+                        const itemStatusInfo = getRoundCustomerStatus(iStatus);
+
+                        return (
+                          <div key={item.id || idx} className="p-3.5 rounded-xl border bg-card space-y-2 shadow-xs">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3 min-w-0">
+                                {img ? (
+                                  <img src={img} alt={item.name} className="h-11 w-11 rounded-xl object-cover shrink-0 border" />
+                                ) : (
+                                  <div className="h-11 w-11 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black flex items-center justify-center text-xs shrink-0 border border-amber-500/20">
+                                    {item.quantity}×
+                                  </div>
+                                )}
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-extrabold text-sm">{item.quantity}× {item.name}</span>
+                                    {item.status && (
+                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${itemStatusInfo.colorClass}`}>
+                                        <span className={`h-1.5 w-1.5 rounded-full ${itemStatusInfo.dotClass}`} />
+                                        {itemStatusInfo.label}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.specialInstructions && (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400 italic">
+                                      &ldquo;{item.specialInstructions}&rdquo;
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="font-mono font-black text-sm shrink-0">
+                                {formatETB(item.price * item.quantity)}
+                              </div>
+                            </div>
+
+                            {aNames.length > 0 && (
+                              <div className="pl-4 space-y-0.5 text-xs text-muted-foreground border-l-2 border-amber-500/40">
+                                {aNames.map((aName, aIdx) => (
+                                  <div key={aIdx} className="flex items-center gap-1 text-foreground font-medium">
+                                    <span className="text-amber-500 font-bold">+</span>
+                                    <span>{aName}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}

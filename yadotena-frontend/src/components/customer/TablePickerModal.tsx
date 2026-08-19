@@ -5,8 +5,7 @@ import { api } from "@/services/api";
 import { useCustomerDineIn } from "@/contexts/CustomerDineInContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { findActiveOrderForTable } from "@/lib/tableUtils";
-import { X, QrCode, Utensils, Check, Camera, Layers } from "lucide-react";
+import { X, QrCode, Utensils, Check, Camera, Lock, CheckCircle2 } from "lucide-react";
 
 export function TablePickerModal() {
   const {
@@ -20,18 +19,6 @@ export function TablePickerModal() {
   const { data: tables = [], isLoading } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
-    enabled: isTablePickerOpen,
-  });
-
-  const { data: orders = [] } = useQuery({
-    queryKey: ["orders", "picker-active-check"],
-    queryFn: async () => {
-      try {
-        return await api.orders.getAll();
-      } catch {
-        return [];
-      }
-    },
     enabled: isTablePickerOpen,
   });
 
@@ -49,8 +36,8 @@ export function TablePickerModal() {
               <Utensils className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-base">Select Your Table</h3>
-              <p className="text-xs text-muted-foreground">Pick the table you are currently seated at</p>
+              <h3 className="font-extrabold text-base">Select Available Table</h3>
+              <p className="text-xs text-muted-foreground">Pick an available table to begin dining</p>
             </div>
           </div>
           <Button
@@ -94,22 +81,23 @@ export function TablePickerModal() {
             <div className="grid grid-cols-2 gap-3">
               {tables.map((table) => {
                 const isSelected = tableId === table.id;
-                const activeOrd = findActiveOrderForTable(table, orders);
-                const ticketNum = activeOrd ? activeOrd.id.slice(-6).toUpperCase() : null;
+                const isOccupied = table.status !== "AVAILABLE";
 
                 return (
                   <button
                     key={table.id}
                     type="button"
+                    disabled={isOccupied}
                     onClick={() => {
+                      if (isOccupied) return;
                       setTableId(table.id);
                       setIsTablePickerOpen(false);
                     }}
                     className={`p-4 rounded-2xl border text-left transition-all duration-200 flex flex-col justify-between space-y-2 group relative overflow-hidden ${
                       isSelected
                         ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25 scale-[1.02]"
-                        : activeOrd
-                        ? "bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60"
+                        : isOccupied
+                        ? "bg-muted/40 border-muted opacity-60 cursor-not-allowed"
                         : "bg-card border-muted hover:border-primary/50 hover:bg-muted/30"
                     }`}
                   >
@@ -117,11 +105,13 @@ export function TablePickerModal() {
                       <span className="text-[11px] font-bold opacity-80">
                         🪑 {table.capacity} Seats
                       </span>
-                      {isSelected && (
+                      {isSelected ? (
                         <div className="h-5 w-5 rounded-full bg-white text-primary flex items-center justify-center">
                           <Check className="h-3.5 w-3.5 stroke-[3]" />
                         </div>
-                      )}
+                      ) : isOccupied ? (
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                      ) : null}
                     </div>
 
                     <div>
@@ -129,23 +119,24 @@ export function TablePickerModal() {
                         {table.name}
                       </div>
 
-                      {activeOrd ? (
+                      {isOccupied ? (
                         <div className="mt-1 flex items-center gap-1">
                           <Badge
                             variant="secondary"
-                            className={`text-[9px] font-bold px-1.5 py-0.2 ${
-                              isSelected
-                                ? "bg-white/20 text-white"
-                                : "bg-amber-500 text-amber-950"
-                            }`}
+                            className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30"
                           >
-                            <Layers className="h-2.5 w-2.5 mr-1" />
-                            Active Order #{ticketNum}
+                            Occupied
                           </Badge>
                         </div>
                       ) : (
-                        <div className="text-[11px] opacity-75 mt-0.5 font-medium">
-                          Available Table
+                        <div className="mt-1 flex items-center gap-1">
+                          <Badge
+                            variant="secondary"
+                            className="text-[9px] font-bold px-1.5 py-0.2 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                          >
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
+                            Available
+                          </Badge>
                         </div>
                       )}
                     </div>
@@ -158,7 +149,7 @@ export function TablePickerModal() {
 
         {/* Footer */}
         <div className="p-4 border-t bg-muted/20 text-center text-xs text-muted-foreground">
-          Selecting an occupied table lets you append dishes directly to the table&apos;s open order.
+          Only available tables can be selected for new orders. If you are joining a seated group, scan its QR code directly.
         </div>
       </div>
     </div>

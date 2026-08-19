@@ -14,9 +14,19 @@ interface OrderDetailsModalProps {
   onClose: () => void;
   menu?: MenuItem[];
   onSettle?: (order: Order) => void;
+  onAcceptOrder?: (order: Order) => void;
+  onRejectOrder?: (order: Order) => void;
 }
 
-export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle }: OrderDetailsModalProps) {
+export function OrderDetailsModal({
+  order,
+  isOpen,
+  onClose,
+  menu = [],
+  onSettle,
+  onAcceptOrder,
+  onRejectOrder,
+}: OrderDetailsModalProps) {
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
   const tableLabels = useTableLabels();
 
@@ -59,7 +69,7 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
         <div className="p-5 border-b bg-muted/20 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-black tracking-tight">{order.id.slice(-6).toUpperCase()}</h2>
+              <h2 className="text-xl font-black tracking-tight">#{order.id.slice(-6).toUpperCase()}</h2>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
                 {order.status}
               </span>
@@ -85,6 +95,49 @@ export function OrderDetailsModal({ order, isOpen, onClose, menu = [], onSettle 
         </div>
 
         <div className="p-5 space-y-6 max-h-[70vh] overflow-y-auto">
+          {/* Waiter Order Review Action Banner */}
+          {(order.status === "PENDING" || order.status === "DRAFT") && (
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-xs text-amber-700 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+                  Order Submitted — Pending Staff Approval
+                </span>
+                <span className="text-[11px] text-muted-foreground font-medium">Verify ticket items</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    if (onAcceptOrder) {
+                      onAcceptOrder(order);
+                    } else {
+                      await api.orders.updateStatus(order.id, "PREPARING");
+                    }
+                    onClose();
+                  }}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Accept & Send to Kitchen</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    if (onRejectOrder) {
+                      onRejectOrder(order);
+                    } else {
+                      await api.orders.updateStatus(order.id, "CANCELLED");
+                    }
+                    onClose();
+                  }}
+                  className="py-2.5 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 font-bold text-xs border border-red-500/30 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <X className="h-4 w-4" />
+                  <span>Reject Order</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Live Stepper */}
           <OrderProgressStepper status={order.status} />
 

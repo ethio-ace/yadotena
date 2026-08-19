@@ -10,10 +10,10 @@ interface OrderProgressStepperProps {
 
 export function OrderProgressStepper({ status, className = "" }: OrderProgressStepperProps) {
   const steps: Array<{ key: OrderStatus | "SERVED_STEP"; label: string; sub: string }> = [
-    { key: "PENDING", label: "Received", sub: "Pending Kitchen" },
-    { key: "PREPARING", label: "Preparing", sub: "On the Line" },
-    { key: "READY", label: "Ready", sub: "Ready for Table" },
-    { key: "SERVED_STEP", label: "Served", sub: "On Table / Paid" },
+    { key: "PENDING", label: "Received", sub: "Pending Review" },
+    { key: "PREPARING", label: "Preparing", sub: "In Kitchen" },
+    { key: "READY", label: "Ready", sub: "Ready to Serve" },
+    { key: "SERVED_STEP", label: "Served", sub: "Served / Settled" },
   ];
 
   const getStepIndex = (st: OrderStatus): number => {
@@ -40,7 +40,7 @@ export function OrderProgressStepper({ status, className = "" }: OrderProgressSt
     return (
       <div className={`p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs font-bold flex items-center justify-center gap-2 ${className}`}>
         <AlertCircle className="h-4 w-4" />
-        <span>Order Cancelled</span>
+        <span>Order Cancelled / Rejected</span>
       </div>
     );
   }
@@ -52,10 +52,10 @@ export function OrderProgressStepper({ status, className = "" }: OrderProgressSt
     <div className={`space-y-2 ${className}`}>
       {/* Header Badge */}
       <div className="flex items-center justify-between text-xs mb-1">
-        <span className="font-bold uppercase tracking-wider text-muted-foreground">Order Progress</span>
+        <span className="font-bold uppercase tracking-wider text-muted-foreground">Order Status Tracker</span>
         <span className="font-bold text-xs px-2.5 py-0.5 rounded-full border bg-card shadow-sm">
-          {status === "PENDING" && <span className="text-blue-600 dark:text-blue-400">⏳ Pending Kitchen</span>}
-          {status === "PREPARING" && <span className="text-amber-600 dark:text-amber-400">🔥 In Preparation</span>}
+          {status === "PENDING" && <span className="text-amber-600 dark:text-amber-400">⏳ Order Received — Pending Staff Review</span>}
+          {status === "PREPARING" && <span className="text-purple-600 dark:text-purple-400">🔥 In Kitchen Preparation</span>}
           {status === "READY" && <span className="text-emerald-600 dark:text-emerald-400">✨ Ready to Serve</span>}
           {status === "SERVED" && <span className="text-indigo-600 dark:text-indigo-400">🍽️ Served to Table</span>}
           {status === "COMPLETED" && <span className="text-emerald-600 dark:text-emerald-400">✓ Completed & Settled</span>}
@@ -79,7 +79,7 @@ export function OrderProgressStepper({ status, className = "" }: OrderProgressSt
             const isCurrent = idx === currentIdx;
 
             return (
-              <div key={step.key} className="flex flex-col items-center text-center max-w-[70px]">
+              <div key={step.key} className="flex flex-col items-center text-center max-w-[75px]">
                 <div
                   className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
                     isCurrent

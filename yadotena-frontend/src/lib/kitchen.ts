@@ -138,6 +138,7 @@ export interface RoundCard {
 export function buildRoundCards(orders: Order[]): RoundCard[] {
   const cards: RoundCard[] = [];
   orders.forEach((order) => {
+    if (order.status === "DRAFT" || order.status === "CANCELLED") return;
     // Pre-deploy / legacy orders have no per-item status yet — inherit the
     // whole-order kitchen status so they keep their true column placement.
     const fallback = hasItemStatuses(order.items) ? undefined : order.status;

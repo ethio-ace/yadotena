@@ -184,9 +184,15 @@ export default function WaiterWorkspacePage() {
   // started auto-completing them — closes the order and frees the table.
   const handleComplete = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "COMPLETED" });
 
-  // Customer order approval — DRAFT → PENDING sends to kitchen, DRAFT → CANCELLED rejects
-  const handleAcceptOrder = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "PENDING" });
-  const handleRejectOrder = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "CANCELLED" });
+  // Customer order approval — PENDING → PREPARING sends to kitchen, PENDING → CANCELLED rejects
+  const handleAcceptOrder = (orderOrId: Order | string) => {
+    const id = typeof orderOrId === "string" ? orderOrId : orderOrId.id;
+    updateStatusMutation.mutate({ id, status: "PREPARING" });
+  };
+  const handleRejectOrder = (orderOrId: Order | string) => {
+    const id = typeof orderOrId === "string" ? orderOrId : orderOrId.id;
+    updateStatusMutation.mutate({ id, status: "CANCELLED" });
+  };
 
   const openTable = (table: Table) => {
     const activeOrder = findActiveOrderForTable(table, orders);
@@ -246,6 +252,8 @@ export default function WaiterWorkspacePage() {
                 onAppendItems={handleAppendItemsToOrder}
                 onViewOrder={(o) => setInspectOrder(o)}
                 onSettleOrder={(o) => setPaymentOrder(o)}
+                onAcceptOrder={handleAcceptOrder}
+                onRejectOrder={handleRejectOrder}
               />
             </div>
           ) : view === "home" ? (
@@ -293,12 +301,12 @@ export default function WaiterWorkspacePage() {
               orders={orders}
               defaultTab={ordersDefaultTab}
               onBack={() => setView("home")}
-              onServe={handleServe}
-              onComplete={handleComplete}
+              onServe={(id) => handleServe(id)}
+              onComplete={(id) => handleComplete(id)}
               onSettle={(o) => setPaymentOrder(o)}
               onViewOrder={(o) => setInspectOrder(o)}
-              onAcceptOrder={handleAcceptOrder}
-              onRejectOrder={handleRejectOrder}
+              onAcceptOrder={(o) => handleAcceptOrder(o)}
+              onRejectOrder={(o) => handleRejectOrder(o)}
             />
           ) : (
             <AlertsView
@@ -321,6 +329,8 @@ export default function WaiterWorkspacePage() {
         onClose={() => setInspectOrder(null)}
         menu={menu}
         onSettle={(o: Order) => setPaymentOrder(o)}
+        onAcceptOrder={handleAcceptOrder}
+        onRejectOrder={handleRejectOrder}
       />
 
       {/* PAYMENT MODAL */}

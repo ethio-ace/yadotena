@@ -26,12 +26,14 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, o
   const tableLabels = useTableLabels();
   const [tab, setTab] = useState<Tab>((defaultTab as Tab) || "ACTIVE");
 
+  const isNewOrder = (o: Order) => o.status === "DRAFT" || o.status === "PENDING";
+
   const filtered = orders.filter(o => {
     switch (tab) {
-      case "NEW": return o.status === "DRAFT";
-      case "ACTIVE": return !["COMPLETED", "CANCELLED", "DRAFT"].includes(o.status);
+      case "NEW": return isNewOrder(o);
+      case "ACTIVE": return !["COMPLETED", "CANCELLED"].includes(o.status) && !isNewOrder(o);
       case "READY": return readyItems(o).length > 0 && !["COMPLETED", "CANCELLED"].includes(o.status);
-      case "UNPAID": return o.paymentStatus !== "PAID" && o.status !== "CANCELLED" && o.status !== "DRAFT";
+      case "UNPAID": return o.paymentStatus !== "PAID" && o.status !== "CANCELLED";
       case "HISTORY": return o.status === "COMPLETED" || o.status === "CANCELLED";
       default: return true;
     }
@@ -59,10 +61,10 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, o
   };
 
   const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: "NEW", label: "New", count: orders.filter(o => o.status === "DRAFT").length },
-    { key: "ACTIVE", label: "Active", count: orders.filter(o => !["COMPLETED", "CANCELLED", "DRAFT"].includes(o.status)).length },
+    { key: "NEW", label: "New / Pending", count: orders.filter(isNewOrder).length },
+    { key: "ACTIVE", label: "In Kitchen", count: orders.filter(o => !["COMPLETED", "CANCELLED"].includes(o.status) && !isNewOrder(o)).length },
     { key: "READY", label: "Ready", count: orders.filter(o => readyItems(o).length > 0 && !["COMPLETED", "CANCELLED"].includes(o.status)).length },
-    { key: "UNPAID", label: "Unpaid", count: orders.filter(o => o.paymentStatus !== "PAID" && o.status !== "CANCELLED" && o.status !== "DRAFT").length },
+    { key: "UNPAID", label: "Unpaid", count: orders.filter(o => o.paymentStatus !== "PAID" && o.status !== "CANCELLED").length },
     { key: "HISTORY", label: "History", count: 0 },
   ];
 
@@ -116,11 +118,16 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, o
         {filtered.map(o => {
           const action = nextAction(o);
           const unpaid = o.paymentStatus !== "PAID" && o.status !== "CANCELLED";
+          const isPendingReview = isNewOrder(o);
+
           return (
             <div
               key={o.id}
               onClick={() => onViewOrder(o)}
-              className="p-3.5 rounded-xl border bg-card cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all active:scale-[0.995]"
+              className={cn(
+                "p-3.5 rounded-xl border bg-card cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all active:scale-[0.995]",
+                isPendingReview && "border-amber-500/40 bg-amber-500/5 dark:bg-amber-950/20"
+              )}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -134,7 +141,7 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, o
                       </span>
                     )}
                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${statusChipClass(o.status)}`}>
-                      {statusLabel(o.status)}
+                      {isPendingReview ? "PENDING REVIEW" : statusLabel(o.status)}
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
@@ -157,9 +164,9 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, o
                 </div>
               </div>
 
-              {/* DRAFT orders (customer-placed) get Accept/Reject buttons */}
-              {o.status === "DRAFT" && onAcceptOrder && onRejectOrder && (
-                <div className="mt-2 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+              {/* Pending orders get Accept/Reject buttons */}
+              {isPendingReview && onAcceptOrder && onRejectOrder && (
+                <div className="mt-2.5 pt-2 border-t border-amber-500/20 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => onRejectOrder(o.id)}
                     className="h-8 px-3.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition-all border border-red-500/20"
@@ -168,15 +175,15 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, o
                   </button>
                   <button
                     onClick={() => onAcceptOrder(o.id)}
-                    className="h-8 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition-all"
+                    className="h-8 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition-all shadow-sm"
                   >
                     <Check className="h-3 w-3" /> Accept & Send to Kitchen
                   </button>
                 </div>
               )}
 
-              {/* Regular action buttons for non-DRAFT orders */}
-              {o.status !== "DRAFT" && action && (
+              {/* Regular action buttons for approved active orders */}
+              {!isPendingReview && action && (
                 <div className="mt-2 flex justify-end" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={action.action}

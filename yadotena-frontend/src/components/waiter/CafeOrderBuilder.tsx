@@ -6,7 +6,7 @@ import { formatETB } from "@/lib/currency";
 import { getApplicableAddonsForItem, isShopProductItem } from "@/lib/orderUtils";
 import { findActiveOrderForTable } from "@/lib/tableUtils";
 import { addonNames } from "@/lib/kitchen";
-import { ArrowLeft, Search, X, Minus, Plus, ShoppingCart, ChevronDown, Settings2 } from "lucide-react";
+import { ArrowLeft, Search, X, Minus, Plus, ShoppingCart, ChevronDown, Settings2, Utensils } from "lucide-react";
 
 export interface CartItem {
   id: string;
@@ -153,8 +153,8 @@ export function CafeOrderBuilder({
   const addonMap = useMemo(() => Object.fromEntries(allAddons.map(a => [a.id, a.name])), [allAddons]);
 
   const actionLabel = activeOrderForTable
-    ? `Add to Order #${activeOrderForTable.id.slice(-6).toUpperCase()}`
-    : isShopMode ? "Pay" : "Send to Kitchen";
+    ? `Add to Round #${activeOrderForTable.id.slice(-6).toUpperCase()}`
+    : isShopMode ? "Complete Sale" : "Send to Kitchen";
 
   // === TABLE PICKER STEP ===
   if (showTablePicker && !isShopMode) {
@@ -167,11 +167,11 @@ export function CafeOrderBuilder({
 
         {/* Order type */}
         <div className="flex gap-2 mb-5">
-          <button onClick={() => setOrderType("DINE_IN")} className={`flex-1 h-14 rounded-xl text-sm font-bold border-2 transition-all ${orderType === "DINE_IN" ? "border-amber-600 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400" : "border-border"}`}>
-            🍽️ Dine-in
+          <button onClick={() => setOrderType("DINE_IN")} className={`flex-1 h-14 rounded-xl text-sm font-bold border-2 transition-all flex items-center justify-center gap-2 ${orderType === "DINE_IN" ? "border-amber-600 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400" : "border-border"}`}>
+            <Utensils className="h-4 w-4" /> Dine-in
           </button>
-          <button onClick={() => { setOrderType("TAKEAWAY"); setSelectedTable(null); setShowTablePicker(false); }} className={`flex-1 h-14 rounded-xl text-sm font-bold border-2 transition-all ${orderType === "TAKEAWAY" ? "border-amber-600 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400" : "border-border"}`}>
-            🛍️ Takeaway
+          <button onClick={() => { setOrderType("TAKEAWAY"); setSelectedTable(null); setShowTablePicker(false); }} className={`flex-1 h-14 rounded-xl text-sm font-bold border-2 transition-all flex items-center justify-center gap-2 ${orderType === "TAKEAWAY" ? "border-amber-600 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400" : "border-border"}`}>
+            <ShoppingCart className="h-4 w-4" /> Takeaway
           </button>
         </div>
 
@@ -260,8 +260,7 @@ export function CafeOrderBuilder({
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] animate-in fade-in duration-200">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 p-3 border-b bg-card shrink-0">
+      {/* Top bar */}        <div className="flex items-center gap-3 p-3 border-b bg-card shrink-0">
         <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent/50"><ArrowLeft className="h-5 w-5" /></button>
         <div className="flex-1 min-w-0">
           <h1 className="text-sm font-bold truncate">
@@ -270,9 +269,14 @@ export function CafeOrderBuilder({
           <p className="text-xs text-muted-foreground truncate">
             {selectedTable && <span>{selectedTable.name || selectedTable.id} · Dine-in</span>}
             {orderType === "TAKEAWAY" && !isShopMode && <span>Takeaway</span>}
-            {isShopMode && <span>Counter sale · {cartCount > 0 ? `${cartCount} item${cartCount !== 1 ? "s" : ""}` : "no items yet"}</span>}
+            {isShopMode && <span>Counter · Retail products · {cartCount > 0 ? `${cartCount} item${cartCount !== 1 ? "s" : ""}` : "no items yet"}</span>}
           </p>
         </div>
+        {isShopMode && (
+          <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider border border-emerald-500/20 shrink-0">
+            Retail
+          </span>
+        )}
       </div>
 
       <div className="flex-1 overflow-hidden">
@@ -448,7 +452,7 @@ export function CafeOrderBuilder({
       {cart.length > 0 && (
         <button
           onClick={() => setCartOpen(true)}
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-md flex items-center gap-3 pl-4 pr-2 py-3 rounded-2xl text-white font-bold text-sm shadow-2xl shadow-black/25 active:scale-[0.99] transition-all bg-foreground text-background"
+          className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-md flex items-center gap-3 pl-4 pr-2 py-3 rounded-2xl text-white font-bold text-sm shadow-2xl shadow-black/25 active:scale-[0.99] transition-all ${isShopMode ? "bg-emerald-700" : "bg-foreground text-background"}`}
           aria-label={`Review ${cartCount} items totaling ${formatETB(cartTotal)}`}
         >
           <span className="relative shrink-0">
@@ -461,8 +465,7 @@ export function CafeOrderBuilder({
             {cart.map(c => c.name).slice(0, 2).join(", ")}
             {cart.length > 2 ? ` +${cart.length - 2} more` : ""}
           </span>
-          <span className="font-black text-base">{formatETB(cartTotal)}</span>
-          <span className={`h-9 px-3.5 rounded-xl flex items-center justify-center text-white text-xs font-black shrink-0 ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}>
+          <span className="font-black text-base">{formatETB(cartTotal)}</span>            <span className="h-9 px-3.5 rounded-xl bg-white/20 flex items-center justify-center text-white text-xs font-black shrink-0 rounded-xl">
             {actionLabel}
           </span>
         </button>

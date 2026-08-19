@@ -179,7 +179,14 @@ export default function WaiterWorkspacePage() {
   const handleComplete = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "COMPLETED" });
 
   const openTable = (table: Table) => {
-    setActiveTable({ table, source: view === "home" ? "home" : "tables" });
+    const activeOrder = findActiveOrderForTable(table, orders);
+    if (activeOrder) {
+      // Table has an active order → show table detail with order + add items panel
+      setActiveTable({ table, source: view === "home" ? "home" : "tables" });
+    } else {
+      // Table is free → skip detail page, go straight to order builder
+      handleNewOrderForTable(table);
+    }
   };
   const closeTable = () => {
     if (!activeTable) return;
@@ -282,6 +289,10 @@ export default function WaiterWorkspacePage() {
               serviceRequests={serviceRequests}
               onBack={() => setView("home")}
               onResolve={(id, type) => resolveRequestMutation.mutate({ id, type })}
+              onGoToTable={(tableId) => {
+                const table = tables.find((t) => t.id === tableId);
+                if (table) openTable(table);
+              }}
             />
           )}
         </div>

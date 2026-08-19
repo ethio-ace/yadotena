@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Volume2, VolumeX, Maximize2, Minimize2, RotateCw } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Volume2, VolumeX, Maximize2, Minimize2, RotateCw, LogOut, Clock } from "lucide-react";
+import { signOut } from "next-auth/react";
 import { KitchenCategoryFilter } from "./KitchenFilters";
 
 interface KDSHeaderProps {
@@ -30,6 +31,12 @@ export function KDSHeader({
   categoryCounts,
 }: KDSHeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [time, setTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -69,6 +76,13 @@ export function KDSHeader({
           <span className="uppercase text-[10px] text-zinc-400">
             {isConnected ? "LIVE" : "POLLING"}
           </span>
+        </div>
+
+        <div className="h-4 w-px bg-zinc-800" />
+
+        <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-500">
+          <Clock className="h-3 w-3" />
+          <span>{time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
         </div>
       </div>
 
@@ -142,6 +156,17 @@ export function KDSHeader({
             aria-label="Toggle Fullscreen"
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+
+          <div className="h-4 w-px bg-zinc-800" />
+
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            title="Sign Out"
+            className="h-9 w-9 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-red-400 hover:border-red-500/40 flex items-center justify-center transition-all cursor-pointer"
+            aria-label="Sign Out"
+          >
+            <LogOut className="h-4 w-4" />
           </button>
         </div>
       </div>

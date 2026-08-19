@@ -1,15 +1,16 @@
 "use client";
 
 import { ServiceRequest } from "@/types";
-import { ArrowLeft, Bell, BellRing, Check } from "lucide-react";
+import { ArrowLeft, Bell, BellRing, Check, Table2 } from "lucide-react";
 
 interface AlertsViewProps {
   serviceRequests: ServiceRequest[];
   onBack: () => void;
   onResolve: (id: string, type: string) => void;
+  onGoToTable?: (tableId: string) => void;
 }
 
-export function AlertsView({ serviceRequests, onBack, onResolve }: AlertsViewProps) {
+export function AlertsView({ serviceRequests, onBack, onResolve, onGoToTable }: AlertsViewProps) {
   const pending = serviceRequests.filter((r) => r.status === "PENDING");
   const resolved = serviceRequests.filter((r) => r.status !== "PENDING");
 
@@ -47,7 +48,8 @@ export function AlertsView({ serviceRequests, onBack, onResolve }: AlertsViewPro
             {pending.map((req) => (
               <div
                 key={req.id}
-                className="p-3.5 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-950/10"
+                onClick={() => req.tableId && onGoToTable?.(req.tableId)}
+                className={`p-3.5 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-950/10 ${req.tableId ? "cursor-pointer hover:border-red-400 dark:hover:border-red-500/50 transition-colors" : ""}`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -70,13 +72,24 @@ export function AlertsView({ serviceRequests, onBack, onResolve }: AlertsViewPro
                       </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => onResolve(req.id, req.type)}
-                    className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                    Resolve
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {req.tableId && onGoToTable && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onGoToTable(req.tableId!); }}
+                        className="h-10 px-3 rounded-xl border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-accent/50 flex items-center gap-1.5 transition-colors"
+                      >
+                        <Table2 className="h-3.5 w-3.5" />
+                        Table
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onResolve(req.id, req.type); }}
+                      className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Resolve
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

@@ -28,34 +28,11 @@ export default function MenuAnalyticsPage() {
     return matchesSearch && matchesFilter;
   });
 
-  const handleExportCSV = () => {
-    if (!filteredItems.length) return;
-    const rows = filteredItems.map((item) => ({
-      Item: item.name,
-      Category: item.category,
-      Type: item.type === "retail" ? "Retail" : "Menu Item",
-      "Units Sold": item.unitsSold,
-      "Revenue (ETB)": item.revenue,
-      "Avg Price (ETB)": item.avgPrice,
-      "Revenue Share (%)": item.share.toFixed(1),
-    }));
-    exportGenericCSV("Menu_Performance", rows);
-  };
-
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black">Menu Analytics</h1>
-          <p className="text-sm text-muted-foreground mt-1">Item performance, category breakdown, and product insights</p>
-        </div>
-        <button
-          onClick={handleExportCSV}
-          disabled={!filteredItems.length}
-          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-bold transition-all border disabled:opacity-50"
-        >
-          <Download className="h-3.5 w-3.5" /> Export CSV
-        </button>
+      <div>
+        <h1 className="text-2xl font-black">Menu Analytics</h1>
+        <p className="text-sm text-muted-foreground mt-1">Item performance, category breakdown, and product insights</p>
       </div>
 
       <AnalyticsToolbar period={period} onPeriodChange={setPeriod} />

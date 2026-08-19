@@ -29,31 +29,11 @@ export default function PaymentsAnalyticsPage() {
       .finally(() => setLoading(false));
   }, [period]);
 
-  const handleExportCSV = () => {
-    if (!data) return;
-    const rows = data.methods.map((m) => ({
-      Method: m.method.replace(/_/g, " ").toUpperCase(),
-      Transactions: m.transactions,
-      "Total Amount (ETB)": m.amount,
-      "Share (%)": m.share.toFixed(1),
-    }));
-    exportGenericCSV("Payment_Breakdown", rows);
-  };
-
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black">Payment Analytics</h1>
-          <p className="text-sm text-muted-foreground mt-1">Collection status, payment methods, and transaction breakdown</p>
-        </div>
-        <button
-          onClick={handleExportCSV}
-          disabled={!data || data.methods.length === 0}
-          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-bold transition-all border disabled:opacity-50"
-        >
-          <Download className="h-3.5 w-3.5" /> Export CSV
-        </button>
+      <div>
+        <h1 className="text-2xl font-black">Payment Analytics</h1>
+        <p className="text-sm text-muted-foreground mt-1">Collection status, payment methods, and transaction breakdown</p>
       </div>
 
       <AnalyticsToolbar period={period} onPeriodChange={setPeriod} />

@@ -29,37 +29,13 @@ export default function SalesAnalyticsPage() {
     return data.hourlySales.reduce((max, h) => (h.revenue > max.revenue ? h : max), data.hourlySales[0]);
   }, [data]);
 
-  const handleExport = () => {
-    if (!data) return;
-    exportSalesAnalyticsCSV({
-      period,
-      revenue: data.revenue,
-      orders: data.orders,
-      avgTicket: data.avgTicket,
-      itemsSold: data.itemsSold,
-      hourlySales: data.hourlySales,
-      categorySales: data.categorySales,
-    });
-  };
-
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-foreground tracking-tight">Sales Analytics</h1>
-          <p className="text-sm text-muted-foreground font-medium mt-0.5">
-            Intraday revenue trends, hourly patterns, and category performance
-          </p>
-        </div>
-        {data && (
-          <button
-            onClick={handleExport}
-            className="inline-flex h-9 items-center gap-2 rounded-xl border bg-card px-4 text-xs font-bold text-foreground shadow-sm hover:bg-accent transition-colors"
-          >
-            <Download className="h-4 w-4 text-amber-500" />
-            Export CSV
-          </button>
-        )}
+      <div>
+        <h1 className="text-2xl font-black text-foreground tracking-tight">Sales Analytics</h1>
+        <p className="text-sm text-muted-foreground font-medium mt-0.5">
+          Intraday revenue trends, hourly patterns, and category performance
+        </p>
       </div>
 
       <AnalyticsToolbar period={period} onPeriodChange={setPeriod} />

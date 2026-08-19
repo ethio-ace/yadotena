@@ -168,20 +168,14 @@ function AnalyticsHub() {
         <ReportsTabs active={tab} onChange={setTab} />
         <div className="flex items-center gap-2">
           <button
-            onClick={() => exportReportTabCSV(tab, metrics.range, metrics, orders, expenses)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl border bg-card px-3 text-xs font-bold text-foreground shadow-sm hover:bg-accent transition-colors"
-          >
-            <Download className="h-3.5 w-3.5 text-amber-500" /> Export CSV ({tab})
-          </button>
-          <button
             onClick={() => exportFullReportCSV(metrics.range, metrics, orders, expenses)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl border bg-card px-3 text-xs font-bold text-foreground shadow-sm hover:bg-accent transition-colors"
+            className="inline-flex h-9 items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-amber-950 px-4 text-xs font-black shadow-sm transition-all"
           >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-amber-500" /> Full CSV
+            <FileSpreadsheet className="h-4 w-4" /> Export Complete Report
           </button>
           <button
             onClick={() => window.print()}
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border bg-card px-3 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors shadow-sm"
           >
             <Printer className="h-3.5 w-3.5" /> PDF
           </button>

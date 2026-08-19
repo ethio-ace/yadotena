@@ -201,6 +201,15 @@ func parsePeriod(r *http.Request) (start, end, compStart, compEnd string) {
 		end = r.URL.Query().Get("end")
 		compStart = r.URL.Query().Get("comp_start")
 		compEnd = r.URL.Query().Get("comp_end")
+		if start == "" {
+			start = today.AddDate(0, 0, -30).Format("2006-01-02")
+		}
+		if end == "" {
+			end = today.Format("2006-01-02")
+		}
+		if start > end {
+			start, end = end, start
+		}
 	default: // today
 		start = today.Format("2006-01-02")
 		end = today.Format("2006-01-02")

@@ -41,6 +41,15 @@ export interface DateRange {
   display: string;
 }
 
+export function parseDate(val?: string | Date | number): Date {
+  if (!val) return new Date(0);
+  if (val instanceof Date) return val;
+  if (typeof val === "number") return new Date(val);
+  const normalized = String(val).trim().replace(" ", "T");
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? new Date(0) : d;
+}
+
 function fmtDate(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
     date.getDate()
@@ -404,12 +413,13 @@ export function computeOwnerMetrics(opts: {
 }): OwnerMetrics {
   const { range, expenses, orders, menuItems, payments } = opts;
 
-  const rangeOrders = orders.filter(
-    (o) =>
-      o.createdAt &&
-      new Date(o.createdAt) >= new Date(range.fromInstant) &&
-      new Date(o.createdAt) <= new Date(range.toInstant)
-  );
+  const fromTime = parseDate(range.fromInstant).getTime();
+  const toTime = parseDate(range.toInstant).getTime();
+
+  const rangeOrders = orders.filter((o) => {
+    const t = parseDate(o.createdAt).getTime();
+    return t > 0 && t >= fromTime && t <= toTime;
+  });
 
   // Revenue / paid orders: PAID order totals within the range. (The backend
   // `since` filter trims payloads once deployed; older backends ignore it, so

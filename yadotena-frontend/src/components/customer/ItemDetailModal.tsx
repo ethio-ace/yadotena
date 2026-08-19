@@ -10,7 +10,7 @@ import { isShopProductItem } from "@/lib/orderUtils";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useCustomerDineIn, SelectedAddon } from "@/contexts/CustomerDineInContext";
-import { X, Flame, Sparkles, Clock, PackageCheck, Plus, Minus, Check, Utensils } from "lucide-react";
+import { X, Flame, Sparkles, Clock, PackageCheck, Plus, Minus, Check, Utensils, ShoppingBag } from "lucide-react";
 
 interface ItemDetailModalProps {
   item: MenuItem | null;
@@ -89,10 +89,9 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
       setIsTablePickerOpen(true);
       return;
     }
-    const combinedInstructions = [
-      selectedSpice ? `Spice: ${selectedSpice}` : "",
-      note.trim(),
-    ].filter(Boolean).join(" · ");
+    const combinedInstructions = isShopItem
+      ? note.trim()
+      : [selectedSpice ? `Spice: ${selectedSpice}` : "", note.trim()].filter(Boolean).join(" · ");
 
     addToCart(item, quantity, selectedAddons, combinedInstructions);
     onClose();
@@ -157,16 +156,53 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
             )}
           </div>
 
-          {/* Conditional Options / Addons Display */}
+          {/* Options & Customization */}
           {isShopItem ? (
-            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 text-xs">
-              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-extrabold text-sm">
-                <PackageCheck className="h-4 w-4" />
-                <span>Sealed Retail Store Product</span>
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 text-xs">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-extrabold text-sm">
+                  <PackageCheck className="h-4 w-4" />
+                  <span>Sealed Over-The-Counter Retail Item</span>
+                </div>
+                <p className="text-muted-foreground leading-relaxed">
+                  Authentic packaged retail product. You can add this item to your table order for counter collection or take-home.
+                </p>
               </div>
-              <p className="text-muted-foreground leading-relaxed">
-                This item is a packaged over-the-counter retail product sold in store. It cannot be ordered for dining table service.
-              </p>
+
+              {/* Special Instructions Note */}
+              <div className="space-y-2">
+                <label className="font-extrabold text-sm text-foreground block">
+                  Optional Request / Packaging Note
+                </label>
+                <Input
+                  placeholder="e.g. Extra gift wrap, double bag..."
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="rounded-2xl h-11 text-xs bg-muted/20"
+                />
+              </div>
+
+              {/* Quantity Stepper */}
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-muted/30 border">
+                <span className="font-extrabold text-sm text-foreground">Quantity</span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    className="h-9 w-9 rounded-xl bg-card border flex items-center justify-center hover:bg-muted font-bold text-foreground transition-colors"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="font-black text-base w-6 text-center">{quantity}</span>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(quantity + 1)}
+                    className="h-9 w-9 rounded-xl bg-card border flex items-center justify-center hover:bg-muted font-bold text-foreground transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <>
@@ -281,21 +317,19 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
         </div>
 
         {/* Footer Order Button */}
-        {!isShopItem && (
-          <div className="p-4 border-t bg-muted/20">
-            <Button
-              onClick={handleAddToCart}
-              className="w-full rounded-2xl font-black h-13 shadow-xl shadow-primary/25 text-base flex items-center justify-center gap-2"
-            >
-              <Utensils className="h-5 w-5" />
-              <span>
-                {tableId
-                  ? `Add to Table Order · ${formatETB(grandTotal)}`
-                  : `Select Table to Order · ${formatETB(grandTotal)}`}
-              </span>
-            </Button>
-          </div>
-        )}
+        <div className="p-4 border-t bg-muted/20">
+          <Button
+            onClick={handleAddToCart}
+            className="w-full rounded-2xl font-black h-13 shadow-xl shadow-primary/25 text-base flex items-center justify-center gap-2"
+          >
+            {isShopItem ? <ShoppingBag className="h-5 w-5" /> : <Utensils className="h-5 w-5" />}
+            <span>
+              {tableId
+                ? `Add to Table Cart · ${formatETB(grandTotal)}`
+                : `Select Table to Order · ${formatETB(grandTotal)}`}
+            </span>
+          </Button>
+        </div>
       </div>
     </div>
   );

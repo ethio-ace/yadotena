@@ -5,21 +5,34 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { MenuItem, MenuCategory } from "@/types";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Search, ShoppingBag, PackageCheck } from "lucide-react";
+import { Search, ShoppingBag, PackageCheck, Plus } from "lucide-react";
 import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
 import { SortSelect, sortCatalogItems, SortKey } from "@/components/customer/SortSelect";
 import { TopProductsRow } from "@/components/customer/TopProductsRow";
 import { isRetailProduct } from "@/lib/orderUtils";
+import { useCustomerDineIn } from "@/contexts/CustomerDineInContext";
 
 export default function ShopPage() {
+  const { tableId, addToCart, setIsTablePickerOpen, setIsCartOpen } = useCustomerDineIn();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [sort, setSort] = useState<SortKey>("popularity");
   const [selectedProduct, setSelectedProduct] = useState<MenuItem | null>(null);
+
+  const handleQuickAddProduct = (e: React.MouseEvent, product: MenuItem) => {
+    e.stopPropagation();
+    if (!tableId) {
+      setIsTablePickerOpen(true);
+      return;
+    }
+    addToCart(product, 1, [], "");
+    setIsCartOpen(true);
+  };
 
   const { data: menu = [], isLoading: isMenuLoading } = useQuery({
     queryKey: ["menu"],
@@ -238,10 +251,29 @@ export default function ShopPage() {
                   </p>
                 </div>
 
-                <div className="pt-3 border-t border-muted/50 flex items-center justify-between">
+                <div className="pt-3 border-t border-muted/50 flex items-center justify-between gap-2">
                   <div>
                     <span className="text-[10px] text-muted-foreground font-bold uppercase block">Retail Unit Price</span>
                     <span className="font-black text-lg text-primary">{formatETB(product.price)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl font-bold text-xs h-9 px-2.5 border-muted-foreground/20 hover:bg-muted"
+                      onClick={() => setSelectedProduct(product)}
+                    >
+                      Details
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="rounded-xl font-black text-xs h-9 px-3 gap-1 shadow-md shadow-primary/20 bg-primary text-primary-foreground hover:bg-primary/90"
+                      onClick={(e) => handleQuickAddProduct(e, product)}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Add</span>
+                    </Button>
                   </div>
                 </div>
               </div>

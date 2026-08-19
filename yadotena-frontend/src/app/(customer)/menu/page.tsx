@@ -8,7 +8,7 @@ import { MenuItem } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Clock, Star, Utensils } from "lucide-react";
+import { Search, Clock, Star, Utensils, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
 import { SortSelect, sortCatalogItems, SortKey } from "@/components/customer/SortSelect";
@@ -259,7 +259,17 @@ function MenuContent() {
 }
 
 function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () => void }) {
-  const { tableId } = useCustomerDineIn();
+  const { tableId, addToCart, setIsTablePickerOpen, setIsCartOpen } = useCustomerDineIn();
+
+  const handleQuickAdd = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!tableId) {
+      setIsTablePickerOpen(true);
+      return;
+    }
+    addToCart(item, 1, [], "");
+    setIsCartOpen(true);
+  };
 
   return (
     <Card
@@ -316,17 +326,31 @@ function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () =
           )}
         </div>
 
-        {/* Price Tag & Add Button */}
-        <div className="pt-3 border-t border-muted/50 flex items-center justify-between">
+        {/* Price Tag & Quick Add / Details Buttons */}
+        <div className="pt-3 border-t border-muted/50 flex items-center justify-between gap-2">
           <div>
             <span className="text-[10px] text-muted-foreground block font-bold uppercase">Price</span>
-            <span className="font-black text-xl text-primary">{formatETB(item.price)}</span>
+            <span className="font-black text-lg text-primary">{formatETB(item.price)}</span>
           </div>
 
-          <Button size="sm" className="rounded-2xl font-bold px-3.5 gap-1 shadow-md shadow-primary/20">
-            <Utensils className="h-3.5 w-3.5" />
-            <span>{tableId ? "Order" : "View"}</span>
-          </Button>
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl font-bold text-xs h-9 px-2.5 border-muted-foreground/20 hover:bg-muted"
+              onClick={onOpenModal}
+            >
+              Details
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-xl font-black text-xs h-9 px-3 gap-1 shadow-md shadow-primary/20 bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleQuickAdd}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add</span>
+            </Button>
+          </div>
         </div>
       </div>
     </Card>

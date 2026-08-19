@@ -4,7 +4,7 @@ import { memo } from "react";
 import { RoundCard, orderDestination, orderTicketNumber, addonNames } from "@/lib/kitchen";
 import { KDSTimer } from "./KDSTimer";
 import { OrderItem } from "@/types";
-import { ArrowRight, Check, Loader2 } from "lucide-react";
+import { ArrowRight, Check, Loader2, CircleCheck } from "lucide-react";
 
 interface KDSTicketProps {
   card: RoundCard;
@@ -31,55 +31,55 @@ export const KDSTicket = memo(function KDSTicket({
   const isUpdating = updatingKey === card.key;
   const destination = orderDestination(order, tableLabels);
   const ticketCode = orderTicketNumber(order);
-
   const baselineTime = startedAt || createdAt;
 
-  // Visual card container rules: Neutral surface with clean border.
-  // New rounds carry a subtle left amber border line (not a glowing entire card).
-  let borderStyle = "border-zinc-800";
+  // Calm border rules: subtle indicators, not aggressive colors.
+  // Left amber line for new/extended rounds. Emerald text for ready.
+  let borderClass = "border-zinc-800";
   let leftAccent = "";
 
   if (status === "PENDING") {
-    borderStyle = "border-zinc-700/80";
+    borderClass = extended || isNew ? "border-zinc-700/60" : "border-zinc-800/80";
     if (extended || isNew) {
-      leftAccent = "border-l-4 border-l-amber-500";
+      leftAccent = "border-l-[3px] border-l-amber-500/80";
     }
   } else if (status === "PREPARING") {
-    borderStyle = "border-zinc-800";
+    borderClass = "border-zinc-800/60";
   } else if (status === "READY") {
-    borderStyle = "border-emerald-500/40";
+    borderClass = "border-emerald-500/30";
   }
 
   return (
     <div
       onClick={() => onInspectOrder?.(order)}
-      className={`bg-zinc-900 border ${borderStyle} ${leftAccent} rounded-xl p-3.5 flex flex-col justify-between transition-colors cursor-pointer select-none relative group`}
+      className={`bg-zinc-900 border ${borderClass} ${leftAccent} rounded-xl p-3.5 flex flex-col justify-between transition-colors cursor-pointer select-none group`}
     >
-      {/* TICKET HEADER: TABLE IDENTIFIER & TIMER */}
-      <div className="flex items-start justify-between pb-2.5 border-b border-zinc-800/80">
-        <div>
+      {/* TICKET HEADER: TABLE + TICKER + TIMER */}
+      <div className="flex items-start justify-between pb-2.5 border-b border-zinc-800/60">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-black text-zinc-50 tracking-tight leading-none uppercase">
+            <h3 className="text-[17px] font-black text-zinc-50 tracking-tight leading-none uppercase truncate">
               {destination}
             </h3>
-            <span className="text-xs font-mono font-bold text-zinc-400">
+            <span className="text-[11px] font-mono font-bold text-zinc-500 shrink-0">
               #{ticketCode}
             </span>
           </div>
 
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-[11px] font-mono font-bold text-zinc-400 uppercase">
-              {extended ? `ROUND ${round} · ADDED LATER` : `ROUND ${round}`}
-            </span>
-          </div>
+          {extended && (
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-amber-400/80 uppercase tracking-wider">
+                Round {round} · New
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Tabular Monospaced Timer */}
         <KDSTimer startedAt={baselineTime} isReady={status === "READY"} />
       </div>
 
-      {/* DISH ITEMS & MODIFIERS */}
-      <div className="py-2 space-y-2.5 my-1">
+      {/* ITEMS */}
+      <div className="py-2 space-y-2 my-1">
         {items.map((item: OrderItem, idx: number) => {
           const addons = addonNames(item.addons || item.selectedAddons, addonMap);
           const qty = item.quantity || 1;
@@ -87,33 +87,30 @@ export const KDSTicket = memo(function KDSTicket({
           return (
             <div key={item.id || idx} className="space-y-0.5">
               <div className="flex items-start gap-2">
-                <span className="text-base font-black text-amber-400 font-mono shrink-0">
+                <span className="text-[15px] font-black text-amber-400/90 font-mono shrink-0 leading-none mt-px">
                   {qty}×
                 </span>
-                <span className="text-base font-extrabold text-zinc-100 leading-snug tracking-tight">
+                <span className="text-[15px] font-extrabold text-zinc-100 leading-snug tracking-tight">
                   {item.name}
                 </span>
               </div>
 
-              {/* Addons Indented */}
               {addons.length > 0 && (
                 <div className="pl-6 space-y-0.5">
                   {addons.map((a, i) => (
-                    <div key={i} className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
-                      <span className="text-zinc-500">+</span>
+                    <div key={i} className="text-[11px] font-semibold text-zinc-500 flex items-center gap-1">
+                      <span className="text-zinc-600">+</span>
                       <span>{a}</span>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Special Instructions (Subtle Red/Amber Note) */}
               {item.specialInstructions && (
                 <div className="pl-6 pt-0.5">
-                  <div className="text-xs font-black uppercase tracking-wider text-red-400 flex items-center gap-1">
-                    <span>⚠</span>
-                    <span>{item.specialInstructions}</span>
-                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-red-400/90">
+                    {item.specialInstructions}
+                  </span>
                 </div>
               )}
             </div>
@@ -121,16 +118,15 @@ export const KDSTicket = memo(function KDSTicket({
         })}
       </div>
 
-      {/* CUSTOMER NOTES (IF PRESENT) */}
+      {/* CUSTOMER NOTE */}
       {order.notes && (
-        <div className="my-1.5 p-2 rounded-lg bg-zinc-950/80 border border-zinc-800/80 text-xs font-semibold text-amber-300/90">
-          <span className="text-zinc-400 uppercase text-[10px] font-bold block mb-0.5">Note:</span>
+        <div className="my-1 p-2 rounded-lg bg-zinc-950/80 border border-zinc-800/60 text-[11px] font-semibold text-zinc-400">
           {order.notes}
         </div>
       )}
 
-      {/* PRIMARY TOUCH ACTION BUTTON (56px Preferred Height) */}
-      <div className="pt-2 border-t border-zinc-800/60 mt-1">
+      {/* ACTION BUTTON */}
+      <div className="pt-2 border-t border-zinc-800/50 mt-1">
         {status === "PENDING" && (
           <button
             disabled={isUpdating}
@@ -158,7 +154,7 @@ export const KDSTicket = memo(function KDSTicket({
               e.stopPropagation();
               onMarkReady?.(order.id, round);
             }}
-            className="w-full h-14 rounded-lg bg-zinc-800 hover:bg-zinc-750 active:bg-zinc-700 text-zinc-100 border border-zinc-700 font-extrabold text-sm tracking-wide flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+            className="w-full h-14 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700 font-extrabold text-sm tracking-wide flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
           >
             {isUpdating ? (
               <Loader2 className="h-5 w-5 animate-spin text-zinc-200" />
@@ -172,8 +168,8 @@ export const KDSTicket = memo(function KDSTicket({
         )}
 
         {status === "READY" && (
-          <div className="w-full h-14 rounded-lg bg-zinc-950 border border-emerald-500/40 text-emerald-400 font-extrabold text-xs flex items-center justify-center gap-1.5 uppercase select-none">
-            <Check className="h-4 w-4 text-emerald-400" />
+          <div className="w-full h-14 rounded-lg border border-emerald-500/30 bg-zinc-950 text-emerald-400 font-extrabold text-xs flex items-center justify-center gap-1.5 uppercase select-none">
+            <CircleCheck className="h-4 w-4" />
             <span>READY FOR PICKUP</span>
           </div>
         )}

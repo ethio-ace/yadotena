@@ -44,11 +44,11 @@ export const KDSColumn = memo(function KDSColumn({
   }
 
   return (
-    <div className="flex-1 min-w-[300px] max-w-full flex flex-col h-full bg-zinc-950 border border-zinc-800/80 rounded-xl overflow-hidden select-none">
-      {/* COLUMN HEADER */}
-      <div className="px-3.5 py-3 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-900/60 shrink-0">
+    <div className="flex-1 min-w-[300px] max-w-full flex flex-col h-full bg-zinc-950 border border-zinc-800/60 rounded-xl overflow-hidden select-none">
+      {/* COLUMN HEADER — Just title + count */}
+      <div className="px-3 py-2.5 border-b border-zinc-800/60 flex items-center justify-between bg-zinc-900/60 shrink-0">
         <div className="flex items-center gap-2">
-          <h2 className={`text-sm tracking-wider uppercase ${titleColor}`}>
+          <h2 className={`text-xs tracking-wider uppercase ${titleColor}`}>
             {title}
           </h2>
           <span className={`px-2 py-0.5 rounded text-xs font-mono ${countBg}`}>
@@ -57,8 +57,8 @@ export const KDSColumn = memo(function KDSColumn({
         </div>
       </div>
 
-      {/* TICKET QUEUE SCROLL AREA */}
-      <div className="flex-1 p-2.5 overflow-y-auto space-y-2.5 scrollbar-thin scrollbar-thumb-zinc-800">
+      {/* SCROLLABLE TICKET QUEUE */}
+      <div className="flex-1 p-2 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-zinc-800">
         {cards.map((card) => (
           <KDSTicket
             key={card.key}
@@ -74,9 +74,9 @@ export const KDSColumn = memo(function KDSColumn({
         ))}
 
         {cards.length === 0 && (
-          <div className="h-36 border border-dashed border-zinc-800 rounded-lg flex items-center justify-center p-4 text-center">
-            <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
-              No tickets in {title}
+          <div className="h-32 border border-dashed border-zinc-800/60 rounded-lg flex items-center justify-center p-4 text-center">
+            <span className="text-[11px] font-bold text-zinc-600 uppercase tracking-wider">
+              No tickets
             </span>
           </div>
         )}

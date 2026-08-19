@@ -15,10 +15,10 @@ export function CustomersReport({ range, orders }: { range: DateRange; orders: O
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-black text-sm text-foreground flex items-center gap-1.5">
-            <UserRound className="h-4 w-4 text-amber-500" /> Customers
+            <UserRound className="h-4 w-4 text-amber-500" /> Customer Sales Attribution
           </h3>
           <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
-            Paid orders grouped by customer name — orders without a name are &ldquo;Walk-in&rdquo;
+            Customer names &amp; phones are optionally entered by staff during takeaway/delivery orders. Orders without recorded staff details default to &ldquo;Walk-in&rdquo;.
           </p>
         </div>
       </div>

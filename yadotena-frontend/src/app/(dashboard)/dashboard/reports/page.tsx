@@ -24,6 +24,7 @@ import { OrderTypesReport } from "@/components/owner/reports/OrderTypesReport";
 import { useOwnerOps } from "@/hooks/useOwnerOps";
 import { computeSalesBreakdown, CustomRange, OwnerRange } from "@/lib/owner";
 import { formatETB } from "@/lib/currency";
+import { exportReportTabCSV, exportFullReportCSV } from "@/lib/export";
 import { ComparisonBar, Delta } from "@/components/owner/PeriodCompare";
 import { RevenueExpenseChart } from "@/components/owner/RevenueExpenseChart";
 import { HourlyProfile } from "@/components/owner/HourlyProfile";
@@ -45,6 +46,8 @@ import {
   PieChart,
   Zap,
   Download,
+  FileSpreadsheet,
+  Printer,
 } from "lucide-react";
 
 const RANGE_KEYS: OwnerRange[] = ["today", "yesterday", "week", "month", "quarter", "year", "custom"];
@@ -158,15 +161,29 @@ function AnalyticsHub() {
         <DateRangeSelector value={rangeKey} onChange={setRange} custom={customRange} />
       </div>
 
-      {/* Report Tabs */}
-      <div className="flex items-center justify-between gap-3">
+      {/* Report Tabs & Export Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <ReportsTabs active={tab} onChange={setTab} />
-        <button
-          onClick={() => window.print()}
-          className="inline-flex h-9 items-center gap-1.5 rounded-xl border px-3.5 text-xs font-black text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-        >
-          <Download className="h-3.5 w-3.5" /> Export PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => exportReportTabCSV(tab, metrics.range, metrics, orders, expenses)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border bg-card px-3 text-xs font-bold text-foreground shadow-sm hover:bg-accent transition-colors"
+          >
+            <Download className="h-3.5 w-3.5 text-amber-500" /> Export CSV ({tab})
+          </button>
+          <button
+            onClick={() => exportFullReportCSV(metrics.range, metrics, orders, expenses)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border bg-card px-3 text-xs font-bold text-foreground shadow-sm hover:bg-accent transition-colors"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5 text-amber-500" /> Full CSV
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+          >
+            <Printer className="h-3.5 w-3.5" /> PDF
+          </button>
+        </div>
       </div>
 
       {loading ? (

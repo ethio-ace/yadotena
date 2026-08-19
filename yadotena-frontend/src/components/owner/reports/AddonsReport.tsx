@@ -13,6 +13,7 @@ interface AddonRow {
   name: string;
   units: number;
   orderCount: number;
+  revenue: number;
 }
 
 export function AddonsReport({ range, orders }: { range: DateRange; orders: Order[] }) {
@@ -42,17 +43,28 @@ export function AddonsReport({ range, orders }: { range: DateRange; orders: Orde
     const map = new Map<string, AddonRow>();
     for (const o of filtered) {
       for (const item of o.items ?? []) {
+        const itemQty = item.quantity || 1;
         for (const addonId of item.selectedAddons ?? []) {
-          // selectedAddons may be string IDs or objects with id field
-          const id = typeof addonId === "string" ? addonId : (addonId as any).id || String(addonId);
+          const isObj = typeof addonId === "object" && addonId !== null;
+          const id = isObj ? (addonId as any).id || String(addonId) : String(addonId);
+          const nameFromObj = isObj ? (addonId as any).name : undefined;
+          const priceFromObj = isObj ? (addonId as any).price : undefined;
+
+          const master = addonMap.get(id);
+          const name = master?.name || nameFromObj || id;
+          const unitPrice = master?.price ?? (priceFromObj || 0);
+
           const cur = map.get(id) ?? {
             id,
-            name: addonMap.get(id)?.name || id,
+            name,
             units: 0,
             orderCount: 0,
+            revenue: 0,
           };
-          cur.units += item.quantity || 1;
+          cur.name = name; // Update name if master arrives
+          cur.units += itemQty;
           cur.orderCount += 1;
+          cur.revenue += unitPrice * itemQty;
           map.set(id, cur);
         }
       }
@@ -98,7 +110,8 @@ export function AddonsReport({ range, orders }: { range: DateRange; orders: Orde
                 <div className="flex items-center justify-between text-xs font-bold">
                   <span className="text-foreground">{a.name}</span>
                   <span className="text-muted-foreground">
-                    {a.units} sold · {a.orderCount} order{a.orderCount === 1 ? "" : "s"}
+                    {a.units} sold · {a.orderCount} order{a.orderCount === 1 ? "" : "s"} ·{" "}
+                    <span className="text-amber-500 font-extrabold">{formatETB(a.revenue)}</span>
                   </span>
                 </div>
                 <div className="mt-1.5 h-2 rounded-full bg-muted overflow-hidden">

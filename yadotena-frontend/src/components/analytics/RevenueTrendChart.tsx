@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { TrendPoint } from "@/services/analytics";
 import { formatETB } from "@/lib/currency";
 
@@ -10,87 +12,78 @@ interface RevenueTrendChartProps {
 }
 
 export function RevenueTrendChart({ data, title = "Revenue Trend", showComparison = true }: RevenueTrendChartProps) {
-  if (!data || data.length === 0) {
+  const chartData = useMemo(() => {
+    if (!data) return [];
+    return data.map((d) => ({
+      label: d.label.length > 5 ? d.label.slice(5).replace("-", "/") : d.label,
+      current: Math.round((d.value || 0) * 100) / 100,
+      previous: Math.round((d.compare || 0) * 100) / 100,
+    }));
+  }, [data]);
+
+  const hasComparison = showComparison && chartData.some((d) => d.previous > 0);
+
+  if (!chartData || chartData.length === 0) {
     return (
-      <div className="p-6 rounded-xl border bg-card">
-        <h3 className="text-sm font-bold mb-4">{title}</h3>
-        <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
+      <div className="p-6 rounded-2xl border bg-card shadow-sm">
+        <h3 className="text-sm font-black">{title}</h3>
+        <div className="h-52 flex items-center justify-center text-muted-foreground text-xs font-bold">
           No data available for this period.
         </div>
       </div>
     );
   }
 
-  const maxValue = Math.max(...data.map((d) => Math.max(d.value, d.compare || 0)));
-  const hasComparison = showComparison && data.some((d) => d.compare && d.compare > 0);
-
   return (
-    <div className="p-6 rounded-xl border bg-card">
+    <div className="p-5 rounded-2xl border bg-card shadow-sm">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold">{title}</h3>
-        {hasComparison && (
-          <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-foreground" /> Current
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-muted-foreground/40" /> Previous
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="relative h-48">
-        {/* Grid lines */}
-        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="border-b border-border/50" />
-          ))}
-        </div>
-
-        {/* Bars */}
-        <div className="absolute inset-0 flex items-end gap-1">
-          {data.map((point, idx) => {
-            const height = maxValue > 0 ? (point.value / maxValue) * 100 : 0;
-            const compHeight = maxValue > 0 && point.compare ? (point.compare / maxValue) * 100 : 0;
-
-            return (
-              <div key={idx} className="flex-1 flex items-end justify-center gap-0.5 h-full relative group">
-                {/* Comparison bar */}
-                {hasComparison && compHeight > 0 && (
-                  <div
-                    className="w-full bg-muted-foreground/20 rounded-t-sm transition-all"
-                    style={{ height: `${compHeight}%` }}
-                  />
-                )}
-                {/* Current bar */}
-                <div
-                  className="w-full bg-foreground rounded-t-sm transition-all"
-                  style={{ height: `${height}%` }}
-                />
-                
-                {/* Tooltip */}
-                <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  <div className="bg-foreground text-background px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap shadow-lg">
-                    {formatETB(point.value)}
-                    {point.compare ? ` (prev: ${formatETB(point.compare)})` : ""}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div>
+          <h3 className="text-sm font-black text-foreground">{title}</h3>
+          <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+            {hasComparison ? "Comparing current period vs previous period revenue" : "Revenue distribution over time"}
+          </p>
         </div>
       </div>
 
-      {/* X-axis labels */}
-      <div className="flex gap-1 mt-2">
-        {data.map((point, idx) => (
-          <div key={idx} className="flex-1 text-center">
-            <span className="text-[9px] text-muted-foreground font-medium truncate block">
-              {point.label.length > 5 ? point.label.slice(-5) : point.label}
-            </span>
-          </div>
-        ))}
+      <div className="h-56 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+              tickLine={false}
+              axisLine={{ stroke: "var(--border)" }}
+              interval="preserveStartEnd"
+              minTickGap={24}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k` : String(v))}
+              width={42}
+            />
+            <Tooltip
+              cursor={{ fill: "var(--muted)", opacity: 0.25 }}
+              contentStyle={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                fontSize: 12,
+              }}
+              formatter={(value, name) => [
+                formatETB(Number(value ?? 0)),
+                name === "current" ? "Current Revenue" : "Previous Period",
+              ]}
+            />
+            {hasComparison && <Legend wrapperStyle={{ fontSize: 11 }} />}
+            <Bar dataKey="current" name="current" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            {hasComparison && (
+              <Bar dataKey="previous" name="previous" fill="#9ca3af" radius={[4, 4, 0, 0]} maxBarSize={28} opacity={0.6} />
+            )}
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

@@ -709,6 +709,37 @@ export interface CustomerReportRow {
   revenue: number;
 }
 
+export interface CategoryReportRow {
+  category: string;
+  quantity: number;
+  revenue: number;
+}
+
+export function computeCategoryReport(opts: { range: DateRange; orders: Order[] }): CategoryReportRow[] {
+  const { range, orders } = opts;
+  const filtered = orders.filter(
+    (o) =>
+      (o.paymentStatus === "PAID" || o.status === "COMPLETED" || o.status === "SERVED") &&
+      o.createdAt &&
+      new Date(o.createdAt) >= new Date(range.fromInstant) &&
+      new Date(o.createdAt) <= new Date(range.toInstant)
+  );
+
+  const map = new Map<string, CategoryReportRow>();
+  for (const o of filtered) {
+    for (const item of o.items ?? []) {
+      const cat = (item as any).category || "General";
+      const qty = item.quantity || 1;
+      const rev = (item.price || 0) * qty;
+      const cur = map.get(cat) ?? { category: cat, quantity: 0, revenue: 0 };
+      cur.quantity += qty;
+      cur.revenue += rev;
+      map.set(cat, cur);
+    }
+  }
+  return [...map.values()].sort((a, b) => b.revenue - a.revenue);
+}
+
 export function computeCustomers(opts: { range: DateRange; orders: Order[] }): CustomerReportRow[] {
   const { range, orders } = opts;
   const paidRangeOrders = orders.filter(

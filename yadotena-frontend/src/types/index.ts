@@ -111,6 +111,7 @@ export interface OrderItem {
   quantity: number;
   specialInstructions?: string;
   selectedAddons?: { id: string; name: string; price: number }[];
+  addons?: Array<{ id: string; name: string; price: number }> | string[];
   roundNumber?: number;
   status?: ItemKitchenStatus;
   startedAt?: string;
@@ -129,6 +130,7 @@ export interface Order {
   serviceCharge?: number;
   deliveryFee?: number;
   total: number;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
   

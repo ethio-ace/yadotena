@@ -70,9 +70,10 @@ export function CustomerDineInCart() {
         const updated = await api.orders.addItems(activeTableOrder.id, payloadItems);
         targetOrderId = updated.id;
       } else {
-        // Create new table order
+        // Create new table order — DRAFT status requires waiter approval before kitchen
         const newOrder = await api.orders.create({
           type: "DINE_IN",
+          status: "DRAFT",
           tableId: tableId,
           customerName: customerName.trim() || undefined,
           paymentStatus: "PENDING",

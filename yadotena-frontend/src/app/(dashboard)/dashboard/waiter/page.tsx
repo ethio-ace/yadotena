@@ -38,6 +38,10 @@ export default function WaiterWorkspacePage() {
   const [preselectedTable, setPreselectedTable] = useState<Table | null>(null);
   const [appendToOrder, setAppendToOrder] = useState<Order | null>(null);
 
+  // Separate carts — shop and menu are completely independent
+  const [cafeCart, setCafeCart] = useState<CartItem[]>([]);
+  const [shopCart, setShopCart] = useState<CartItem[]>([]);
+
   // Payment modal
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
 
@@ -71,11 +75,13 @@ export default function WaiterWorkspacePage() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
       soundAlerts.playActionConfirm();
-      // If shop sale or counter → open payment immediately
+      // Clear the right cart after successful submission
       if (view === "shop-sale") {
+        setShopCart([]);
         setPaymentOrder(newOrder);
         setView("home");
       } else {
+        setCafeCart([]);
         setView("orders");
       }
     },
@@ -95,7 +101,8 @@ export default function WaiterWorkspacePage() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["tables"] });
       soundAlerts.playActionConfirm();
-      // Adding to an open table order returns to the floor view.
+      // Clear cafe cart when appending to existing order
+      setCafeCart([]);
       setActiveTable(null);
       setView("tables");
     },
@@ -177,6 +184,10 @@ export default function WaiterWorkspacePage() {
   // Escape hatch for paid tickets that finished kitchen work before the backend
   // started auto-completing them — closes the order and frees the table.
   const handleComplete = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "COMPLETED" });
+
+  // Customer order approval — DRAFT → PENDING sends to kitchen, DRAFT → CANCELLED rejects
+  const handleAcceptOrder = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "PENDING" });
+  const handleRejectOrder = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "CANCELLED" });
 
   const openTable = (table: Table) => {
     const activeOrder = findActiveOrderForTable(table, orders);
@@ -263,6 +274,8 @@ export default function WaiterWorkspacePage() {
               tables={tables} orders={orders}
               preselectedTable={preselectedTable}
               appendToOrder={appendToOrder}
+              cart={cafeCart}
+              onCartChange={setCafeCart}
               onBack={() => setView("home")}
               onSubmit={handleSubmitOrder}
             />
@@ -271,6 +284,8 @@ export default function WaiterWorkspacePage() {
               menu={menu} categories={categories} allAddons={allAddons}
               tables={tables} orders={orders}
               isShopMode
+              cart={shopCart}
+              onCartChange={setShopCart}
               onBack={() => setView("home")}
               onSubmit={handleSubmitOrder}
             />
@@ -283,6 +298,8 @@ export default function WaiterWorkspacePage() {
               onComplete={handleComplete}
               onSettle={(o) => setPaymentOrder(o)}
               onViewOrder={(o) => setInspectOrder(o)}
+              onAcceptOrder={handleAcceptOrder}
+              onRejectOrder={handleRejectOrder}
             />
           ) : (
             <AlertsView

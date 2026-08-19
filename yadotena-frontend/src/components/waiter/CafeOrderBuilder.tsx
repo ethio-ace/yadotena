@@ -27,6 +27,8 @@ interface CafeOrderBuilderProps {
   isShopMode?: boolean;
   preselectedTable?: Table | null;
   appendToOrder?: Order | null;
+  cart: CartItem[];
+  onCartChange: (cart: CartItem[]) => void;
   onBack: () => void;
   onSubmit: (items: CartItem[], tableId: string | undefined, orderType: "DINE_IN" | "TAKEAWAY", appendOrderId?: string) => void;
 }
@@ -35,7 +37,8 @@ const NOTE_PRESETS = ["No Spicy", "Extra Hot", "No Onions", "Well Done", "Extra 
 
 export function CafeOrderBuilder({
   menu, categories, allAddons, tables, orders,
-  isShopMode, preselectedTable, appendToOrder: initialAppendOrder, onBack, onSubmit,
+  isShopMode, preselectedTable, appendToOrder: initialAppendOrder,
+  cart, onCartChange, onBack, onSubmit,
 }: CafeOrderBuilderProps) {
   // Flow state
   const [orderType, setOrderType] = useState<"DINE_IN" | "TAKEAWAY">(
@@ -54,7 +57,6 @@ export function CafeOrderBuilder({
   // Catalog state
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
-  const [cart, setCart] = useState<CartItem[]>([]);
   const [showCurrentOrder, setShowCurrentOrder] = useState(true);
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -83,9 +85,9 @@ export function CafeOrderBuilder({
   const quickAdd = (item: MenuItem) => {
     const existing = cart.find(c => c.menuItemId === item.id && c.addons.length === 0 && !c.note);
     if (existing) {
-      setCart(cart.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
+      onCartChange(cart.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
     } else {
-      setCart([...cart, {
+      onCartChange([...cart, {
         id: crypto.randomUUID(), menuItemId: item.id, name: item.name,
         basePrice: item.price, quantity: 1, addons: [], note: "",
       }]);
@@ -107,7 +109,7 @@ export function CafeOrderBuilder({
 
   const confirmAddonSheet = () => {
     if (!configuringItem) return;
-    setCart([...cart, {
+    onCartChange([...cart, {
       id: crypto.randomUUID(), menuItemId: configuringItem.id, name: configuringItem.name,
       basePrice: configuringItem.price, quantity: sheetQty, addons: [...sheetAddons], note: sheetNote,
     }]);
@@ -115,10 +117,10 @@ export function CafeOrderBuilder({
   };
 
   const updateQty = (id: string, delta: number) => {
-    setCart(cart.map(c => c.id === id ? { ...c, quantity: Math.max(1, c.quantity + delta) } : c));
+    onCartChange(cart.map(c => c.id === id ? { ...c, quantity: Math.max(1, c.quantity + delta) } : c));
   };
 
-  const removeItem = (id: string) => setCart(cart.filter(c => c.id !== id));
+  const removeItem = (id: string) => onCartChange(cart.filter(c => c.id !== id));
 
   // Quick-decrement from a card stepper: removes the most recently added line of an item.
   const decItem = (menuItemId: string) => {

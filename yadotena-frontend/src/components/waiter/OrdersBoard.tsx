@@ -5,7 +5,7 @@ import { Order } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { readyItems, hasItemStatuses, groupItemsByRound, roundStatus, roundLabel, roundTotal, roundCount, statusChipClass, statusLabel } from "@/lib/kitchen";
-import { ArrowLeft, Check, CheckCircle2, CreditCard, Clock } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, CreditCard, Clock, X, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface OrdersBoardProps {
@@ -16,17 +16,20 @@ interface OrdersBoardProps {
   onComplete: (orderId: string) => void;
   onSettle: (order: Order) => void;
   onViewOrder: (order: Order) => void;
+  onAcceptOrder?: (orderId: string) => void;
+  onRejectOrder?: (orderId: string) => void;
 }
 
-type Tab = "ACTIVE" | "READY" | "UNPAID" | "HISTORY";
+type Tab = "NEW" | "ACTIVE" | "READY" | "UNPAID" | "HISTORY";
 
-export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, onSettle, onViewOrder }: OrdersBoardProps) {
+export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, onSettle, onViewOrder, onAcceptOrder, onRejectOrder }: OrdersBoardProps) {
   const tableLabels = useTableLabels();
   const [tab, setTab] = useState<Tab>((defaultTab as Tab) || "ACTIVE");
 
   const filtered = orders.filter(o => {
     switch (tab) {
-      case "ACTIVE": return !["COMPLETED", "CANCELLED"].includes(o.status);
+      case "NEW": return o.status === "DRAFT";
+      case "ACTIVE": return !["COMPLETED", "CANCELLED", "DRAFT"].includes(o.status);
       case "READY": return readyItems(o).length > 0 && !["COMPLETED", "CANCELLED"].includes(o.status);
       case "UNPAID": return o.paymentStatus !== "PAID" && o.status !== "CANCELLED" && o.status !== "DRAFT";
       case "HISTORY": return o.status === "COMPLETED" || o.status === "CANCELLED";
@@ -56,7 +59,8 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, o
   };
 
   const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: "ACTIVE", label: "Active", count: orders.filter(o => !["COMPLETED", "CANCELLED"].includes(o.status)).length },
+    { key: "NEW", label: "New", count: orders.filter(o => o.status === "DRAFT").length },
+    { key: "ACTIVE", label: "Active", count: orders.filter(o => !["COMPLETED", "CANCELLED", "DRAFT"].includes(o.status)).length },
     { key: "READY", label: "Ready", count: orders.filter(o => readyItems(o).length > 0 && !["COMPLETED", "CANCELLED"].includes(o.status)).length },
     { key: "UNPAID", label: "Unpaid", count: orders.filter(o => o.paymentStatus !== "PAID" && o.status !== "CANCELLED" && o.status !== "DRAFT").length },
     { key: "HISTORY", label: "History", count: 0 },
@@ -153,7 +157,26 @@ export function OrdersBoard({ orders, defaultTab, onBack, onServe, onComplete, o
                 </div>
               </div>
 
-              {action && (
+              {/* DRAFT orders (customer-placed) get Accept/Reject buttons */}
+              {o.status === "DRAFT" && onAcceptOrder && onRejectOrder && (
+                <div className="mt-2 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => onRejectOrder(o.id)}
+                    className="h-8 px-3.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition-all border border-red-500/20"
+                  >
+                    <X className="h-3 w-3" /> Reject
+                  </button>
+                  <button
+                    onClick={() => onAcceptOrder(o.id)}
+                    className="h-8 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <Check className="h-3 w-3" /> Accept & Send to Kitchen
+                  </button>
+                </div>
+              )}
+
+              {/* Regular action buttons for non-DRAFT orders */}
+              {o.status !== "DRAFT" && action && (
                 <div className="mt-2 flex justify-end" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={action.action}

@@ -69,10 +69,6 @@ export const managerNavGroups: NavGroup[] = [
       { name: "Audit Log", href: "/dashboard/logs", icon: ScrollText },
     ],
   },
-  {
-    group: "SETTINGS",
-    items: [{ name: "Store Settings", href: "/dashboard/settings", icon: Settings }],
-  },
 ];
 
 export const ownerNavGroups: NavGroup[] = [

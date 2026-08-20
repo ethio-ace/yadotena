@@ -1,8 +1,6 @@
 module yadotena
 
-go 1.21
-
-toolchain go1.21.13
+go 1.19
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.1
@@ -13,12 +11,12 @@ require (
 	github.com/go-chi/cors v1.2.1
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.7.0
+	github.com/jackc/pgx/v5 v5.5.2
 	github.com/joho/godotenv v1.5.1
-	github.com/nats-io/nats.go v1.34.0
+	github.com/nats-io/nats.go v1.31.0
 	github.com/nats-io/nkeys v0.4.7
 	github.com/redis/go-redis/v9 v9.5.0
-	golang.org/x/crypto v0.28.0
+	golang.org/x/crypto v0.18.0
 	golang.org/x/image v0.20.0
 )
 

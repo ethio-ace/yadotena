@@ -1,12 +1,68 @@
+```
+# Dependencies
+node_modules/
+
+# Environment variables
 .env
 .env.local
-backend/.env
-backend/uploads/
-**/node_modules/
-**/.next/
+.env.*
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Logs
 *.log
+
+# OS generated files
 .DS_Store
-.pnpm-store/
-.worktrees/
-.superpowers/
-.cursor/
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Temporary files
+*.tmp
+*.temp
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+
+```

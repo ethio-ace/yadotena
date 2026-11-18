@@ -40,20 +40,20 @@ function MenuContent() {
   const activeOrderId = useCartStore((state) => state.activeOrderId);
   const addItem = useCartStore((state) => state.addItem);
 
-  // Poll for live table/session orders
-  const { data: allOrders } = useQuery({
-    queryKey: ["orders"],
-    queryFn: api.orders.getAll,
-    refetchInterval: 3000,
+  // Only this diner's order. The session manager resolves the table's open
+  // order into activeOrderId; realtime events invalidate ["orders", ...].
+  const { data: activeOrder } = useQuery({
+    queryKey: ["orders", activeOrderId],
+    queryFn: () => api.orders.getById(activeOrderId as string),
+    enabled: !!activeOrderId,
+    refetchInterval: 5000,
+    retry: false,
   });
 
-  // Find active table session order if one is currently being prepared
-  const activeSessionOrder = allOrders?.find((o) => {
-    const isMatchingTable = tableId && o.tableId === tableId;
-    const isMatchingOrderId = activeOrderId && o.id === activeOrderId;
-    const isActiveStatus = o.status !== "COMPLETED" && o.status !== "CANCELLED";
-    return (isMatchingTable || isMatchingOrderId) && isActiveStatus;
-  });
+  const activeSessionOrder =
+    activeOrder && activeOrder.status !== "COMPLETED" && activeOrder.status !== "CANCELLED"
+      ? activeOrder
+      : undefined;
   
   const searchParams = useSearchParams();
   const initialCategoryParam = searchParams.get("category");

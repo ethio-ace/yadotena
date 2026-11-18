@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Lock, Mail, AlertCircle, Sparkles, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -53,8 +54,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/40 to-background p-4 animate-in fade-in duration-500">
       <Card className="w-full max-w-md border shadow-2xl rounded-3xl overflow-hidden bg-card/95 backdrop-blur-md">
         <CardHeader className="text-center pb-4 pt-8">
-          <div className="mx-auto h-16 w-16 rounded-3xl bg-primary flex items-center justify-center text-primary-foreground text-3xl font-black shadow-xl shadow-primary/30 mb-3 animate-bounce duration-1000">
-            🥛
+          <div className="mx-auto h-20 w-20 flex items-center justify-center rounded-3xl bg-primary shadow-xl shadow-primary/30 mb-3 animate-bounce duration-1000 overflow-hidden">
+            <Image src="/logo.png" alt="Yadotena Logo" width={64} height={64} className="object-contain" />
           </div>
           <CardTitle className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
             Yadotena Milk & Foods

@@ -4,10 +4,11 @@ import { useState } from "react";
 import { PlaceOrderTab } from "@/components/dashboard/orders/PlaceOrderTab";
 import { ActiveOrdersTab } from "@/components/dashboard/orders/ActiveOrdersTab";
 import { OrderHistoryTab } from "@/components/dashboard/orders/OrderHistoryTab";
-import { CheckCircle2, ClipboardList, PlusCircle } from "lucide-react";
+import { SellProductsTab } from "@/components/dashboard/products/SellProductsTab";
+import { CheckCircle2, ClipboardList, PlusCircle, Package } from "lucide-react";
 
 export default function OrdersPage() {
-  const [activeTab, setActiveTab] = useState<"place_order" | "active_orders" | "history">("place_order");
+  const [activeTab, setActiveTab] = useState<"place_order" | "active_orders" | "history" | "sell_products">("place_order");
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -41,12 +42,20 @@ export default function OrdersPage() {
           <CheckCircle2 className={`w-4 h-4 ${activeTab === "history" ? "text-emerald-500" : ""}`} />
           History & Summary
         </button>
+        <button 
+          className={`flex items-center justify-center gap-2 flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === "sell_products" ? "bg-background text-foreground shadow-sm scale-100" : "text-muted-foreground hover:text-foreground scale-95"}`}
+          onClick={() => setActiveTab("sell_products")}
+        >
+          <Package className={`w-4 h-4 ${activeTab === "sell_products" ? "text-emerald-500" : ""}`} />
+          Sell Products
+        </button>
       </div>
 
       <div className="mt-6">
         {activeTab === "place_order" && <PlaceOrderTab />}
         {activeTab === "active_orders" && <ActiveOrdersTab />}
         {activeTab === "history" && <OrderHistoryTab />}
+        {activeTab === "sell_products" && <SellProductsTab />}
       </div>
     </div>
   );

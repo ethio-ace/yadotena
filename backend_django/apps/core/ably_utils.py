@@ -1,13 +1,56 @@
-import os
+import base64
+import hashlib
+import hmac
+import json
 import logging
 import asyncio
+import secrets
 import threading
+import time
 from ably import AblyRest
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+REALTIME_CHANNEL = 'yadotena-realtime'
+
 ably_client = None
+
+
+def create_token_request(capability: dict, client_id=None, ttl_ms: int = 60 * 60 * 1000):
+    """Build a signed Ably TokenRequest (https://ably.com/docs/auth/token).
+
+    The browser exchanges it with Ably for a token; the API key secret never
+    leaves the server. Returns None when ABLY_API_KEY is not configured.
+    """
+    api_key = getattr(settings, 'ABLY_API_KEY', '') or ''
+    if ':' not in api_key:
+        return None
+    key_name, key_secret = api_key.split(':', 1)
+
+    capability_json = json.dumps(capability, separators=(',', ':'), sort_keys=True)
+    timestamp = int(time.time() * 1000)
+    nonce = secrets.token_hex(16)
+    client_id = client_id or ''
+
+    sign_text = '\n'.join([
+        key_name, str(ttl_ms), capability_json, client_id, str(timestamp), nonce,
+    ]) + '\n'
+    mac = base64.b64encode(
+        hmac.new(key_secret.encode(), sign_text.encode(), hashlib.sha256).digest()
+    ).decode()
+
+    token_request = {
+        'keyName': key_name,
+        'ttl': ttl_ms,
+        'capability': capability_json,
+        'timestamp': timestamp,
+        'nonce': nonce,
+        'mac': mac,
+    }
+    if client_id:
+        token_request['clientId'] = client_id
+    return token_request
 
 def get_ably_client():
     global ably_client

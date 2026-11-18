@@ -1,8 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -132,14 +137,7 @@ func (s *Server) authLogout(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 	claims := claimsFrom(r)
 	if claims == nil || claims.StaffID == uuid.Nil {
-		// Return standard default user if unauthenticated in demo mode
-		writeJSON(w, 200, map[string]any{
-			"id":     "usr-admin",
-			"name":   "Admin User",
-			"email":  "admin@yadotena.com",
-			"role":   "OWNER",
-			"status": "ACTIVE",
-		})
+		writeErr(w, 401, "unauthorized")
 		return
 	}
 
@@ -161,13 +159,74 @@ func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, u)
 }
 
-func (s *Server) ablyToken(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) ablyToken(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if claims == nil {
+		writeErr(w, 401, "unauthorized")
+		return
+	}
+
 	details := s.Ably.GetClientDetails()
-	writeJSON(w, 200, map[string]any{
-		"token":  details.ApiKey,
-		"apiKey": details.ApiKey,
-		"appId":  details.AppID,
-	})
+	if details.ApiKey == "" {
+		writeJSON(w, 200, map[string]any{"token": "", "apiKey": "", "appId": ""})
+		return
+	}
+
+	tokenResp, err := requestAblyToken(details.ApiKey)
+	if err != nil {
+		writeErr(w, 500, "failed to get ably token")
+		return
+	}
+	writeJSON(w, 200, tokenResp)
+}
+
+// requestAblyToken calls the Ably Token Request REST API and returns a time-limited token.
+func requestAblyToken(apiKey string) (map[string]any, error) {
+	// keyName is everything before the ':'
+	keyName := apiKey
+	if idx := strings.Index(apiKey, ":"); idx >= 0 {
+		keyName = apiKey[:idx]
+	}
+
+	payload := map[string]any{
+		"capability": map[string]any{
+			"yadotena-realtime": []string{"subscribe"},
+		},
+		"ttl": 3600000,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal: %w", err)
+	}
+
+	url := fmt.Sprintf("https://rest.ably.io/keys/%s/requestToken", keyName)
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("request: %w", err)
+	}
+	encodedKey := base64.StdEncoding.EncodeToString([]byte(apiKey))
+	req.Header.Set("Authorization", "Basic "+encodedKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read: %w", err)
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("ably status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal: %w", err)
+	}
+	return result, nil
 }
 
 func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {

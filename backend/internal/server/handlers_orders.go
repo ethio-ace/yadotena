@@ -256,6 +256,7 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	vatPct, scPct, deliveryFeeAmt := s.fetchOrderSettings(ctx)
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		writeErr(w, 500, err.Error())
@@ -284,7 +285,7 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		s.recalculateOrderFinancialsTx(ctx, tx, targetOrderID, orderType)
+		s.recalculateOrderFinancialsTx(ctx, tx, targetOrderID, orderType, vatPct, scPct, deliveryFeeAmt)
 		if errCommit := tx.Commit(ctx); errCommit != nil {
 			writeErr(w, 500, errCommit.Error())
 			return
@@ -305,14 +306,14 @@ func (s *Server) createOrderEndpoint(w http.ResponseWriter, r *http.Request) {
 		subtotal += item.price * float64(item.qty)
 	}
 
-	vatTax := subtotal * 0.15
+	vatTax := subtotal * vatPct
 	var serviceCharge float64
 	if orderType == "DINE_IN" {
-		serviceCharge = subtotal * 0.10
+		serviceCharge = subtotal * scPct
 	}
 	var deliveryFee float64
 	if orderType == "DELIVERY" {
-		deliveryFee = 100.00
+		deliveryFee = deliveryFeeAmt
 	}
 	total := subtotal + vatTax + serviceCharge + deliveryFee
 
@@ -392,6 +393,21 @@ func (s *Server) updateOrderStatusEndpoint(w http.ResponseWriter, r *http.Reques
 	}
 
 	updatedOrder, _ := s.fetchOrderFull(ctx, id)
+
+	// Auto-update customer stats when order completes
+	if newStatus == "COMPLETED" {
+		if updatedOrder.CustomerPhone != nil && *updatedOrder.CustomerPhone != "" {
+			_, _ = s.Pool.Exec(ctx, `
+				UPDATE customers SET
+					total_orders = total_orders + 1,
+					total_spent = total_spent + $1,
+					last_order_date = now()
+				WHERE phone = $2`,
+				updatedOrder.Total, *updatedOrder.CustomerPhone,
+			)
+		}
+	}
+
 	s.Ably.Publish(ctx, "yadotena-realtime", "order.updated", updatedOrder)
 	s.NATS.Publish("yadotena.orders.updated", updatedOrder)
 
@@ -415,6 +431,7 @@ func (s *Server) addOrderItemsEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	vatPct, scPct, deliveryFeeAmt := s.fetchOrderSettings(ctx)
 	tx, errTx := s.Pool.Begin(ctx)
 	if errTx != nil {
 		writeErr(w, 500, errTx.Error())
@@ -461,7 +478,7 @@ func (s *Server) addOrderItemsEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.recalculateOrderFinancialsTx(ctx, tx, id, order.Type)
+	s.recalculateOrderFinancialsTx(ctx, tx, id, order.Type, vatPct, scPct, deliveryFeeAmt)
 	_, _ = tx.Exec(ctx, `UPDATE orders SET status = 'PENDING', updated_at = now() WHERE id = $1`, id)
 
 	if errCommit := tx.Commit(ctx); errCommit != nil {
@@ -520,23 +537,31 @@ func (s *Server) loadOrderItems(ctx context.Context, orderID string) []APIOrderI
 	return items
 }
 
-func (s *Server) recalculateOrderFinancialsTx(ctx context.Context, tx pgx.Tx, orderID string, orderType string) {
+func (s *Server) fetchOrderSettings(ctx context.Context) (vatPct, scPct, deliveryFee float64) {
+	vatPct, scPct, deliveryFee = 0.15, 0.10, 100.0 // safe defaults
+	_ = s.Pool.QueryRow(ctx, `SELECT vat_percent::float8, service_charge_percent::float8 FROM restaurant_settings WHERE id=1`).Scan(&vatPct, &scPct)
+	vatPct /= 100.0
+	scPct /= 100.0
+	return
+}
+
+func (s *Server) recalculateOrderFinancialsTx(ctx context.Context, tx pgx.Tx, orderID string, orderType string, vatPct, scPct, deliveryFee float64) {
 	var subtotal float64
 	_ = tx.QueryRow(ctx, `SELECT COALESCE(SUM(price * quantity), 0)::float8 FROM order_items WHERE order_id = $1`, orderID).Scan(&subtotal)
 
-	tax := subtotal * 0.15
+	tax := subtotal * vatPct
 	var serviceCharge float64
 	if orderType == "DINE_IN" {
-		serviceCharge = subtotal * 0.10
+		serviceCharge = subtotal * scPct
 	}
-	var deliveryFee float64
+	var fee float64
 	if orderType == "DELIVERY" {
-		deliveryFee = 100.00
+		fee = deliveryFee
 	}
-	total := subtotal + tax + serviceCharge + deliveryFee
+	total := subtotal + tax + serviceCharge + fee
 
 	_, _ = tx.Exec(ctx, `
 		UPDATE orders SET subtotal=$1, tax=$2, service_charge=$3, delivery_fee=$4, total=$5, updated_at=now() WHERE id=$6`,
-		subtotal, tax, serviceCharge, deliveryFee, total, orderID,
+		subtotal, tax, serviceCharge, fee, total, orderID,
 	)
 }

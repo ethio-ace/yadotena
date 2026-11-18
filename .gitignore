@@ -10,3 +10,9 @@ backend/uploads/
 .worktrees/
 .superpowers/
 .cursor/
+
+# Django
+backend_django/.env
+backend_django/db.sqlite3
+backend_django/staticfiles/
+**/__pycache__/

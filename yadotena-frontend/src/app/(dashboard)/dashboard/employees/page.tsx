@@ -451,7 +451,7 @@ function AddUserModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<Role>("WAITER");
-  const [password, setPassword] = useState("password123");
+  const [password, setPassword] = useState("");
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const [error, setError] = useState("");
 
@@ -472,13 +472,17 @@ function AddUserModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose
       setError("Please provide both name and email.");
       return;
     }
+    if (password.length < 8) {
+      setError("Initial password must be at least 8 characters.");
+      return;
+    }
     setError("");
     createMutation.mutate({
       name: name.trim(),
       email: email.trim().toLowerCase(),
-      phone: phone.trim() || "+251 911 000 000",
+      phone: phone.trim(),
       role,
-      password: password || "password123",
+      password,
       status,
     });
   };
@@ -574,13 +578,15 @@ function AddUserModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose
           <div className="space-y-1">
             <label className="text-xs font-bold text-foreground flex items-center justify-between">
               <span>Initial Password *</span>
-              <span className="text-[10px] text-muted-foreground font-normal">Default: password123</span>
+              <span className="text-[10px] text-muted-foreground font-normal">Min. 8 characters — share it privately</span>
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="password123"
+                placeholder="At least 8 characters"
+                minLength={8}
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="rounded-xl h-10 pl-9 text-xs font-mono"

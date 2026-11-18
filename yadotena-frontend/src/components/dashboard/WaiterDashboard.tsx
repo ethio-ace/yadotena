@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { PlaceOrderTab } from "@/components/dashboard/orders/PlaceOrderTab";
 import { ActiveOrdersTab } from "@/components/dashboard/orders/ActiveOrdersTab";
-import { ClipboardList, PlusCircle, BellRing, CheckCircle2, Clock } from "lucide-react";
+import { SellProductsTab } from "@/components/dashboard/products/SellProductsTab";
+import { ClipboardList, PlusCircle, BellRing, CheckCircle2, Clock, Package } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { formatDistanceToNow } from "date-fns";
 import { soundAlerts } from "@/lib/audioAlerts";
 
 export default function WaiterDashboard() {
-  const [activeTab, setActiveTab] = useState<"place_order" | "active_orders">("place_order");
+  const [activeTab, setActiveTab] = useState<"place_order" | "active_orders" | "sell_products">("place_order");
   const queryClient = useQueryClient();
 
   const { data: serviceRequests = [] } = useQuery({
@@ -56,6 +57,13 @@ export default function WaiterDashboard() {
         >
           <ClipboardList className={`w-4 h-4 ${activeTab === "active_orders" ? "text-blue-500" : ""}`} />
           Active Orders
+        </button>
+        <button 
+          className={`flex items-center justify-center gap-2 flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === "sell_products" ? "bg-background text-foreground shadow-sm scale-100" : "text-muted-foreground hover:text-foreground scale-95"}`}
+          onClick={() => setActiveTab("sell_products")}
+        >
+          <Package className={`w-4 h-4 ${activeTab === "sell_products" ? "text-emerald-500" : ""}`} />
+          Sell Products
         </button>
       </div>
 
@@ -109,6 +117,7 @@ export default function WaiterDashboard() {
       <div className="mt-6">
         {activeTab === "place_order" && <PlaceOrderTab />}
         {activeTab === "active_orders" && <ActiveOrdersTab />}
+        {activeTab === "sell_products" && <SellProductsTab />}
       </div>
     </div>
   );

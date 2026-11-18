@@ -7,12 +7,29 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Order
 from .serializers import OrderSerializer, OrderItemInputSerializer
 from . import services
+from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager
+from apps.core.throttles import PublicActionThrottle
 
 
-class OrderViewSet(viewsets.ModelViewSet):
+class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     queryset = Order.objects.all().prefetch_related('items').select_related('table')
     serializer_class = OrderSerializer
-    permission_classes = [permissions.AllowAny]
+    # Customers place, view (by unguessable id) and extend their own order;
+    # everything else is staff-only.
+    action_permissions = {
+        'create': [AllowAny],
+        'retrieve': [AllowAny],
+        'add_items': [AllowAny],
+        'list': [IsStaff],
+        'update': [IsStaff],
+        'partial_update': [IsStaff],
+        'update_status': [IsStaff],
+        'destroy': [IsManager],
+    }
+    default_permissions = [IsStaff]
+    throttle_classes = [PublicActionThrottle]
+    public_throttle_scope = 'public_orders'
+    public_throttle_actions = {'create', 'add_items'}
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['type', 'status', 'payment_status', 'table']
     search_fields = ['id', 'customer_name', 'customer_phone', 'table__name']

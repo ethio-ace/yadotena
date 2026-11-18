@@ -5,18 +5,26 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import MenuCategory, MenuItem
 from .serializers import MenuCategorySerializer, MenuItemSerializer
+from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager
 
-class MenuCategoryViewSet(viewsets.ModelViewSet):
+class MenuCategoryViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     queryset = MenuCategory.objects.all().order_by('sort_order', 'name')
     serializer_class = MenuCategorySerializer
-    permission_classes = [permissions.AllowAny]
+    action_permissions = {'list': [AllowAny], 'retrieve': [AllowAny]}
+    default_permissions = [IsManager]
     filter_backends = [OrderingFilter]
     ordering_fields = ['sort_order', 'name']
 
-class MenuItemViewSet(viewsets.ModelViewSet):
+class MenuItemViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     queryset = MenuItem.objects.all().prefetch_related('custom_addons').select_related('category')
     serializer_class = MenuItemSerializer
-    permission_classes = [permissions.AllowAny]
+    action_permissions = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        # Kitchen/floor staff can mark a dish sold out.
+        'toggle_availability': [IsStaff],
+    }
+    default_permissions = [IsManager]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['category', 'available']
     search_fields = ['name', 'description']

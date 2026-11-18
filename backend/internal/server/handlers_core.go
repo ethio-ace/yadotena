@@ -116,40 +116,80 @@ func (s *Server) getReportsSummary(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var rep SummaryReport
 
-	// Calculate gross revenue & completed orders
-	_ = s.Pool.QueryRow(ctx, `
-		SELECT COALESCE(SUM(total), 0)::float8, COUNT(*)
-		FROM orders WHERE status = 'COMPLETED'`).Scan(&rep.GrossRevenue, &rep.CompletedOrders)
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
 
-	// Calculate total orders
-	_ = s.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM orders`).Scan(&rep.OrdersCount)
+	if from != "" && to != "" {
+		// Date-filtered queries
+		_ = s.Pool.QueryRow(ctx, `
+			SELECT COALESCE(SUM(total), 0)::float8, COUNT(*)
+			FROM orders WHERE status = 'COMPLETED'
+			AND created_at::date >= $1 AND created_at::date <= $2`, from, to).Scan(&rep.GrossRevenue, &rep.CompletedOrders)
 
-	// Calculate total expenses
-	_ = s.Pool.QueryRow(ctx, `SELECT COALESCE(SUM(amount), 0)::float8 FROM expenses`).Scan(&rep.TotalExpenses)
+		_ = s.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM orders
+			WHERE created_at::date >= $1 AND created_at::date <= $2`, from, to).Scan(&rep.OrdersCount)
 
-	rep.NetProfit = rep.GrossRevenue - rep.TotalExpenses
+		_ = s.Pool.QueryRow(ctx, `SELECT COALESCE(SUM(amount), 0)::float8 FROM expenses
+			WHERE created_at::date >= $1 AND created_at::date <= $2`, from, to).Scan(&rep.TotalExpenses)
 
-	if rep.CompletedOrders > 0 {
-		rep.AverageTicket = rep.GrossRevenue / float64(rep.CompletedOrders)
-	}
+		rep.NetProfit = rep.GrossRevenue - rep.TotalExpenses
 
-	// Calculate top dishes
-	rows, err := s.Pool.Query(ctx, `
-		SELECT name, SUM(quantity) as orders_count, SUM(price * quantity)::float8 as revenue
-		FROM order_items
-		GROUP BY name
-		ORDER BY orders_count DESC, revenue DESC
-		LIMIT 5`)
-
-	rep.TopDishes = make([]TopDish, 0)
-	if err == nil {
-		for rows.Next() {
-			var td TopDish
-			if errScan := rows.Scan(&td.Name, &td.OrdersCount, &td.Revenue); errScan == nil {
-				rep.TopDishes = append(rep.TopDishes, td)
-			}
+		if rep.CompletedOrders > 0 {
+			rep.AverageTicket = rep.GrossRevenue / float64(rep.CompletedOrders)
 		}
-		rows.Close()
+
+		rows, err := s.Pool.Query(ctx, `
+			SELECT oi.name, SUM(oi.quantity) as orders_count, SUM(oi.price * oi.quantity)::float8 as revenue
+			FROM order_items oi
+			JOIN orders o ON o.id = oi.order_id
+			WHERE o.created_at::date >= $1 AND o.created_at::date <= $2
+			GROUP BY oi.name
+			ORDER BY orders_count DESC, revenue DESC
+			LIMIT 5`, from, to)
+
+		rep.TopDishes = make([]TopDish, 0)
+		if err == nil {
+			for rows.Next() {
+				var td TopDish
+				if errScan := rows.Scan(&td.Name, &td.OrdersCount, &td.Revenue); errScan == nil {
+					rep.TopDishes = append(rep.TopDishes, td)
+				}
+			}
+			rows.Close()
+		}
+	} else {
+		// All-time queries (no date filter)
+		_ = s.Pool.QueryRow(ctx, `
+			SELECT COALESCE(SUM(total), 0)::float8, COUNT(*)
+			FROM orders WHERE status = 'COMPLETED'`).Scan(&rep.GrossRevenue, &rep.CompletedOrders)
+
+		_ = s.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM orders`).Scan(&rep.OrdersCount)
+
+		_ = s.Pool.QueryRow(ctx, `SELECT COALESCE(SUM(amount), 0)::float8 FROM expenses`).Scan(&rep.TotalExpenses)
+
+		rep.NetProfit = rep.GrossRevenue - rep.TotalExpenses
+
+		if rep.CompletedOrders > 0 {
+			rep.AverageTicket = rep.GrossRevenue / float64(rep.CompletedOrders)
+		}
+
+		rows, err := s.Pool.Query(ctx, `
+			SELECT name, SUM(quantity) as orders_count, SUM(price * quantity)::float8 as revenue
+			FROM order_items
+			GROUP BY name
+			ORDER BY orders_count DESC, revenue DESC
+			LIMIT 5`)
+
+		rep.TopDishes = make([]TopDish, 0)
+		if err == nil {
+			for rows.Next() {
+				var td TopDish
+				if errScan := rows.Scan(&td.Name, &td.OrdersCount, &td.Revenue); errScan == nil {
+					rep.TopDishes = append(rep.TopDishes, td)
+				}
+			}
+			rows.Close()
+		}
 	}
 
 	writeJSON(w, 200, rep)

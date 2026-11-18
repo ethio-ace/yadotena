@@ -5,11 +5,16 @@ from django.db.models import Sum, Count, Avg
 from django.utils import timezone
 from .models import RestaurantSetting
 from .serializers import RestaurantSettingSerializer
+from .permissions import AllowAny, IsManager, IsOwner
 from apps.orders.models import Order, OrderItem
 from apps.expenses.models import Expense
 
 class RestaurantSettingView(APIView):
-    permission_classes = [permissions.AllowAny]
+    def get_permissions(self):
+        # Customers need public settings (name, tax, currency) to render menus.
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsOwner()]
 
     def get(self, request):
         setting = RestaurantSetting.get_settings()
@@ -23,7 +28,7 @@ class RestaurantSettingView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class ReportsSummaryView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsManager]
 
     def get(self, request):
         # Gross revenue

@@ -135,3 +135,57 @@ export interface ServiceRequest {
   createdAt: string;
   notes?: string;
 }
+
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  unit: string;
+  stock_quantity: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductSale {
+  id: string;
+  product: string; // Product ID
+  product_name?: string;
+  quantity: number;
+  total_price: number;
+  sold_by?: string; // User ID
+  sold_by_name?: string;
+  sale_date: string;
+}
+
+export interface ProductPurchase {
+  id: string;
+  product: string; // Product ID
+  product_name?: string;
+  quantity: number;
+  total_cost: number;
+  purchased_by?: string; // User ID
+  purchased_by_name?: string;
+  purchase_date: string;
+}
+
+export interface ProductAnalyticsPeriod {
+  quantity: number;
+  total: number;
+}
+
+export interface ProductAnalytics {
+  sales: {
+    today: ProductAnalyticsPeriod;
+    week: ProductAnalyticsPeriod;
+    month: ProductAnalyticsPeriod;
+    year: ProductAnalyticsPeriod;
+  };
+  purchases: {
+    today: ProductAnalyticsPeriod;
+    week: ProductAnalyticsPeriod;
+    month: ProductAnalyticsPeriod;
+    year: ProductAnalyticsPeriod;
+  };
+}

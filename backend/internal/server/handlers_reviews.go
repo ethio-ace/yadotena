@@ -66,10 +66,20 @@ func (s *Server) createReview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if body.Rating < 1 || body.Rating > 5 {
-		body.Rating = 5
+		writeErr(w, 400, "rating must be between 1 and 5")
+		return
 	}
 	if body.CustomerName == "" {
 		body.CustomerName = "Guest"
+	}
+
+	if body.OrderID != nil && *body.OrderID != "" {
+		var existingID string
+		err := s.Pool.QueryRow(r.Context(), `SELECT id FROM reviews WHERE order_id = $1`, *body.OrderID).Scan(&existingID)
+		if err == nil {
+			writeErr(w, 409, "a review for this order already exists")
+			return
+		}
 	}
 
 	id := fmt.Sprintf("rev-%s", uuid.New().String()[:8])

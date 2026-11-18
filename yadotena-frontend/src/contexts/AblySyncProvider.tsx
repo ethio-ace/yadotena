@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useRef } from "react";
 import * as Ably from "ably";
 import { useQueryClient } from "@tanstack/react-query";
+import { API_BASE } from "@/lib/config";
 
 interface AblySyncContextType {
   client: Ably.Realtime | null;
@@ -15,15 +16,12 @@ export function AblySyncProvider({ children }: { children: React.ReactNode }) {
   const clientRef = useRef<Ably.Realtime | null>(null);
 
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_ABLY_API_KEY;
-    if (!apiKey) {
-      console.warn("NEXT_PUBLIC_ABLY_API_KEY is missing. Real-time sync disabled.");
-      return;
-    }
+    if (process.env.NEXT_PUBLIC_REALTIME_DISABLED === "true") return;
 
     if (!clientRef.current) {
-      // In a production app, use authUrl for token auth. We use key auth here for the demo.
-      const ably = new Ably.Realtime({ key: apiKey });
+      // Token auth: the backend signs a short-lived, subscribe-only token request.
+      // The Ably API key never reaches the browser.
+      const ably = new Ably.Realtime({ authUrl: `${API_BASE}/auth/ably-token/` });
       clientRef.current = ably;
 
       const channel = ably.channels.get("yadotena-realtime");
@@ -58,6 +56,14 @@ export function AblySyncProvider({ children }: { children: React.ReactNode }) {
       channel.subscribe("table.updated", (message) => {
         console.log("Real-time event: table.updated", message.data);
         queryClient.invalidateQueries({ queryKey: ["tables"] });
+      });
+
+      channel.subscribe("product.changed", (message) => {
+        console.log("Real-time event: product.changed", message.data);
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        queryClient.invalidateQueries({ queryKey: ["productSales"] });
+        queryClient.invalidateQueries({ queryKey: ["productPurchases"] });
+        queryClient.invalidateQueries({ queryKey: ["productAnalytics"] });
       });
     }
 

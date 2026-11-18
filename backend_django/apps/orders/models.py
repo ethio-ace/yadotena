@@ -1,5 +1,5 @@
+import secrets
 import uuid
-import random
 from django.db import models
 from apps.tables.models import Table
 from apps.menu.models import MenuItem
@@ -21,8 +21,13 @@ class PaymentStatus(models.TextChoices):
     PAID = 'PAID', 'Paid'
     REFUNDED = 'REFUNDED', 'Refunded'
 
+# No 0/O/1/I/L to keep ids readable aloud. 10 chars ~= 49 bits: unguessable
+# (public order lookup relies on this) and collision-free at cafe scale.
+ORDER_ID_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+
 def generate_order_id():
-    return f"ORD-{random.randint(1000, 9999)}"
+    return "ORD-" + "".join(secrets.choice(ORDER_ID_ALPHABET) for _ in range(10))
 
 def generate_order_item_id():
     return f"item-{uuid.uuid4().hex[:8]}"

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Role } from "@/types";
@@ -17,7 +18,8 @@ import {
   BarChart3, 
   MessageSquare, 
   Settings,
-  Bell
+  Bell,
+  Package
 } from "lucide-react";
 
 interface NavItem {
@@ -34,6 +36,7 @@ export const navItems: NavItem[] = [
   { name: "Kitchen", href: "/dashboard/kitchen", icon: ChefHat, roles: ["OWNER", "MANAGER", "KITCHEN"] },
   { name: "Menu", href: "/dashboard/menu", icon: MenuSquare, roles: ["OWNER", "MANAGER"] },
   { name: "Customers", href: "/dashboard/customers", icon: Users, roles: ["OWNER", "MANAGER", "WAITER"] },
+  { name: "Products", href: "/dashboard/products", icon: Package, roles: ["OWNER", "MANAGER"] },
   { name: "Payments", href: "/dashboard/payments", icon: CreditCard, roles: ["OWNER", "MANAGER"] },
   { name: "Expenses", href: "/dashboard/expenses", icon: Receipt, roles: ["OWNER", "MANAGER"] },
   { name: "Employees", href: "/dashboard/employees", icon: UserSquare2, roles: ["OWNER", "MANAGER"] },
@@ -49,8 +52,8 @@ export default function Sidebar({ role }: { role: Role }) {
   return (
     <aside className="w-64 bg-card border-r flex-shrink-0 hidden md:flex flex-col">
       <div className="h-20 flex items-center px-6 border-b gap-3">
-        <div className="h-10 w-10 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-black text-lg shadow-md shadow-primary/25">
-          🥛
+        <div className="h-10 w-10 flex items-center justify-center bg-primary rounded-xl overflow-hidden shadow-md shadow-primary/25">
+          <Image src="/logo.png" alt="Yadotena Logo" width={32} height={32} className="object-contain" />
         </div>
         <div>
           <h1 className="text-xl font-black text-primary tracking-tight leading-none">Yadotena</h1>

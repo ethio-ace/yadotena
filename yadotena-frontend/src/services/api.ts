@@ -1,14 +1,30 @@
-import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession } from "../types";
+import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession, Product, ProductSale, ProductPurchase, ProductAnalytics } from "../types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://semu.ethioace.com/api/v1";
+import { API_BASE } from "@/lib/config";
 
-// Strict requests for order-critical flows — never silently fall back to mocks
+// --- Auth token wiring -------------------------------------------------------
+// The staff API token lives in the NextAuth session; <AuthTokenSync> (lib/auth-provider)
+// pushes it here so every request can attach it without awaiting getSession().
+let authToken: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+}
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
 async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   const headers = new Headers(options.headers || {});
-  
+  if (authToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Token ${authToken}`);
+  }
+
   // If the body is FormData, do NOT set Content-Type to application/json
   // Let the browser automatically set the Content-Type with the correct boundary
   if (!(options.body instanceof FormData) && !headers.has("Content-Type")) {
@@ -18,12 +34,21 @@ async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}):
     headers.set("Accept", "application/json");
   }
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-    signal: controller.signal,
-  });
-  clearTimeout(timeoutId);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  // A rejected token means the staff session is over (expired, revoked, deactivated).
+  if (res.status === 401 && authToken) {
+    onUnauthorized?.();
+  }
 
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
@@ -35,6 +60,14 @@ async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}):
       }
       else if (errorBody.unavailable_items) {
         message = `Unavailable: ${errorBody.unavailable_items.join(", ")}`;
+      }
+      else if (errorBody && typeof errorBody === "object") {
+        // DRF validation errors: { field: ["msg"], non_field_errors: ["msg"] }
+        const parts = Object.entries(errorBody as Record<string, unknown>).map(([field, msgs]) => {
+          const text = Array.isArray(msgs) ? msgs.join(" ") : String(msgs);
+          return field === "non_field_errors" ? text : `${field}: ${text}`;
+        });
+        if (parts.length) message = parts.join(" · ");
       }
     } catch {
       // ignore parse errors
@@ -295,6 +328,54 @@ export const api = {
     },
     delete: async (id: string): Promise<void> => {
       return requestApiStrict<void>(`/users/${id}/`, { method: "DELETE" });
+    },
+  },
+
+  products: {
+    getAll: async (): Promise<Product[]> => {
+      return requestApiStrict<Product[]>("/products/", { method: "GET" });
+    },
+    getAnalytics: async (): Promise<ProductAnalytics> => {
+      return requestApiStrict<ProductAnalytics>("/products/analytics/", { method: "GET" });
+    },
+    create: async (product: Omit<Product, "id" | "created_at" | "updated_at">): Promise<Product> => {
+      return requestApiStrict<Product>("/products/", {
+        method: "POST",
+        body: JSON.stringify(product),
+      });
+    },
+    update: async (id: string, updates: Partial<Product>): Promise<Product> => {
+      return requestApiStrict<Product>(`/products/${id}/`, {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+      });
+    },
+    delete: async (id: string): Promise<void> => {
+      return requestApiStrict<void>(`/products/${id}/`, { method: "DELETE" });
+    },
+  },
+  
+  productSales: {
+    getAll: async (): Promise<ProductSale[]> => {
+      return requestApiStrict<ProductSale[]>("/product-sales/", { method: "GET" });
+    },
+    create: async (sale: { product: string; quantity: number }): Promise<ProductSale> => {
+      return requestApiStrict<ProductSale>("/product-sales/", {
+        method: "POST",
+        body: JSON.stringify(sale),
+      });
+    },
+  },
+  
+  productPurchases: {
+    getAll: async (): Promise<ProductPurchase[]> => {
+      return requestApiStrict<ProductPurchase[]>("/product-purchases/", { method: "GET" });
+    },
+    create: async (purchase: { product: string; quantity: number; total_cost: number }): Promise<ProductPurchase> => {
+      return requestApiStrict<ProductPurchase>("/product-purchases/", {
+        method: "POST",
+        body: JSON.stringify(purchase),
+      });
     },
   },
 };

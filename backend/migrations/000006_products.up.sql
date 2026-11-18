@@ -1,0 +1,33 @@
+CREATE TABLE IF NOT EXISTS products (
+  id VARCHAR(50) PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  unit TEXT NOT NULL DEFAULT 'pcs',
+  stock_quantity NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS product_sales (
+  id VARCHAR(50) PRIMARY KEY,
+  product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  product_name TEXT NOT NULL DEFAULT '',
+  quantity NUMERIC(10,2) NOT NULL DEFAULT 1.00,
+  total_price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  sold_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  sold_by_name TEXT NOT NULL DEFAULT '',
+  sale_date TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS product_purchases (
+  id VARCHAR(50) PRIMARY KEY,
+  product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  product_name TEXT NOT NULL DEFAULT '',
+  quantity NUMERIC(10,2) NOT NULL DEFAULT 1.00,
+  total_cost NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  purchased_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  purchased_by_name TEXT NOT NULL DEFAULT '',
+  purchase_date TIMESTAMPTZ NOT NULL DEFAULT now()
+);

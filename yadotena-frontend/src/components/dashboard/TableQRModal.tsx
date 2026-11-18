@@ -8,6 +8,7 @@ import {
   X, Printer, ExternalLink, Copy, Check, QrCode, Sparkles, 
   UtensilsCrossed, ShieldCheck 
 } from "lucide-react";
+import Image from "next/image";
 
 interface TableQRModalProps {
   table: Table | null;
@@ -69,8 +70,8 @@ export function TableQRModal({ table, isOpen, onClose }: TableQRModalProps) {
 
             {/* Restaurant Logo Header */}
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-base shadow-md shadow-primary/25">
-                🥛
+              <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center overflow-hidden shadow-md shadow-primary/25">
+                <Image src="/logo.png" alt="Yadotena Logo" width={24} height={24} className="object-contain" />
               </div>
               <span className="font-black text-lg tracking-tight">Yadotena Milk & Foods</span>
             </div>

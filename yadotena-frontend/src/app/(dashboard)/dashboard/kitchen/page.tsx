@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Order, OrderStatus } from "@/types";
 import { Clock, Flame, Check, UtensilsCrossed, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { soundAlerts } from "@/lib/audioAlerts";
+import { useAblySync } from "@/contexts/AblySyncProvider";
 import { AddExtraSelectionModal } from "@/components/dashboard/AddExtraSelectionModal";
 import { KitchenOrderCard } from "@/components/dashboard/KitchenOrderCard";
 import { FullPageMenuPOS } from "@/components/dashboard/FullPageMenuPOS";
@@ -22,7 +23,36 @@ export default function KitchenDashboard() {
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: api.orders.getAll,
+    refetchInterval: 15000,
+    staleTime: 5000,
   });
+
+  const { client: ablyClient } = useAblySync();
+  const prevNewOrderCount = useRef(0);
+
+  useEffect(() => {
+    if (!ablyClient) return;
+    const channel = ablyClient.channels.get("yadotena-realtime");
+
+    const handler = () => {
+      soundAlerts.playNewOrderChime();
+    };
+
+    channel.subscribe("order.created", handler);
+
+    return () => {
+      channel.unsubscribe("order.created", handler);
+    };
+  }, [ablyClient]);
+
+  const newOrdersPending = orders.filter(o => o.status === "PENDING");
+
+  useEffect(() => {
+    if (newOrdersPending.length > prevNewOrderCount.current) {
+      soundAlerts.playNewOrderChime();
+    }
+    prevNewOrderCount.current = newOrdersPending.length;
+  }, [newOrdersPending.length]);
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: OrderStatus }) => 

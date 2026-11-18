@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 
 import { AblySyncProvider } from "@/contexts/AblySyncProvider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Yadotena Milk and Foods | Fresh Dairy & Artisanal Kitchen",
@@ -39,6 +40,7 @@ export default function RootLayout({
             <QueryProvider>
               <AblySyncProvider>
                 {children}
+                <Toaster position="top-right" richColors />
               </AblySyncProvider>
             </QueryProvider>
           </AuthProvider>

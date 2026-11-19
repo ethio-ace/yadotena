@@ -1,7 +1,5 @@
 .env
 .env.local
-backend/.env
-backend/uploads/
 **/node_modules/
 **/.next/
 *.log

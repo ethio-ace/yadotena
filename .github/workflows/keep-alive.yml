@@ -1,8 +1,7 @@
-# Pings the Render API /health every ~14 minutes to reduce free-tier cold sleeps.
-# Set repository secret (or variable) RENDER_HEALTH_URL = https://YOUR-SERVICE.onrender.com/health
-#
-# Prefer cron-job.org for a purpose-built HTTP scheduler; this workflow is a backup
-# that lives in-repo. Scheduled Actions can be delayed under GitHub load.
+# Optional uptime ping for the Django API's cheap /health/ endpoint.
+# Only needed if the API host sleeps when idle. Set repository secret or
+# variable API_HEALTH_URL (e.g. https://semu.ethioace.com/health/) to enable;
+# without it the job is a no-op.
 
 name: API Keep Alive
 
@@ -15,13 +14,13 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping /health
+      - name: Ping /health/
         env:
-          URL: ${{ secrets.RENDER_HEALTH_URL || vars.RENDER_HEALTH_URL }}
+          URL: ${{ secrets.API_HEALTH_URL || vars.API_HEALTH_URL }}
         run: |
           if [ -z "$URL" ]; then
-            echo "Set secret or variable RENDER_HEALTH_URL (e.g. https://yadotena-api.onrender.com/health)"
-            exit 1
+            echo "API_HEALTH_URL not set; skipping."
+            exit 0
           fi
           curl --fail --silent --show-error --max-time 30 "$URL"
           echo

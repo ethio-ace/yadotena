@@ -1,57 +1,63 @@
-# Yadotena Cafe
+# Yadotena Milk & Foods
 
-Minimal cafe management: public ordering + staff (owner, manager, waiter, chef).
+Café management: public QR/takeaway ordering plus staff dashboards for owner,
+manager, waiter and kitchen.
 
 ## Stack
 
-| Layer | Hosting |
-|-------|---------|
-| Frontend | Next.js on **Vercel** (`yadotena-frontend/`) |
-| API | Go (chi) on **Render / Leapcell** (`backend/`) |
-| Database | **Neon** Postgres |
-| Cache / rate limits | **Upstash** Redis (optional) |
-| Images | **Cloudflare R2** (or paste any HTTPS image URL) |
+| Layer | Where |
+|-------|-------|
+| Frontend | Next.js (`yadotena-frontend/`) on Vercel |
+| API | Django + Django REST Framework (`backend_django/`) at `semu.ethioace.com` |
+| Database | SQLite (`SQLITE_PATH`) |
+| Images | Uploaded to `MEDIA_ROOT`, served under `/media/` |
+| Realtime | Ably (server publishes; browsers get subscribe-only tokens) |
 
 ## API (local)
 
 ```bash
-cd backend
-cp .env.example .env
-export GOCACHE=$HOME/.cache/go-build GOMODCACHE=$HOME/go/pkg/mod
-go run ./cmd/seed   # migrate + rich demo seed (Neon or local)
-go run ./cmd/api
+cd backend_django
+python -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env        # set DJANGO_DEBUG=true for local work
+python manage.py migrate
+python manage.py createsuperuser   # first owner account
+python manage.py runserver
+python manage.py test apps         # test suite
 ```
 
-- Health (cheap): `GET /health` → `{"ok":true}`
-- Ready (DB): `GET /ready`
-- API: `/api/v1`
+- Health (cheap): `GET /health/` → `{"ok": true}`
+- Ready (database): `GET /ready/`
+- API: `/api/v1/…` (routes work with or without a trailing slash)
 
-## Keep Render Free warm
+## Frontend (local)
 
-Ping **`/health`** every ~14 minutes (not `/ready`).
+```bash
+cd yadotena-frontend
+cp .env.example .env.local   # NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+npm ci
+npm run dev
+```
 
-1. **cron-job.org** (recommended): `GET https://YOUR-SERVICE.onrender.com/health`
-2. **GitHub Actions**: `.github/workflows/keep-alive.yml` — set secret/variable `RENDER_HEALTH_URL` to that URL
+## Access model
 
-## Demo data (PIN `1234`)
+- **Public** (no login): menu, categories, addons, settings, payment methods,
+  placing an order, viewing/looking up an order by its id, adding items,
+  calling a waiter, reviews, the Ably token.
+- **Waiter / kitchen**: orders and kitchen actions, tables, service
+  requests, marking dishes sold out, recording payments.
+- **Manager / owner**: menu and addon editing, staff, expenses, payment
+  history and methods, analytics, activity log, products, uploads.
+- **Owner only**: restaurant settings and owner accounts.
 
-| Role | Phone |
-|------|-------|
-| Owner | 0900000001 |
-| Manager | 0900000002 |
-| Waiter | 0900000003 |
-| Chef (KITCHEN) | 0900000004 |
-| Waiter (inactive) | 0900000005 |
+Staff sign in with email + password and receive a 12-hour API token.
 
-Seed includes 7 categories / 11 menu items (with images), 8 tables, open kitchen/waiter orders, sample customers (Abebe / Sara / Dawit VIP), and 3 expenses.
+## Deploy the API
 
-## Deploy backend
-
-1. Neon → `DATABASE_URL` (`sslmode=require`)
-2. Optional Upstash → `REDIS_URL` (`rediss://…`)
-3. Optional R2 → `R2_*` (see `backend/.env.example`)
-4. Deploy `backend/`: build `go build -o bin/api ./cmd/api`, start `./bin/api`
-5. Set `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` (Vercel URL), `RUN_SEEDS=true` once then `false`
-6. Frontend: `NEXT_PUBLIC_API_URL` → API URL
-
-Migrations run on API boot.
+1. Set environment variables (see `backend_django/.env.example`):
+   `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`
+   (the frontend URL), `CSRF_TRUSTED_ORIGINS`, `ABLY_API_KEY`.
+   The server refuses to start without a secret key unless `DJANGO_DEBUG=true`.
+2. `python manage.py migrate` on every deploy.
+3. Frontend: set `NEXT_PUBLIC_API_URL` to the API origin (with or without `/api/v1`),
+   `NEXTAUTH_URL` and `NEXTAUTH_SECRET`.

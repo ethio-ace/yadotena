@@ -1,5 +1,8 @@
+import logging
 import uuid
 from django.db import models
+
+logger = logging.getLogger(__name__)
 
 def generate_category_id():
     return f"cat-{uuid.uuid4().hex[:8]}"
@@ -56,7 +59,9 @@ class MenuItem(models.Model):
         return f"{self.name} ({self.price} ETB)"
 
     def save(self, *args, **kwargs):
-        if self.image:
+        # Only optimise a file that was just uploaded (not yet committed to
+        # storage); re-saving an item must not re-open or re-encode its image.
+        if self.image and getattr(self.image, '_committed', True) is False:
             from PIL import Image
             from io import BytesIO
             from django.core.files.uploadedfile import InMemoryUploadedFile
@@ -93,8 +98,8 @@ class MenuItem(models.Model):
                         sys.getsizeof(output),
                         None
                     )
-            except Exception as e:
-                print(f"Error optimizing image: {e}")
+            except Exception:
+                logger.exception('Could not optimise image for menu item %s', self.pk)
                 
         super().save(*args, **kwargs)
 

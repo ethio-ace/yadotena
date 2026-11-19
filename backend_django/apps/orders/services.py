@@ -114,10 +114,10 @@ def recalculate_order_totals(order: Order):
     delivery_fee = Decimal('0.00')
 
     if subtotal > 0:
-        tax = _money(subtotal * settings.vat_percent / Decimal('100'))
+        tax = _money(subtotal * Decimal(str(settings.vat_percent)) / Decimal('100'))
 
     if order.type == OrderType.DINE_IN and subtotal > 0:
-        service_charge = _money(subtotal * settings.service_charge_percent / Decimal('100'))
+        service_charge = _money(subtotal * Decimal(str(settings.service_charge_percent)) / Decimal('100'))
 
     if order.type == OrderType.DELIVERY:
         delivery_fee = DELIVERY_FEE

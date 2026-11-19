@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Order, OrderItem
 from . import services
+from apps.core.permissions import is_staff_user
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -51,7 +52,24 @@ class OrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'status', 'subtotal', 'tax', 'service_charge', 'delivery_fee', 'total']
 
+    PRIVATE_FIELDS = ('customerPhone', 'deliveryAddress')
+
+    def _request_is_staff(self):
+        request = self.context.get('request')
+        return bool(request) and is_staff_user(request.user)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Anonymous order lookups (customer tracking page) must not leak contact details.
+        if not self._request_is_staff():
+            for field in self.PRIVATE_FIELDS:
+                data.pop(field, None)
+        return data
+
     def create(self, validated_data):
+        if not self._request_is_staff():
+            # Customers cannot mark their own order as paid.
+            validated_data.pop('payment_status', None)
         items_data = validated_data.pop('itemsInput', None) or self.initial_data.get('items', [])
         idempotency_key = validated_data.pop('idempotency_key', None)
         if not idempotency_key:

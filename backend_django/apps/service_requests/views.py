@@ -7,11 +7,20 @@ from rest_framework.filters import OrderingFilter
 from apps.core.ably_utils import publish_event
 from .models import ServiceRequest
 from .serializers import ServiceRequestSerializer
+from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager
+from apps.core.throttles import PublicActionThrottle
 
-class ServiceRequestViewSet(viewsets.ModelViewSet):
+class ServiceRequestViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     queryset = ServiceRequest.objects.all().select_related('table')
     serializer_class = ServiceRequestSerializer
-    permission_classes = [permissions.AllowAny]
+    action_permissions = {
+        'create': [AllowAny],  # "call waiter" / "request bill" from the table
+        'destroy': [IsManager],
+    }
+    default_permissions = [IsStaff]
+    throttle_classes = [PublicActionThrottle]
+    public_throttle_scope = 'public_writes'
+    public_throttle_actions = {'create'}
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['status', 'type', 'table']
     ordering_fields = ['created_at', 'status']

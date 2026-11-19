@@ -1,13 +1,15 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import LoginView, LogoutView, CurrentUserView, UserViewSet
+from apps.core.routers import optional_slash
+from apps.core.routers import OptionalSlashRouter
+from .views import LoginView, LogoutView, CurrentUserView, UserViewSet, AblyTokenView
 
-router = DefaultRouter()
+router = OptionalSlashRouter()
 router.register(r'users', UserViewSet, basename='user')
 
 urlpatterns = [
-    path('login/', LoginView.as_view(), name='auth-login'),
-    path('logout/', LogoutView.as_view(), name='auth-logout'),
-    path('me/', CurrentUserView.as_view(), name='auth-me'),
+    optional_slash('login', LoginView.as_view(), name='auth-login'),
+    optional_slash('logout', LogoutView.as_view(), name='auth-logout'),
+    optional_slash('me', CurrentUserView.as_view(), name='auth-me'),
+    optional_slash('ably-token', AblyTokenView.as_view(), name='auth-ably-token'),
     path('', include(router.urls)),
 ]

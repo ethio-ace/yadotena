@@ -10,10 +10,12 @@ from .models import Product, ProductSale, ProductPurchase
 from .serializers import ProductSerializer, ProductSaleSerializer, ProductPurchaseSerializer
 from apps.expenses.models import Expense, ExpenseCategory
 from decimal import Decimal
+from apps.core.permissions import IsManager
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+    permission_classes = [IsManager]
 
     def perform_create(self, serializer):
         serializer.save()
@@ -59,6 +61,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 class ProductSaleViewSet(viewsets.ModelViewSet):
     queryset = ProductSale.objects.all()
     serializer_class = ProductSaleSerializer
+    permission_classes = [IsManager]
 
     def create(self, request, *args, **kwargs):
         product_id = request.data.get('product')
@@ -93,6 +96,7 @@ class ProductSaleViewSet(viewsets.ModelViewSet):
 class ProductPurchaseViewSet(viewsets.ModelViewSet):
     queryset = ProductPurchase.objects.all()
     serializer_class = ProductPurchaseSerializer
+    permission_classes = [IsManager]
 
     def create(self, request, *args, **kwargs):
         product_id = request.data.get('product')

@@ -1,8 +1,8 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from apps.core.routers import OptionalSlashRouter
 from .views import ReviewViewSet
 
-router = DefaultRouter()
+router = OptionalSlashRouter()
 router.register(r'reviews', ReviewViewSet, basename='review')
 
 urlpatterns = [

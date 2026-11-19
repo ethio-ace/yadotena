@@ -12,6 +12,7 @@ import {
   Users,
   ScrollText,
   Activity,
+  Package,
 } from "lucide-react";
 import { Role } from "@/types";
 
@@ -53,6 +54,7 @@ export const managerNavGroups: NavGroup[] = [
     items: [
       { name: "Café Menu", href: "/dashboard/menu", icon: Coffee },
       { name: "Add-ons", href: "/dashboard/addons", icon: Layers },
+      { name: "Products & Stock", href: "/dashboard/products", icon: Package },
     ],
   },
   {
@@ -93,6 +95,7 @@ export const ownerNavGroups: NavGroup[] = [
     items: [
       { name: "Café Menu", href: "/dashboard/menu", icon: Coffee },
       { name: "Add-ons", href: "/dashboard/addons", icon: Layers },
+      { name: "Products & Stock", href: "/dashboard/products", icon: Package },
       { name: "Printable Menu", href: "/dashboard/print-menu", icon: ScrollText },
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
       { name: "Orders", href: "/dashboard/orders", icon: ClipboardList },

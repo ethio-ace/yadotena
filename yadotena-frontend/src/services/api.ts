@@ -1,4 +1,4 @@
-import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession, AddonItem } from "../types";
+import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession, AddonItem, Product, ProductSale, ProductPurchase, ProductAnalytics } from "../types";
 
 const rawBase = (process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com").replace(/\/+$/, "");
 export const API_BASE_URL = rawBase.endsWith("/api/v1") ? rawBase : `${rawBase}/api/v1`;
@@ -554,6 +554,54 @@ export const api = {
     getSummary: async (params?: { range?: string; from?: string; to?: string }) => {
       const q = params?.range ? `?from=${params.from || ""}&to=${params.to || ""}` : "";
       return requestApiStrict<any>(`/staff/analytics${q}`, { method: "GET" });
+    },
+  },
+
+  products: {
+    getAll: async (): Promise<Product[]> => {
+      return requestApiStrict<Product[]>("/products/", { method: "GET" });
+    },
+    getAnalytics: async (): Promise<ProductAnalytics> => {
+      return requestApiStrict<ProductAnalytics>("/products/analytics/", { method: "GET" });
+    },
+    create: async (product: Omit<Product, "id" | "created_at" | "updated_at">): Promise<Product> => {
+      return requestApiStrict<Product>("/products/", {
+        method: "POST",
+        body: JSON.stringify(product),
+      });
+    },
+    update: async (id: string, updates: Partial<Product>): Promise<Product> => {
+      return requestApiStrict<Product>(`/products/${id}/`, {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+      });
+    },
+    delete: async (id: string): Promise<void> => {
+      return requestApiStrict<void>(`/products/${id}/`, { method: "DELETE" });
+    },
+  },
+  
+  productSales: {
+    getAll: async (): Promise<ProductSale[]> => {
+      return requestApiStrict<ProductSale[]>("/product-sales/", { method: "GET" });
+    },
+    create: async (sale: { product: string; quantity: number }): Promise<ProductSale> => {
+      return requestApiStrict<ProductSale>("/product-sales/", {
+        method: "POST",
+        body: JSON.stringify(sale),
+      });
+    },
+  },
+  
+  productPurchases: {
+    getAll: async (): Promise<ProductPurchase[]> => {
+      return requestApiStrict<ProductPurchase[]>("/product-purchases/", { method: "GET" });
+    },
+    create: async (purchase: { product: string; quantity: number; total_cost: number }): Promise<ProductPurchase> => {
+      return requestApiStrict<ProductPurchase>("/product-purchases/", {
+        method: "POST",
+        body: JSON.stringify(purchase),
+      });
     },
   },
 };

@@ -3,9 +3,15 @@ URL configuration for backend_django project (Yadotena Milk & Foods).
 """
 
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
+from django.views.static import serve as serve_static
+
+
+def health(_request):
+    return JsonResponse({'ok': True})
 
 api_v1_patterns = [
     path('auth/', include('apps.authentication.urls')),
@@ -23,6 +29,7 @@ api_v1_patterns = [
 ]
 
 urlpatterns = [
+    path('health/', health, name='health'),
     path('admin/', admin.site.urls),
     path('api/v1/', include(api_v1_patterns)),
 ]
@@ -30,3 +37,9 @@ urlpatterns = [
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+elif settings.SERVE_MEDIA:
+    # static() is a no-op when DEBUG is off; keep uploaded menu images working.
+    urlpatterns += [
+        re_path(r'^%s(?P<path>.*)$' % settings.MEDIA_URL.lstrip('/'), serve_static,
+                {'document_root': settings.MEDIA_ROOT}),
+    ]

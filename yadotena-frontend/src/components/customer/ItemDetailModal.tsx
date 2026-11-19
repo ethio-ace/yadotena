@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatETB } from "@/lib/currency";
+import { getImageUrl } from "@/lib/utils";
 import { isShopProductItem } from "@/lib/orderUtils";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
@@ -27,11 +28,12 @@ const SPICE_LEVELS = [
 
 export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps) {
   const isShopItem = isShopProductItem(item);
-  const { tableId, addToCart, setIsTablePickerOpen, setIsCartOpen } = useCustomerDineIn();
+  const { addToCart } = useCustomerDineIn();
 
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddon[]>([]);
-  const [selectedSpice, setSelectedSpice] = useState<string>("Mild");
+  // Optional — most dishes (and every drink) need no spice level.
+  const [selectedSpice, setSelectedSpice] = useState<string>("");
   const [note, setNote] = useState("");
 
   // Reset local selection when modal opens/changes item
@@ -39,7 +41,7 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
     if (isOpen) {
       setQuantity(1);
       setSelectedAddons([]);
-      setSelectedSpice("Mild");
+      setSelectedSpice("");
       setNote("");
     }
   }, [isOpen, item]);
@@ -89,12 +91,9 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
       ? note.trim()
       : [selectedSpice ? `Spice: ${selectedSpice}` : "", note.trim()].filter(Boolean).join(" · ");
 
+    // Stay on the menu: the cart bar at the bottom shows the new count.
     addToCart(item, quantity, selectedAddons, combinedInstructions);
     onClose();
-    setIsCartOpen(true);
-    if (!tableId) {
-      setIsTablePickerOpen(true);
-    }
   };
 
   return (
@@ -105,7 +104,7 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
         {/* Header Image */}
         <div className="relative h-56 md:h-64 w-full bg-muted flex-shrink-0">
           <img
-            src={item.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80"}
+            src={getImageUrl(item.imageUrl || item.image)}
             alt={item.name}
             className="w-full h-full object-cover"
           />
@@ -209,7 +208,7 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Flame className="h-4 w-4 text-orange-500" />
-                  <h3 className="font-extrabold text-sm text-foreground">Select Spice Level</h3>
+                  <h3 className="font-extrabold text-sm text-foreground">Spice level <span className="font-semibold text-muted-foreground">(optional)</span></h3>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   {SPICE_LEVELS.map((level) => {
@@ -218,7 +217,7 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
                       <button
                         key={level.label}
                         type="button"
-                        onClick={() => setSelectedSpice(level.label)}
+                        onClick={() => setSelectedSpice(isSelected ? "" : level.label)}
                         className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-xs font-bold transition-all ${
                           isSelected
                             ? "bg-primary text-primary-foreground border-primary shadow-md scale-105"
@@ -322,7 +321,7 @@ export function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps)
             className="w-full rounded-2xl font-black h-13 shadow-xl shadow-primary/25 text-base flex items-center justify-center gap-2"
           >
             {isShopItem ? <ShoppingBag className="h-5 w-5" /> : <Utensils className="h-5 w-5" />}
-            <span>Add to Cart · {formatETB(grandTotal)}</span>
+            <span>Add to order · {formatETB(grandTotal)}</span>
           </Button>
         </div>
       </div>

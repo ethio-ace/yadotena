@@ -20,7 +20,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       status === "authenticated" &&
       session?.user?.role === "WAITER" &&
       pathname !== "/dashboard/waiter" &&
-      pathname !== "/dashboard/notifications" &&
       pathname !== "/dashboard"
     ) {
       router.replace("/dashboard/waiter");
@@ -50,13 +49,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // center render their own full-screen shell (sidebar + header) instead of
   // stacking a second one inside the shared layout.
   const isChefKds = session.user.role === "KITCHEN";
+  // Waiters get only their order workspace (own sidebar with Tables / Orders /
+  // Calls) — no shared header, search, or nav into the rest of the system.
+  const isWaiter = session.user.role === "WAITER";
   const isManagerAppRoute =
     session.user.role === "MANAGER" &&
     (pathname === "/dashboard/manager" || pathname === "/dashboard");
   const isOwnerAppRoute =
     session.user.role === "OWNER" &&
     (pathname === "/dashboard/owner" || pathname === "/dashboard");
-  const hideSharedChrome = isChefKds || isManagerAppRoute || isOwnerAppRoute;
+  const hideSharedChrome = isChefKds || isWaiter || isManagerAppRoute || isOwnerAppRoute;
 
   return (
     <SoundNotificationProvider>

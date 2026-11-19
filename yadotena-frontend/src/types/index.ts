@@ -101,7 +101,8 @@ export interface PaymentRecord {
  * work: every item carries its own state so round 1 can be PREPARING while
  * round 2 (appended later) is still PENDING — the whole order never re-opens.
  */
-export type ItemKitchenStatus = "PENDING" | "PREPARING" | "READY" | "SERVED" | "CANCELLED";
+/** DRAFT = placed by a guest from the public menu, waiting for a waiter to approve. */
+export type ItemKitchenStatus = "DRAFT" | "PENDING" | "PREPARING" | "READY" | "SERVED" | "CANCELLED";
 
 export interface OrderItem {
   id: string;

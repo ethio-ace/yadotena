@@ -1,134 +1,103 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ServiceRequest } from "@/types";
-import { ArrowLeft, Bell, BellRing, Check, Table2 } from "lucide-react";
+import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
+import { formatWait } from "@/lib/kitchen";
+import { BellRing, Check, Receipt, Hand } from "lucide-react";
 
 interface AlertsViewProps {
   serviceRequests: ServiceRequest[];
-  onBack: () => void;
+  resolvingId?: string | null;
   onResolve: (id: string, type: string) => void;
-  onGoToTable?: (tableId: string) => void;
+  onGoToTable: (tableId: string) => void;
 }
 
-export function AlertsView({ serviceRequests, onBack, onResolve, onGoToTable }: AlertsViewProps) {
-  const pending = serviceRequests.filter((r) => r.status === "PENDING");
-  const resolved = serviceRequests.filter((r) => r.status !== "PENDING");
+/** Customer table calls: "call waiter" and "bring the bill", oldest first. */
+export function AlertsView({ serviceRequests, resolvingId, onResolve, onGoToTable }: AlertsViewProps) {
+  const tableLabels = useTableLabels();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const pending = serviceRequests
+    .filter((r) => r.status === "PENDING")
+    .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+  const resolved = serviceRequests.filter((r) => r.status !== "PENDING").slice(0, 8);
+  const ago = (iso?: string) => {
+    const w = formatWait(iso, now);
+    return w && w !== "just now" ? `${w} ago` : w;
+  };
+  const tableName = (id?: string) => (id ? formatTableRef(id, tableLabels) : "Unknown table");
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="px-4 sm:px-6 pt-4 pb-3 border-b bg-card shrink-0">
-        <div className="flex items-center justify-between mb-3">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Home
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg font-black">Alerts</h1>
-          {pending.length > 0 && (
-            <span className="h-6 min-w-6 px-2 rounded-full bg-red-500 text-white text-xs font-black flex items-center justify-center">
-              {pending.length}
-            </span>
-          )}
-        </div>
+        <h1 className="text-xl font-black">Table calls</h1>
       </div>
 
-      {/* Pending alerts */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-2">
-        {pending.length > 0 && (
-          <div className="space-y-2">
-            <h2 className="text-[10px] font-black uppercase tracking-wider text-red-500">
-              Needs Attention ({pending.length})
-            </h2>
-            {pending.map((req) => (
-              <div
-                key={req.id}
-                onClick={() => req.tableId && onGoToTable?.(req.tableId)}
-                className={`p-3.5 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-950/10 ${req.tableId ? "cursor-pointer hover:border-red-400 dark:hover:border-red-500/50 transition-colors" : ""}`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      {req.type === "BILL" ? (
-                        <span className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase">Bill</span>
-                      ) : (
-                        <span className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase">Waiter</span>
-                      )}
-                      <span className="text-xs font-bold text-muted-foreground">
-                        Table {req.tableId?.replace(/^t/i, "") || "?"}
-                      </span>
-                    </div>
-                    {req.notes && (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{req.notes}</p>
-                    )}
-                    {req.createdAt && (
-                      <p className="text-[10px] text-muted-foreground/60 mt-1">
-                        {new Date(req.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {req.tableId && onGoToTable && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onGoToTable(req.tableId!); }}
-                        className="h-10 px-3 rounded-xl border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-accent/50 flex items-center gap-1.5 transition-colors"
-                      >
-                        <Table2 className="h-3.5 w-3.5" />
-                        Table
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onResolve(req.id, req.type); }}
-                      className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                      Resolve
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {pending.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground">
-            <Bell className="h-8 w-8 mx-auto mb-2 opacity-40" />
-            <p className="text-sm font-medium">All clear.</p>
-            <p className="text-xs mt-1">No pending customer requests.</p>
-          </div>
-        )}
-
-        {resolved.length > 0 && (
-          <div className="space-y-2 pt-4 border-t">
-            <h2 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
-              Recently Resolved
-            </h2>
-            {resolved.slice(0, 10).map((req) => (
-              <div
-                key={req.id}
-                className="p-3 rounded-xl border bg-background/50 opacity-60"
-              >
-                <div className="flex items-center gap-2">
-                  <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                  <span className="text-xs font-bold text-muted-foreground">
-                    {req.type === "BILL" ? "Bill" : "Waiter"} · Table {req.tableId?.replace(/^t/i, "") || "?"}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto p-4 sm:p-6 pb-24 md:pb-6 space-y-2.5">
+          {pending.map((req) => {
+            const isBill = req.type === "BILL";
+            return (
+              <div key={req.id} className="rounded-2xl border-2 border-red-500/50 bg-red-50/50 dark:bg-red-950/10 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="h-10 w-10 rounded-xl bg-red-500 text-white flex items-center justify-center shrink-0">
+                    {isBill ? <Receipt className="h-5 w-5" /> : <Hand className="h-5 w-5" />}
                   </span>
-                  {req.createdAt && (
-                    <span className="text-[10px] text-muted-foreground/60 ml-auto">
-                      {new Date(req.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-base leading-tight">{tableName(req.tableId)}</p>
+                    <p className="text-sm font-bold text-red-600 dark:text-red-400">{isBill ? "Wants the bill" : "Calling a waiter"}</p>
+                    {req.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{req.notes}</p>}
+                    <p className="text-[11px] text-muted-foreground mt-1">{ago(req.createdAt)}</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {req.tableId ? (
+                    <button
+                      onClick={() => onGoToTable(req.tableId!)}
+                      className="h-11 rounded-xl border-2 bg-card text-sm font-bold hover:bg-muted"
+                    >
+                      Open table
+                    </button>
+                  ) : <span />}
+                  <button
+                    onClick={() => onResolve(req.id, req.type)}
+                    disabled={resolvingId === req.id}
+                    className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                  >
+                    <Check className="h-4 w-4" />
+                    Done
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+
+          {pending.length === 0 && (
+            <div className="text-center py-14 text-muted-foreground">
+              <BellRing className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm font-bold">No tables are calling.</p>
+            </div>
+          )}
+
+          {resolved.length > 0 && (
+            <div className="pt-4 space-y-1.5">
+              <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Handled</p>
+              {resolved.map((req) => (
+                <div key={req.id} className="flex items-center gap-2 text-sm text-muted-foreground px-1 py-1.5">
+                  <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span className="font-bold text-foreground/80">{tableName(req.tableId)}</span>
+                  <span>· {req.type === "BILL" ? "bill" : "call"}</span>
+                  <span className="ml-auto text-xs">{ago(req.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

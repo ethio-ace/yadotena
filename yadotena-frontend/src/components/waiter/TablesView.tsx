@@ -1,145 +1,164 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Table, Order } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { findActiveOrderForTable } from "@/lib/tableUtils";
-import { formatElapsed } from "@/lib/kitchen";
-import { Table2, Clock, Users, ArrowLeft } from "lucide-react";
+import { formatWait, orderProgress, orderTicketNumber } from "@/lib/kitchen";
+import { OrderProgressLine } from "@/components/waiter/OrderProgressLine";
+import { BellRing, CheckCircle2, LayoutGrid, Smartphone, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TablesViewProps {
   tables: Table[];
   orders: Order[];
-  onBack: () => void;
+  readyCount: number;
+  approvalCount: number;
+  pendingCalls: number;
+  /** tableId → pending call count, so a calling table lights up on the floor. */
+  callsByTable: Record<string, number>;
   onSelectTable: (table: Table) => void;
-  onNewOrder: () => void;
+  onViewReady: () => void;
+  onViewApprovals: () => void;
+  onViewCalls: () => void;
 }
 
-type TabFilter = "ALL" | "AVAILABLE" | "OCCUPIED";
+type Filter = "ALL" | "OPEN" | "BUSY";
 
-export function TablesView({ tables, orders, onBack, onSelectTable, onNewOrder }: TablesViewProps) {
-  const [filter, setFilter] = useState<TabFilter>("ALL");
 
-  const isBusy = (table: Table) => !!findActiveOrderForTable(table, orders);
+/**
+ * The waiter's home: the floor. Tap a free table to start an order, tap a busy
+ * one to track it / add items / settle. Busy-ness is always derived from the
+ * live active order, never the stored table.status.
+ */
+export function TablesView({
+  tables, orders, readyCount, approvalCount, pendingCalls, callsByTable, onSelectTable, onViewReady, onViewApprovals, onViewCalls,
+}: TablesViewProps) {
+  const [filter, setFilter] = useState<Filter>("ALL");
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
-  const filtered = useMemo(() =>
-    tables.filter((t) => {
-      if (filter === "AVAILABLE") return !isBusy(t);
-      if (filter === "OCCUPIED") return isBusy(t);
-      return true;
-    }),
-    [tables, orders, filter]
+  const rows = useMemo(
+    () =>
+      tables
+        .map((table) => ({ table, order: findActiveOrderForTable(table, orders) }))
+        .sort((a, b) => a.table.name.localeCompare(b.table.name, undefined, { numeric: true })),
+    [tables, orders]
   );
+  const busyCount = rows.filter((r) => r.order).length;
+  const visible = rows.filter((r) => (filter === "OPEN" ? !r.order : filter === "BUSY" ? !!r.order : true));
 
-  const busyCount = useMemo(() => tables.filter(isBusy).length, [tables, orders]);
-  const openCount = tables.length - busyCount;
-
-  const tabs: { key: TabFilter; label: string; count: number }[] = [
-    { key: "ALL", label: "All", count: tables.length },
-    { key: "AVAILABLE", label: "Open", count: openCount },
-    { key: "OCCUPIED", label: "Busy", count: busyCount },
+  const filters: { key: Filter; label: string; count: number }[] = [
+    { key: "ALL", label: "All", count: rows.length },
+    { key: "OPEN", label: "Open", count: rows.length - busyCount },
+    { key: "BUSY", label: "Busy", count: busyCount },
   ];
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-4 sm:px-6 pt-4 pb-3 border-b bg-card shrink-0">
-        <div className="flex items-center justify-between mb-3">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Home
-          </button>
+      <div className="px-4 sm:px-6 pt-4 pb-3 border-b bg-card shrink-0 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-xl font-black">Tables</h1>
+          <div className="flex gap-1 p-1 rounded-xl bg-muted">
+            {filters.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={cn(
+                  "h-8 px-3 rounded-lg text-xs font-bold transition-colors tabular-nums",
+                  filter === f.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {f.label} <span className="opacity-60">{f.count}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-lg font-black">Tables</h1>
-          <button
-            onClick={onNewOrder}
-            className="h-9 px-4 rounded-xl bg-amber-500 text-amber-950 font-black text-xs flex items-center gap-1.5 active:scale-95 transition-all"
-          >
-            + New Order
-          </button>
-        </div>
-
-        <div className="flex gap-1.5">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setFilter(t.key)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                filter === t.key
-                  ? "bg-foreground text-background"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t.label}
-              <span className="ml-1 text-[10px] opacity-60">{t.count}</span>
-            </button>
-          ))}
-        </div>
+        {/* Only what needs the waiter right now — hidden when nothing does. */}
+        {(readyCount > 0 || pendingCalls > 0 || approvalCount > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {approvalCount > 0 && (
+              <button
+                onClick={onViewApprovals}
+                className="h-10 px-4 rounded-xl bg-orange-500 text-white text-sm font-black flex items-center gap-2 active:scale-[0.97] transition-transform"
+              >
+                <Smartphone className="h-4 w-4" />
+                {approvalCount} guest order{approvalCount === 1 ? "" : "s"} to approve
+              </button>
+            )}
+            {readyCount > 0 && (
+              <button
+                onClick={onViewReady}
+                className="h-10 px-4 rounded-xl bg-emerald-600 text-white text-sm font-black flex items-center gap-2 active:scale-[0.97] transition-transform"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {readyCount} order{readyCount === 1 ? "" : "s"} ready to serve
+              </button>
+            )}
+            {pendingCalls > 0 && (
+              <button
+                onClick={onViewCalls}
+                className="h-10 px-4 rounded-xl bg-red-500 text-white text-sm font-black flex items-center gap-2 active:scale-[0.97] transition-transform"
+              >
+                <BellRing className="h-4 w-4" />
+                {pendingCalls} table call{pendingCalls === 1 ? "" : "s"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Table grid */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
-          {filtered.map((table) => {
-            const active = findActiveOrderForTable(table, orders);
-            const elapsed = active
-              ? Math.max(0, Math.floor((Date.now() - new Date(active.createdAt).getTime()) / 1000))
-              : 0;
-
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 md:pb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {visible.map(({ table, order }) => {
+            const calls = callsByTable[table.id] || 0;
+            const progress = order ? orderProgress(order) : null;
+            const ready = progress?.ready || 0;
+            const toApprove = progress?.approval || 0;
             return (
               <button
                 key={table.id}
                 onClick={() => onSelectTable(table)}
-                className={`p-3.5 rounded-xl border text-left transition-all active:scale-[0.97] ${
-                  active
-                    ? active.paymentStatus !== "PAID"
-                      ? "border-red-300 dark:border-red-500/40 bg-red-50/50 dark:bg-red-950/15"
-                      : "border-amber-300 dark:border-amber-500/40 bg-amber-50/50 dark:bg-amber-950/15"
-                    : "border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/10"
-                }`}
+                className={cn(
+                  "relative min-h-[112px] p-3.5 rounded-2xl border-2 text-left flex flex-col transition-all active:scale-[0.97]",
+                  !order && "border-dashed border-border bg-card hover:border-amber-500/60",
+                  order && toApprove > 0 && "border-orange-500 bg-orange-50/70 dark:bg-orange-950/20",
+                  order && !toApprove && ready > 0 && "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20",
+                  order && !toApprove && ready === 0 && "border-amber-500/50 bg-amber-50/40 dark:bg-amber-950/10",
+                  calls > 0 && "ring-2 ring-red-500 ring-offset-2 ring-offset-background"
+                )}
               >
-                <div className="flex items-start justify-between gap-1">
-                  <span className="font-black text-sm leading-none">
-                    {table.name || `Table ${table.id.replace(/^t/i, "")}`}
-                  </span>
-                  {active ? (
-                    <span className="text-[10px] font-mono font-black text-muted-foreground">
-                      #{active.id.slice(-4).toUpperCase()}
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-black text-base leading-tight truncate">{table.name}</span>
+                  {calls > 0 ? (
+                    <span className="shrink-0 h-6 px-2 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center gap-1">
+                      <BellRing className="h-3 w-3" /> Call
                     </span>
-                  ) : (
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0 mt-0.5" />
-                  )}
+                  ) : toApprove > 0 ? (
+                    <span className="shrink-0 h-6 px-2 rounded-full bg-orange-500 text-white text-[10px] font-black flex items-center gap-1">
+                      <Smartphone className="h-3 w-3" /> New
+                    </span>
+                  ) : order ? (
+                    <span className="shrink-0 font-mono text-[11px] font-black text-muted-foreground">#{orderTicketNumber(order)}</span>
+                  ) : null}
                 </div>
 
-                <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-1">
-                  <Users className="h-2.5 w-2.5" />
-                  <span>{table.capacity}p</span>
-                </div>
-
-                {active ? (
-                  <div className="mt-2 pt-2 border-t border-border/50 space-y-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold">{active.items?.length || 0} items</span>
-                      <span className="text-xs font-black">{formatETB(active.total)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-2.5 w-2.5" />
-                        {formatElapsed(elapsed)}
-                      </span>
-                      {active.paymentStatus !== "PAID" && (
-                        <span className="text-[9px] font-black uppercase text-red-500">Unpaid</span>
-                      )}
+                {order ? (
+                  <div className="mt-auto pt-3 space-y-1">
+                    <OrderProgressLine order={order} className="block truncate" />
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-black tabular-nums">{formatETB(order.total)}</span>
+                      <span className="text-[11px] font-bold text-muted-foreground tabular-nums">{formatWait(order.createdAt, now)}</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
-                    Available
+                  <div className="mt-auto pt-3 flex items-center justify-between text-xs font-bold text-muted-foreground">
+                    <span className="text-emerald-600 dark:text-emerald-400">Open · tap to order</span>
+                    <span className="flex items-center gap-1"><Users className="h-3 w-3" />{table.capacity}</span>
                   </div>
                 )}
               </button>
@@ -147,10 +166,10 @@ export function TablesView({ tables, orders, onBack, onSelectTable, onNewOrder }
           })}
         </div>
 
-        {filtered.length === 0 && (
+        {visible.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
-            <Table2 className="h-8 w-8 mx-auto mb-2 opacity-40" />
-            <p className="text-sm font-medium">No tables match this filter.</p>
+            <LayoutGrid className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm font-medium">{tables.length === 0 ? "No tables set up yet." : "No tables match this filter."}</p>
           </div>
         )}
       </div>

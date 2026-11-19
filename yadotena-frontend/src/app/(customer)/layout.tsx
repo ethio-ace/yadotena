@@ -33,40 +33,42 @@ function CustomerHeader() {
 
   return (
     <>
-      {/* Table Banner */}
-      <CustomerTableBanner />
+      {/* Table banner — the menu page shows its own table bar instead. */}
+      {pathname !== "/menu" && <CustomerTableBanner />}
 
       {/* Public Header */}
-      <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-md border-b px-4 md:px-8 py-3 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-4">
-          <Link href="/menu" className="flex items-center gap-2.5 group">
+      {/* Fixed 64px tall — the menu's sticky search/tabs sit right under it (top-[64px]). */}
+      <header className="sticky top-0 z-40 h-16 bg-background/90 backdrop-blur-md border-b px-3 sm:px-4 md:px-8 flex items-center justify-between gap-2 shadow-sm">
+        <div className="flex items-center gap-4 min-w-0">
+          <Link href="/menu" className="flex items-center gap-2.5 group min-w-0">
             <img
               src="/icon.svg"
               alt="Yadotena logo"
-              className="h-10 w-10 rounded-2xl shadow-md shadow-primary/20 group-hover:scale-105 transition-transform"
+              className="h-10 w-10 rounded-2xl shadow-md shadow-primary/20 group-hover:scale-105 transition-transform shrink-0"
             />
-            <div>
-              <h1 className="font-black text-base md:text-lg text-foreground tracking-tight leading-none group-hover:text-primary transition-colors">
-                Yadotena <span className="text-primary text-xs font-bold block sm:inline">Milk & Foods</span>
+            <div className="min-w-0">
+              <h1 className="font-black text-base md:text-lg text-foreground tracking-tight leading-none group-hover:text-primary transition-colors truncate">
+                Yadotena <span className="text-primary text-xs font-bold hidden sm:inline">Milk & Foods</span>
               </h1>
-              <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">
+              <p className="text-[10px] text-muted-foreground font-semibold mt-0.5 hidden sm:block">
                 Artisanal Kitchen & Fresh Store
               </p>
             </div>
           </Link>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-3 shrink-0">
           <Link href="/menu">
             <Button
               variant={pathname === "/menu" ? "default" : "ghost"}
               size="sm"
-              className={`rounded-full text-xs font-black h-9 px-4 gap-1.5 transition-all ${
+              aria-label="Menu"
+              className={`rounded-full text-xs font-black h-9 px-3 sm:px-4 gap-1.5 transition-all ${
                 pathname === "/menu" ? "shadow-md shadow-primary/20" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <BookOpen className="h-3.5 w-3.5" />
-              <span>Digital Menu</span>
+              <span className="hidden sm:inline">Menu</span>
             </Button>
           </Link>
 
@@ -74,11 +76,13 @@ function CustomerHeader() {
             <Button
               variant={pathname === "/shop" ? "default" : "ghost"}
               size="sm"
-              className={`rounded-full text-xs font-black h-9 px-4 gap-1.5 transition-all ${
+              aria-label="Shop"
+              className={`rounded-full text-xs font-black h-9 px-3 sm:px-4 gap-1.5 transition-all ${
                 pathname === "/shop" ? "shadow-md shadow-primary/20" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <span>🛒 Shop Store</span>
+              <span>🛒</span>
+              <span className="hidden sm:inline">Shop</span>
             </Button>
           </Link>
 
@@ -147,8 +151,9 @@ function GlobalCustomerModals() {
 
   return (
     <>
-      <TablePickerModal />
+      {/* Picker after the cart so "Choose your table" from the cart opens on top. */}
       <CustomerDineInCart />
+      <TablePickerModal />
       <QRScannerModal isOpen={isQRScannerOpen} onClose={() => setIsQRScannerOpen(false)} />
     </>
   );

@@ -17,7 +17,7 @@ interface TopProductsRowProps {
 
 /** Horizontal "Top Sellers / Most Popular" strip shown on the public menu & shop pages. */
 export function TopProductsRow({ items, title = "Top Sellers", subtitle, onSelect }: TopProductsRowProps) {
-  const { tableId, addToCart, setIsTablePickerOpen, setIsCartOpen } = useCustomerDineIn();
+  const { addToCart } = useCustomerDineIn();
 
   if (!items || items.length === 0) return null;
 
@@ -25,10 +25,6 @@ export function TopProductsRow({ items, title = "Top Sellers", subtitle, onSelec
     e.stopPropagation();
     e.preventDefault();
     addToCart(item, 1, [], "");
-    setIsCartOpen(true);
-    if (!tableId) {
-      setIsTablePickerOpen(true);
-    }
   };
 
   return (

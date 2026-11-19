@@ -1,347 +1,388 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Order, MenuItem, Table, ServiceRequest, AddonItem, MenuCategory } from "@/types";
 import { soundAlerts } from "@/lib/audioAlerts";
 import { findActiveOrderForTable } from "@/lib/tableUtils";
+import { orderTicketNumber } from "@/lib/kitchen";
+import { isShopProductItem } from "@/lib/orderUtils";
 
-import { WaiterHome } from "@/components/waiter/WaiterHome";
 import { WaiterSidebar, WaiterView } from "@/components/waiter/WaiterSidebar";
 import { TablesView } from "@/components/waiter/TablesView";
 import { TableDetailView } from "@/components/waiter/TableDetailView";
-import { CafeOrderBuilder, CartItem } from "@/components/waiter/CafeOrderBuilder";
-import { OrdersBoard } from "@/components/waiter/OrdersBoard";
+import { CafeOrderBuilder, CartItem, OrderTarget } from "@/components/waiter/CafeOrderBuilder";
+import { OrdersBoard, OrdersTab, ordersForTab } from "@/components/waiter/OrdersBoard";
 import { AlertsView } from "@/components/waiter/AlertsView";
 import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
+import { ArrowLeft, Check, Plus } from "lucide-react";
 
+/**
+ * Waiter workspace — one flow, nothing but orders:
+ *   Tables (home) → tap a free table → pick dishes → Send to kitchen → back to Tables
+ *   Tables → tap a busy table → see progress → Add items / Mark served / Settle bill
+ *   Orders → Ready to serve / Active / Unpaid / Done today
+ *   Calls  → customer "call waiter" / "bring the bill"
+ */
 export default function WaiterWorkspacePage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const [ordersDefaultTab, setOrdersDefaultTab] = useState<string>("ACTIVE");
 
-  // Deep links from the shared header search (?tab=orders|tables|alerts) seed
-  // the initial view — no effect needed, the value is known at first render.
-  const initialTab = searchParams.get("tab");
-  const [view, setView] = useState<WaiterView>(() =>
-    initialTab === "tables" || initialTab === "orders" || initialTab === "alerts" ? initialTab : "home"
-  );
+  // ?tab=orders|tables|alerts|calls seeds the first view (no effect needed).
+  const [view, setView] = useState<WaiterView>(() => {
+    const t = searchParams.get("tab");
+    return t === "orders" ? "orders" : t === "alerts" || t === "calls" ? "calls" : "tables";
+  });
+  const [ordersTab, setOrdersTab] = useState<OrdersTab>("ACTIVE");
 
-  // The single table-detail experience shared by the Sell floor and the Tables
-  // grid — clicking any table anywhere opens the same view with the add panel.
-  const [activeTable, setActiveTable] = useState<{ table: Table; source: WaiterView } | null>(null);
+  // Busy table being looked at (id, so it re-resolves against fresh data).
+  const [activeTableId, setActiveTableId] = useState<string | null>(null);
+  // Table the order builder was opened for (null = builder asks where to).
+  const [builderTable, setBuilderTable] = useState<Table | null>(null);
+  // Bumped on every builder entry so its internal step state starts fresh.
+  const [builderKey, setBuilderKey] = useState(0);
 
-  // Order builder context
-  const [preselectedTable, setPreselectedTable] = useState<Table | null>(null);
-  const [appendToOrder, setAppendToOrder] = useState<Order | null>(null);
-
-  // Separate carts — shop and menu are completely independent
   const [cafeCart, setCafeCart] = useState<CartItem[]>([]);
   const [shopCart, setShopCart] = useState<CartItem[]>([]);
-
-  // Payment modal
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
-
-  // Order detail modal
   const [inspectOrder, setInspectOrder] = useState<Order | null>(null);
 
-  // Data — categories/addons are lazy-fetched when a surface needs them.
-  const builderOpen = view === "cafe-order" || view === "shop-sale" || view === "tables" || !!activeTable;
+  // Ably pushes updates instantly; this poll is the safety net when realtime
+  // is down or not configured, so guest orders and calls still show up.
+  const LIVE_POLL_MS = 15_000;
   const { data: tables = [] } = useQuery<Table[]>({ queryKey: ["tables"], queryFn: api.tables.getAll });
-  const { data: orders = [] } = useQuery<Order[]>({ queryKey: ["orders"], queryFn: api.orders.getAll });
+  const { data: orders = [], isSuccess: ordersLoaded } = useQuery<Order[]>({ queryKey: ["orders"], queryFn: api.orders.getAll, refetchInterval: LIVE_POLL_MS });
   const { data: menu = [] } = useQuery<MenuItem[]>({ queryKey: ["menu"], queryFn: api.menu.getAll });
-  const { data: categories = [] } = useQuery<MenuCategory[]>({ queryKey: ["categories"], queryFn: api.categories.getAll, enabled: builderOpen });
-  const { data: allAddons = [] } = useQuery<AddonItem[]>({ queryKey: ["addons"], queryFn: () => api.addons.getAll(), enabled: builderOpen });
-  const { data: serviceRequests = [] } = useQuery<ServiceRequest[]>({ queryKey: ["serviceRequests"], queryFn: api.serviceRequests.getAll, staleTime: 5000 });
+  const { data: categories = [] } = useQuery<MenuCategory[]>({ queryKey: ["categories"], queryFn: api.categories.getAll });
+  const { data: allAddons = [] } = useQuery<AddonItem[]>({ queryKey: ["addons"], queryFn: () => api.addons.getAll() });
+  const { data: serviceRequests = [] } = useQuery<ServiceRequest[]>({ queryKey: ["serviceRequests"], queryFn: api.serviceRequests.getAll, staleTime: 5000, refetchInterval: LIVE_POLL_MS });
 
-  // Inline toast for action feedback — POS screens shouldn't block on alert().
+  // Inline toast — POS screens never block on alert().
   const [toast, setToast] = useState<{ message: string; kind: "error" | "success" } | null>(null);
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 4000);
+    const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
   const showToast = (message: string, kind: "error" | "success" = "error") => setToast({ message, kind });
 
-  const pendingAlerts = serviceRequests.filter((r) => r.status === "PENDING").length;
+  const pendingCalls = serviceRequests.filter((r) => r.status === "PENDING");
+  const callsByTable = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of pendingCalls) if (r.tableId) m[r.tableId] = (m[r.tableId] || 0) + 1;
+    return m;
+  }, [pendingCalls]);
+  const readyCount = useMemo(() => ordersForTab(orders, "READY").length, [orders]);
+  const approvalCount = useMemo(() => ordersForTab(orders, "APPROVE").length, [orders]);
 
-  // Mutations
-  const createOrderMutation = useMutation({
-    mutationFn: api.orders.create,
-    onSuccess: (newOrder) => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["tables"] });
-      soundAlerts.playActionConfirm();
-      // Clear the right cart after successful submission
-      if (view === "shop-sale") {
-        setShopCart([]);
-        setPaymentOrder(newOrder);
-        setView("home");
-      } else {
-        setCafeCart([]);
-        setView("orders");
-      }
-    },
-    onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "We couldn't create the order. Please try again."); },
-  });
+  // Chime + toast when a new guest order lands — not for ones already
+  // waiting when the page first loads its orders.
+  const prevApprovals = useRef<number | null>(null);
+  useEffect(() => {
+    if (!ordersLoaded) return;
+    if (prevApprovals.current !== null && approvalCount > prevApprovals.current) {
+      soundAlerts.playNewOrder();
+      setToast({ message: "New guest order — check Tables to approve", kind: "success" });
+    }
+    prevApprovals.current = approvalCount;
+  }, [approvalCount, ordersLoaded]);
 
-  type AppendPayload = Array<{
-    menuItemId: string;
-    quantity: number;
-    specialInstructions: string;
-    selectedAddons: string[];
-  }>;
+  const tableName = (t?: Table | null) => t?.name || "table";
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    queryClient.invalidateQueries({ queryKey: ["tables"] });
+  };
 
+  const toPayload = (items: CartItem[]) =>
+    items.map((i) => ({
+      menuItemId: i.menuItemId,
+      quantity: i.quantity,
+      specialInstructions: i.note || "",
+      selectedAddons: i.addons.map((a) => a.id),
+    }));
+
+  // ── Mutations ────────────────────────────────────────────────────────────
+  const createOrderMutation = useMutation({ mutationFn: api.orders.create });
   const appendItemsMutation = useMutation({
-    mutationFn: ({ id, items }: { id: string; items: AppendPayload }) => api.orders.addItems(id, items),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["tables"] });
-      soundAlerts.playActionConfirm();
-      // Clear cafe cart when appending to existing order
-      setCafeCart([]);
-      setActiveTable(null);
-      setView("tables");
-    },
-    onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "We couldn't add those items. Please try again."); },
+    mutationFn: ({ id, items }: { id: string; items: ReturnType<typeof toPayload> }) => api.orders.addItems(id, items),
   });
-
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: Order["status"] }) => api.orders.updateStatus(id, status),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["orders"] }); queryClient.invalidateQueries({ queryKey: ["tables"] }); },
+    onSuccess: invalidate,
+    onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "That didn't go through. Try again."); },
   });
-
   const resolveRequestMutation = useMutation({
-    mutationFn: ({ id, type }: { id: string; type: string }) => api.serviceRequests.resolve(id),
-    onSuccess: (_data, variables) => {
-      // Ably handles realtime invalidation — no manual invalidateQueries needed.
-      if (variables.type === "BILL") {
-        soundAlerts.playBillRequest();  // 🧾 Bill settled
-      } else {
-        soundAlerts.playWaiterCall();   // 🛎️ Table call answered
-      }
+    mutationFn: ({ id }: { id: string; type: string }) => api.serviceRequests.resolve(id),
+    onSuccess: (_d, v) => {
+      // Ably handles realtime invalidation.
+      if (v.type === "BILL") soundAlerts.playBillRequest(); else soundAlerts.playWaiterCall();
     },
-    onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "Couldn't resolve that request."); },
+    onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "Couldn't mark that call as done."); },
   });
 
-  // Handlers
-  const handleCafeOrder = () => { setPreselectedTable(null); setAppendToOrder(null); setView("cafe-order"); };
-  const handleShopSale = () => { setPreselectedTable(null); setAppendToOrder(null); setView("shop-sale"); };
+  // ── Navigation ───────────────────────────────────────────────────────────
+  const navigate = (v: WaiterView) => {
+    setActiveTableId(null);
+    if (v === "cafe-order") openBuilder(null);
+    else setView(v);
+  };
 
-  const handleNewOrderForTable = (table: Table) => {
-    setPreselectedTable(table);
-    setAppendToOrder(null);
-    // Leaving the table detail into the builder — clear the active table or the
-    // activeTable branch keeps winning and the button appears dead.
-    setActiveTable(null);
+  const openBuilder = (table: Table | null) => {
+    // A cart started for one table must never leak onto another.
+    if ((table?.id ?? null) !== (builderTable?.id ?? null)) setCafeCart([]);
+    setBuilderTable(table);
+    setBuilderKey((k) => k + 1);
+    setActiveTableId(null);
     setView("cafe-order");
   };
 
-  const handleAppendItemsToOrder = (order: Order, items: CartItem[]) => {
-    const payload = items.map((i) => ({
-      menuItemId: i.menuItemId,
-      quantity: i.quantity,
-      specialInstructions: i.note || "",
-      selectedAddons: i.addons.map((a) => a.id || a.name),
-    }));
-    appendItemsMutation.mutate({ id: order.id, items: payload });
+  const openTable = (table: Table) => {
+    if (findActiveOrderForTable(table, orders)) {
+      setActiveTableId(table.id);
+    } else {
+      // Free table (even if its stored status is stale) → straight to ordering.
+      openBuilder(table);
+    }
   };
 
-  const handleSubmitOrder = (items: CartItem[], tableId: string | undefined, orderType: "DINE_IN" | "TAKEAWAY", appendOrderId?: string) => {
-    const payload = items.map((i) => ({
-      menuItemId: i.menuItemId,
-      quantity: i.quantity,
-      specialInstructions: i.note || "",
-      selectedAddons: i.addons.map((a) => a.id || a.name),
-    }));
+  const backToTables = () => {
+    setActiveTableId(null);
+    setView("tables");
+  };
+
+  // ── Actions ──────────────────────────────────────────────────────────────
+  const handleSubmit = (items: CartItem[], target: OrderTarget, appendOrderId?: string) => {
+    const payload = toPayload(items);
 
     if (appendOrderId) {
-      appendItemsMutation.mutate({ id: appendOrderId, items: payload });
-    } else {
-      const isShop = view === "shop-sale";
-      const hasPrepared = items.some((i) => {
-        const mi = menu.find((m) => m.id === i.menuItemId);
-        return mi && !mi.id.startsWith("shop-") && !(mi.category || "").toLowerCase().includes("shop");
-      });
+      appendItemsMutation.mutate(
+        { id: appendOrderId, items: payload },
+        {
+          onSuccess: () => {
+            invalidate();
+            soundAlerts.playActionConfirm();
+            setCafeCart([]);
+            showToast(`Added to #${orderTicketNumber({ id: appendOrderId })}${target.kind === "table" ? ` · ${tableName(target.table)}` : ""}`, "success");
+            backToTables();
+          },
+          onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "Couldn't add those items. Try again."); },
+        }
+      );
+      return;
+    }
 
-      createOrderMutation.mutate({
-        type: orderType === "TAKEAWAY" ? "TAKEAWAY" : "DINE_IN",
-        status: isShop || !hasPrepared ? "COMPLETED" : "PENDING",
+    const isShop = target.kind === "shop";
+    const hasKitchenWork = items.some((i) => {
+      const mi = menu.find((m) => m.id === i.menuItemId);
+      return mi && !isShopProductItem(mi);
+    });
+
+    createOrderMutation.mutate(
+      {
+        type: target.kind === "table" ? "DINE_IN" : "TAKEAWAY",
+        status: isShop || !hasKitchenWork ? "COMPLETED" : "PENDING",
         paymentStatus: "PENDING",
-        tableId: orderType === "DINE_IN" ? tableId : undefined,
-        // Server derives id/name/price snapshots; only menuItemId/qty/notes/addons are client-side.
+        tableId: target.kind === "table" ? target.table.id : undefined,
+        // Server derives id/name/price snapshots.
         items: payload as unknown as Parameters<typeof api.orders.create>[0]["items"],
         idempotencyKey: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      });
-    }
+      },
+      {
+        onSuccess: (newOrder: Order) => {
+          invalidate();
+          soundAlerts.playActionConfirm();
+          if (isShop) {
+            setShopCart([]);
+            setPaymentOrder(newOrder); // shop sales are paid on the spot
+            backToTables();
+            return;
+          }
+          setCafeCart([]);
+          setBuilderTable(null);
+          showToast(
+            `Sent to kitchen · ${target.kind === "table" ? tableName(target.table) : "Takeaway"} #${orderTicketNumber(newOrder)}`,
+            "success"
+          );
+          backToTables();
+        },
+        onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "Couldn't create the order. Try again."); },
+      }
+    );
   };
 
-  const handleServe = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "SERVED" });
-  // Escape hatch for paid tickets that finished kitchen work before the backend
-  // started auto-completing them — closes the order and frees the table.
-  const handleComplete = (orderId: string) => updateStatusMutation.mutate({ id: orderId, status: "COMPLETED" });
-
-  // Customer order approval — PENDING → PREPARING sends to kitchen, PENDING → CANCELLED rejects
-  const handleAcceptOrder = (orderOrId: Order | string) => {
-    const id = typeof orderOrId === "string" ? orderOrId : orderOrId.id;
-    updateStatusMutation.mutate({ id, status: "PREPARING" });
-  };
-  const handleRejectOrder = (orderOrId: Order | string) => {
-    const id = typeof orderOrId === "string" ? orderOrId : orderOrId.id;
-    updateStatusMutation.mutate({ id, status: "CANCELLED" });
-  };
-
-  const openTable = (table: Table) => {
-    const activeOrder = findActiveOrderForTable(table, orders);
-    if (activeOrder) {
-      // Table has an active order → show table detail with order + add items panel
-      setActiveTable({ table, source: view === "home" ? "home" : "tables" });
-    } else {
-      // Table is free → skip detail page, go straight to order builder
-      handleNewOrderForTable(table);
-    }
-  };
-  const closeTable = () => {
-    if (!activeTable) return;
-    const source = activeTable.source;
-    setActiveTable(null);
-    setView(source);
+  const serveReady = (o: Order) =>
+    updateStatusMutation.mutate(
+      { id: o.id, status: "SERVED" },
+      { onSuccess: () => { soundAlerts.playActionConfirm(); showToast("Marked as served", "success"); } }
+    );
+  // Guest rounds from the public menu: approve sends them to the kitchen.
+  const reviewMutation = useMutation({
+    mutationFn: ({ id, action, roundNumber }: { id: string; action: "approve" | "reject"; roundNumber?: number }) =>
+      api.orders.kitchenAction(id, { action, roundNumber }),
+    onSuccess: (_d, v) => {
+      invalidate();
+      soundAlerts.playActionConfirm();
+      showToast(v.action === "approve" ? "Approved — sent to the kitchen" : "Guest order rejected", "success");
+    },
+    onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "Couldn't update that order. Try again."); },
+  });
+  const reviewOrder = (o: Order, action: "approve" | "reject", roundNumber?: number) => {
+    if (action === "reject" && !window.confirm("Reject the guest's order? Tell them so they can order again.")) return;
+    reviewMutation.mutate({ id: o.id, action, roundNumber });
   };
 
-  const activeOrder = activeTable ? findActiveOrderForTable(activeTable.table, orders) : undefined;
+  // Paid tickets that finished kitchen work but weren't auto-closed.
+  const completeOrder = (o: Order) => updateStatusMutation.mutate({ id: o.id, status: "COMPLETED" });
+
+  // ── Derived view state ───────────────────────────────────────────────────
+  const activeTable = activeTableId ? tables.find((t) => t.id === activeTableId) || null : null;
+  const activeOrder = activeTable ? findActiveOrderForTable(activeTable, orders) : undefined;
+  const focusMode = !!activeTable || view === "cafe-order" || view === "shop-sale";
+  const busyOrderId = updateStatusMutation.isPending
+    ? updateStatusMutation.variables?.id
+    : reviewMutation.isPending ? reviewMutation.variables?.id : null;
+  const submitting = createOrderMutation.isPending || appendItemsMutation.isPending;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col md:flex-row">
+    <div className="h-full min-h-0 bg-background flex flex-col md:flex-row">
       <WaiterSidebar
-        view={activeTable ? activeTable.source : view}
-        pendingAlerts={pendingAlerts}
-        onNavigate={(v) => { setActiveTable(null); setView(v); }}
+        view={activeTable ? "tables" : view}
+        readyCount={readyCount}
+        approvalCount={approvalCount}
+        pendingCalls={pendingCalls.length}
+        focusMode={focusMode}
+        onNavigate={navigate}
       />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Action feedback toast */}
+      <main className="flex-1 min-w-0 min-h-0 overflow-hidden" onPointerDown={() => soundAlerts.unlockAudio()}>
         {toast && (
           <div
             role="status"
-            className={`fixed top-3 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] rounded-xl border px-4 py-2.5 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 ${
-              toast.kind === "error"
-                ? "bg-red-600 border-red-700 text-white"
-                : "bg-emerald-600 border-emerald-700 text-white"
+            className={`fixed top-3 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw] rounded-xl px-4 py-3 text-sm font-bold shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200 ${
+              toast.kind === "error" ? "bg-red-600 text-white" : "bg-emerald-600 text-white"
             }`}
           >
+            {toast.kind === "success" && <Check className="h-4 w-4 shrink-0" strokeWidth={3} />}
             {toast.message}
           </div>
         )}
 
-        {/* MAIN CONTENT */}
-        <div className="flex-1 overflow-y-auto">
-          {activeTable ? (
-            <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-              <TableDetailView
-                table={activeTable.table}
-                activeOrder={activeOrder}
-                menu={menu}
-                categories={categories}
-                allAddons={allAddons}
-                isAppending={appendItemsMutation.isPending}
-                onBack={closeTable}
-                onCreateOrder={handleNewOrderForTable}
-                onAppendItems={handleAppendItemsToOrder}
-                onViewOrder={(o) => setInspectOrder(o)}
-                onSettleOrder={(o) => setPaymentOrder(o)}
-                onAcceptOrder={handleAcceptOrder}
-                onRejectOrder={handleRejectOrder}
-              />
-            </div>
-          ) : view === "home" ? (
-            <WaiterHome
-              orders={orders}
-              serviceRequests={serviceRequests}
-              tables={tables}
-              onCafeOrder={handleCafeOrder}
-              onShopSale={handleShopSale}
-              onViewReady={() => { setOrdersDefaultTab("READY"); setView("orders"); }}
-              onViewUnpaid={() => { setOrdersDefaultTab("UNPAID"); setView("orders"); }}
-              onViewAlerts={() => setView("alerts")}
-              onOpenTable={openTable}
-            />
-          ) : view === "tables" ? (
-            <TablesView
-              tables={tables} orders={orders}
-              onBack={() => setView("home")}
-              onSelectTable={openTable}
-              onNewOrder={handleCafeOrder}
-            />
-          ) : view === "cafe-order" ? (
-            <CafeOrderBuilder
-              menu={menu} categories={categories} allAddons={allAddons}
-              tables={tables} orders={orders}
-              preselectedTable={preselectedTable}
-              appendToOrder={appendToOrder}
-              cart={cafeCart}
-              onCartChange={setCafeCart}
-              onBack={() => setView("home")}
-              onSubmit={handleSubmitOrder}
-            />
-          ) : view === "shop-sale" ? (
-            <CafeOrderBuilder
-              menu={menu} categories={categories} allAddons={allAddons}
-              tables={tables} orders={orders}
-              isShopMode
-              cart={shopCart}
-              onCartChange={setShopCart}
-              onBack={() => setView("home")}
-              onSubmit={handleSubmitOrder}
-            />
-          ) : view === "orders" ? (
-            <OrdersBoard
-              orders={orders}
-              defaultTab={ordersDefaultTab}
-              onBack={() => setView("home")}
-              onServe={(id) => handleServe(id)}
-              onComplete={(id) => handleComplete(id)}
-              onSettle={(o) => setPaymentOrder(o)}
-              onViewOrder={(o) => setInspectOrder(o)}
-              onAcceptOrder={(o) => handleAcceptOrder(o)}
-              onRejectOrder={(o) => handleRejectOrder(o)}
+        {activeTable ? (
+          activeOrder ? (
+            <TableDetailView
+              table={activeTable}
+              activeOrder={activeOrder}
+              allAddons={allAddons}
+              isServing={busyOrderId === activeOrder.id}
+              onBack={backToTables}
+              onAddItems={(t) => openBuilder(t)}
+              onServeReady={serveReady}
+              onViewOrder={setInspectOrder}
+              onSettleOrder={setPaymentOrder}
+              onReviewRound={(o, round, action) => reviewOrder(o, action, round)}
             />
           ) : (
-            <AlertsView
-              serviceRequests={serviceRequests}
-              onBack={() => setView("home")}
-              onResolve={(id, type) => resolveRequestMutation.mutate({ id, type })}
-              onGoToTable={(tableId) => {
-                const table = tables.find((t) => t.id === tableId);
-                if (table) openTable(table);
-              }}
-            />
-          )}
-        </div>
-      </div>
+            // The ticket closed while we were looking (settled / completed elsewhere).
+            <div className="h-full flex flex-col items-center justify-center p-6 text-center gap-4">
+              <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                <Check className="h-7 w-7" />
+              </div>
+              <div>
+                <p className="text-lg font-black">{activeTable.name} is free</p>
+                <p className="text-sm text-muted-foreground">The order on this table is closed.</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={backToTables} className="h-12 px-5 rounded-xl border-2 font-bold text-sm flex items-center gap-2">
+                  <ArrowLeft className="h-4 w-4" /> Tables
+                </button>
+                <button onClick={() => openBuilder(activeTable)} className="h-12 px-5 rounded-xl bg-amber-500 text-amber-950 font-black text-sm flex items-center gap-2">
+                  <Plus className="h-4 w-4" strokeWidth={3} /> New order here
+                </button>
+              </div>
+            </div>
+          )
+        ) : view === "tables" ? (
+          <TablesView
+            tables={tables}
+            orders={orders}
+            readyCount={readyCount}
+            approvalCount={approvalCount}
+            pendingCalls={pendingCalls.length}
+            callsByTable={callsByTable}
+            onSelectTable={openTable}
+            onViewReady={() => { setOrdersTab("READY"); setView("orders"); }}
+            onViewApprovals={() => { setOrdersTab("APPROVE"); setView("orders"); }}
+            onViewCalls={() => setView("calls")}
+          />
+        ) : view === "cafe-order" ? (
+          <CafeOrderBuilder
+            key={`cafe-${builderKey}`}
+            menu={menu} categories={categories} allAddons={allAddons}
+            tables={tables} orders={orders}
+            preselectedTable={builderTable}
+            cart={cafeCart}
+            isSubmitting={submitting}
+            onCartChange={setCafeCart}
+            onBack={backToTables}
+            onSubmit={handleSubmit}
+          />
+        ) : view === "shop-sale" ? (
+          <CafeOrderBuilder
+            key="shop"
+            menu={menu} categories={categories} allAddons={allAddons}
+            tables={tables} orders={orders}
+            isShopMode
+            cart={shopCart}
+            isSubmitting={submitting}
+            onCartChange={setShopCart}
+            onBack={backToTables}
+            onSubmit={handleSubmit}
+          />
+        ) : view === "orders" ? (
+          <OrdersBoard
+            orders={orders}
+            tab={ordersTab}
+            busyOrderId={busyOrderId}
+            onTabChange={setOrdersTab}
+            onServe={serveReady}
+            onComplete={completeOrder}
+            onSettle={setPaymentOrder}
+            onViewOrder={setInspectOrder}
+            onApprove={(o) => reviewOrder(o, "approve")}
+            onReject={(o) => reviewOrder(o, "reject")}
+          />
+        ) : (
+          <AlertsView
+            serviceRequests={serviceRequests}
+            resolvingId={resolveRequestMutation.isPending ? resolveRequestMutation.variables?.id : null}
+            onResolve={(id, type) => resolveRequestMutation.mutate({ id, type })}
+            onGoToTable={(tableId) => {
+              const table = tables.find((t) => t.id === tableId);
+              if (table) openTable(table);
+            }}
+          />
+        )}
+      </main>
 
-      {/* ORDER INSPECT MODAL */}
       <OrderDetailsModal
         order={inspectOrder}
         isOpen={!!inspectOrder}
         onClose={() => setInspectOrder(null)}
         menu={menu}
-        onSettle={(o: Order) => setPaymentOrder(o)}
-        onAcceptOrder={handleAcceptOrder}
-        onRejectOrder={handleRejectOrder}
+        onSettle={(o: Order) => { setInspectOrder(null); setPaymentOrder(o); }}
       />
 
-      {/* PAYMENT MODAL */}
       <PaymentSettlementModal
         order={paymentOrder}
         isOpen={!!paymentOrder}
         onClose={() => setPaymentOrder(null)}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["orders"] });
-          queryClient.invalidateQueries({ queryKey: ["tables"] });
+          invalidate();
           setPaymentOrder(null);
+          showToast("Payment recorded", "success");
         }}
       />
     </div>

@@ -18,7 +18,7 @@ import { isRetailProduct } from "@/lib/orderUtils";
 import { useCustomerDineIn } from "@/contexts/CustomerDineInContext";
 
 export default function ShopPage() {
-  const { tableId, addToCart, setIsTablePickerOpen, setIsCartOpen } = useCustomerDineIn();
+  const { addToCart } = useCustomerDineIn();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [sort, setSort] = useState<SortKey>("popularity");
@@ -28,10 +28,6 @@ export default function ShopPage() {
     e.stopPropagation();
     e.preventDefault();
     addToCart(product, 1, [], "");
-    setIsCartOpen(true);
-    if (!tableId) {
-      setIsTablePickerOpen(true);
-    }
   };
 
   const { data: menu = [], isLoading: isMenuLoading } = useQuery({

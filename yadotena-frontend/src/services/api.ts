@@ -314,7 +314,8 @@ export const api = {
       body: {
         roundNumber?: number;
         itemIds?: string[];
-        action: "start" | "ready" | "serve" | "cancel";
+        /** approve/reject review a guest's DRAFT round (waiter). */
+        action: "start" | "ready" | "serve" | "cancel" | "approve" | "reject";
       }
     ): Promise<Order> => {
       return requestApiStrict<Order>(`/orders/${id}/kitchen`, {

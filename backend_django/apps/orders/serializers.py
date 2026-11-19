@@ -86,11 +86,24 @@ class OrderSerializer(serializers.ModelSerializer):
         validated_data.pop('table_id', None)
         table_id = self.initial_data.get('tableId') or self.initial_data.get('table_id')
 
+        guest = not self._request_is_staff()
+        if guest:
+            # Public-menu orders: dine-in at a real table only, no contact or
+            # delivery data, and they wait for a waiter's approval (DRAFT).
+            from apps.tables.models import Table
+            if not table_id or not Table.objects.filter(id=table_id).exists():
+                raise serializers.ValidationError({'tableId': 'Choose your table before ordering.'})
+            if not items_data:
+                raise serializers.ValidationError({'items': 'Add at least one item.'})
+            validated_data['type'] = 'DINE_IN'
+            for field in ('customer_phone', 'delivery_address'):
+                validated_data.pop(field, None)
+
         payload = {
             **validated_data,
             'table_id': table_id,
         }
-        return services.create_order(payload, items_data, idempotency_key=idempotency_key)
+        return services.create_order(payload, items_data, idempotency_key=idempotency_key, guest=guest)
 
     def update(self, instance, validated_data):
         validated_data.pop('itemsInput', None)

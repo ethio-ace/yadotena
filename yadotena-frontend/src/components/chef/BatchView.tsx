@@ -37,6 +37,9 @@ export function BatchView({ orders, addonMap, tableLabels }: BatchViewProps) {
   activeOrders.forEach((o) => {
     const dest = orderDestination(o, tableLabels);
     o.items?.forEach((item) => {
+      // Only lines still to cook — never guest DRAFT rounds awaiting a
+      // waiter, nor items already ready/served on the same ticket.
+      if (!["PENDING", "PREPARING"].includes((item.status || "PENDING") as string)) return;
       const key = item.name.toLowerCase();
       const existing = itemMap.get(key) || { name: item.name, totalQuantity: 0, tickets: [] };
       existing.totalQuantity += item.quantity;

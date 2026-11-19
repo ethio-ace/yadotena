@@ -16,7 +16,11 @@ class OrderStatus(models.TextChoices):
 
 class ItemStatus(models.TextChoices):
     """Kitchen lifecycle of a single order line (one round can be cooked
-    while another is still being served)."""
+    while another is still being served).
+
+    DRAFT = placed by a guest from the public menu and waiting for a waiter
+    to approve it; the kitchen never sees DRAFT items."""
+    DRAFT = 'DRAFT', 'Awaiting approval'
     PENDING = 'PENDING', 'Pending'
     PREPARING = 'PREPARING', 'Preparing'
     READY = 'READY', 'Ready'

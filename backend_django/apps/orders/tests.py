@@ -148,3 +148,66 @@ class OrderQueryTests(OrderFlowBase):
         data = self.client.get(f'{API}/orders/{self.new_order()}').json()
         self.assertIsInstance(data['total'], (int, float))
         self.assertIsInstance(data['items'][0]['price'], (int, float))
+
+
+class GuestOrderTests(OrderFlowBase):
+    """Public-menu orders arrive as DRAFT and need a waiter's approval."""
+
+    def guest_order(self, **extra):
+        res = self.place_order(as_user=None, type='DINE_IN', tableId='t1',
+                               customerPhone='0911', deliveryAddress='x', **extra)
+        self.assertEqual(res.status_code, 201, res.data)
+        return res.data['id']
+
+    def test_guest_order_is_draft_until_approved(self):
+        oid = self.guest_order()
+        order = Order.objects.get(id=oid)
+        self.assertEqual((order.status, order.type), ('DRAFT', 'DINE_IN'))
+        self.assertEqual((order.customer_phone, order.delivery_address), (None, None))
+        self.assertEqual(self.item_statuses(oid), [(1, 'DRAFT')])
+        # The kitchen cannot start a round nobody approved.
+        self.assertEqual(self.kitchen_act(oid, 'START', roundNumber=1).status_code, 409)
+        self.login(self.waiter)
+        res = self.kitchen_act(oid, 'APPROVE', roundNumber=1)
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['status'], 'PENDING')
+        self.assertEqual(self.item_statuses(oid), [(1, 'PENDING')])
+
+    def test_rejecting_whole_guest_order_cancels_it_and_frees_table(self):
+        oid = self.guest_order()
+        self.login(self.waiter)
+        res = self.kitchen_act(oid, 'REJECT', roundNumber=1)
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['status'], 'CANCELLED')
+        self.table.refresh_from_db()
+        self.assertIsNone(self.table.current_order_id)
+
+    def test_guest_round_joins_open_ticket_without_touching_cooking_work(self):
+        self.login(self.waiter)
+        oid = self.place_order(type='DINE_IN', tableId='t1').data['id']
+        self.login(self.kitchen)
+        self.kitchen_act(oid, 'START', roundNumber=1)
+        merged = self.guest_order()
+        self.assertEqual(merged, oid)
+        self.assertEqual(self.item_statuses(oid), [(1, 'PREPARING'), (2, 'DRAFT')])
+        self.assertEqual(Order.objects.get(id=oid).status, 'PREPARING')
+        # Rejecting the guest round leaves round 1 alone and drops it from the bill.
+        self.login(self.waiter)
+        res = self.kitchen_act(oid, 'REJECT', roundNumber=2)
+        self.assertEqual(res.data['status'], 'PREPARING')
+        self.assertEqual(float(Order.objects.get(id=oid).subtotal), 50.0)
+
+    def test_cannot_close_with_unreviewed_guest_items(self):
+        from apps.payments.services import record_payment
+        self.login(self.waiter)
+        oid = self.place_order(type='DINE_IN', tableId='t1').data['id']
+        for action in ('START', 'READY', 'SERVE'):
+            self.kitchen_act(oid, action, roundNumber=1)
+        self.guest_order()
+        record_payment(order_id=oid, method='CASH', recorded_by=self.waiter)
+        self.login(self.waiter)
+        self.assertEqual(self.set_status(oid, 'COMPLETED').status_code, 409)
+
+    def test_staff_orders_skip_approval(self):
+        oid = self.new_order()
+        self.assertEqual(self.item_statuses(oid), [(1, 'PENDING')])

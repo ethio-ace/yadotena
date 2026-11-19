@@ -53,6 +53,7 @@ export function itemStatus(item: OrderItem): ItemKitchenStatus {
 /** Tailwind chip classes for a kitchen status (light-theme waiter surfaces). */
 export function statusChipClass(status: string): string {
   switch (status) {
+    case "DRAFT": return "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300";
     case "READY": return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400";
     case "PREPARING": return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400";
     case "SERVED": return "bg-muted text-muted-foreground";
@@ -64,6 +65,7 @@ export function statusChipClass(status: string): string {
 /** Tailwind dot color for a kitchen status (used in round summary chips). */
 export function statusDotClass(status: string): string {
   switch (status) {
+    case "DRAFT": return "bg-orange-500";
     case "READY": return "bg-emerald-500";
     case "PREPARING": return "bg-amber-500";
     case "SERVED": return "bg-muted-foreground/50";
@@ -74,6 +76,7 @@ export function statusDotClass(status: string): string {
 
 /** Human label for a kitchen status ("Waiting" for PENDING). */
 export function statusLabel(status: string): string {
+  if (status === "DRAFT") return "Needs approval";
   if (status === "PENDING") return "Waiting";
   if (status === "PREPARING") return "In Preparation";
   return status.charAt(0) + status.slice(1).toLowerCase();
@@ -101,6 +104,8 @@ export function roundStatus(items: OrderItem[], fallback?: string): ItemKitchenS
   if (st.has("READY")) return "READY";
   if (st.has("PREPARING")) return "PREPARING";
   if (st.has("PENDING")) return "PENDING";
+  // A guest round awaiting the waiter — never shown on the kitchen boards.
+  if (st.has("DRAFT")) return "DRAFT";
   if (st.has("SERVED")) return "SERVED";
   return "CANCELLED";
 }
@@ -120,6 +125,7 @@ export function deriveOrderStatus(items?: OrderItem[], fallback?: string): Order
   if (st.has("READY")) return "READY";
   if (st.has("PREPARING")) return "PREPARING";
   if (st.has("PENDING")) return "PENDING";
+  if (st.has("DRAFT")) return "DRAFT";
   return "SERVED";
 }
 
@@ -247,4 +253,51 @@ export function addonNames(
 ): string[] {
   if (!addons) return [];
   return addons.map((a) => (typeof a === "string" ? addonMap?.[a] || a : a.name));
+}
+
+/**
+ * Per-status item quantities for one order — the waiter's at-a-glance
+ * tracking line ("2 cooking · 1 ready"). Falls back to the whole-order status
+ * for legacy orders without per-item status, same as `roundStatus`.
+ */
+export interface OrderProgress {
+  /** Guest-placed items the waiter has not approved yet. */
+  approval: number;
+  waiting: number;
+  cooking: number;
+  ready: number;
+  served: number;
+}
+
+export function orderProgress(order: Order): OrderProgress {
+  const legacy = hasItemStatuses(order.items) ? undefined : order.status;
+  const p: OrderProgress = { approval: 0, waiting: 0, cooking: 0, ready: 0, served: 0 };
+  for (const i of order.items || []) {
+    const s = i.status || (legacy as ItemKitchenStatus) || "PENDING";
+    const q = i.quantity || 1;
+    if (s === "DRAFT") p.approval += q;
+    else if (s === "PENDING") p.waiting += q;
+    else if (s === "PREPARING") p.cooking += q;
+    else if (s === "READY") p.ready += q;
+    else if (s === "SERVED" || s === ("COMPLETED" as string)) p.served += q;
+  }
+  return p;
+}
+
+/** Compact wait label for waiter surfaces: "just now", "12m", "1h 05m", "3d 4h". */
+export function formatWait(sinceIso: string | undefined, now: number = Date.now()): string {
+  if (!sinceIso) return "";
+  const m = Math.max(0, Math.floor((now - new Date(sinceIso).getTime()) / 60000));
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${String(m % 60).padStart(2, "0")}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
+/** Rounds on an order that hold guest items waiting for a waiter's approval. */
+export function draftRounds(order: Order): number[] {
+  const rounds = new Set<number>();
+  for (const i of order.items || []) if (i.status === "DRAFT") rounds.add(i.roundNumber || 1);
+  return [...rounds].sort((a, b) => a - b);
 }

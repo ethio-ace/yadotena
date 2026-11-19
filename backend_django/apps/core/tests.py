@@ -133,7 +133,7 @@ class AnonymousAccessTests(BaseAPITest):
         self.assertIn(self.client.put(f'{API}/settings/', {'restaurantName': 'x'}, format='json').status_code, (401, 403))
         self.assertIn(self.client.delete(f'{API}/menu/{self.item.id}/').status_code, (401, 403))
 
-    def test_public_site_is_view_only(self):
+    def test_public_site_access(self):
         for url in ('/menu/', '/categories/', '/settings/', '/addons', '/payment-methods', '/tables'):
             self.assertEqual(self.client.get(f'{API}{url}').status_code, 200, url)
         order_id = self.place_order().data['id']
@@ -141,8 +141,12 @@ class AnonymousAccessTests(BaseAPITest):
         self.assertEqual(self.client.get(f'{API}/orders/{order_id}/').status_code, 200)
         req = self.client.post(f'{API}/service-requests/', {'tableId': 't1', 'type': 'WAITER'}, format='json')
         self.assertEqual(req.status_code, 201, req.data)
-        # ...but cannot place or extend orders or open table sessions.
-        self.assertIn(self.place_order(as_user=None).status_code, (401, 403))
+        # ...and place a dine-in order for their table (it waits for a waiter)...
+        guest = self.place_order(as_user=None, type='DINE_IN', tableId='t1')
+        self.assertEqual(guest.status_code, 201, guest.data)
+        # ...but not a takeaway/table-less order, not extend an order by id,
+        # and not open table sessions.
+        self.assertEqual(self.place_order(as_user=None).status_code, 400)
         add = self.client.post(f'{API}/orders/{order_id}/add-items/',
                                {'items': [{'menuItemId': self.item.id, 'quantity': 2}]}, format='json')
         self.assertIn(add.status_code, (401, 403))

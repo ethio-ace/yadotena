@@ -95,8 +95,10 @@ export function OrderDetailsModal({
         </div>
 
         <div className="p-5 space-y-6 max-h-[70vh] overflow-y-auto">
-          {/* Waiter Order Review Action Banner */}
-          {(order.status === "PENDING" || order.status === "DRAFT") && (
+          {/* Review banner — opt-in. Customers can't place orders (view-only
+              public site), so a PENDING ticket is a staff order already queued
+              for the kitchen; only callers that pass handlers get this. */}
+          {(onAcceptOrder || onRejectOrder) && (order.status === "PENDING" || order.status === "DRAFT") && (
             <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-extrabold text-xs text-amber-700 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1.5">

@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.core.ably_utils import publish_event
-from apps.orders.models import Order, OrderStatus, PaymentStatus
+from apps.orders.models import ItemStatus, Order, OrderStatus, PaymentStatus
 from apps.orders.services import _money, _sync_table_for_order
 from .models import Payment, PaymentMethod
 
@@ -71,7 +71,12 @@ def record_payment(*, order_id, method='CASH', amount=None, status=PaymentStatus
 
     order.payment_status = status
     fields = ['payment_status', 'updated_at']
-    if status == PaymentStatus.PAID and order.status in AUTO_COMPLETE_ON_PAYMENT:
+    # Close on payment only when nothing is left to do: a guest round still
+    # awaiting approval (DRAFT items) or food still in the kitchen keeps the
+    # ticket open on the table.
+    open_work = order.items.filter(status__in=[ItemStatus.DRAFT, ItemStatus.PENDING,
+                                               ItemStatus.PREPARING, ItemStatus.READY]).exists()
+    if status == PaymentStatus.PAID and order.status in AUTO_COMPLETE_ON_PAYMENT and not open_work:
         order.status = OrderStatus.COMPLETED
         fields.append('status')
     order.save(update_fields=fields)

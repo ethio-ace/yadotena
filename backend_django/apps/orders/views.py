@@ -19,10 +19,13 @@ ORDER_QS = Order.objects.prefetch_related('items', 'payments').select_related('t
 class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     queryset = ORDER_QS
     serializer_class = OrderSerializer
-    # The public site is view-only (owner's decision): customers can only
-    # view/track an order by its id. Orders are placed by staff.
+    # Guests may place a dine-in order from the public menu; it arrives as
+    # DRAFT and a waiter approves it before the kitchen sees it (see
+    # serializer.create / services.create_order). Extending an order by id
+    # stays staff-only: a guest's second round goes through create, which
+    # merges into the table's open ticket as a new DRAFT round.
     action_permissions = {
-        'create': [IsStaff],
+        'create': [AllowAny],
         'retrieve': [AllowAny],
         'lookup': [AllowAny],
         'add_items': [IsStaff],
@@ -36,7 +39,7 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     default_permissions = [IsStaff]
     throttle_classes = [PublicActionThrottle]
     public_throttle_scope = 'public_orders'
-    public_throttle_actions = {'lookup'}
+    public_throttle_actions = {'create', 'lookup'}
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['table']
     ordering_fields = ['created_at', 'total', 'status']

@@ -1,370 +1,290 @@
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { api } from "@/services/api";
 import { MenuItem } from "@/types";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Search, Clock, Star, Utensils, Plus } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Search, X, Plus, Minus, Utensils, MapPin, Receipt } from "lucide-react";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
-import { SortSelect, sortCatalogItems, SortKey } from "@/components/customer/SortSelect";
-import { TopProductsRow } from "@/components/customer/TopProductsRow";
 import { formatETB } from "@/lib/currency";
-import { getImageUrl } from "@/lib/utils";
+import { getImageUrl, cn } from "@/lib/utils";
 import { isRetailProduct } from "@/lib/orderUtils";
 import { useCustomerDineIn } from "@/contexts/CustomerDineInContext";
 
+interface Section {
+  key: string;
+  name: string;
+  icon: string;
+  items: MenuItem[];
+}
+
+const POPULAR_KEY = "popular";
+const sectionId = (key: string) => `menu-section-${key.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+
+/**
+ * Public menu: one scrolling list grouped by category with a sticky tab bar.
+ * "+" adds a dish without leaving the page; the cart opens only when the
+ * guest taps the bottom bar. Tapping a dish opens its options (add-ons, note).
+ */
 function MenuContent() {
-  const { data: menu, isLoading: isMenuLoading } = useQuery({
-    queryKey: ["menu"],
-    queryFn: api.menu.getAll,
-  });
-
-  const { data: dynamicCategories = [] } = useQuery({
-    queryKey: ["categories"],
-    queryFn: api.categories.getAll,
-  });
-
-  const { data: popularItems = [] } = useQuery({
-    queryKey: ["menu", "popular"],
-    queryFn: () => api.menu.getPopular(8),
-  });
+  const { data: menu = [], isLoading } = useQuery({ queryKey: ["menu"], queryFn: api.menu.getAll });
+  const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: api.categories.getAll });
+  const { data: popularItems = [] } = useQuery({ queryKey: ["menu", "popular"], queryFn: () => api.menu.getPopular(8) });
 
   const searchParams = useSearchParams();
-  const initialCategoryParam = searchParams.get("category");
-  const tableQueryParam = searchParams.get("table");
+  const tableParam = searchParams.get("table");
+  const { tableId, tableName, setTableId, setIsTablePickerOpen, activeTableOrder } = useCustomerDineIn();
 
-  const { tableId, tableName, setTableId, setIsTablePickerOpen } = useCustomerDineIn();
-
-  // If table query param is passed in URL (e.g. from scanning QR code), automatically set active table!
+  // Scanning a table QR (…/menu?table=t4) connects the table.
   useEffect(() => {
-    if (tableQueryParam && tableQueryParam !== tableId) {
-      setTableId(tableQueryParam);
-    }
-  }, [tableQueryParam, tableId, setTableId]);
+    if (tableParam && tableParam !== tableId) setTableId(tableParam);
+  }, [tableParam, tableId, setTableId]);
 
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState(initialCategoryParam || "All");
-  const [prevCategoryParam, setPrevCategoryParam] = useState<string | null>(initialCategoryParam);
-  const [sort, setSort] = useState<SortKey>("popularity");
-  const [selectedItemForModal, setSelectedItemForModal] = useState<MenuItem | null>(null);
+  const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
+  const [activeKey, setActiveKey] = useState<string>("");
 
-  // Keep the category in sync when the ?category= query param changes while mounted.
-  if (prevCategoryParam !== initialCategoryParam) {
-    setPrevCategoryParam(initialCategoryParam);
-    setActiveCategory(initialCategoryParam || "All");
-  }
+  const dishes = useMemo(() => menu.filter((m) => !isRetailProduct(m) && m.available !== false), [menu]);
 
-  // Top sellers: from real order counts, falling back to "Popular"/"Favorite" tagged dishes.
-  const topDishes = useMemo(() => {
-    const popular = popularItems
-      .filter(p => !isRetailProduct(p) && p.available !== false)
-      .slice(0, 8);
-    if (popular.length >= 3) return popular;
-    const fallback = (menu || [])
-      .filter(m => !isRetailProduct(m) && m.available !== false)
-      .filter(m => m.dietaryTags?.some(t => /popular|favorite/i.test(t)))
-      .slice(0, 8);
-    return fallback.length > 0 ? fallback : (menu || []).filter(m => !isRetailProduct(m)).slice(0, 6);
-  }, [popularItems, menu]);
+  const sections = useMemo<Section[]>(() => {
+    const out: Section[] = [];
+    const popular = popularItems.filter((p) => !isRetailProduct(p) && p.available !== false).slice(0, 5);
+    const fallback = dishes.filter((m) => m.dietaryTags?.some((t) => /popular|favorite/i.test(t))).slice(0, 5);
+    const top = popular.length >= 3 ? popular : fallback;
+    if (top.length > 0) out.push({ key: POPULAR_KEY, name: "Popular", icon: "🔥", items: top });
 
-  const filteredMenu = useMemo(() => {
-    const cooked = (menu || []).filter(m => {
-      const isAvailable = m.available !== false;
-      const isCookedDish = !isRetailProduct(m);
-      const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase()) ||
-                            m.description.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = activeCategory === "All" || m.category === activeCategory;
-      return isAvailable && isCookedDish && matchesSearch && matchesCategory;
-    });
-    return sortCatalogItems(cooked, sort);
-  }, [menu, search, activeCategory, sort]);
+    // Admin-defined category order first, then any category only seen on items.
+    const ordered = [...categories].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const seen = new Set<string>();
+    for (const c of ordered) {
+      const items = dishes.filter((m) => m.category === c.name || m.categoryId === c.id);
+      items.forEach((m) => seen.add(m.id));
+      if (items.length) out.push({ key: c.id, name: c.name, icon: c.icon || "🍽️", items });
+    }
+    const rest = dishes.filter((m) => !seen.has(m.id));
+    const byName = new Map<string, MenuItem[]>();
+    rest.forEach((m) => byName.set(m.category || "More", [...(byName.get(m.category || "More") || []), m]));
+    byName.forEach((items, name) => out.push({ key: `cat-${name}`, name, icon: "🍽️", items }));
+    return out;
+  }, [dishes, categories, popularItems]);
 
-  if (isMenuLoading) {
+  const query = search.trim().toLowerCase();
+  const results = useMemo(
+    () => (query ? dishes.filter((m) => m.name.toLowerCase().includes(query) || (m.description || "").toLowerCase().includes(query)) : []),
+    [dishes, query]
+  );
+
+  // Highlight the tab of the section currently under the sticky bar.
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (query || sections.length === 0) return;
+    const els = sections.map((s) => document.getElementById(sectionId(s.key))).filter(Boolean) as HTMLElement[];
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveKey(visible[0].target.getAttribute("data-key") || "");
+      },
+      { rootMargin: "-140px 0px -60% 0px" }
+    );
+    els.forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
+  }, [sections, query]);
+
+  // Keep the active tab scrolled into view in the tab bar.
+  useEffect(() => {
+    const el = tabsRef.current?.querySelector<HTMLElement>(`[data-tab="${activeKey}"]`);
+    el?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  }, [activeKey]);
+
+  const jumpTo = (key: string) => {
+    setSearch("");
+    setActiveKey(key);
+    document.getElementById(sectionId(key))?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  if (isLoading) {
     return (
-      <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6 animate-pulse">
-        <div className="h-56 bg-muted/60 rounded-3xl w-full"></div>
-        <div className="h-12 bg-muted/60 rounded-2xl w-full"></div>
-        <div className="flex gap-2"><div className="h-9 w-24 bg-muted/60 rounded-full"></div></div>
-        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-80 bg-muted/60 rounded-3xl w-full"></div>)}
-        </div>
+      <div className="max-w-3xl mx-auto p-4 space-y-3 animate-pulse">
+        <div className="h-12 bg-muted rounded-2xl" />
+        <div className="flex gap-2">{[1, 2, 3, 4].map((i) => <div key={i} className="h-9 w-24 bg-muted rounded-full" />)}</div>
+        {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-24 bg-muted rounded-2xl" />)}
       </div>
     );
   }
 
-  // Combine dynamic categories with any categories present on menu items
-  const categoryNamesFromMenu = Array.from(new Set(menu?.map(m => m.category || "General") || []));
-  const combinedCategoryList = [
-    { name: "All", icon: "✨" },
-    ...dynamicCategories.map(c => ({ name: c.name, icon: c.icon || "🍽️" })),
-    ...categoryNamesFromMenu
-      .filter(cn => cn && !dynamicCategories.some(dc => dc.name === cn))
-      .map(cn => ({ name: cn, icon: "🍽️" }))
-  ];
-
-  const hasFilters = search !== "" || activeCategory !== "All" || sort !== "popularity";
-
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
-
-      {/* Restaurant Hero Banner */}
-      <div className="relative rounded-3xl overflow-hidden border border-muted-foreground/15 shadow-md bg-gradient-to-br from-amber-600/10 via-primary/5 to-background p-6 md:p-8 flex flex-col justify-end min-h-[170px]">
-        <div className="relative z-10 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold px-3 py-0.5 text-xs">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block mr-1.5 animate-pulse" />
-              Open Now
-            </Badge>
-            <Badge variant="secondary" className="bg-background/80 backdrop-blur-md font-semibold px-2.5 py-0.5 text-xs">
-              <Clock className="h-3 w-3 mr-1 text-primary" />
-              15-25 min avg prep
-            </Badge>
-            {tableId && (
-              <Badge className="bg-primary text-primary-foreground font-black px-3 py-0.5 text-xs shadow-sm">
-                <Utensils className="h-3 w-3 mr-1" />
-                Seated at {tableName}
-              </Badge>
+    <div className="max-w-3xl mx-auto pb-28">
+      {/* Table status — tells the guest whether they can order */}
+      <div className="px-4 pt-4">
+        {tableId ? (
+          <div className="rounded-2xl border bg-card px-4 py-3 flex items-center gap-3">
+            <span className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <MapPin className="h-4 w-4" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="font-black leading-tight truncate">Ordering for {tableName}</p>
+              <button onClick={() => setIsTablePickerOpen(true)} className="text-xs font-bold text-muted-foreground hover:text-foreground">
+                Not your table? Change
+              </button>
+            </div>
+            {activeTableOrder && (
+              <Link
+                href={`/order/${encodeURIComponent(activeTableOrder.id)}`}
+                className="h-9 px-3 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 hover:bg-muted"
+              >
+                <Receipt className="h-3.5 w-3.5" /> My order
+              </Link>
             )}
           </div>
-
-          <div className="flex items-start gap-3">
-            <img
-              src="/icon.svg"
-              alt="Yadotena"
-              className="h-12 w-12 md:h-14 md:w-14 rounded-2xl shadow-md shadow-primary/20 shrink-0"
-            />
-            <div>
-              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-foreground">
-                Explore the Yadotena Café
-              </h1>
-              <p className="text-muted-foreground text-xs md:text-sm mt-0.5 font-medium max-w-xl">
-                {tableId
-                  ? `Ordering for ${tableName}. Select your dishes and add-ons to send your order straight to our kitchen!`
-                  : "Farm-fresh dairy, artisan kitchen meals, coffees & teas. Scan table QR code to order directly!"}
-              </p>
-            </div>
-          </div>
-        </div>
+        ) : (
+          <button
+            onClick={() => setIsTablePickerOpen(true)}
+            className="w-full rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 px-4 py-3 flex items-center gap-3 text-left"
+          >
+            <span className="h-9 w-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+              <MapPin className="h-4 w-4" />
+            </span>
+            <span className="flex-1">
+              <span className="block font-black leading-tight">Choose your table to order</span>
+              <span className="block text-xs text-muted-foreground">Or scan the QR code on your table. You can browse first.</span>
+            </span>
+          </button>
+        )}
       </div>
 
-      {/* Top Sellers */}
-      {topDishes.length > 0 && (
-        <TopProductsRow
-          items={topDishes}
-          title="Top Dishes"
-          subtitle="What everyone is ordering right now"
-          onSelect={setSelectedItemForModal}
-        />
-      )}
-
-      {/* Search, Sort & Category Filter Section */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-              placeholder="Search our delicious dishes, coffee, drinks..."
-              className="pl-12 h-14 rounded-2xl bg-card border-muted-foreground/15 text-base shadow-sm focus-visible:ring-primary"
+      {/* Sticky search + category tabs */}
+      <div className="sticky top-[64px] z-30 bg-background/95 backdrop-blur border-b mt-3">
+        <div className="px-4 pt-3">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search the menu"
+              className="w-full h-11 pl-10 pr-10 rounded-2xl border bg-card text-sm"
             />
             {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground hover:text-foreground bg-muted px-2 py-1 rounded-md"
-              >
-                Clear
+              <button onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground">
+                <X className="h-4 w-4" />
               </button>
             )}
           </div>
-          <SortSelect value={sort} onChange={setSort} />
         </div>
-
-        {/* Scrollable Category Filter Pills */}
-        <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none pt-1">
-          {combinedCategoryList.map((cat) => {
-            const isActive = activeCategory === cat.name;
-            return (
+        {!query && (
+          <div ref={tabsRef} className="flex gap-1.5 overflow-x-auto scrollbar-none px-4 py-2.5">
+            {sections.map((s) => (
               <button
-                key={cat.name}
-                type="button"
-                onClick={() => setActiveCategory(cat.name)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 ${
-                  isActive
-                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-105"
-                    : "bg-card border border-muted hover:border-muted-foreground/30 text-muted-foreground hover:text-foreground"
-                }`}
+                key={s.key}
+                data-tab={s.key}
+                onClick={() => jumpTo(s.key)}
+                className={cn(
+                  "h-9 px-4 rounded-full text-sm font-bold whitespace-nowrap transition-colors shrink-0",
+                  activeKey === s.key ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"
+                )}
               >
-                <span>{cat.icon}</span>
-                <span>{cat.name}</span>
+                {s.icon} {s.name}
               </button>
-            );
-          })}
-        </div>
-
-        {/* Result count / active filters */}
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold px-1">
-          <span>{filteredMenu.length} {filteredMenu.length === 1 ? "dish" : "dishes"}</span>
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={() => { setSearch(""); setActiveCategory("All"); setSort("popularity"); }}
-              className="text-primary underline-offset-2 hover:underline font-bold"
-            >
-              Reset filters
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Menu Grid */}
-      <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {filteredMenu.map((item) => (
-          <MenuItemCard
-            key={item.id}
-            item={item}
-            onOpenModal={() => setSelectedItemForModal(item)}
-          />
-        ))}
-
-        {filteredMenu.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground col-span-full space-y-3 bg-card/40 rounded-3xl border border-dashed p-8">
-            <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mx-auto text-2xl">
-              🔍
-            </div>
-            <h3 className="text-lg font-bold text-foreground">No dishes found</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              We couldn&apos;t find any dishes matching &quot;{search}&quot;. Try searching for something else or browse categories.
-            </p>
-            <Button variant="outline" size="sm" className="rounded-full" onClick={() => { setSearch(""); setActiveCategory("All"); setSort("popularity"); }}>
-              Reset Filters
-            </Button>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Item Detail Modal */}
-      <ItemDetailModal
-        item={selectedItemForModal}
-        isOpen={!!selectedItemForModal}
-        onClose={() => setSelectedItemForModal(null)}
-      />
+      {/* Content */}
+      <div className="px-4">
+        {query ? (
+          <section className="pt-4">
+            <p className="text-xs font-bold text-muted-foreground mb-1">
+              {results.length} result{results.length === 1 ? "" : "s"} for “{search.trim()}”
+            </p>
+            {results.map((item) => <MenuRow key={item.id} item={item} onOpen={() => setDetailItem(item)} />)}
+            {results.length === 0 && (
+              <div className="py-16 text-center text-muted-foreground">
+                <p className="font-bold text-foreground">Nothing matches that</p>
+                <p className="text-sm">Try another word, or browse the categories.</p>
+              </div>
+            )}
+          </section>
+        ) : (
+          sections.map((s) => (
+            <section key={s.key} id={sectionId(s.key)} data-key={s.key} className="pt-5 scroll-mt-[180px]">
+              <h2 className="text-lg font-black mb-1">{s.icon} {s.name}</h2>
+              <div className="divide-y">
+                {s.items.map((item) => <MenuRow key={`${s.key}-${item.id}`} item={item} onOpen={() => setDetailItem(item)} />)}
+              </div>
+            </section>
+          ))
+        )}
+        {!query && sections.length === 0 && (
+          <div className="py-16 text-center text-muted-foreground">
+            <Utensils className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            <p className="font-bold">The menu is empty right now.</p>
+          </div>
+        )}
+      </div>
+
+      <ItemDetailModal item={detailItem} isOpen={!!detailItem} onClose={() => setDetailItem(null)} />
     </div>
   );
 }
 
-function MenuItemCard({ item, onOpenModal }: { item: MenuItem; onOpenModal: () => void }) {
-  const { tableId, addToCart, setIsTablePickerOpen, setIsCartOpen } = useCustomerDineIn();
-
-  const handleQuickAdd = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    addToCart(item, 1, [], "");
-    setIsCartOpen(true);
-    if (!tableId) {
-      setIsTablePickerOpen(true);
-    }
-  };
+/** One dish: tap the row for options, tap + to add one straight away. */
+function MenuRow({ item, onOpen }: { item: MenuItem; onOpen: () => void }) {
+  const { addToCart, qtyInCart, decrementItem } = useCustomerDineIn();
+  const qty = qtyInCart(item.id);
+  const img = item.imageUrl || item.image;
 
   return (
-    <Card
-      onClick={onOpenModal}
-      className="overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border-muted-foreground/15 bg-card/70 backdrop-blur-sm flex flex-col group rounded-3xl"
-    >
-      {/* Dish Cover Image */}
-      <div className="relative h-48 w-full overflow-hidden bg-muted">
-        <img
-          src={getImageUrl(item.image)}
-          alt={item.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-        />
-
-        {/* Category Badge & Popular Tag */}
-        <div className="absolute top-3 left-3 flex gap-1.5">
-          <Badge variant="secondary" className="bg-background/85 backdrop-blur-md font-bold text-xs shadow-sm">
-            {item.category}
-          </Badge>
-        </div>
-        {item.dietaryTags?.some(t => /popular|favorite/i.test(t)) && (
-          <Badge className="absolute top-3 right-3 bg-amber-500/95 text-white font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm gap-0.5">
-            <Star className="h-2.5 w-2.5 fill-current" />
-            Popular
-          </Badge>
-        )}
-
-        <div className="absolute bottom-3 right-3">
-          <Badge variant="secondary" className="bg-background/85 backdrop-blur-md font-semibold text-[11px] flex items-center gap-1 shadow-sm">
-            <Clock className="h-3 w-3 text-primary" />
-            15m
-          </Badge>
-        </div>
-      </div>
-
-      {/* Dish Information */}
-      <div className="p-5 flex flex-col flex-1 justify-between space-y-4">
-        <div className="space-y-1.5">
-          <h3 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors line-clamp-1">
-            {item.name}
-          </h3>
-          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-            {item.description}
-          </p>
-
-          {item.dietaryTags && item.dietaryTags.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-1">
-              {item.dietaryTags.slice(0, 2).map((tag) => (
-                <span key={tag} className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full border border-primary/20">
-                  {tag}
-                </span>
-              ))}
-            </div>
+    <div className="flex items-center gap-3 py-3">
+      <button onClick={onOpen} className="flex-1 min-w-0 flex items-center gap-3 text-left">
+        <div className="h-20 w-20 rounded-2xl bg-muted overflow-hidden shrink-0 flex items-center justify-center">
+          {img ? (
+            <img
+              src={getImageUrl(img)}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <Utensils className="h-6 w-6 text-muted-foreground/40" />
           )}
         </div>
-
-        {/* Price Tag & Quick Add / Details Buttons */}
-        <div className="pt-3 border-t border-muted/50 flex items-center justify-between gap-2">
-          <div>
-            <span className="text-[10px] text-muted-foreground block font-bold uppercase">Price</span>
-            <span className="font-black text-lg text-primary">{formatETB(item.price)}</span>
-          </div>
-
-          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl font-bold text-xs h-9 px-2.5 border-muted-foreground/20 hover:bg-muted"
-              onClick={onOpenModal}
-            >
-              Details
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="rounded-xl font-black text-xs h-9 px-3 gap-1 shadow-md shadow-primary/20 bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                handleQuickAdd(e);
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Add</span>
-            </Button>
-          </div>
+        <div className="min-w-0">
+          <p className="font-bold leading-tight">{item.name}</p>
+          {item.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{item.description}</p>}
+          <p className="font-black mt-1 tabular-nums">{formatETB(item.price)}</p>
         </div>
-      </div>
-    </Card>
+      </button>
+
+      {qty > 0 ? (
+        <div className="flex items-center gap-1 shrink-0 rounded-2xl bg-primary/10 p-1">
+          <button onClick={() => decrementItem(item.id)} aria-label={`One less ${item.name}`} className="h-9 w-9 rounded-xl bg-background flex items-center justify-center">
+            <Minus className="h-4 w-4" />
+          </button>
+          <span className="w-6 text-center font-black tabular-nums">{qty}</span>
+          <button onClick={() => addToCart(item, 1, [], "")} aria-label={`One more ${item.name}`} className="h-9 w-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center">
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => addToCart(item, 1, [], "")}
+          aria-label={`Add ${item.name}`}
+          className="h-11 w-11 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shrink-0 shadow-sm active:scale-95 transition-transform"
+        >
+          <Plus className="h-5 w-5" strokeWidth={3} />
+        </button>
+      )}
+    </div>
   );
 }
 
 export default function MenuPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-muted-foreground animate-pulse font-medium">Loading menu...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground animate-pulse font-medium">Loading menu…</div>}>
       <MenuContent />
     </Suspense>
   );

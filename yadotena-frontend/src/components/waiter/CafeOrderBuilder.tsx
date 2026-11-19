@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { MenuItem, MenuCategory, AddonItem, MenuItemAddon, Table, Order } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { getApplicableAddonsForItem, isShopProductItem } from "@/lib/orderUtils";
 import { findActiveOrderForTable } from "@/lib/tableUtils";
-import { addonNames } from "@/lib/kitchen";
-import { ArrowLeft, Search, X, Minus, Plus, ShoppingCart, ChevronDown, Settings2, Utensils } from "lucide-react";
+import { addonNames, orderTicketNumber } from "@/lib/kitchen";
+import { ArrowLeft, Search, X, Minus, Plus, Check, ChevronDown, SlidersHorizontal, ShoppingBag, Package, Utensils } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface CartItem {
   id: string;
@@ -18,6 +19,9 @@ export interface CartItem {
   note: string;
 }
 
+/** Where the order goes. `table` + an active order on it = append mode. */
+export type OrderTarget = { kind: "table"; table: Table } | { kind: "takeaway" } | { kind: "shop" };
+
 interface CafeOrderBuilderProps {
   menu: MenuItem[];
   categories: MenuCategory[];
@@ -25,501 +29,525 @@ interface CafeOrderBuilderProps {
   tables: Table[];
   orders: Order[];
   isShopMode?: boolean;
+  /** Table chosen before entering (tapped on the floor) — skips the picker. */
   preselectedTable?: Table | null;
-  appendToOrder?: Order | null;
   cart: CartItem[];
+  isSubmitting: boolean;
   onCartChange: (cart: CartItem[]) => void;
   onBack: () => void;
-  onSubmit: (items: CartItem[], tableId: string | undefined, orderType: "DINE_IN" | "TAKEAWAY", appendOrderId?: string) => void;
+  onSubmit: (items: CartItem[], target: OrderTarget, appendOrderId?: string) => void;
 }
 
-const NOTE_PRESETS = ["No Spicy", "Extra Hot", "No Onions", "Well Done", "Extra Sauce", "Separate Plate"];
+const NOTE_PRESETS = ["No spicy", "Extra hot", "No onions", "Well done", "Extra sauce", "Separate plate"];
 
+const itemTotal = (c: CartItem) => (c.basePrice + c.addons.reduce((s, a) => s + (a.price || 0), 0)) * c.quantity;
+
+function imageSrc(item: MenuItem): string | null {
+  const p = item.imageUrl || item.image;
+  if (!p) return null;
+  return p.startsWith("http") || p.startsWith("/") ? p : `/uploads/${p}`;
+}
+
+/**
+ * The one order-entry screen: pick where it goes (table / takeaway), tap
+ * dishes, send. Picking a busy table switches to append mode, so the waiter
+ * never has to think about "new order vs add items".
+ */
 export function CafeOrderBuilder({
   menu, categories, allAddons, tables, orders,
-  isShopMode, preselectedTable, appendToOrder: initialAppendOrder,
-  cart, onCartChange, onBack, onSubmit,
+  isShopMode, preselectedTable, cart, isSubmitting, onCartChange, onBack, onSubmit,
 }: CafeOrderBuilderProps) {
-  // Flow state
-  const [orderType, setOrderType] = useState<"DINE_IN" | "TAKEAWAY">(
-    isShopMode ? "TAKEAWAY" : preselectedTable ? "DINE_IN" : "DINE_IN"
+  const [target, setTarget] = useState<OrderTarget | null>(
+    isShopMode ? { kind: "shop" } : preselectedTable ? { kind: "table", table: preselectedTable } : null
   );
-  const [selectedTable, setSelectedTable] = useState<Table | null>(preselectedTable || null);
-  const [showTablePicker, setShowTablePicker] = useState(!preselectedTable && !isShopMode);
 
-  // Auto-resolve active order on selected table if not explicitly passed
-  const activeOrderForTable = useMemo(() => {
-    if (initialAppendOrder) return initialAppendOrder;
-    if (!selectedTable || isShopMode) return null;
-    return findActiveOrderForTable(selectedTable, orders) || null;
-  }, [initialAppendOrder, selectedTable, orders, isShopMode]);
+  const appendOrder = useMemo(
+    () => (target?.kind === "table" ? findActiveOrderForTable(target.table, orders) || null : null),
+    [target, orders]
+  );
 
-  // Catalog state
-  const [activeCategory, setActiveCategory] = useState("All");
+  const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
-  const [showCurrentOrder, setShowCurrentOrder] = useState(true);
   const [cartOpen, setCartOpen] = useState(false);
+  const [showExisting, setShowExisting] = useState(false);
 
-  // Addon sheet state
-  const [configuringItem, setConfiguringItem] = useState<MenuItem | null>(null);
+  // Options sheet (add-ons + kitchen note)
+  const [configuring, setConfiguring] = useState<MenuItem | null>(null);
   const [sheetAddons, setSheetAddons] = useState<MenuItemAddon[]>([]);
   const [sheetNote, setSheetNote] = useState("");
   const [sheetQty, setSheetQty] = useState(1);
 
-  // Filter menu
-  const catalogItems = useMemo(() => {
-    const base = isShopMode ? menu.filter(m => isShopProductItem(m)) : menu.filter(m => !isShopProductItem(m));
-    let items = base.filter(m => m.available !== false);
-    if (search) items = items.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
-    if (activeCategory !== "All") items = items.filter(m => m.category === activeCategory || m.categoryId === activeCategory);
-    return items;
-  }, [menu, isShopMode, search, activeCategory]);
-
+  const pool = useMemo(
+    () => menu.filter((m) => m.available !== false && (isShopMode ? isShopProductItem(m) : !isShopProductItem(m))),
+    [menu, isShopMode]
+  );
+  const catalog = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return pool.filter(
+      (m) =>
+        (!q || m.name.toLowerCase().includes(q)) &&
+        (category === "All" || m.category === category || m.categoryId === category)
+    );
+  }, [pool, search, category]);
   const relevantCategories = useMemo(() => {
-    const items = isShopMode ? menu.filter(m => isShopProductItem(m)) : menu.filter(m => !isShopProductItem(m));
-    const catIds = new Set(items.map(m => m.categoryId || m.category));
-    return categories.filter(c => catIds.has(c.id) || catIds.has(c.name));
-  }, [menu, categories, isShopMode]);
+    const ids = new Set(pool.map((m) => m.categoryId || m.category));
+    return categories.filter((c) => ids.has(c.id) || ids.has(c.name));
+  }, [pool, categories]);
 
-  // Fast add — menu only, one tap, never opens the addon sheet.
-  const quickAdd = (item: MenuItem) => {
-    const existing = cart.find(c => c.menuItemId === item.id && c.addons.length === 0 && !c.note);
-    if (existing) {
-      onCartChange(cart.map(c => c.id === existing.id ? { ...c, quantity: c.quantity + 1 } : c));
-    } else {
-      onCartChange([...cart, {
-        id: crypto.randomUUID(), menuItemId: item.id, name: item.name,
-        basePrice: item.price, quantity: 1, addons: [], note: "",
-      }]);
-    }
-  };
-
-  // Detailed add — card tap opens the addon sheet when the item has add-ons.
-  const openConfigure = (item: MenuItem) => {
-    const applicable = getApplicableAddonsForItem(item, allAddons);
-    if (applicable.length > 0 && !isShopMode) {
-      setConfiguringItem(item);
-      setSheetAddons([]);
-      setSheetNote("");
-      setSheetQty(1);
-    } else {
-      quickAdd(item);
-    }
-  };
-
-  const confirmAddonSheet = () => {
-    if (!configuringItem) return;
-    onCartChange([...cart, {
-      id: crypto.randomUUID(), menuItemId: configuringItem.id, name: configuringItem.name,
-      basePrice: configuringItem.price, quantity: sheetQty, addons: [...sheetAddons], note: sheetNote,
-    }]);
-    setConfiguringItem(null);
-  };
-
-  const updateQty = (id: string, delta: number) => {
-    onCartChange(cart.map(c => c.id === id ? { ...c, quantity: Math.max(1, c.quantity + delta) } : c));
-  };
-
-  const removeItem = (id: string) => onCartChange(cart.filter(c => c.id !== id));
-
-  // Quick-decrement from a card stepper: removes the most recently added line of an item.
-  const decItem = (menuItemId: string) => {
-    const line = [...cart].reverse().find(c => c.menuItemId === menuItemId);
-    if (!line) return;
-    if (line.quantity <= 1) removeItem(line.id);
-    else updateQty(line.id, -1);
-  };
-
-  const cartQuantityMap = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const c of cart) {
-      map[c.menuItemId] = (map[c.menuItemId] || 0) + c.quantity;
-    }
-    return map;
+  const addonMap = useMemo(() => Object.fromEntries(allAddons.map((a) => [a.id, a.name])), [allAddons]);
+  const qtyByItem = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of cart) m[c.menuItemId] = (m[c.menuItemId] || 0) + c.quantity;
+    return m;
   }, [cart]);
-
-  const itemTotal = (c: CartItem) => (c.basePrice + c.addons.reduce((s, a) => s + (a.price || 0), 0)) * c.quantity;
   const cartTotal = cart.reduce((s, c) => s + itemTotal(c), 0);
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
 
-  const handleSubmit = () => {
-    if (cart.length === 0) return;
-    if (!isShopMode && orderType === "DINE_IN" && !selectedTable && !activeOrderForTable) {
-      setShowTablePicker(true);
-      return;
-    }
-    setCartOpen(false);
-    onSubmit(cart, selectedTable?.id, isShopMode ? "TAKEAWAY" : orderType, activeOrderForTable?.id);
+  const quickAdd = (item: MenuItem) => {
+    const plain = cart.find((c) => c.menuItemId === item.id && c.addons.length === 0 && !c.note);
+    onCartChange(
+      plain
+        ? cart.map((c) => (c.id === plain.id ? { ...c, quantity: c.quantity + 1 } : c))
+        : [...cart, { id: crypto.randomUUID(), menuItemId: item.id, name: item.name, basePrice: item.price, quantity: 1, addons: [], note: "" }]
+    );
+  };
+  const openOptions = (item: MenuItem) => {
+    setConfiguring(item);
+    setSheetAddons([]);
+    setSheetNote("");
+    setSheetQty(1);
+  };
+  const confirmOptions = () => {
+    if (!configuring) return;
+    onCartChange([
+      ...cart,
+      { id: crypto.randomUUID(), menuItemId: configuring.id, name: configuring.name, basePrice: configuring.price, quantity: sheetQty, addons: [...sheetAddons], note: sheetNote.trim() },
+    ]);
+    setConfiguring(null);
+  };
+  const changeQty = (id: string, delta: number) => {
+    const line = cart.find((c) => c.id === id);
+    if (!line) return;
+    if (line.quantity + delta <= 0) onCartChange(cart.filter((c) => c.id !== id));
+    else onCartChange(cart.map((c) => (c.id === id ? { ...c, quantity: c.quantity + delta } : c)));
+  };
+  const decItem = (menuItemId: string) => {
+    const line = [...cart].reverse().find((c) => c.menuItemId === menuItemId);
+    if (line) changeQty(line.id, -1);
   };
 
-  const addonMap = useMemo(() => Object.fromEntries(allAddons.map(a => [a.id, a.name])), [allAddons]);
+  const submit = () => {
+    if (!target || cart.length === 0 || isSubmitting) return;
+    setCartOpen(false);
+    onSubmit(cart, target, appendOrder?.id);
+  };
 
-  const actionLabel = activeOrderForTable
-    ? `Add to Round #${activeOrderForTable.id.slice(-6).toUpperCase()}`
-    : isShopMode ? "Complete Sale" : "Send to Kitchen";
+  const submitLabel = appendOrder
+    ? `Add to #${orderTicketNumber(appendOrder)}`
+    : target?.kind === "shop" ? "Complete sale" : "Send to kitchen";
 
-  // === TABLE PICKER STEP ===
-  if (showTablePicker && !isShopMode) {
+  const title =
+    target?.kind === "table" ? target.table.name
+    : target?.kind === "takeaway" ? "Takeaway"
+    : target?.kind === "shop" ? "Shop sale" : "New order";
+  const subtitle = appendOrder
+    ? `Adding to order #${orderTicketNumber(appendOrder)}`
+    : target?.kind === "table" ? "New dine-in order"
+    : target?.kind === "takeaway" ? "Counter pickup"
+    : target?.kind === "shop" ? "Packaged products · pay at counter" : "";
+
+  // ── STEP 1 — where is this order going? ──────────────────────────────────
+  if (!target) {
+    const rows = tables
+      .map((t) => ({ t, order: findActiveOrderForTable(t, orders) }))
+      .sort((a, b) => Number(!!a.order) - Number(!!b.order) || a.t.name.localeCompare(b.t.name, undefined, { numeric: true }));
     return (
-      <div className="p-4 sm:p-6 max-w-2xl mx-auto animate-in fade-in duration-200">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground mb-4">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-        <h1 className="text-xl font-bold mb-2">New Café Order</h1>
+      <div className="h-full overflow-y-auto animate-in fade-in duration-150">
+        <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
+          <div className="flex items-center gap-3">
+            <button onClick={onBack} aria-label="Back" className="h-10 w-10 -ml-2 rounded-xl flex items-center justify-center hover:bg-muted">
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <h1 className="text-xl font-black">New order — where to?</h1>
+          </div>
 
-        {/* Order type */}
-        <div className="flex gap-2 mb-5">
-          <button onClick={() => setOrderType("DINE_IN")} className={`flex-1 h-14 rounded-xl text-sm font-bold border-2 transition-all flex items-center justify-center gap-2 ${orderType === "DINE_IN" ? "border-amber-600 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400" : "border-border"}`}>
-            <Utensils className="h-4 w-4" /> Dine-in
+          <button
+            onClick={() => setTarget({ kind: "takeaway" })}
+            className="w-full h-16 rounded-2xl border-2 border-dashed font-black text-base flex items-center justify-center gap-2.5 hover:border-amber-500 hover:bg-amber-500/5 active:scale-[0.99] transition-all"
+          >
+            <ShoppingBag className="h-5 w-5" />
+            Takeaway (no table)
           </button>
-          <button onClick={() => { setOrderType("TAKEAWAY"); setSelectedTable(null); setShowTablePicker(false); }} className={`flex-1 h-14 rounded-xl text-sm font-bold border-2 transition-all flex items-center justify-center gap-2 ${orderType === "TAKEAWAY" ? "border-amber-600 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400" : "border-border"}`}>
-            <ShoppingCart className="h-4 w-4" /> Takeaway
-          </button>
-        </div>
 
-        {orderType === "DINE_IN" && (
-          <>
-            <p className="text-sm text-muted-foreground mb-3">Select a table to start or add to an order.</p>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-              {tables.map(t => {
-                const activeOrder = findActiveOrderForTable(t, orders);
-                return (
-                  <button key={t.id} onClick={() => { setSelectedTable(t); setShowTablePicker(false); }}
-                    className={`p-4 rounded-xl border-2 text-center font-bold text-sm transition-all active:scale-95 ${
-                      activeOrder ? "border-amber-500/60 bg-amber-500/10 hover:border-amber-600" : t.status === "AVAILABLE" ? "border-emerald-400/50 hover:border-emerald-500" : "border-amber-400/50 hover:border-amber-500"
-                    }`}>
-                    <div>{t.name || t.id}</div>
-                    <div className="text-xs font-normal text-muted-foreground mt-1">
-                      {t.capacity}p · {activeOrder ? `Order #${activeOrder.id.slice(-4).toUpperCase()}` : t.status === "AVAILABLE" ? "Open" : "Busy"}
-                    </div>
-                  </button>
-                );
-              })}
+          <div>
+            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground mb-2">Or pick a table</p>
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
+              {rows.map(({ t, order }) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTarget({ kind: "table", table: t })}
+                  className={cn(
+                    "h-20 p-2 rounded-2xl border-2 flex flex-col items-center justify-center text-center active:scale-[0.97] transition-all",
+                    order ? "border-amber-500/50 bg-amber-50/40 dark:bg-amber-950/10" : "hover:border-amber-500"
+                  )}
+                >
+                  <span className="font-black text-sm truncate max-w-full">{t.name}</span>
+                  <span className={cn("text-[11px] font-bold mt-0.5", order ? "text-amber-700 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400")}>
+                    {order ? `Add to #${orderTicketNumber(order)}` : "Open"}
+                  </span>
+                </button>
+              ))}
             </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
     );
   }
 
-  // === ADDON BOTTOM SHEET ===
-  const addonSheet = configuringItem && (() => {
-    const applicable = getApplicableAddonsForItem(configuringItem, allAddons);
-    return (
-      <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={() => setConfiguringItem(null)}>
-        <div className="bg-card w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-5 space-y-4 max-h-[80vh] overflow-y-auto animate-in slide-in-from-bottom-4 duration-200" onClick={e => e.stopPropagation()}>
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-lg font-bold">{configuringItem.name}</h3>
-              <p className="text-sm text-muted-foreground">{formatETB(configuringItem.price)}</p>
-            </div>
-            <button onClick={() => setConfiguringItem(null)} className="p-1 text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
-          </div>
-
-          {applicable.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-bold uppercase text-muted-foreground">Add-ons</p>
-              {applicable.map(a => {
-                const selected = sheetAddons.some(s => s.id === a.id);
+  // ── Cart contents (shared by the desktop rail and the mobile drawer) ─────
+  const cartBody = (
+    <>
+      {appendOrder && (
+        <div className="rounded-xl border bg-muted/30">
+          <button onClick={() => setShowExisting((v) => !v)} className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold">
+            <span>
+              Already on #{orderTicketNumber(appendOrder)} · {appendOrder.items?.reduce((s, i) => s + i.quantity, 0) || 0} items ·{" "}
+              <span className="tabular-nums">{formatETB(appendOrder.total)}</span>
+            </span>
+            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", showExisting && "rotate-180")} />
+          </button>
+          {showExisting && (
+            <ul className="px-3 pb-2.5 space-y-1 max-h-40 overflow-y-auto">
+              {appendOrder.items?.map((i, idx) => {
+                const a = addonNames(i.selectedAddons, addonMap);
                 return (
-                  <button key={a.id} onClick={() => setSheetAddons(selected ? sheetAddons.filter(s => s.id !== a.id) : [...sheetAddons, a])}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl border text-sm transition-colors ${selected ? "border-amber-500 bg-amber-50/50 dark:bg-amber-950/20" : "border-border hover:bg-accent/50"}`}>
-                    <span className="font-medium">{a.name}</span>
-                    <span className="text-muted-foreground">{a.price > 0 ? `+${formatETB(a.price)}` : "Free"}</span>
-                  </button>
+                  <li key={i.id || idx} className="text-xs text-muted-foreground">
+                    <span className="font-bold text-foreground">{i.quantity}×</span> {i.name}
+                    {a.length > 0 && <span> + {a.join(", ")}</span>}
+                  </li>
                 );
               })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {cart.length === 0 ? (
+        <div className="py-10 text-center text-sm text-muted-foreground">
+          <p className="font-bold text-foreground">No items yet</p>
+          <p className="mt-1">Tap a dish to add it.</p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {cart.map((c) => (
+            <li key={c.id} className="rounded-xl border bg-card p-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold leading-tight">{c.name}</p>
+                  {c.addons.length > 0 && <p className="text-xs text-muted-foreground truncate">+ {c.addons.map((a) => a.name).join(", ")}</p>}
+                  {c.note && <p className="text-xs font-bold text-amber-700 dark:text-amber-400 truncate">“{c.note}”</p>}
+                </div>
+                <span className="text-sm font-black tabular-nums shrink-0">{formatETB(itemTotal(c))}</span>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5">
+                <button onClick={() => changeQty(c.id, -1)} aria-label={`One less ${c.name}`} className="h-9 w-9 rounded-lg border flex items-center justify-center hover:bg-muted">
+                  <Minus className="h-4 w-4" />
+                </button>
+                <span className="w-8 text-center font-black tabular-nums">{c.quantity}</span>
+                <button onClick={() => changeQty(c.id, 1)} aria-label={`One more ${c.name}`} className="h-9 w-9 rounded-lg border flex items-center justify-center hover:bg-muted">
+                  <Plus className="h-4 w-4" />
+                </button>
+                <button onClick={() => onCartChange(cart.filter((x) => x.id !== c.id))} className="ml-auto h-9 px-2.5 rounded-lg text-xs font-bold text-muted-foreground hover:text-red-600 hover:bg-red-500/10">
+                  Remove
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+
+  const submitButton = (
+    <button
+      onClick={submit}
+      disabled={cart.length === 0 || isSubmitting}
+      className="w-full h-14 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:bg-muted disabled:text-muted-foreground text-amber-950 font-black text-base flex items-center justify-between px-5 active:scale-[0.98] transition-all"
+    >
+      <span className="flex items-center gap-2">
+        {isSubmitting ? <span className="h-4 w-4 border-2 border-amber-950/30 border-t-amber-950 rounded-full animate-spin" /> : <Check className="h-5 w-5" strokeWidth={3} />}
+        {isSubmitting ? "Sending…" : submitLabel}
+      </span>
+      <span className="tabular-nums">{formatETB(cartTotal)}</span>
+    </button>
+  );
+
+  // ── STEP 2 — menu + cart ─────────────────────────────────────────────────
+  return (
+    <div className="flex h-full animate-in fade-in duration-150">
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="px-3 sm:px-4 py-2.5 border-b bg-card shrink-0 flex items-center gap-2">
+          <button onClick={onBack} aria-label="Back" className="h-10 w-10 rounded-xl flex items-center justify-center hover:bg-muted shrink-0">
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base font-black leading-tight truncate">{title}</h1>
+            <p className="text-xs text-muted-foreground font-medium truncate">{subtitle}</p>
+          </div>
+          {!isShopMode && !preselectedTable && (
+            <button onClick={() => setTarget(null)} className="h-9 px-3 rounded-lg border text-xs font-bold text-muted-foreground hover:text-foreground shrink-0">
+              Change
+            </button>
+          )}
+        </div>
+
+        {/* Search + categories */}
+        <div className="px-3 sm:px-4 py-2.5 space-y-2.5 border-b shrink-0">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={isShopMode ? "Search products" : "Search dishes"}
+              className="w-full h-11 pl-9 pr-9 rounded-xl border bg-background text-sm"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center text-muted-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1">
+            {[{ id: "All", name: "All", icon: "" }, ...relevantCategories].map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setCategory(c.name)}
+                className={cn(
+                  "h-9 px-4 rounded-full text-sm font-bold whitespace-nowrap transition-colors",
+                  category === c.name ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {c.icon ? `${c.icon} ` : ""}{c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Menu grid — tap = add one, "Options" = add-ons / note */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 pb-28 lg:pb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+            {catalog.map((item) => {
+              const n = qtyByItem[item.id] || 0;
+              const img = imageSrc(item);
+              const hasAddons = !isShopMode && getApplicableAddonsForItem(item, allAddons).length > 0;
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "relative rounded-2xl border-2 bg-card overflow-hidden flex flex-col transition-colors",
+                    n > 0 ? "border-amber-500" : "border-border hover:border-amber-500/50"
+                  )}
+                >
+                  <button onClick={() => quickAdd(item)} className="text-left flex-1 flex flex-col active:scale-[0.98] transition-transform" aria-label={`Add ${item.name}`}>
+                    <div className="h-20 bg-muted/50 flex items-center justify-center overflow-hidden">
+                      {img ? (
+                        <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLElement).style.display = "none"; }} />
+                      ) : isShopMode ? (
+                        <Package className="h-6 w-6 text-muted-foreground/40" />
+                      ) : (
+                        <Utensils className="h-6 w-6 text-muted-foreground/40" />
+                      )}
+                    </div>
+                    <div className="p-2.5 flex-1">
+                      <p className="text-sm font-bold leading-tight line-clamp-2">{item.name}</p>
+                      <p className="text-sm font-black mt-1 tabular-nums">{formatETB(item.price)}</p>
+                    </div>
+                  </button>
+
+                  {n > 0 && (
+                    <span className="absolute top-2 right-2 h-7 min-w-7 px-1.5 rounded-full bg-amber-500 text-amber-950 text-sm font-black flex items-center justify-center shadow tabular-nums">
+                      {n}
+                    </span>
+                  )}
+
+                  <div className="flex border-t">
+                    {n > 0 && (
+                      <button onClick={() => decItem(item.id)} aria-label={`One less ${item.name}`} className="h-10 w-12 flex items-center justify-center border-r text-muted-foreground hover:bg-muted">
+                        <Minus className="h-4 w-4" />
+                      </button>
+                    )}
+                    {!isShopMode ? (
+                      <button
+                        onClick={() => openOptions(item)}
+                        className={cn(
+                          "flex-1 h-10 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-muted",
+                          hasAddons ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+                        )}
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        {hasAddons ? "Add-ons" : "Note"}
+                      </button>
+                    ) : (
+                      <button onClick={() => quickAdd(item)} className="flex-1 h-10 text-xs font-bold flex items-center justify-center gap-1 hover:bg-muted">
+                        <Plus className="h-3.5 w-3.5" /> Add
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {catalog.length === 0 && (
+            <div className="text-center py-16 text-muted-foreground">
+              <p className="font-bold">Nothing found</p>
+              <p className="text-sm mt-1">Try another search or category.</p>
             </div>
           )}
-
-          <div className="space-y-2">
-            <p className="text-xs font-bold uppercase text-muted-foreground">Kitchen Note</p>
-            <div className="flex flex-wrap gap-1.5">
-              {NOTE_PRESETS.map(n => (
-                <button key={n} onClick={() => setSheetNote(sheetNote === n ? "" : n)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${sheetNote === n ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400" : "border-border hover:bg-accent/50"}`}>
-                  {n}
-                </button>
-              ))}
-            </div>
-            <input value={sheetNote} onChange={e => setSheetNote(e.target.value)} placeholder="Custom note..." className="w-full h-10 px-3 rounded-xl border bg-background text-sm" />
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-3">
-              <button onClick={() => setSheetQty(Math.max(1, sheetQty - 1))} className="h-10 w-10 rounded-lg border flex items-center justify-center hover:bg-accent/50"><Minus className="h-4 w-4" /></button>
-              <span className="text-lg font-bold w-8 text-center">{sheetQty}</span>
-              <button onClick={() => setSheetQty(sheetQty + 1)} className="h-10 w-10 rounded-lg border flex items-center justify-center hover:bg-accent/50"><Plus className="h-4 w-4" /></button>
-            </div>
-            <button onClick={confirmAddonSheet} className="h-12 px-6 rounded-xl bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 active:scale-95 transition-all">
-              Add {formatETB((configuringItem.price + sheetAddons.reduce((s, a) => s + (a.price || 0), 0)) * sheetQty)}
-            </button>
-          </div>
         </div>
       </div>
-    );
-  })();
 
-  return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] animate-in fade-in duration-200">
-      {/* Top bar */}        <div className="flex items-center gap-3 p-3 border-b bg-card shrink-0">
-        <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent/50"><ArrowLeft className="h-5 w-5" /></button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-bold truncate">
-            {activeOrderForTable ? `Adding to #${activeOrderForTable.id.slice(-6).toUpperCase()}` : isShopMode ? "Shop Sale" : "Café Order"}
-          </h1>
-          <p className="text-xs text-muted-foreground truncate">
-            {selectedTable && <span>{selectedTable.name || selectedTable.id} · Dine-in</span>}
-            {orderType === "TAKEAWAY" && !isShopMode && <span>Takeaway</span>}
-            {isShopMode && <span>Counter · Retail products · {cartCount > 0 ? `${cartCount} item${cartCount !== 1 ? "s" : ""}` : "no items yet"}</span>}
-          </p>
+      {/* Desktop cart rail — always visible, no extra tap to review */}
+      <aside className="hidden lg:flex flex-col w-[340px] shrink-0 border-l bg-muted/20">
+        <div className="px-4 h-[61px] border-b flex items-center justify-between shrink-0 bg-card">
+          <h2 className="font-black">Order</h2>
+          {cartCount > 0 && <span className="text-xs font-bold text-muted-foreground">{cartCount} item{cartCount === 1 ? "" : "s"}</span>}
         </div>
-        {isShopMode && (
-          <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider border border-emerald-500/20 shrink-0">
-            Retail
-          </span>
-        )}
-      </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">{cartBody}</div>
+        <div className="p-3 border-t bg-card">{submitButton}</div>
+      </aside>
 
-      <div className="flex-1 overflow-hidden">
-        {/* CATALOG */}
-        <div className="h-full flex flex-col">
-          {/* Search + categories */}
-          <div className="p-3 space-y-3 border-b shrink-0">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
-                className="w-full h-10 pl-9 pr-8 rounded-xl border bg-background text-sm" />
-              {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><X className="h-4 w-4" /></button>}
-            </div>
-            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
-              <button onClick={() => setActiveCategory("All")}
-                className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${activeCategory === "All" ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
-                All
+      {/* Mobile / tablet: bottom cart bar → drawer */}
+      {cart.length > 0 && !cartOpen && (
+        <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background/95 to-transparent">
+          <button
+            onClick={() => setCartOpen(true)}
+            className="w-full h-14 rounded-2xl bg-foreground text-background font-black text-base flex items-center gap-3 px-4 shadow-xl active:scale-[0.99] transition-transform"
+          >
+            <span className="h-7 min-w-7 px-1.5 rounded-full bg-amber-500 text-amber-950 text-sm flex items-center justify-center tabular-nums">{cartCount}</span>
+            <span className="flex-1 text-left">Review order</span>
+            <span className="tabular-nums">{formatETB(cartTotal)}</span>
+          </button>
+        </div>
+      )}
+
+      {cartOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/40 flex items-end" onClick={() => setCartOpen(false)}>
+          <div
+            className="bg-background w-full rounded-t-3xl max-h-[88vh] flex flex-col animate-in slide-in-from-bottom-4 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+              <div>
+                <h3 className="font-black text-lg leading-tight">{title}</h3>
+                <p className="text-xs text-muted-foreground">{subtitle}</p>
+              </div>
+              <button onClick={() => setCartOpen(false)} aria-label="Close" className="h-10 w-10 rounded-xl flex items-center justify-center hover:bg-muted">
+                <X className="h-5 w-5" />
               </button>
-              {relevantCategories.map(c => (
-                <button key={c.id} onClick={() => setActiveCategory(c.name)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${activeCategory === c.name ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
-                  {c.icon} {c.name}
-                </button>
-              ))}
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3">{cartBody}</div>
+            <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t space-y-2 shrink-0">
+              {submitButton}
+              <button onClick={() => setCartOpen(false)} className="w-full h-11 rounded-xl text-sm font-bold text-muted-foreground">
+                Keep adding
+              </button>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Current order on this table — visible on every screen size */}
-          {activeOrderForTable && (
-            <div className="shrink-0 border-b bg-amber-50/50 dark:bg-amber-950/10">
-              <button
-                onClick={() => setShowCurrentOrder(!showCurrentOrder)}
-                className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-amber-500/5 transition-colors"
-              >
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                  On {selectedTable?.name || "Table"} · current order
-                </span>
-                <ChevronDown className={`h-3.5 w-3.5 text-amber-700 dark:text-amber-400 transition-transform ${showCurrentOrder ? "rotate-180" : ""}`} />
-              </button>
-              {showCurrentOrder && (
-                <div className="px-3 pb-3 space-y-1.5">
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
-                    {activeOrderForTable.items?.map((item, i) => {
-                      const aNames = addonNames(item.selectedAddons, addonMap);
+      {/* Options sheet: add-ons, kitchen note, quantity */}
+      {configuring && (() => {
+        const applicable = getApplicableAddonsForItem(configuring, allAddons);
+        const lineTotal = (configuring.price + sheetAddons.reduce((s, a) => s + (a.price || 0), 0)) * sheetQty;
+        return (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={() => setConfiguring(null)}>
+            <div
+              className="bg-background w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl max-h-[88vh] flex flex-col animate-in slide-in-from-bottom-4 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-start p-5 pb-3 shrink-0">
+                <div>
+                  <h3 className="text-lg font-black">{configuring.name}</h3>
+                  <p className="text-sm text-muted-foreground tabular-nums">{formatETB(configuring.price)}</p>
+                </div>
+                <button onClick={() => setConfiguring(null)} aria-label="Close" className="h-10 w-10 rounded-xl flex items-center justify-center hover:bg-muted">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 space-y-5">
+                {applicable.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Add-ons</p>
+                    {applicable.map((a) => {
+                      const on = sheetAddons.some((s) => s.id === a.id);
                       return (
-                        <div key={item.id || i} className="text-xs bg-card rounded-lg border px-2.5 py-1.5">
-                          <div className="flex justify-between gap-2">
-                            <span className="font-bold truncate">{item.quantity}× {item.name}</span>
-                            <span className="text-muted-foreground font-mono shrink-0">{formatETB(item.price * item.quantity)}</span>
-                          </div>
-                          {aNames.length > 0 && (
-                            <p className="text-[10px] text-muted-foreground pl-2 truncate">+ {aNames.join(", ")}</p>
+                        <button
+                          key={a.id}
+                          onClick={() => setSheetAddons(on ? sheetAddons.filter((s) => s.id !== a.id) : [...sheetAddons, a])}
+                          className={cn(
+                            "w-full h-12 flex items-center justify-between gap-3 px-3 rounded-xl border-2 text-sm font-bold transition-colors",
+                            on ? "border-amber-500 bg-amber-500 text-amber-950" : "border-border hover:border-amber-500/50"
                           )}
-                        </div>
+                        >
+                          <span className="flex items-center gap-2.5 min-w-0">
+                            <span className={cn("h-5 w-5 rounded-md border-2 flex items-center justify-center shrink-0", on ? "bg-amber-950 border-amber-950 text-amber-500" : "border-muted-foreground/40 text-transparent")}>
+                              <Check className="h-3.5 w-3.5" strokeWidth={3.5} />
+                            </span>
+                            <span className="truncate">{a.name}</span>
+                          </span>
+                          <span className="tabular-nums">{a.price > 0 ? `+${formatETB(a.price)}` : "Free"}</span>
+                        </button>
                       );
                     })}
                   </div>
-                  <div className="flex justify-between text-xs font-black pt-1.5 border-t border-amber-500/20">
-                    <span>Running Total</span>
-                    <span className="text-amber-600 dark:text-amber-400">{formatETB(activeOrderForTable.total)}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
 
-          {/* Product grid */}
-          <div className="flex-1 overflow-y-auto p-3 pb-24">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
-              {catalogItems.map(item => {
-                const inCart = cartQuantityMap[item.id] || 0;
-                const hasAddons = !isShopMode && getApplicableAddonsForItem(item, allAddons).length > 0;
-                return (
-                  <div
-                    key={item.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openConfigure(item)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openConfigure(item); } }}
-                    className="group relative flex flex-col rounded-xl border bg-card text-left overflow-hidden cursor-pointer hover:shadow-md hover:border-amber-500/50 dark:hover:border-amber-500/40 active:scale-[0.98] transition-all"
-                  >
-                    {/* Image / Thumbnail */}
-                    <div className="relative w-full h-16 sm:h-20 bg-muted/40 overflow-hidden flex items-center justify-center">
-                      {(() => {
-                        const imgPath = item.imageUrl || item.image;
-                        if (!imgPath) {
-                          return (
-                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent text-amber-600/60 dark:text-amber-400/60">
-                              <ShoppingCart className="h-6 w-6 opacity-40" />
-                            </div>
-                          );
-                        }
-                        const srcUrl = imgPath.startsWith("http") || imgPath.startsWith("/") ? imgPath : `/uploads/${imgPath}`;
-                        return (
-                          <img
-                            src={srcUrl}
-                            alt={item.name}
-                            loading="lazy"
-                            decoding="async"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = "none";
-                            }}
-                          />
-                        );
-                      })()}
-
-                      {hasAddons && (
-                        <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-background/90 backdrop-blur text-[9px] font-black text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                          <Settings2 className="h-2.5 w-2.5" /> Customize
-                        </span>
-                      )}
-
-                      {inCart > 0 ? (
-                        <div
-                          className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 bg-background/95 backdrop-blur rounded-full p-0.5 shadow-md border"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            onClick={(e) => { e.stopPropagation(); decItem(item.id); }}
-                            className={`h-5 w-5 rounded-full flex items-center justify-center hover:bg-muted ${isShopMode ? "text-emerald-600" : "text-amber-600"}`}
-                            aria-label={`Decrease ${item.name} quantity`}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </button>
-                          <span className="text-xs font-black w-4 text-center">{inCart}</span>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); quickAdd(item); }}
-                            className={`h-5 w-5 rounded-full flex items-center justify-center text-white ${isShopMode ? "bg-emerald-600" : "bg-amber-600"}`}
-                            aria-label={`Increase ${item.name} quantity`}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); quickAdd(item); }}
-                          className={`absolute bottom-1.5 right-1.5 h-6 w-6 rounded-full flex items-center justify-center text-white shadow-md active:scale-95 transition-transform ${isShopMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-600 hover:bg-amber-700"}`}
-                          aria-label={`Quick add ${item.name}`}
-                          title="Quick add (menu only)"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="p-2.5 flex flex-col justify-between flex-1 space-y-1">
-                      <div className="font-bold text-xs leading-tight text-foreground line-clamp-1 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                        {item.name}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-foreground">{formatETB(item.price)}</span>
-                        {hasAddons && (
-                          <span className="text-[9px] font-bold text-muted-foreground">+ add-ons</span>
+                <div className="space-y-2">
+                  <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Note for the kitchen</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {NOTE_PRESETS.map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => setSheetNote(sheetNote === n ? "" : n)}
+                        className={cn(
+                          "h-9 px-3 rounded-full text-xs font-bold border-2 transition-colors",
+                          sheetNote === n ? "border-amber-500 bg-amber-500 text-amber-950" : "border-border text-muted-foreground hover:text-foreground"
                         )}
-                      </div>
-                    </div>
+                      >
+                        {n}
+                      </button>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-            {catalogItems.length === 0 && (
-              <div className="text-center py-16 text-muted-foreground">
-                <p className="font-medium">No products found.</p>
-                <p className="text-sm mt-1">Try a different search or category.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* FLOATING CART BAR — all screen sizes */}
-      {cart.length > 0 && (
-        <button
-          onClick={() => setCartOpen(true)}
-          className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-md flex items-center gap-3 pl-4 pr-2 py-3 rounded-2xl text-white font-bold text-sm shadow-2xl shadow-black/25 active:scale-[0.99] transition-all ${isShopMode ? "bg-emerald-700" : "bg-foreground text-background"}`}
-          aria-label={`Review ${cartCount} items totaling ${formatETB(cartTotal)}`}
-        >
-          <span className="relative shrink-0">
-            <ShoppingCart className="h-5 w-5" />
-            <span className="absolute -top-2 -right-2 h-4 min-w-4 px-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center shadow">
-              {cartCount}
-            </span>
-          </span>
-          <span className="flex-1 text-left text-xs font-bold text-muted-foreground truncate">
-            {cart.map(c => c.name).slice(0, 2).join(", ")}
-            {cart.length > 2 ? ` +${cart.length - 2} more` : ""}
-          </span>
-          <span className="font-black text-base">{formatETB(cartTotal)}</span>            <span className="h-9 px-3.5 rounded-xl bg-white/20 flex items-center justify-center text-white text-xs font-black shrink-0 rounded-xl">
-            {actionLabel}
-          </span>
-        </button>
-      )}
-
-      {/* CART DRAWER */}
-      {cartOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={() => setCartOpen(false)}>
-          <div className="bg-card w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-5 max-h-[80vh] overflow-y-auto space-y-3 animate-in slide-in-from-bottom-4 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center">
-              <h3 className="font-bold">Cart · {cartCount} item{cartCount !== 1 ? "s" : ""}</h3>
-              <button onClick={() => setCartOpen(false)} className="p-1 text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
-            </div>
-
-            {activeOrderForTable && (
-              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-500/20 text-xs">
-                <p className="font-black text-amber-700 dark:text-amber-400 mb-1">
-                  Extending #{activeOrderForTable.id.slice(-6).toUpperCase()} · running total {formatETB(activeOrderForTable.total)}
-                </p>
-                <p className="text-muted-foreground">New items will be added to this order when sent.</p>
-              </div>
-            )}
-
-            {cart.map(c => (
-              <div key={c.id} className="flex justify-between items-center gap-2 p-3 rounded-xl border text-sm">
-                <div className="min-w-0 flex-1">
-                  <span className="font-bold">{c.quantity}× {c.name}</span>
-                  {c.addons.length > 0 && <p className="text-xs text-muted-foreground truncate">+{c.addons.map(a => a.name).join(", ")}</p>}
-                  {c.note && <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">“{c.note}”</p>}
+                  <input
+                    value={sheetNote}
+                    onChange={(e) => setSheetNote(e.target.value)}
+                    placeholder="Or type a note"
+                    className="w-full h-11 px-3 rounded-xl border bg-background text-sm"
+                  />
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button onClick={() => c.quantity <= 1 ? removeItem(c.id) : updateQty(c.id, -1)} className="h-7 w-7 rounded-md border flex items-center justify-center text-muted-foreground hover:text-foreground"><Minus className="h-3 w-3" /></button>
-                  <span className="text-sm font-bold w-5 text-center">{c.quantity}</span>
-                  <button onClick={() => updateQty(c.id, 1)} className="h-7 w-7 rounded-md border flex items-center justify-center text-muted-foreground hover:text-foreground"><Plus className="h-3 w-3" /></button>
-                  <button onClick={() => removeItem(c.id)} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-red-500"><X className="h-3 w-3" /></button>
-                </div>
-                <span className="font-bold text-sm shrink-0">{formatETB(itemTotal(c))}</span>
               </div>
-            ))}
 
-            <div className="flex justify-between font-bold text-lg pt-2 border-t">
-              <span>Total</span><span>{formatETB(cartTotal)}</span>
+              <div className="p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex items-center gap-3 border-t mt-4 shrink-0">
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setSheetQty(Math.max(1, sheetQty - 1))} aria-label="Less" className="h-12 w-12 rounded-xl border flex items-center justify-center hover:bg-muted">
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="text-lg font-black w-8 text-center tabular-nums">{sheetQty}</span>
+                  <button onClick={() => setSheetQty(sheetQty + 1)} aria-label="More" className="h-12 w-12 rounded-xl border flex items-center justify-center hover:bg-muted">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+                <button onClick={confirmOptions} className="flex-1 h-12 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm active:scale-[0.98] transition-all tabular-nums">
+                  Add · {formatETB(lineTotal)}
+                </button>
+              </div>
             </div>
-            <button onClick={handleSubmit}
-              className={`w-full h-14 rounded-xl font-bold text-sm text-white active:scale-[0.97] transition-all ${isShopMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-600 hover:bg-amber-700"}`}>
-              {actionLabel}
-            </button>
           </div>
-        </div>
-      )}
-
-      {addonSheet}
+        );
+      })()}
     </div>
   );
 }

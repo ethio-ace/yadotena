@@ -64,6 +64,12 @@ SECURE_SSL_REDIRECT = env_bool('DJANGO_SECURE_SSL_REDIRECT', False)
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+# HSTS: off by default; set DJANGO_HSTS_SECONDS (e.g. 31536000) once the API
+# is confirmed to be HTTPS-only — browsers cache it, so it is hard to undo.
+SECURE_HSTS_SECONDS = int(env('DJANGO_HSTS_SECONDS', '0'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('DJANGO_HSTS_INCLUDE_SUBDOMAINS', False)
+SECURE_HSTS_PRELOAD = False
 X_FRAME_OPTIONS = 'DENY'
 
 # --- Applications ----------------------------------------------------------
@@ -132,7 +138,14 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': env('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3')),
-        'OPTIONS': {'timeout': 20},
+        'OPTIONS': {
+            'timeout': 20,
+            # WAL lets the POS read while another request writes; IMMEDIATE
+            # takes the write lock up front so concurrent order writes queue
+            # instead of failing with "database is locked" mid-transaction.
+            'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
+            'transaction_mode': 'IMMEDIATE',
+        },
     }
 }
 
@@ -189,6 +202,10 @@ if not DEBUG:
 # The browser authenticates with an Authorization header, not cookies.
 CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')
 CORS_ALLOW_CREDENTIALS = False
+# The POS sends Idempotency-Key on order creation (retry-safe submits); without
+# it in the allow-list the browser drops the preflighted POST cross-origin.
+from corsheaders.defaults import default_headers  # noqa: E402
+CORS_ALLOW_HEADERS = (*default_headers, 'idempotency-key')
 CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')
 
 # --- I18N ------------------------------------------------------------------

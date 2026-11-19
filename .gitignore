@@ -12,5 +12,7 @@
 # Django
 backend_django/.env
 backend_django/db.sqlite3
+backend_django/db.sqlite3-wal
+backend_django/db.sqlite3-shm
 backend_django/staticfiles/
 **/__pycache__/

@@ -36,10 +36,20 @@ class BaseAPITest(APITestCase):
     def anon(self):
         self.client.credentials()
 
-    def place_order(self, **extra):
+    def place_order(self, as_user='waiter', **extra):
+        """Place an order as staff (the public site is view-only), then
+        restore whatever credentials the test was using."""
         payload = {'type': 'TAKEAWAY', 'customerName': 'Abebe', 'customerPhone': '0911000000',
                    'items': [{'menuItemId': self.item.id, 'quantity': 1}], **extra}
-        return self.client.post(f'{API}/orders/', payload, format='json')
+        saved = dict(self.client._credentials)
+        if as_user:
+            self.login(getattr(self, as_user))
+        else:
+            self.anon()
+        try:
+            return self.client.post(f'{API}/orders/', payload, format='json')
+        finally:
+            self.client.credentials(**saved)
 
 
 class LoginTests(BaseAPITest):
@@ -123,31 +133,35 @@ class AnonymousAccessTests(BaseAPITest):
         self.assertIn(self.client.put(f'{API}/settings/', {'restaurantName': 'x'}, format='json').status_code, (401, 403))
         self.assertIn(self.client.delete(f'{API}/menu/{self.item.id}/').status_code, (401, 403))
 
-    def test_customer_flow_is_public(self):
-        self.assertEqual(self.client.get(f'{API}/menu/').status_code, 200)
-        self.assertEqual(self.client.get(f'{API}/categories/').status_code, 200)
-        self.assertEqual(self.client.get(f'{API}/settings/').status_code, 200)
-        self.assertIn(self.client.post(f'{API}/tables/t1/start-session/').status_code, (200, 201))
-        self.assertEqual(self.client.get(f'{API}/sessions/active/?table=t1').status_code, 200)
-
-        res = self.place_order()
-        self.assertEqual(res.status_code, 201, res.data)
-        order_id = res.data['id']
+    def test_public_site_is_view_only(self):
+        for url in ('/menu/', '/categories/', '/settings/', '/addons', '/payment-methods', '/tables'):
+            self.assertEqual(self.client.get(f'{API}{url}').status_code, 200, url)
+        order_id = self.place_order().data['id']
+        # Customers can track an order and call a waiter...
         self.assertEqual(self.client.get(f'{API}/orders/{order_id}/').status_code, 200)
+        req = self.client.post(f'{API}/service-requests/', {'tableId': 't1', 'type': 'WAITER'}, format='json')
+        self.assertEqual(req.status_code, 201, req.data)
+        # ...but cannot place or extend orders or open table sessions.
+        self.assertIn(self.place_order(as_user=None).status_code, (401, 403))
         add = self.client.post(f'{API}/orders/{order_id}/add-items/',
                                {'items': [{'menuItemId': self.item.id, 'quantity': 2}]}, format='json')
-        self.assertEqual(add.status_code, 200)
-        req = self.client.post(f'{API}/service-requests/', {'tableId': 't1', 'type': 'CALL_WAITER'}, format='json')
-        self.assertNotIn(req.status_code, (401, 403))
+        self.assertIn(add.status_code, (401, 403))
+        self.assertIn(self.client.post(f'{API}/tables/t1/start-session/').status_code, (401, 403))
+        self.assertIn(self.client.get(f'{API}/sessions/active/?table=t1').status_code, (401, 403))
 
     def test_anonymous_cannot_change_order_status(self):
         order_id = self.place_order().data['id']
         res = self.client.post(f'{API}/orders/{order_id}/status/', {'status': 'COMPLETED'}, format='json')
         self.assertIn(res.status_code, (401, 403))
 
-    def test_customer_cannot_mark_order_paid(self):
-        res = self.place_order(paymentStatus='PAID')
-        self.assertEqual(Order.objects.get(id=res.data['id']).payment_status, 'PENDING')
+    def test_paid_pos_order_records_a_payment(self):
+        from apps.payments.models import Payment
+        res = self.place_order(paymentStatus='PAID', paymentMethod='TELEBIRR')
+        order = Order.objects.get(id=res.data['id'])
+        self.assertEqual(order.payment_status, 'PAID')
+        payment = Payment.objects.get(order=order)
+        self.assertEqual((payment.method, payment.amount), ('TELEBIRR', order.total))
+        self.assertEqual(res.data['paymentStatus'], 'PAID')
 
     def test_public_order_lookup_hides_contact_details(self):
         order_id = self.place_order().data['id']
@@ -233,7 +247,7 @@ class ActivityLogTests(BaseAPITest):
         self.login(self.manager)
         self.client.patch(f'{API}/menu/{self.item.id}', {'price': '55.00'}, format='json')
         actions = list(ActivityLog.objects.order_by('created_at').values_list('action', 'user_role'))
-        self.assertEqual(actions, [('CREATE_ORDER', 'CUSTOMER'), ('KITCHEN_ACTION', 'KITCHEN'), ('UPDATE_MENU_ITEM', 'MANAGER')])
+        self.assertEqual(actions, [('CREATE_ORDER', 'WAITER'), ('KITCHEN_ACTION', 'KITCHEN'), ('UPDATE_MENU_ITEM', 'MANAGER')])
         update = ActivityLog.objects.get(action='UPDATE_MENU_ITEM')
         self.assertEqual(float(update.prev_state['price']), 50.0)
         self.assertEqual(float(update.next_state['price']), 55.0)

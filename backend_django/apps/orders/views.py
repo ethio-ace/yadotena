@@ -19,13 +19,13 @@ ORDER_QS = Order.objects.prefetch_related('items', 'payments').select_related('t
 class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     queryset = ORDER_QS
     serializer_class = OrderSerializer
-    # Customers place, view (by unguessable id) and extend their own order;
-    # everything else is staff-only.
+    # The public site is view-only (owner's decision): customers can only
+    # view/track an order by its id. Orders are placed by staff.
     action_permissions = {
-        'create': [AllowAny],
+        'create': [IsStaff],
         'retrieve': [AllowAny],
         'lookup': [AllowAny],
-        'add_items': [AllowAny],
+        'add_items': [IsStaff],
         'list': [IsStaff],
         'update': [IsStaff],
         'partial_update': [IsStaff],
@@ -36,7 +36,7 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     default_permissions = [IsStaff]
     throttle_classes = [PublicActionThrottle]
     public_throttle_scope = 'public_orders'
-    public_throttle_actions = {'create', 'add_items', 'lookup'}
+    public_throttle_actions = {'lookup'}
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['table']
     ordering_fields = ['created_at', 'total', 'status']
@@ -69,6 +69,13 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         order = serializer.save()
+        if str(self.request.data.get('paymentStatus', '')).upper() == 'PAID':
+            # POS "already paid" toggle: record a real payment so revenue,
+            # collected totals and the audit trail stay consistent.
+            from apps.payments.services import record_payment
+            record_payment(order_id=order.pk, method=self.request.data.get('paymentMethod') or 'CASH',
+                           recorded_by=self.request.user)
+            order.refresh_from_db()
         who = order.customer_name or (order.table.name if order.table else 'walk-in')
         log_activity(self.request, 'CREATE_ORDER', 'ORDER', order.pk,
                      f'Order #{order.pk} placed ({order.type}, {who}, ETB {order.total:.2f})',

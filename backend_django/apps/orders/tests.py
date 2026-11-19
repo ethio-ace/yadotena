@@ -13,10 +13,8 @@ class OrderFlowBase(BaseAPITest):
         self.login(self.kitchen)
 
     def new_order(self, **extra):
-        self.anon()
         res = self.place_order(**extra)
         self.assertEqual(res.status_code, 201, res.data)
-        self.login(self.kitchen)
         return res.data['id']
 
     def kitchen_act(self, order_id, action, **extra):
@@ -52,7 +50,7 @@ class KitchenActionTests(OrderFlowBase):
         oid = self.new_order()
         self.kitchen_act(oid, 'START', roundNumber=1)
         self.kitchen_act(oid, 'READY', roundNumber=1)
-        self.anon()
+        self.login(self.waiter)
         self.client.post(f'{API}/orders/{oid}/add-items', {'items': [{'menuItemId': self.item.id, 'quantity': 1}]}, format='json')
         self.login(self.kitchen)
         # Round 1 READY wins over new round 2 PENDING.
@@ -64,7 +62,7 @@ class KitchenActionTests(OrderFlowBase):
         oid = self.new_order()
         for action in ('START', 'READY', 'SERVE'):
             self.kitchen_act(oid, action)
-        self.anon()
+        self.login(self.waiter)
         res = self.client.post(f'{API}/orders/{oid}/add-items', {'items': [{'menuItemId': self.item.id, 'quantity': 1}]}, format='json')
         self.assertEqual(res.data['status'], 'PENDING')
 

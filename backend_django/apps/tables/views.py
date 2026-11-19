@@ -9,7 +9,6 @@ from .serializers import TableSerializer, DiningSessionSerializer
 from apps.orders.services import get_open_order_for_table
 from apps.core.activity import AuditedViewSetMixin, log_activity
 from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager
-from apps.core.throttles import PublicActionThrottle
 
 
 class TableViewSet(AuditedViewSetMixin, ActionPermissionMixin, viewsets.ModelViewSet):
@@ -17,16 +16,13 @@ class TableViewSet(AuditedViewSetMixin, ActionPermissionMixin, viewsets.ModelVie
     queryset = Table.objects.all().order_by('name')
     serializer_class = TableSerializer
     action_permissions = {
-        # Scanning a table QR code starts/joins the dining session.
-        'start_session': [AllowAny],
+        # Dining sessions are opened by staff (public site is view-only).
+        'start_session': [IsStaff],
         'list': [AllowAny],      # public roster: names only for non-staff
         'retrieve': [AllowAny],
         'update_status': [IsStaff],
     }
     default_permissions = [IsManager]
-    throttle_classes = [PublicActionThrottle]
-    public_throttle_scope = 'public_writes'
-    public_throttle_actions = {'start_session'}
 
     @action(detail=True, methods=['patch', 'post'], url_path='status')
     def update_status(self, request, pk=None):
@@ -76,7 +72,7 @@ class DiningSessionViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     queryset = DiningSession.objects.all().select_related('table')
     serializer_class = DiningSessionSerializer
     action_permissions = {
-        'active_sessions': [AllowAny],
+        'active_sessions': [IsStaff],
         'list': [IsStaff],
         'retrieve': [IsStaff],
     }

@@ -76,9 +76,9 @@ class OrderSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        if not self._request_is_staff():
-            # Customers cannot mark their own order as paid.
-            validated_data.pop('payment_status', None)
+        # Payment state only changes through /payments (server-checked amount,
+        # payment record). A "paid" POS order is settled by the view.
+        validated_data.pop('payment_status', None)
         items_data = validated_data.pop('itemsInput', None) or self.initial_data.get('items', [])
         idempotency_key = validated_data.pop('idempotency_key', None)
         if not idempotency_key:

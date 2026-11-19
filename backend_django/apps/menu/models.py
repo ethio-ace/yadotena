@@ -97,15 +97,50 @@ class MenuItem(models.Model):
         super().save(*args, **kwargs)
 
 
+class AddonScope(models.TextChoices):
+    GLOBAL = 'GLOBAL', 'All menu items'
+    CATEGORY = 'CATEGORY', 'One category'
+    ITEM = 'ITEM', 'One menu item'
+
+
 class MenuItemAddon(models.Model):
+    """An extra a customer can add to a dish.
+
+    Scope: global (every item), a category (every item in it) or one item.
+    """
     id = models.CharField(max_length=50, primary_key=True, default=generate_addon_id)
-    menu_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, related_name='custom_addons')
+    menu_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, related_name='custom_addons', null=True, blank=True)
+    category = models.ForeignKey(MenuCategory, on_delete=models.CASCADE, related_name='addons', null=True, blank=True)
+    is_global = models.BooleanField(default=False, db_index=True)
     name = models.CharField(max_length=150)
+    description = models.TextField(blank=True, default='')
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Addon price in ETB")
+    image_url = models.CharField(max_length=500, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     class Meta:
         verbose_name = 'Menu Item Addon'
         verbose_name_plural = 'Menu Item Addons'
+        ordering = ['-is_global', 'sort_order', 'name']
+
+    @property
+    def scope(self):
+        if self.is_global:
+            return AddonScope.GLOBAL
+        if self.category_id:
+            return AddonScope.CATEGORY
+        return AddonScope.ITEM
 
     def __str__(self):
         return f"{self.name} (+{self.price} ETB)"
+
+    @classmethod
+    def applicable_to(cls, menu_item):
+        """Active addons a customer may pick for ``menu_item``."""
+        return cls.objects.filter(is_active=True).filter(
+            models.Q(is_global=True)
+            | models.Q(menu_item=menu_item)
+            | models.Q(category_id=menu_item.category_id, menu_item__isnull=True, is_global=False)
+        )

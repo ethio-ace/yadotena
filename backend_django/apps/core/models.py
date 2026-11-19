@@ -21,3 +21,16 @@ class RestaurantSetting(models.Model):
     def get_settings(cls):
         setting, created = cls.objects.get_or_create(id=1)
         return setting
+
+
+class MediaAsset(models.Model):
+    """One stored upload, keyed by content hash so identical files are kept once."""
+    sha256_hash = models.CharField(max_length=64, unique=True)
+    original_filename = models.CharField(max_length=255, blank=True, default='')
+    storage_key = models.CharField(max_length=512)
+    content_type = models.CharField(max_length=100, default='image/webp')
+    file_size = models.BigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.storage_key

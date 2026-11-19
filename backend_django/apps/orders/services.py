@@ -137,7 +137,7 @@ def validate_items_payload(items_data: list):
         addons = []
         addon_total = Decimal('0.00')
         if addon_ids:
-            addons_qs = MenuItemAddon.objects.filter(menu_item=menu_item, id__in=addon_ids)
+            addons_qs = MenuItemAddon.applicable_to(menu_item).filter(id__in=addon_ids)
             addons = list(addons_qs)
             addon_total = sum((addon.price for addon in addons), Decimal('0.00'))
 

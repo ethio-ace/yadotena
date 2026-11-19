@@ -31,6 +31,7 @@ class OrderItemInputSerializer(serializers.Serializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
+    payments = serializers.SerializerMethodField()
     itemsInput = OrderItemInputSerializer(many=True, write_only=True, required=False)
     paymentStatus = serializers.CharField(source='payment_status', required=False)
     tableId = serializers.CharField(source='table_id', required=False, allow_null=True, allow_blank=True)
@@ -49,7 +50,7 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'id', 'type', 'status', 'paymentStatus', 'items', 'itemsInput',
+            'id', 'type', 'status', 'paymentStatus', 'items', 'payments', 'itemsInput',
             'subtotal', 'tax', 'serviceCharge', 'deliveryFee', 'total',
             'createdAt', 'updatedAt', 'tableId', 'tableName',
             'customerName', 'customerPhone', 'deliveryAddress', 'notes', 'idempotencyKey',
@@ -57,6 +58,10 @@ class OrderSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'status', 'subtotal', 'tax', 'service_charge', 'delivery_fee', 'total']
 
     PRIVATE_FIELDS = ('customerPhone', 'deliveryAddress')
+
+    def get_payments(self, order):
+        from apps.payments.serializers import PaymentSerializer
+        return PaymentSerializer(order.payments.all(), many=True).data
 
     def _request_is_staff(self):
         request = self.context.get('request')

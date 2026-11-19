@@ -6,7 +6,7 @@ from apps.menu.models import MenuCategory, MenuItem, MenuItemAddon
 from apps.tables.models import Table, TableStatus
 from apps.orders.models import Order, OrderItem, OrderStatus, OrderType, PaymentStatus
 from apps.service_requests.models import ServiceRequest, ServiceRequestType, ServiceRequestStatus
-from apps.payments.models import Payment, PaymentMethod
+from apps.payments.models import Payment
 from apps.expenses.models import Expense, ExpenseCategory
 from apps.customers.models import Customer
 from apps.reviews.models import Review
@@ -304,7 +304,7 @@ class Command(BaseCommand):
         Payment.objects.get_or_create(
             order=order2,
             defaults={
-                "method": PaymentMethod.TELEBIRR,
+                "method": "TELEBIRR",
                 "amount": 850.00,
                 "status": PaymentStatus.PAID,
                 "transaction_ref": "TB-88492019"

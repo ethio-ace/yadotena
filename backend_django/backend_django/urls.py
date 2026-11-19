@@ -13,6 +13,17 @@ from django.views.static import serve as serve_static
 def health(_request):
     return JsonResponse({'ok': True})
 
+
+def ready(_request):
+    """Readiness: the database answers. /health stays cheap for keep-alive pings."""
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+    except Exception:
+        return JsonResponse({'ok': False, 'db': False}, status=503)
+    return JsonResponse({'ok': True, 'db': True})
+
 api_v1_patterns = [
     path('auth/', include('apps.authentication.urls')),
     path('', include('apps.authentication.urls')),
@@ -29,7 +40,8 @@ api_v1_patterns = [
 ]
 
 urlpatterns = [
-    path('health/', health, name='health'),
+    re_path(r'^health/?$', health, name='health'),
+    re_path(r'^ready/?$', ready, name='ready'),
     path('admin/', admin.site.urls),
     path('api/v1/', include(api_v1_patterns)),
 ]

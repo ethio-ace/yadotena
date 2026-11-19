@@ -2,6 +2,7 @@ from .routers import optional_slash
 from django.urls import include, path
 from .routers import OptionalSlashRouter
 from .analytics import MenuAnalyticsView, OverviewAnalyticsView, PaymentAnalyticsView, SalesAnalyticsView
+from .views import MediaPresignView, MediaUploadView
 from .views import ActivityLogViewSet, RestaurantSettingView, ReportsSummaryView
 
 router = OptionalSlashRouter()
@@ -14,5 +15,8 @@ urlpatterns = [
     optional_slash('analytics/sales', SalesAnalyticsView.as_view(), name='analytics-sales'),
     optional_slash('analytics/menu', MenuAnalyticsView.as_view(), name='analytics-menu'),
     optional_slash('analytics/payments', PaymentAnalyticsView.as_view(), name='analytics-payments'),
+    optional_slash('media/upload', MediaUploadView.as_view(), name='media-upload'),
+    optional_slash('uploads', MediaUploadView.as_view(), name='media-upload-legacy'),
+    optional_slash('media/presign', MediaPresignView.as_view(), name='media-presign'),
     path('', include(router.urls)),
 ]

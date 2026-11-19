@@ -1,23 +1,21 @@
 from datetime import datetime, time, timedelta
 
-from django.db.models import Q
-from django.utils.dateparse import parse_date, parse_datetime
-from rest_framework import viewsets
-from apps.authentication.models import User
-from .models import ActivityLog
-from .serializers import ActivityLogSerializer
-from .permissions import user_role
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import permissions, status
-from django.db.models import Sum, Count, Avg
+from django.db.models import Q, Sum
 from django.utils import timezone
-from .models import RestaurantSetting
-from .serializers import RestaurantSettingSerializer
-from .activity import log_activity
-from .permissions import AllowAny, IsManager, IsOwner
-from apps.orders.models import Order, OrderItem
+from django.utils.dateparse import parse_date, parse_datetime
+from rest_framework import status, viewsets
+from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from apps.authentication.models import User
 from apps.expenses.models import Expense
+from apps.orders.models import Order, OrderItem
+from .activity import log_activity
+from .media import absolute_url, save_image
+from .models import ActivityLog, RestaurantSetting
+from .permissions import AllowAny, IsManager, IsOwner, user_role
+from .serializers import ActivityLogSerializer, RestaurantSettingSerializer
 
 class RestaurantSettingView(APIView):
     def get_permissions(self):
@@ -130,3 +128,25 @@ def _parse_bound(value, end=False):
         return None
     moment = timezone.make_aware(datetime.combine(day, time.min))
     return moment + timedelta(days=1) if end else moment
+
+
+class MediaUploadView(APIView):
+    """POST multipart ``file`` (or ``image``) -> {url, publicUrl}. Managers only."""
+    permission_classes = [IsManager]
+
+    def post(self, request):
+        upload = request.FILES.get('file') or request.FILES.get('image')
+        if upload is None:
+            raise ValidationError({'file': 'Attach an image as "file".'})
+        url = absolute_url(request, save_image(upload, folder='uploads'))
+        log_activity(request, 'UPLOAD_MEDIA', 'MEDIA', url.rsplit('/', 1)[-1], f'Uploaded image {upload.name}')
+        return Response({'url': url, 'publicUrl': url}, status=status.HTTP_201_CREATED)
+
+
+class MediaPresignView(APIView):
+    """Direct-to-bucket uploads are not used; clients fall back to /media/upload."""
+    permission_classes = [IsManager]
+
+    def post(self, request):
+        return Response({'detail': 'Presigned uploads are not supported; use /media/upload.'},
+                        status=status.HTTP_501_NOT_IMPLEMENTED)

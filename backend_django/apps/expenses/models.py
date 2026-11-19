@@ -19,11 +19,14 @@ def generate_expense_id():
 class Expense(models.Model):
     id = models.CharField(max_length=50, primary_key=True, default=generate_expense_id)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    category = models.CharField(max_length=50, choices=ExpenseCategory.choices, default=ExpenseCategory.DAIRY_SUPPLIES)
+    # Free text: the expense form offers descriptive categories (ExpenseCategory
+    # values are suggestions, not a closed list).
+    category = models.CharField(max_length=100, default=ExpenseCategory.DAIRY_SUPPLIES)
     description = models.TextField()
     date = models.DateField(default=timezone.now)
     recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_expenses')
     payment_method = models.CharField(max_length=50, default='Cash')
+    reference = models.CharField(max_length=120, blank=True, default='')
     receipt_url = models.URLField(max_length=500, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -294,3 +294,52 @@ class AnalyticsTests(BaseAPITest):
         self.assertAlmostEqual(pay['collected'], total_a, places=2)
         self.assertEqual(pay['methods'][0]['method'], 'CASH')
         self.assertAlmostEqual(pay['outstanding'], total_b, places=2)
+
+
+class SettingsExpensesMediaTests(BaseAPITest):
+    def test_settings_use_go_field_names_and_accept_legacy(self):
+        data = self.client.get(f'{API}/settings').json()
+        for key in ('restaurantName', 'serviceChargePercent', 'vatPercent', 'guestWifiSsid', 'serviceCharge'):
+            self.assertIn(key, data)
+        self.login(self.owner)
+        res = self.client.put(f'{API}/settings', {'vatPercent': 12, 'guestWifiSsid': 'Cafe'}, format='json')
+        self.assertEqual(res.status_code, 200, res.json())
+        self.assertEqual(float(res.json()['vatPercent']), 12.0)
+        res = self.client.put(f'{API}/settings', {'serviceCharge': 5}, format='json')
+        self.assertEqual(float(res.json()['serviceChargePercent']), 5.0)
+        self.assertEqual(self.client.put(f'{API}/settings', {'vatPercent': 150}, format='json').status_code, 400)
+
+    def test_expense_from_frontend_form(self):
+        self.login(self.manager)
+        res = self.client.post(f'{API}/expenses', {
+            'category': 'Dairy Supplies (Raw Milk, Butter, Honey)', 'description': '300 L raw milk',
+            'amount': 14500, 'paymentMethod': 'Telebirr Merchant', 'reference': 'TXN-1',
+            'date': '2026-11-18T21:30:00.000Z',
+        }, format='json')
+        self.assertEqual(res.status_code, 201, res.json())
+        body = res.json()
+        self.assertEqual(body['reference'], 'TXN-1')
+        self.assertEqual(body['recordedById'], str(self.manager.id))
+        self.assertEqual(body['date'], '2026-11-19')  # 21:30Z is past midnight in Addis Ababa
+        self.assertEqual(self.client.post(f'{API}/expenses', {'category': 'x', 'description': 'y', 'amount': -5}, format='json').status_code, 400)
+
+    def test_media_upload_and_presign_fallback(self):
+        import shutil, tempfile
+        from django.test import override_settings
+        from apps.menu.tests import png_upload
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, True)
+        self.login(self.manager)
+        self.assertEqual(self.client.post(f'{API}/media/presign', {'filename': 'a.png'}, format='json').status_code, 501)
+        with override_settings(MEDIA_ROOT=media):
+            first = self.client.post(f'{API}/media/upload', {'file': png_upload()}, format='multipart')
+            again = self.client.post(f'{API}/media/upload', {'file': png_upload('copy.png')}, format='multipart')
+        self.assertEqual(first.status_code, 201, first.json())
+        self.assertTrue(first.json()['publicUrl'].startswith('http://testserver/media/uploads/'))
+        self.assertEqual(first.json()['url'], again.json()['url'])  # same bytes stored once
+        self.login(self.waiter)
+        self.assertEqual(self.client.post(f'{API}/media/upload', {'file': png_upload()}, format='multipart').status_code, 403)
+
+    def test_health_and_ready(self):
+        self.assertEqual(self.client.get('/health').status_code, 200)
+        self.assertEqual(self.client.get('/ready/').json(), {'ok': True, 'db': True})

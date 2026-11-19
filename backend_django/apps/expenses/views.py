@@ -8,6 +8,10 @@ from apps.core.permissions import IsManager
 
 class ExpenseViewSet(AuditedViewSetMixin, viewsets.ModelViewSet):
     audit_entity = 'EXPENSE'
+
+    def get_save_kwargs(self):
+        # The signed-in manager records the expense; clients cannot impersonate.
+        return {'recorded_by': self.request.user} if self.action == 'create' else {}
     queryset = Expense.objects.all().select_related('recorded_by')
     serializer_class = ExpenseSerializer
     permission_classes = [IsManager]

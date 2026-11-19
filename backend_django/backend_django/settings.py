@@ -134,18 +134,23 @@ WSGI_APPLICATION = 'backend_django.wsgi.application'
 
 # --- Database --------------------------------------------------------------
 
+import django  # noqa: E402
+
+# WAL lets the POS read while another request writes; IMMEDIATE takes the
+# write lock up front so concurrent order writes queue instead of failing
+# with "database is locked" mid-transaction.
+SQLITE_PRAGMAS = 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;'
+_sqlite_options = {'timeout': 20}
+if django.VERSION >= (5, 1):
+    _sqlite_options.update(init_command=SQLITE_PRAGMAS, transaction_mode='IMMEDIATE')
+# Older Django (e.g. 4.2 on a Python 3.8 host) rejects those options; the same
+# pragmas are applied per connection in apps.core.apps instead.
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': env('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3')),
-        'OPTIONS': {
-            'timeout': 20,
-            # WAL lets the POS read while another request writes; IMMEDIATE
-            # takes the write lock up front so concurrent order writes queue
-            # instead of failing with "database is locked" mid-transaction.
-            'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
-            'transaction_mode': 'IMMEDIATE',
-        },
+        'OPTIONS': _sqlite_options,
     }
 }
 

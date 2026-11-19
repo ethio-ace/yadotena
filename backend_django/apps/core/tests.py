@@ -247,3 +247,50 @@ class ActivityLogTests(BaseAPITest):
     def test_floor_staff_cannot_read_logs(self):
         self.login(self.waiter)
         self.assertEqual(self.client.get(f'{API}/activity-logs').status_code, 403)
+
+
+class AnalyticsTests(BaseAPITest):
+    def test_period_presets(self):
+        from datetime import date
+        from apps.core.analytics import resolve_period
+        wed = date(2026, 11, 18)  # a Wednesday
+        self.assertEqual(resolve_period({'period': 'today'}, wed), (wed, wed, date(2026, 11, 17), date(2026, 11, 17)))
+        self.assertEqual(resolve_period({'period': 'this_week'}, wed)[:2], (date(2026, 11, 16), wed))
+        self.assertEqual(resolve_period({'period': 'last_week'}, wed), (date(2026, 11, 9), date(2026, 11, 15), date(2026, 11, 2), date(2026, 11, 8)))
+        self.assertEqual(resolve_period({'period': 'last_month'}, wed), (date(2026, 10, 1), date(2026, 10, 31), date(2026, 9, 1), date(2026, 9, 30)))
+        self.assertEqual(resolve_period({'period': 'this_year'}, wed)[2:], (date(2025, 1, 1), date(2025, 12, 31)))
+        custom = resolve_period({'period': 'custom', 'start': '2026-11-10', 'end': '2026-11-01'}, wed)
+        self.assertEqual(custom, (date(2026, 11, 1), date(2026, 11, 10), date(2026, 10, 22), date(2026, 10, 31)))
+
+    def test_endpoints_compute_and_require_manager(self):
+        a = self.place_order(items=[{'menuItemId': self.item.id, 'quantity': 2}]).json()['id']
+        b = self.place_order().json()['id']
+        cancelled = self.place_order(items=[{'menuItemId': self.item.id, 'quantity': 5}]).json()['id']
+        Order.objects.filter(id=cancelled).update(status='CANCELLED')
+        self.login(self.waiter)
+        self.client.post(f'{API}/payments', {'orderId': a, 'method': 'CASH'}, format='json')
+        self.assertEqual(self.client.get(f'{API}/analytics/overview').status_code, 403)
+
+        self.login(self.manager)
+        total_a, total_b = (float(Order.objects.get(id=x).total) for x in (a, b))
+        ov = self.client.get(f'{API}/analytics/overview?period=today').json()
+        self.assertEqual(ov['orders']['current'], 2)
+        self.assertAlmostEqual(ov['revenue']['current'], total_a + total_b, places=2)
+        self.assertAlmostEqual(ov['unpaidAmount'], total_b, places=2)
+        self.assertEqual(len(ov['revenueTrend']), 24)
+        self.assertEqual(ov['topSellers'][0]['units'], 3)
+
+        sales = self.client.get(f'{API}/analytics/sales?period=this_month').json()
+        self.assertEqual(sales['itemsSold']['current'], 3)
+        self.assertEqual(sum(h['orders'] for h in sales['hourlySales']), 2)
+        self.assertEqual(sales['categorySales'][0]['category'], 'Drinks')
+
+        menu = self.client.get(f'{API}/analytics/menu?period=today').json()
+        self.assertEqual(menu['bestSeller'], 'Milk')
+        self.assertEqual(menu['items'][0]['unitsSold'], 3)
+
+        pay = self.client.get(f'{API}/analytics/payments?period=today').json()
+        self.assertEqual(pay['paymentCount'], 1)
+        self.assertAlmostEqual(pay['collected'], total_a, places=2)
+        self.assertEqual(pay['methods'][0]['method'], 'CASH')
+        self.assertAlmostEqual(pay['outstanding'], total_b, places=2)

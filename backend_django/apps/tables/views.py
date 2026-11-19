@@ -19,8 +19,8 @@ class TableViewSet(AuditedViewSetMixin, ActionPermissionMixin, viewsets.ModelVie
     action_permissions = {
         # Scanning a table QR code starts/joins the dining session.
         'start_session': [AllowAny],
-        'list': [IsStaff],
-        'retrieve': [IsStaff],
+        'list': [AllowAny],      # public roster: names only for non-staff
+        'retrieve': [AllowAny],
         'update_status': [IsStaff],
     }
     default_permissions = [IsManager]
@@ -43,7 +43,7 @@ class TableViewSet(AuditedViewSetMixin, ActionPermissionMixin, viewsets.ModelVie
         log_activity(request, 'UPDATE_TABLE_STATUS', 'TABLE', table.pk, f'{table.name} is now {table.status}',
                      prev={'status': previous}, next={'status': table.status})
         publish_event('yadotena-realtime', 'table.updated', {'id': str(table.id), 'status': table.status})
-        return Response(TableSerializer(table).data, status=status.HTTP_200_OK)
+        return Response(self.get_serializer(table).data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='start-session')
     def start_session(self, request, pk=None):

@@ -3,6 +3,7 @@ import re
 from rest_framework import serializers
 from .models import Table, DiningSession, generate_qr_token
 from apps.orders.services import get_open_order_for_table
+from apps.core.permissions import is_staff_user
 
 class TableSerializer(serializers.ModelSerializer):
     id = serializers.CharField(required=False, allow_blank=True)
@@ -12,6 +13,19 @@ class TableSerializer(serializers.ModelSerializer):
     class Meta:
         model = Table
         fields = ['id', 'name', 'capacity', 'status', 'qrToken', 'currentOrderId']
+
+    # The public roster (customer receipt page) only needs names: hiding the
+    # QR token and open order id stops anyone from forging table QR codes or
+    # walking to other diners' orders.
+    STAFF_ONLY_FIELDS = ('qrToken', 'currentOrderId')
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if not (request and is_staff_user(request.user)):
+            for field in self.STAFF_ONLY_FIELDS:
+                data.pop(field, None)
+        return data
 
     def create(self, validated_data):
         table_id = validated_data.get('id')

@@ -99,9 +99,20 @@ class LoginTests(BaseAPITest):
 class AnonymousAccessTests(BaseAPITest):
     def test_back_office_endpoints_require_auth(self):
         for url in ['/users/', '/orders/', '/expenses/', '/customers/', '/payments/', '/reviews/',
-                    '/reports/summary/', '/products/', '/service-requests/', '/tables/']:
+                    '/reports/summary/', '/products/', '/service-requests/']:
             res = self.client.get(f'{API}{url}')
             self.assertIn(res.status_code, (401, 403), url)
+
+    def test_public_table_roster_hides_qr_and_open_order(self):
+        rows = self.client.get(f'{API}/tables').json()
+        self.assertEqual(rows[0]['name'], 'Table 01')
+        self.assertNotIn('qrToken', rows[0])
+        self.assertNotIn('currentOrderId', rows[0])
+        self.assertIn(self.client.post(f'{API}/tables', {'name': 'x'}, format='json').status_code, (401, 403))
+        self.login(self.waiter)
+        self.assertIn('qrToken', self.client.get(f'{API}/tables').json()[0])
+        res = self.client.post(f'{API}/tables/t1/status', {'status': 'CLEANING'}, format='json')
+        self.assertIn('qrToken', res.json())
 
     def test_anonymous_cannot_create_owner(self):
         res = self.client.post(f'{API}/users/', {'email': 'evil@x.com', 'password': 'whatever123', 'role': 'OWNER'}, format='json')

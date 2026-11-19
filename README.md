@@ -41,11 +41,12 @@ npm run dev
 
 ## Access model
 
-- **Public** (no login): menu, categories, addons, settings, payment methods,
-  placing an order, viewing/looking up an order by its id, adding items,
-  calling a waiter, reviews, the Ably token.
-- **Waiter / kitchen**: orders and kitchen actions, tables, service
-  requests, marking dishes sold out, recording payments.
+- **Public** (no login, view-only): menu, categories, addons, settings,
+  payment methods, table names, tracking an order by its id or receipt
+  number, calling a waiter, reviews, the Ably token.
+- **Waiter / kitchen**: placing and extending orders, kitchen actions,
+  tables and dining sessions, service requests, marking dishes sold out,
+  recording payments.
 - **Manager / owner**: menu and addon editing, staff, expenses, payment
   history and methods, analytics, activity log, products, uploads.
 - **Owner only**: restaurant settings and owner accounts.

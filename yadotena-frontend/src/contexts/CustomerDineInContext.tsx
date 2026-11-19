@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { MenuItem, Table, Order } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
+import { resolveTable } from "@/lib/tableUtils";
 
 export interface SelectedAddon {
   id: string;
@@ -22,7 +23,10 @@ export interface CustomerCartItem {
 }
 
 interface CustomerDineInContextType {
+  /** A real table id from the roster — never a raw QR/typed code. */
   tableId: string | null;
+  /** A code we were given (QR, typed, remembered) that matches no table. */
+  unmatchedTableCode: string | null;
   tableName: string;
   activeTable: Table | null;
   /** The open order this device placed for its table (tracked by id — guests can't list orders). */
@@ -72,24 +76,23 @@ const writeStorage = (key: string, value: string | null) => {
 const CustomerDineInContext = createContext<CustomerDineInContextType | undefined>(undefined);
 
 export function CustomerDineInProvider({ children }: { children: React.ReactNode }) {
-  const [tableId, setTableIdState] = useState<string | null>(null);
+  // Whatever code we were handed; resolved against the roster below.
+  const [tableCode, setTableCode] = useState<string | null>(null);
   const [cart, setCart] = useState<CustomerCartItem[]>([]);
-  const [myOrderId, setMyOrderId] = useState<string | null>(null);
+  // Bumped when this device places an order, to re-read the remembered id.
+  const [orderVersion, setOrderVersion] = useState(0);
   const [lastAddedAt, setLastAddedAt] = useState(0);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isTablePickerOpen, setIsTablePickerOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const { data: tables = [] } = useQuery({ queryKey: ["tables"], queryFn: api.tables.getAll });
+  const { data: tables = [], isSuccess: tablesLoaded } = useQuery({ queryKey: ["tables"], queryFn: api.tables.getAll });
 
   // Restore table, cart and this device's last order from storage.
   useEffect(() => {
     const savedTable = readStorage(STORAGE_TABLE_KEY);
-    if (savedTable) {
-      setTableIdState(savedTable);
-      setMyOrderId(readStorage(orderKey(savedTable)));
-    }
+    if (savedTable) setTableCode(savedTable);
     try {
       const savedCart = readStorage(STORAGE_CART_KEY);
       if (savedCart) setCart(JSON.parse(savedCart));
@@ -103,17 +106,24 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
     if (isInitialized) writeStorage(STORAGE_CART_KEY, JSON.stringify(cart));
   }, [cart, isInitialized]);
 
-  const setTableId = useCallback((id: string | null) => {
-    setTableIdState(id);
-    writeStorage(STORAGE_TABLE_KEY, id);
-    setMyOrderId(id ? readStorage(orderKey(id)) : null);
-  }, []);
+  const activeTable = useMemo(() => resolveTable(tableCode, tables) || null, [tableCode, tables]);
+  const tableId = activeTable?.id ?? null;
+  const unmatchedTableCode = tableCode && tablesLoaded && !activeTable ? tableCode : null;
+
+  const setTableId = useCallback((code: string | null) => {
+    // Store the canonical id when we can already resolve it.
+    const canonical = code ? resolveTable(code, tables)?.id || code : null;
+    setTableCode(canonical);
+    writeStorage(STORAGE_TABLE_KEY, canonical);
+  }, [tables]);
   const clearTable = () => setTableId(null);
 
   const rememberOrder = useCallback((orderId: string) => {
-    setMyOrderId(orderId);
     if (tableId) writeStorage(orderKey(tableId), orderId);
+    setOrderVersion((v) => v + 1);
   }, [tableId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- orderVersion re-reads storage after rememberOrder
+  const myOrderId = useMemo(() => (tableId ? readStorage(orderKey(tableId)) : null), [tableId, orderVersion]);
 
   // Public endpoint: an order can be read by its (unguessable) id.
   const { data: myOrder } = useQuery({
@@ -125,14 +135,8 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
   const activeTableOrder =
     myOrder && myOrder.status !== "COMPLETED" && myOrder.status !== "CANCELLED" ? myOrder : null;
 
-  const activeTable = useMemo(
-    () => (tableId ? tables.find((t) => t.id === tableId || t.name === tableId) || null : null),
-    [tableId, tables]
-  );
-  const tableName = useMemo(() => {
-    if (!tableId) return "";
-    return activeTable?.name || `Table ${tableId.replace(/^(tbl-|t)/i, "")}`;
-  }, [tableId, activeTable]);
+  // Only ever a real table's name — no invented "Table 4" for unknown codes.
+  const tableName = activeTable?.name || "";
 
   const addToCart = (menuItem: MenuItem, quantity: number, selectedAddons: SelectedAddon[], specialInstructions: string) => {
     const unitPrice = menuItem.price + selectedAddons.reduce((sum, a) => sum + (a.price || 0), 0);
@@ -177,7 +181,7 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
   return (
     <CustomerDineInContext.Provider
       value={{
-        tableId, tableName, activeTable, activeTableOrder, rememberOrder,
+        tableId, unmatchedTableCode, tableName, activeTable, activeTableOrder, rememberOrder,
         cart, setTableId, clearTable, addToCart, updateCartItemQty, removeFromCart, clearCart,
         qtyInCart, decrementItem, itemCount, subtotal, total: subtotal, lastAddedAt,
         isCartOpen, setIsCartOpen, isTablePickerOpen, setIsTablePickerOpen, isQRScannerOpen, setIsQRScannerOpen,

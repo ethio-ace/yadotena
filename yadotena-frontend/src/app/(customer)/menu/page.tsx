@@ -35,12 +35,13 @@ function MenuContent() {
 
   const searchParams = useSearchParams();
   const tableParam = searchParams.get("table");
-  const { tableId, tableName, setTableId, setIsTablePickerOpen, activeTableOrder } = useCustomerDineIn();
+  const { tableId, tableName, unmatchedTableCode, setTableId, setIsTablePickerOpen, activeTableOrder } = useCustomerDineIn();
 
-  // Scanning a table QR (…/menu?table=t4) connects the table.
+  // Scanning a table QR (…/menu?table=t4) connects the table; the context
+  // resolves the code against the real roster.
   useEffect(() => {
-    if (tableParam && tableParam !== tableId) setTableId(tableParam);
-  }, [tableParam, tableId, setTableId]);
+    if (tableParam) setTableId(tableParam);
+  }, [tableParam, setTableId]);
 
   const [search, setSearch] = useState("");
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
@@ -148,7 +149,11 @@ function MenuContent() {
             </span>
             <span className="flex-1">
               <span className="block font-black leading-tight">Choose your table to order</span>
-              <span className="block text-xs text-muted-foreground">Or scan the QR code on your table. You can browse first.</span>
+              <span className="block text-xs text-muted-foreground">
+                {unmatchedTableCode
+                  ? `We couldn't find a table called “${unmatchedTableCode}”. Tap to pick yours from the list.`
+                  : "Or scan the QR code on your table. You can browse first."}
+              </span>
             </span>
           </button>
         )}

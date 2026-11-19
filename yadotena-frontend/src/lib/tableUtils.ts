@@ -57,3 +57,23 @@ export function findActiveOrderForTable(table?: Table | null, orders?: Order[] |
   return aliasMatch;
 }
 
+
+/**
+ * Resolve whatever a guest gave us — a QR `?table=` code, a typed number
+ * ("4", "Table 04", "tbl-04"), or a code remembered from an older build — to a
+ * real table on the roster. Returns undefined when nothing matches, so callers
+ * never send the API a table id that does not exist.
+ */
+export function resolveTable(code?: string | null, tables?: Table[] | null): Table | undefined {
+  if (!code || !tables || tables.length === 0) return undefined;
+  const raw = code.trim();
+  const exact = tables.find((t) => t.id === raw) || tables.find((t) => t.name?.toLowerCase() === raw.toLowerCase());
+  if (exact) return exact;
+  const norm = (s?: string) =>
+    (s || "").toLowerCase().trim().replace(/^(table\s*|tbl-?|t)/i, "").trim().replace(/^0+(?=\d)/, "");
+  const target = norm(raw);
+  if (!target) return undefined;
+  const matches = tables.filter((t) => norm(t.id) === target || norm(t.name) === target);
+  // Only accept an unambiguous alias match.
+  return matches.length === 1 ? matches[0] : undefined;
+}

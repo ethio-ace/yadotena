@@ -9,6 +9,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.authtoken.models import Token
 
+from apps.core.activity import AuditedViewSetMixin, log_activity
 from apps.core.ably_utils import create_token_request, REALTIME_CHANNEL
 from apps.core.permissions import IsManager, user_role
 from .models import User, UserStatus
@@ -16,7 +17,8 @@ from .serializers import UserSerializer, LoginSerializer
 from .tokens import issue_token, token_expires_at
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(AuditedViewSetMixin, viewsets.ModelViewSet):
+    audit_entity = 'STAFF'
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
     permission_classes = [IsManager]
@@ -32,13 +34,13 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         self._guard_target(serializer.instance)
-        serializer.save()
+        super().perform_update(serializer)
 
     def perform_destroy(self, instance):
         self._guard_target(instance)
         if instance.pk == self.request.user.pk:
             raise ValidationError('You cannot delete your own account.')
-        instance.delete()
+        super().perform_destroy(instance)
 
     @action(detail=True, methods=['post'], url_path='toggle-status')
     def toggle_status(self, request, pk=None):
@@ -51,6 +53,9 @@ class UserViewSet(viewsets.ModelViewSet):
         user.save()
         if not user.is_active:
             Token.objects.filter(user=user).delete()
+        log_activity(request, 'TOGGLE_STAFF_STATUS', 'STAFF', user.pk,
+                     f'{"Activated" if user.is_active else "Deactivated"} {user.name or user.email}',
+                     next={'status': user.status})
         return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
 
 
@@ -65,6 +70,7 @@ class LoginView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         token = issue_token(user)
+        log_activity(request, 'LOGIN', 'STAFF', user.pk, f'{user.name or user.email} signed in', user=user)
         return Response({
             'user': UserSerializer(user).data,
             'token': token.key,

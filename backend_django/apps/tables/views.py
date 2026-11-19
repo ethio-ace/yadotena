@@ -7,11 +7,13 @@ from apps.core.ably_utils import publish_event
 from .models import Table, DiningSession
 from .serializers import TableSerializer, DiningSessionSerializer
 from apps.orders.services import get_open_order_for_table
+from apps.core.activity import AuditedViewSetMixin, log_activity
 from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager
 from apps.core.throttles import PublicActionThrottle
 
 
-class TableViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
+class TableViewSet(AuditedViewSetMixin, ActionPermissionMixin, viewsets.ModelViewSet):
+    audit_entity = 'TABLE'
     queryset = Table.objects.all().order_by('name')
     serializer_class = TableSerializer
     action_permissions = {
@@ -36,7 +38,10 @@ class TableViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         table.status = new_status
         if 'currentOrderId' in request.data:
             table.current_order_id = request.data['currentOrderId']
+        previous = Table.objects.filter(pk=table.pk).values_list('status', flat=True).first()
         table.save()
+        log_activity(request, 'UPDATE_TABLE_STATUS', 'TABLE', table.pk, f'{table.name} is now {table.status}',
+                     prev={'status': previous}, next={'status': table.status})
         publish_event('yadotena-realtime', 'table.updated', {'id': str(table.id), 'status': table.status})
         return Response(TableSerializer(table).data, status=status.HTTP_200_OK)
 

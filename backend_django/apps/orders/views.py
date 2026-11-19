@@ -9,6 +9,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Order
 from .serializers import OrderSerializer, OrderItemInputSerializer
 from . import services
+from apps.core.activity import log_activity
 from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager
 from apps.core.throttles import PublicActionThrottle
 
@@ -66,6 +67,13 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
             qs = qs.filter(updated_at__gte=parsed)
         return qs
 
+    def perform_create(self, serializer):
+        order = serializer.save()
+        who = order.customer_name or (order.table.name if order.table else 'walk-in')
+        log_activity(self.request, 'CREATE_ORDER', 'ORDER', order.pk,
+                     f'Order #{order.pk} placed ({order.type}, {who}, ETB {order.total:.2f})',
+                     next={'status': order.status, 'total': order.total, 'type': order.type})
+
     def partial_update(self, request, *args, **kwargs):
         # PATCH /orders/{id} {"status": ...} is a status change (Go parity).
         if 'status' in request.data:
@@ -92,7 +100,11 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         new_status = request.data.get('status')
         if not new_status:
             raise DRFValidationError({'status': 'Status is required'})
+        previous = order.status
         order = services.update_order_status(order, new_status)
+        log_activity(request, 'UPDATE_ORDER_STATUS', 'ORDER', order.pk,
+                     f'Updated Order #{order.pk} status from {previous} to {order.status}',
+                     prev={'status': previous}, next={'status': order.status})
         return Response(self._serialize(order))
 
     @action(detail=True, methods=['post'], url_path='kitchen')
@@ -108,6 +120,10 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
             raise DRFValidationError({'itemIds': 'Must be a list.'})
         order = services.kitchen_action(order, request.data.get('action'),
                                         round_number=round_number, item_ids=item_ids)
+        action_name = str(request.data.get('action')).upper()
+        log_activity(request, 'KITCHEN_ACTION', 'ORDER', order.pk,
+                     f'Kitchen {action_name} on Order #{order.pk} (round {round_number or "all"})',
+                     next={'action': action_name, 'round': round_number, 'status': order.status})
         return Response(self._serialize(order))
 
     @action(detail=True, methods=['post'], url_path='add-items')
@@ -116,6 +132,9 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         input_serializer = OrderItemInputSerializer(data=request.data.get('items', []), many=True)
         input_serializer.is_valid(raise_exception=True)
         order = services.add_items_to_order(order, input_serializer.validated_data)
+        log_activity(request, 'APPEND_ORDER_ITEMS', 'ORDER', order.pk,
+                     f'Added {len(input_serializer.validated_data)} item(s) to Order #{order.pk}',
+                     next={'total': order.total})
         return Response(self._serialize(order))
 
     def _serialize(self, order):

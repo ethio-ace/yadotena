@@ -14,3 +14,22 @@ class RestaurantSettingSerializer(serializers.ModelSerializer):
             'restaurantName', 'phone', 'address', 'serviceCharge', 'vat',
             'guestWifiSSID', 'guestWifiPassword'
         ]
+
+
+class ActivityLogSerializer(serializers.ModelSerializer):
+    userId = serializers.CharField(source='user_id')
+    userName = serializers.CharField(source='user_name')
+    userRole = serializers.CharField(source='user_role')
+    entityType = serializers.CharField(source='entity_type')
+    entityId = serializers.CharField(source='entity_id')
+    prevState = serializers.JSONField(source='prev_state')
+    nextState = serializers.JSONField(source='next_state')
+    ipAddress = serializers.CharField(source='ip_address')
+    createdAt = serializers.DateTimeField(source='created_at')
+
+    class Meta:
+        from .models import ActivityLog
+        model = ActivityLog
+        fields = ['id', 'userId', 'userName', 'userRole', 'action', 'entityType', 'entityId',
+                  'description', 'prevState', 'nextState', 'ipAddress', 'createdAt']
+        read_only_fields = fields

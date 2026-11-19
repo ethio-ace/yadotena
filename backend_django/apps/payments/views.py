@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 
+from apps.core.activity import AuditedViewSetMixin, log_activity
 from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager, is_manager_user
 from .models import Payment, PaymentMethod
 from .serializers import PaymentCreateSerializer, PaymentMethodSerializer, PaymentSerializer
@@ -34,11 +35,16 @@ class PaymentViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
             notes=d.get('notes') or '',
             recorded_by=request.user,
         )
+        if created:
+            log_activity(request, 'SETTLE_PAYMENT', 'PAYMENT', payment.pk,
+                         f'Settled ETB {payment.amount:.2f} via {payment.method} for Order #{payment.order_id}',
+                         next=PaymentSerializer(payment).data)
         return Response(PaymentSerializer(payment).data,
                         status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
-class PaymentMethodViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
+class PaymentMethodViewSet(AuditedViewSetMixin, ActionPermissionMixin, viewsets.ModelViewSet):
+    audit_entity = 'PAYMENT_METHOD'
     serializer_class = PaymentMethodSerializer
     # Customers see active methods (account numbers to transfer to).
     action_permissions = {'list': [AllowAny], 'retrieve': [AllowAny]}

@@ -7,6 +7,7 @@ from rest_framework.filters import OrderingFilter
 from apps.core.ably_utils import publish_event
 from .models import ServiceRequest
 from .serializers import ServiceRequestSerializer
+from apps.core.activity import log_activity
 from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager
 from apps.core.throttles import PublicActionThrottle
 
@@ -44,6 +45,8 @@ class ServiceRequestViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
                 req.table.status = 'OCCUPIED'
                 req.table.save()
 
+        log_activity(request, 'RESOLVE_SERVICE_REQUEST', 'SERVICE_REQUEST', req.pk,
+                     f'Resolved {req.type} request' + (f' for {req.table.name}' if req.table else ''))
         publish_event('yadotena-realtime', 'service_request.resolved', {'id': req.id, 'table_id': str(req.table.id) if req.table else None})
 
         return Response(ServiceRequestSerializer(req).data, status=status.HTTP_200_OK)

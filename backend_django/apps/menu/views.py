@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+from apps.core.activity import AuditedViewSetMixin, log_activity
 from apps.core.media import save_image
 from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager, is_manager_user
 from .models import AddonScope, MenuCategory, MenuItem, MenuItemAddon
@@ -12,7 +13,8 @@ from .serializers import AddonSerializer, MenuCategorySerializer, MenuItemSerial
 POPULAR_ORDER_STATUSES = ['PENDING', 'PREPARING', 'READY', 'SERVED', 'COMPLETED']
 
 
-class MenuCategoryViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
+class MenuCategoryViewSet(AuditedViewSetMixin, ActionPermissionMixin, viewsets.ModelViewSet):
+    audit_entity = 'CATEGORY'
     queryset = MenuCategory.objects.all().order_by('sort_order', 'name')
     serializer_class = MenuCategorySerializer
     action_permissions = {'list': [AllowAny], 'retrieve': [AllowAny]}
@@ -20,7 +22,8 @@ class MenuCategoryViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     filter_backends = [OrderingFilter]
     ordering_fields = ['sort_order', 'name']
 
-class MenuItemViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
+class MenuItemViewSet(AuditedViewSetMixin, ActionPermissionMixin, viewsets.ModelViewSet):
+    audit_entity = 'MENU_ITEM'
     queryset = MenuItem.objects.all().prefetch_related('custom_addons').select_related('category')
     serializer_class = MenuItemSerializer
     action_permissions = {
@@ -52,6 +55,9 @@ class MenuItemViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         item = self.get_object()
         item.available = not item.available
         item.save()
+        log_activity(request, 'TOGGLE_AVAILABILITY', 'MENU_ITEM', item.pk,
+                     f'Marked "{item.name}" as {"available" if item.available else "sold out"}',
+                     prev={'available': not item.available}, next={'available': item.available})
         return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], url_path='popular')
@@ -83,7 +89,8 @@ class MenuItemViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         return Response(AddonSerializer(qs, many=True, context={'request': request}).data)
 
 
-class AddonViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
+class AddonViewSet(AuditedViewSetMixin, ActionPermissionMixin, viewsets.ModelViewSet):
+    audit_entity = 'ADDON'
     serializer_class = AddonSerializer
     action_permissions = {'list': [AllowAny], 'retrieve': [AllowAny]}
     default_permissions = [IsManager]
@@ -112,14 +119,6 @@ class AddonViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
             qs = qs.filter(is_active=params['active'] == 'true')
         return qs
 
-    def _image_url(self):
+    def get_save_kwargs(self):
         upload = self.request.FILES.get('image')
-        return save_image(upload, folder='addons') if upload else None
-
-    def perform_create(self, serializer):
-        image_url = self._image_url()
-        serializer.save(**({'image_url': image_url} if image_url else {}))
-
-    def perform_update(self, serializer):
-        image_url = self._image_url()
-        serializer.save(**({'image_url': image_url} if image_url else {}))
+        return {'image_url': save_image(upload, folder='addons')} if upload else {}

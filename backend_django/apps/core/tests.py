@@ -211,3 +211,39 @@ class UrlCompatibilityTests(BaseAPITest):
         order_id = Order.objects.first().id
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {res.data['token']}")
         self.assertEqual(self.client.post(f'{API}/orders/{order_id}/status', {'status': 'PREPARING'}, format='json').status_code, 200)
+
+
+class ActivityLogTests(BaseAPITest):
+    def test_write_paths_are_logged_with_actor_and_snapshots(self):
+        from apps.core.models import ActivityLog
+        order_id = self.place_order().json()['id']
+        self.login(self.kitchen)
+        self.client.post(f'{API}/orders/{order_id}/kitchen', {'action': 'START'}, format='json')
+        self.login(self.manager)
+        self.client.patch(f'{API}/menu/{self.item.id}', {'price': '55.00'}, format='json')
+        actions = list(ActivityLog.objects.order_by('created_at').values_list('action', 'user_role'))
+        self.assertEqual(actions, [('CREATE_ORDER', 'CUSTOMER'), ('KITCHEN_ACTION', 'KITCHEN'), ('UPDATE_MENU_ITEM', 'MANAGER')])
+        update = ActivityLog.objects.get(action='UPDATE_MENU_ITEM')
+        self.assertEqual(float(update.prev_state['price']), 50.0)
+        self.assertEqual(float(update.next_state['price']), 55.0)
+
+    def test_list_filters_and_manager_cannot_see_owner(self):
+        self.login(self.owner)
+        self.client.put(f'{API}/settings', {'restaurantName': 'Owner change'}, format='json')
+        self.login(self.manager)
+        self.client.post(f'{API}/tables', {'id': 't9', 'name': 'Table 09'}, format='json')
+        res = self.client.get(f'{API}/activity-logs')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([l['action'] for l in res.json()], ['CREATE_TABLE'])
+        self.assertEqual(res.json()[0]['entityType'], 'TABLE')
+        self.login(self.owner)
+        self.assertEqual({l['action'] for l in self.client.get(f'{API}/activity-logs').json()}, {'CREATE_TABLE', 'UPDATE_SETTINGS'})
+        self.assertEqual([l['action'] for l in self.client.get(f'{API}/activity-logs', {'entityType': 'settings'}).json()], ['UPDATE_SETTINGS'])
+        self.assertEqual(len(self.client.get(f'{API}/activity-logs', {'search': 'Table 09'}).json()), 1)
+        self.assertEqual(len(self.client.get(f'{API}/activity-logs', {'startDate': '2000-01-01', 'endDate': '2000-01-02'}).json()), 0)
+        log_id = self.client.get(f'{API}/activity-logs').json()[0]['id']
+        self.assertEqual(self.client.get(f'{API}/activity-logs/{log_id}').status_code, 200)
+
+    def test_floor_staff_cannot_read_logs(self):
+        self.login(self.waiter)
+        self.assertEqual(self.client.get(f'{API}/activity-logs').status_code, 403)

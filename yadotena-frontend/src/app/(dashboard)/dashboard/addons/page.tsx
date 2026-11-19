@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { API_BASE, authHeaders } from "@/lib/config";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { AddonItem, AddonScope } from "@/types";
@@ -54,10 +55,9 @@ export default function AddonManagementPage() {
   // Mutations
   const createMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      const token = localStorage.getItem("token") || localStorage.getItem("access_token");
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com"}/api/v1/addons`, {
+      const res = await fetch(`${API_BASE}/addons`, {
         method: "POST",
-        headers: token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {},
+        headers: authHeaders(),
         body: formData,
       });
       if (!res.ok) throw new Error("Failed to create addon");
@@ -71,10 +71,9 @@ export default function AddonManagementPage() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, formData }: { id: string; formData: FormData }) => {
-      const token = localStorage.getItem("token") || localStorage.getItem("access_token");
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com"}/api/v1/addons/${id}`, {
+      const res = await fetch(`${API_BASE}/addons/${id}`, {
         method: "PATCH",
-        headers: token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {},
+        headers: authHeaders(),
         body: formData,
       });
       if (!res.ok) throw new Error("Failed to update addon");

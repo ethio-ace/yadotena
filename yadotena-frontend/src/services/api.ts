@@ -1,8 +1,8 @@
 import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession, AddonItem, Product, ProductSale, ProductPurchase, ProductAnalytics } from "../types";
 
-const rawBase = (process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com").replace(/\/+$/, "");
-export const API_BASE_URL = rawBase.endsWith("/api/v1") ? rawBase : `${rawBase}/api/v1`;
-const API_BASE = API_BASE_URL;
+import { API_BASE, SESSION_ENDED_EVENT, authHeaders } from "@/lib/config";
+
+export const API_BASE_URL = API_BASE;
 
 // Strict requests for order-critical flows — never silently fall back to mocks
 async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -11,11 +11,9 @@ async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}):
 
   const headers = new Headers(options.headers || {});
 
-  if (typeof window !== "undefined" && !headers.has("Authorization")) {
-    const token = localStorage.getItem("token") || localStorage.getItem("access_token") || localStorage.getItem("auth_token");
-    if (token) {
-      headers.set("Authorization", token.startsWith("Bearer ") ? token : `Bearer ${token}`);
-    }
+  const sentAuth = !headers.has("Authorization") && Object.keys(authHeaders()).length > 0;
+  if (sentAuth) {
+    headers.set("Authorization", authHeaders().Authorization);
   }
   
   // If the body is FormData, do NOT set Content-Type to application/json
@@ -33,12 +31,21 @@ async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}):
     cleanEndpoint = cleanEndpoint.replace(/\/+$/, "");
   }
 
-  const res = await fetch(`${API_BASE}${cleanEndpoint}`, {
-    ...options,
-    headers,
-    signal: controller.signal,
-  });
-  clearTimeout(timeoutId);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${cleanEndpoint}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  // The API rejected our staff token (expired, revoked, deactivated): end the session.
+  if (res.status === 401 && sentAuth && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(SESSION_ENDED_EVENT));
+  }
 
   if (!res.ok) {
     let message = `Request failed (${res.status})`;

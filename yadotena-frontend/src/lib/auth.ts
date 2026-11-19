@@ -1,8 +1,10 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import type { Role } from "@/types";
+import { API_BASE } from "./config";
 
-const rawBase = (process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com").replace(/\/+$/, "");
-const API_BASE = rawBase.endsWith("/api/v1") ? rawBase : `${rawBase}/api/v1`;
+/** Keep in sync with API_TOKEN_TTL_HOURS on the Django backend (default 12h). */
+const SESSION_MAX_AGE_SECONDS = 12 * 60 * 60;
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -14,40 +16,33 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
-        
+
         try {
           const res = await fetch(`${API_BASE}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password
-            })
+              email: credentials.email.trim().toLowerCase(),
+              password: credentials.password,
+            }),
           });
-
-          if (!res.ok) {
-            return null;
-          }
+          if (!res.ok) return null;
 
           const data = await res.json();
           const user = data.user;
+          if (!user || user.status !== "ACTIVE" || !data.token) return null;
 
-          if (user && user.status === "ACTIVE") {
-            const tokenStr = data.token || data.access || "";
-            return {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              // The backend issues CHEF for kitchen staff; the frontend models
-              // the kitchen role as KITCHEN. Normalize at the boundary so every
-              // downstream role check (layout, routing, chrome) treats both
-              // identically — exactly as the backend middleware does.
-              role: user.role === "CHEF" ? "KITCHEN" : user.role,
-              accessToken: tokenStr,
-            };
-          }
-          
-          return null;
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            // Older backends issued CHEF for kitchen staff; the UI models it as KITCHEN.
+            role: (user.role === "CHEF" ? "KITCHEN" : user.role) as Role,
+            accessToken: data.token as string,
+            accessTokenExpires: data.expiresAt
+              ? Date.parse(data.expiresAt)
+              : Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
+          };
         } catch (error) {
           console.error("Login API Error:", error);
           return null;
@@ -60,17 +55,36 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = user.role;
         token.id = user.id;
-        token.accessToken = (user as any).accessToken;
+        token.accessToken = user.accessToken;
+        token.accessTokenExpires = user.accessTokenExpires;
+      }
+      if (token.accessTokenExpires && Date.now() >= token.accessTokenExpires) {
+        token.error = "TokenExpired";
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role as any;
-        session.user.id = token.id as string;
-        (session as any).accessToken = token.accessToken as string;
+        session.user.role = token.role;
+        session.user.id = token.id;
       }
+      session.accessToken = token.accessToken;
+      session.error = token.error;
       return session;
+    },
+  },
+  events: {
+    async signOut({ token }) {
+      // Revoke the API token on the server too.
+      if (!token?.accessToken) return;
+      try {
+        await fetch(`${API_BASE}/auth/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token.accessToken}` },
+        });
+      } catch {
+        // Best effort: the token also expires on its own.
+      }
     },
   },
   pages: {
@@ -78,5 +92,6 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
 };

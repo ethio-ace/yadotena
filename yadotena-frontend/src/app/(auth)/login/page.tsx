@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { setStoredToken } from "@/lib/config";
 import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -31,13 +32,12 @@ export default function LoginPage() {
       });
 
       if (res?.error || !res?.ok) {
-        setError("Invalid staff credentials. Default PIN/Password is '1234'.");
+        setError("Invalid email or password.");
       } else {
         const session = await getSession();
         const role = (session?.user as { role?: string } | undefined)?.role;
-        const accessToken = (session as { accessToken?: string } | null)?.accessToken;
-        if (accessToken) {
-          localStorage.setItem("token", accessToken);
+        if (session?.accessToken) {
+          setStoredToken(session.accessToken);
         }
 
         setSuccess("Staff authorization verified! Loading dashboard...");

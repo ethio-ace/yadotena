@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE, authHeaders } from "@/lib/config";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { MenuItem, MenuItemAddon, AddonItem, AddonScope } from "@/types";
@@ -135,10 +136,9 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
 
   const createAddonMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      const token = localStorage.getItem("token") || localStorage.getItem("access_token");
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://yadotena.onrender.com"}/api/v1/addons`, {
+      const res = await fetch(`${API_BASE}/addons`, {
         method: "POST",
-        headers: token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {},
+        headers: authHeaders(),
         body: formData,
       });
       if (!res.ok) throw new Error("Failed to create addon");

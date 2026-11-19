@@ -7,7 +7,7 @@
  * &comp_start=YYYY-MM-DD&comp_end=YYYY-MM-DD (for custom comparison)
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+import { API_BASE, authHeaders } from "@/lib/config";
 
 export type PeriodPreset = 
   | "today" 
@@ -138,16 +138,8 @@ function buildParams(period: PeriodPreset, range?: DateRange, compRange?: DateRa
 
 async function fetchAnalytics<T>(endpoint: string, period: PeriodPreset, range?: DateRange, compRange?: DateRange): Promise<T> {
   const params = buildParams(period, range, compRange);
-  const headers: Record<string, string> = {
-    "Accept": "application/json",
-  };
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token") || localStorage.getItem("access_token") || localStorage.getItem("auth_token");
-    if (token) {
-      headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
-    }
-  }
-  const res = await fetch(`${API_BASE}/api/v1/analytics/${endpoint}?${params}`, { headers });
+  const headers: Record<string, string> = { Accept: "application/json", ...authHeaders() };
+  const res = await fetch(`${API_BASE}/analytics/${endpoint}?${params}`, { headers });
   if (!res.ok) throw new Error(`Analytics fetch failed: ${res.status}`);
   return res.json();
 }

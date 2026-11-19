@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import * as Ably from "ably";
 import { useQueryClient } from "@tanstack/react-query";
+import { API_BASE } from "@/lib/config";
 
 export type AblyConnectionState =
   | "initializing"
@@ -30,42 +31,17 @@ export function AblySyncProvider({ children }: { children: React.ReactNode }) {
     let isSubscribed = true;
 
     const initAbly = async () => {
-      let apiKey = process.env.NEXT_PUBLIC_ABLY_API_KEY;
-
-      // No static key → ask the backend for a scoped token. On first app load
-      // the user isn't signed in yet, so the token isn't in localStorage and
-      // the fetch 401s. Retry with backoff until we get one, so realtime
-      // connects right after login instead of giving up permanently.
-      if (!apiKey) {
-        for (let attempt = 0; attempt < 12 && isSubscribed; attempt++) {
-          try {
-            const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
-            const headers: Record<string, string> = {};
-            if (typeof window !== "undefined") {
-              const token = localStorage.getItem("token") || localStorage.getItem("access_token");
-              if (token) headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
-            }
-            const res = await fetch(`${apiBase}/auth/ably-token`, { headers });
-            if (res.ok) {
-              const data = await res.json();
-              apiKey = data.apiKey || data.token;
-              if (apiKey) break;
-            }
-          } catch {
-            // ignore and retry
-          }
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-        }
-      }
-
-      if (!apiKey || !isSubscribed) {
-        if (isSubscribed) setConnectionState("disconnected");
+      if (process.env.NEXT_PUBLIC_REALTIME_DISABLED === "true" || !isSubscribed) {
+        setConnectionState("disconnected");
         return;
       }
 
       if (!clientRef.current) {
         try {
-          const ably = new Ably.Realtime({ key: apiKey });
+          // Token auth: the backend signs a short-lived, subscribe-only token
+          // request (public, so customers get live order updates too). Ably
+          // re-fetches it on expiry; the API key never reaches the browser.
+          const ably = new Ably.Realtime({ authUrl: `${API_BASE}/auth/ably-token` });
           clientRef.current = ably;
           setClient(ably);
 

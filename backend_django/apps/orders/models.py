@@ -5,10 +5,22 @@ from apps.tables.models import Table
 from apps.menu.models import MenuItem
 
 class OrderStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
     PENDING = 'PENDING', 'Pending'
     PREPARING = 'PREPARING', 'Preparing'
     READY = 'READY', 'Ready'
+    SERVED = 'SERVED', 'Served'
     COMPLETED = 'COMPLETED', 'Completed'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+class ItemStatus(models.TextChoices):
+    """Kitchen lifecycle of a single order line (one round can be cooked
+    while another is still being served)."""
+    PENDING = 'PENDING', 'Pending'
+    PREPARING = 'PREPARING', 'Preparing'
+    READY = 'READY', 'Ready'
+    SERVED = 'SERVED', 'Served'
     CANCELLED = 'CANCELLED', 'Cancelled'
 
 class OrderType(models.TextChoices):
@@ -45,6 +57,7 @@ class Order(models.Model):
     customer_name = models.CharField(max_length=200, blank=True, null=True)
     customer_phone = models.CharField(max_length=50, blank=True, null=True)
     delivery_address = models.TextField(blank=True, null=True)
+    notes = models.TextField(blank=True, default='')
 
     # Financial breakdown
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -75,6 +88,9 @@ class OrderItem(models.Model):
     special_instructions = models.TextField(blank=True, null=True)
     selected_addons = models.JSONField(default=list, blank=True)
     round_number = models.PositiveIntegerField(default=1)
+    status = models.CharField(max_length=20, choices=ItemStatus.choices, default=ItemStatus.PENDING, db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = 'Order Item'

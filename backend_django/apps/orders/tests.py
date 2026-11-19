@@ -1,0 +1,152 @@
+"""Kitchen lifecycle, whole-order status rules and order lookup (Go parity)."""
+from datetime import timedelta
+
+from django.utils import timezone
+
+from apps.core.tests import API, BaseAPITest
+from apps.orders.models import Order
+
+
+class OrderFlowBase(BaseAPITest):
+    def setUp(self):
+        super().setUp()
+        self.login(self.kitchen)
+
+    def new_order(self, **extra):
+        self.anon()
+        res = self.place_order(**extra)
+        self.assertEqual(res.status_code, 201, res.data)
+        self.login(self.kitchen)
+        return res.data['id']
+
+    def kitchen_act(self, order_id, action, **extra):
+        return self.client.post(f'{API}/orders/{order_id}/kitchen', {'action': action, **extra}, format='json')
+
+    def set_status(self, order_id, new_status):
+        return self.client.post(f'{API}/orders/{order_id}/status', {'status': new_status}, format='json')
+
+    def item_statuses(self, order_id):
+        return sorted(Order.objects.get(id=order_id).items.values_list('round_number', 'status'))
+
+
+class KitchenActionTests(OrderFlowBase):
+    def test_round_lifecycle_derives_order_status(self):
+        oid = self.new_order()
+        res = self.kitchen_act(oid, 'START', roundNumber=1)
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['status'], 'PREPARING')
+        self.assertIsNotNone(res.data['items'][0]['startedAt'])
+        self.assertEqual(self.kitchen_act(oid, 'READY', roundNumber=1).data['status'], 'READY')
+        self.assertEqual(self.kitchen_act(oid, 'SERVE', roundNumber=1).data['status'], 'SERVED')
+
+    def test_ineligible_action_is_409(self):
+        oid = self.new_order()
+        res = self.kitchen_act(oid, 'READY', roundNumber=1)  # still PENDING
+        self.assertEqual(res.status_code, 409)
+        self.assertIn('eligible', res.data['detail'])
+
+    def test_unknown_action_is_400(self):
+        self.assertEqual(self.kitchen_act(self.new_order(), 'FRY').status_code, 400)
+
+    def test_rounds_are_independent(self):
+        oid = self.new_order()
+        self.kitchen_act(oid, 'START', roundNumber=1)
+        self.kitchen_act(oid, 'READY', roundNumber=1)
+        self.anon()
+        self.client.post(f'{API}/orders/{oid}/add-items', {'items': [{'menuItemId': self.item.id, 'quantity': 1}]}, format='json')
+        self.login(self.kitchen)
+        # Round 1 READY wins over new round 2 PENDING.
+        self.assertEqual(Order.objects.get(id=oid).status, 'READY')
+        self.kitchen_act(oid, 'START', roundNumber=2)
+        self.assertEqual(self.item_statuses(oid), [(1, 'READY'), (2, 'PREPARING')])
+
+    def test_new_round_on_served_ticket_reopens_kitchen(self):
+        oid = self.new_order()
+        for action in ('START', 'READY', 'SERVE'):
+            self.kitchen_act(oid, action)
+        self.anon()
+        res = self.client.post(f'{API}/orders/{oid}/add-items', {'items': [{'menuItemId': self.item.id, 'quantity': 1}]}, format='json')
+        self.assertEqual(res.data['status'], 'PENDING')
+
+    def test_cancel_only_unstarted_or_cooking_items(self):
+        oid = self.new_order()
+        self.assertEqual(self.kitchen_act(oid, 'CANCEL').status_code, 200)
+        self.assertEqual(self.item_statuses(oid), [(1, 'CANCELLED')])
+
+    def test_customer_cannot_drive_kitchen(self):
+        oid = self.new_order()
+        self.anon()
+        self.assertIn(self.kitchen_act(oid, 'START').status_code, (401, 403))
+
+
+class WholeOrderStatusTests(OrderFlowBase):
+    def test_status_change_translates_to_items(self):
+        oid = self.new_order()
+        self.assertEqual(self.set_status(oid, 'PREPARING').data['status'], 'PREPARING')
+        self.assertEqual(self.item_statuses(oid), [(1, 'PREPARING')])
+
+    def test_complete_requires_payment(self):
+        oid = self.new_order()
+        res = self.set_status(oid, 'COMPLETED')
+        self.assertEqual(res.status_code, 409)
+        self.assertIn('payment', res.data['detail'].lower())
+
+    def test_complete_blocked_while_cooking(self):
+        oid = self.new_order()
+        Order.objects.filter(id=oid).update(payment_status='PAID')
+        self.set_status(oid, 'PREPARING')
+        self.assertEqual(self.set_status(oid, 'COMPLETED').status_code, 409)
+
+    def test_paid_ticket_completes_when_served(self):
+        oid = self.new_order()
+        Order.objects.filter(id=oid).update(payment_status='PAID')
+        for s in ('PREPARING', 'READY'):
+            self.set_status(oid, s)
+        self.assertEqual(self.set_status(oid, 'SERVED').data['status'], 'COMPLETED')
+
+    def test_terminal_orders_are_immutable(self):
+        oid = self.new_order()
+        self.assertEqual(self.set_status(oid, 'CANCELLED').data['status'], 'CANCELLED')
+        self.assertEqual(self.item_statuses(oid), [(1, 'CANCELLED')])
+        self.assertEqual(self.set_status(oid, 'PREPARING').status_code, 409)
+        self.assertEqual(self.set_status(oid, 'CANCELLED').status_code, 200)  # idempotent
+
+    def test_patch_order_with_status_is_status_change(self):
+        oid = self.new_order()
+        res = self.client.patch(f'{API}/orders/{oid}', {'status': 'PREPARING'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['status'], 'PREPARING')
+
+    def test_dine_in_table_freed_on_cancel(self):
+        oid = self.new_order(type='DINE_IN', tableId='t1')
+        self.table.refresh_from_db()
+        self.assertNotEqual(self.table.status, 'AVAILABLE')
+        self.set_status(oid, 'CANCELLED')
+        self.table.refresh_from_db()
+        self.assertEqual(self.table.status, 'AVAILABLE')
+
+
+class OrderQueryTests(OrderFlowBase):
+    def test_lookup_by_suffix_is_public_and_masked(self):
+        oid = self.new_order()
+        self.anon()
+        res = self.client.get(f'{API}/orders/lookup', {'number': oid[-6:].lower()})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['id'], oid)
+        self.assertNotIn('customerPhone', res.data)
+        self.assertEqual(self.client.get(f'{API}/orders/lookup', {'number': 'ZZZZZZ'}).status_code, 404)
+
+    def test_since_filter_and_case_insensitive_filters(self):
+        old = self.new_order()
+        Order.objects.filter(id=old).update(updated_at=timezone.now() - timedelta(hours=2))
+        fresh = self.new_order()
+        since = (timezone.now() - timedelta(minutes=5)).isoformat()
+        ids = [o['id'] for o in self.client.get(f'{API}/orders', {'since': since}).data]
+        self.assertEqual(ids, [fresh])
+        self.assertEqual(len(self.client.get(f'{API}/orders', {'status': 'pending'}).data), 2)
+        self.assertEqual(self.client.get(f'{API}/orders', {'since': 'yesterday'}).status_code, 400)
+
+    def test_money_is_numeric(self):
+        data = self.client.get(f'{API}/orders/{self.new_order()}').json()
+        self.assertIsInstance(data['total'], (int, float))
+        self.assertIsInstance(data['items'][0]['price'], (int, float))

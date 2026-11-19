@@ -168,6 +168,9 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    'EXCEPTION_HANDLER': 'apps.core.exceptions.exception_handler',
+    # Money as JSON numbers (the frontend does arithmetic on them, as with the Go API).
+    'COERCE_DECIMAL_TO_STRING': False,
     # Scoped throttles only: many customers share one restaurant Wi-Fi IP,
     # so a blanket per-IP anonymous throttle would block real diners.
     'DEFAULT_THROTTLE_RATES': {

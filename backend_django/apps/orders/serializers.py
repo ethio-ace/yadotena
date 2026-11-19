@@ -9,13 +9,17 @@ class OrderItemSerializer(serializers.ModelSerializer):
     specialInstructions = serializers.CharField(source='special_instructions', required=False, allow_blank=True, allow_null=True)
     selectedAddons = serializers.ListField(source='selected_addons', required=False, default=list)
     roundNumber = serializers.IntegerField(source='round_number', read_only=True)
+    startedAt = serializers.DateTimeField(source='started_at', read_only=True)
+    completedAt = serializers.DateTimeField(source='completed_at', read_only=True)
 
     class Meta:
         model = OrderItem
         fields = [
             'id', 'menuItemId', 'name', 'price', 'quantity',
             'specialInstructions', 'selectedAddons', 'roundNumber',
+            'status', 'startedAt', 'completedAt',
         ]
+        read_only_fields = ['status']
 
 
 class OrderItemInputSerializer(serializers.Serializer):
@@ -48,7 +52,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'id', 'type', 'status', 'paymentStatus', 'items', 'itemsInput',
             'subtotal', 'tax', 'serviceCharge', 'deliveryFee', 'total',
             'createdAt', 'updatedAt', 'tableId', 'tableName',
-            'customerName', 'customerPhone', 'deliveryAddress', 'idempotencyKey',
+            'customerName', 'customerPhone', 'deliveryAddress', 'notes', 'idempotencyKey',
         ]
         read_only_fields = ['id', 'status', 'subtotal', 'tax', 'service_charge', 'delivery_fee', 'total']
 

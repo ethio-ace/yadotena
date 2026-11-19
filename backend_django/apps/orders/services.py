@@ -1,25 +1,44 @@
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from django.db import transaction
-from rest_framework.exceptions import ValidationError
+from django.utils import timezone
+from rest_framework.exceptions import APIException, ValidationError
 from apps.core.ably_utils import publish_event
 from apps.core.models import RestaurantSetting
 from apps.menu.models import MenuItem, MenuItemAddon
 from apps.tables.models import Table
-from .models import Order, OrderItem, OrderStatus, OrderType, PaymentStatus
+from .models import ItemStatus, Order, OrderItem, OrderStatus, OrderType, PaymentStatus
 
+# A table's "open" ticket: anything not commercially closed. A SERVED but
+# unpaid ticket still belongs to the table, so new rounds join it.
 OPEN_ORDER_STATUSES = {
+    OrderStatus.DRAFT,
     OrderStatus.PENDING,
     OrderStatus.PREPARING,
     OrderStatus.READY,
+    OrderStatus.SERVED,
 }
+TERMINAL_ORDER_STATUSES = {OrderStatus.COMPLETED, OrderStatus.CANCELLED}
 
-ALLOWED_STATUS_TRANSITIONS = {
-    OrderStatus.PENDING: {OrderStatus.PREPARING, OrderStatus.CANCELLED},
-    OrderStatus.PREPARING: {OrderStatus.READY, OrderStatus.CANCELLED},
-    OrderStatus.READY: {OrderStatus.COMPLETED},
-    OrderStatus.COMPLETED: set(),
-    OrderStatus.CANCELLED: set(),
+
+class Conflict(APIException):
+    status_code = 409
+    default_detail = 'The order is not in a state that allows this change.'
+    default_code = 'conflict'
+
+
+# Kitchen actions on items: action -> (allowed current statuses, new status).
+KITCHEN_ACTIONS = {
+    'START': ({ItemStatus.PENDING}, ItemStatus.PREPARING),
+    'READY': ({ItemStatus.PREPARING}, ItemStatus.READY),
+    'SERVE': ({ItemStatus.READY}, ItemStatus.SERVED),
+    'CANCEL': ({ItemStatus.PENDING, ItemStatus.PREPARING}, ItemStatus.CANCELLED),
+}
+# Whole-order kitchen intents map onto the same item transitions.
+STATUS_TO_KITCHEN_ACTION = {
+    OrderStatus.PREPARING: 'START',
+    OrderStatus.READY: 'READY',
+    OrderStatus.SERVED: 'SERVE',
 }
 
 DELIVERY_FEE = Decimal('100.00')
@@ -43,12 +62,52 @@ def get_open_order_for_table(table: Table):
     )
 
 
-def validate_status_transition(current_status: str, new_status: str):
-    allowed = ALLOWED_STATUS_TRANSITIONS.get(current_status, set())
-    if new_status not in allowed:
-        raise ValidationError(
-            f"Cannot transition order from {current_status} to {new_status}."
-        )
+def _apply_item_transition(items_qs, action: str) -> int:
+    """Advance eligible items for ``action``; returns how many changed."""
+    allowed_from, new_status = KITCHEN_ACTIONS[action]
+    now = timezone.now()
+    changed = 0
+    for item in items_qs.filter(status__in=allowed_from):
+        item.status = new_status
+        fields = ['status']
+        if new_status == ItemStatus.PREPARING and item.started_at is None:
+            item.started_at = now
+            fields.append('started_at')
+        if new_status == ItemStatus.READY:
+            item.completed_at = now
+            fields.append('completed_at')
+        item.save(update_fields=fields)
+        changed += 1
+    return changed
+
+
+def recompute_order_status(order: Order) -> Order:
+    """Derive the order's kitchen status from its items.
+
+    Priority READY > PREPARING > PENDING > SERVED, so a ticket shows the most
+    actionable state (food waiting at the pass beats food on the stove).
+    Terminal states are never derived here.
+    """
+    if order.status in TERMINAL_ORDER_STATUSES:
+        return order
+    statuses = set(order.items.values_list('status', flat=True))
+    for candidate in (ItemStatus.READY, ItemStatus.PREPARING, ItemStatus.PENDING, ItemStatus.SERVED):
+        if candidate in statuses:
+            new_status = candidate
+            break
+    else:
+        new_status = OrderStatus.PENDING
+    if order.status != new_status:
+        order.status = new_status
+        order.save(update_fields=['status', 'updated_at'])
+    return order
+
+
+def _publish_order_updated(order: Order):
+    publish_event('yadotena-realtime', 'order.updated', {
+        'id': order.id, 'status': order.status,
+        'table_id': str(order.table.id) if order.table else None,
+    })
 
 
 def validate_items_payload(items_data: list):
@@ -214,29 +273,90 @@ def add_items_to_order(order: Order, items_data: list):
     if order.status in {OrderStatus.COMPLETED, OrderStatus.CANCELLED}:
         raise ValidationError('Cannot add items to a closed order.')
 
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if order.status in TERMINAL_ORDER_STATUSES:
+        raise ValidationError('Cannot add items to a closed order.')
+
     validated_items = validate_items_payload(items_data)
     round_number = _next_round_number(order)
 
-    if order.status in {OrderStatus.PREPARING, OrderStatus.READY}:
-        order.status = OrderStatus.PENDING
-        order.save(update_fields=['status', 'updated_at'])
-
     _create_order_items(order, validated_items, round_number=round_number)
     recalculate_order_totals(order)
+    recompute_order_status(order)
     _sync_table_for_order(order)
-    
-    publish_event('yadotena-realtime', 'order.updated', {'id': order.id, 'status': order.status, 'table_id': str(order.table.id) if order.table else None})
-    
+    _publish_order_updated(order)
+    return order
+
+
+@transaction.atomic
+def kitchen_action(order: Order, action: str, *, round_number: int = 0, item_ids=None) -> Order:
+    """Advance one round (or specific items) through the kitchen lifecycle
+    without touching other rounds: START, READY, SERVE, CANCEL."""
+    action = (action or '').upper()
+    if action not in KITCHEN_ACTIONS:
+        raise ValidationError('action must be one of START, READY, SERVE, CANCEL')
+
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    # COMPLETED is deliberately allowed: a paid ticket can still carry a fresh
+    # round to cook. The per-item status guard is the real check.
+    if order.status == OrderStatus.CANCELLED:
+        raise Conflict('Cannot update kitchen state on a cancelled order')
+
+    items = order.items.all()
+    if round_number:
+        items = items.filter(round_number=round_number)
+    if item_ids:
+        items = items.filter(id__in=item_ids)
+
+    if not _apply_item_transition(items, action):
+        raise Conflict(f'No items in this round are eligible for {action}')
+
+    recompute_order_status(order)
+    _sync_table_for_order(order)
+    _publish_order_updated(order)
     return order
 
 
 @transaction.atomic
 def update_order_status(order: Order, new_status: str):
-    validate_status_transition(order.status, new_status)
-    order.status = new_status
-    order.save(update_fields=['status', 'updated_at'])
+    """Whole-order status change.
+
+    Kitchen states (PREPARING/READY/SERVED) become item transitions and the
+    order status is re-derived, so this can never re-open a started round.
+    COMPLETED needs settled payment and no food still cooking.
+    """
+    new_status = (new_status or '').upper()
+    order = Order.objects.select_for_update().get(pk=order.pk)
+
+    if order.status in TERMINAL_ORDER_STATUSES:
+        if order.status == new_status:
+            return order
+        raise Conflict(f'Order is {order.status} and can no longer change status')
+
+    if new_status in STATUS_TO_KITCHEN_ACTION:
+        _apply_item_transition(order.items.all(), STATUS_TO_KITCHEN_ACTION[new_status])
+        recompute_order_status(order)
+        # A settled ticket that just served its last work closes itself, so
+        # it does not linger as SERVED+PAID and block the table.
+        if new_status == OrderStatus.SERVED and order.payment_status == PaymentStatus.PAID:
+            if not order.items.exclude(status__in=[ItemStatus.SERVED, ItemStatus.CANCELLED]).exists():
+                order.status = OrderStatus.COMPLETED
+                order.save(update_fields=['status', 'updated_at'])
+    elif new_status == OrderStatus.COMPLETED:
+        if order.payment_status != PaymentStatus.PAID:
+            raise Conflict('Cannot complete an order when payment is UNPAID. Settle payment first.')
+        if order.items.filter(status__in=[ItemStatus.PENDING, ItemStatus.PREPARING]).exists():
+            raise Conflict('Cannot complete the order while kitchen work is still in progress')
+        order.items.filter(status=ItemStatus.READY).update(status=ItemStatus.SERVED)
+        order.status = OrderStatus.COMPLETED
+        order.save(update_fields=['status', 'updated_at'])
+    elif new_status == OrderStatus.CANCELLED:
+        order.items.filter(status__in=[ItemStatus.PENDING, ItemStatus.PREPARING, ItemStatus.READY]).update(status=ItemStatus.CANCELLED)
+        order.status = OrderStatus.CANCELLED
+        order.save(update_fields=['status', 'updated_at'])
+    else:
+        raise ValidationError('invalid status')
+
     _sync_table_for_order(order)
-    
-    publish_event('yadotena-realtime', 'order.updated', {'id': order.id, 'status': order.status, 'table_id': str(order.table.id) if order.table else None})
-    
+    _publish_order_updated(order)
     return order

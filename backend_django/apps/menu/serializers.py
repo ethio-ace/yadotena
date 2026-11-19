@@ -117,13 +117,18 @@ class MenuItemSerializer(serializers.ModelSerializer):
     preparationTime = serializers.IntegerField(source='preparation_time', required=False, default=15)
     dietaryTags = serializers.ListField(source='dietary_tags', required=False, default=list)
     categoryName = serializers.SerializerMethodField(read_only=True)
+    categoryId = serializers.CharField(source='category_id', read_only=True)
     category = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    imageUrl = serializers.CharField(source='image_url', required=False, allow_blank=True, max_length=500)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
 
     class Meta:
         model = MenuItem
         fields = [
-            'id', 'name', 'description', 'price', 'category', 'categoryName',
-            'image', 'available', 'preparationTime', 'dietaryTags', 'customAddons'
+            'id', 'name', 'description', 'price', 'category', 'categoryId', 'categoryName',
+            'image', 'imageUrl', 'available', 'preparationTime', 'dietaryTags', 'customAddons',
+            'createdAt', 'updatedAt',
         ]
 
     def get_categoryName(self, obj):
@@ -134,10 +139,26 @@ class MenuItemSerializer(serializers.ModelSerializer):
         # Ensure category field in response matches frontend expectation (string name or id)
         if instance.category:
             ret['category'] = instance.category.name
+        # One image URL for clients: an uploaded file wins over a pasted link.
+        request = self.context.get('request')
+        image = absolute_url(request, instance.image.url) if instance.image else absolute_url(request, instance.image_url)
+        ret['image'] = ret['imageUrl'] = image or ''
         return ret
 
     def to_internal_value(self, data):
-        data = data.copy()
+        # Plain dict (multipart QueryDicts mangle list values); files kept.
+        data = {k: data.get(k) for k in data.keys()} if hasattr(data, 'getlist') else dict(data)
+        # "image" may be a pasted URL instead of a file (Go API accepted both).
+        if isinstance(data.get('image'), str):
+            if not data.get('imageUrl'):
+                data['imageUrl'] = data['image']
+            data.pop('image')
+        # The form sends categoryId (and sometimes a display name in category).
+        if data.get('categoryId'):
+            data['category'] = data.pop('categoryId')
+        for key in ('available',):
+            if isinstance(data.get(key), str):
+                data[key] = _truthy(data[key])
         if 'dietaryTags' in data and isinstance(data['dietaryTags'], str):
             try:
                 data['dietaryTags'] = json.loads(data['dietaryTags'])
@@ -153,6 +174,8 @@ class MenuItemSerializer(serializers.ModelSerializer):
             category_obj = MenuCategory.objects.filter(name=category_name_or_id).first() or \
                            MenuCategory.objects.filter(id=category_name_or_id).first()
         
+        if category_obj is None:
+            raise serializers.ValidationError({'category': 'Choose an existing category.'})
         menu_item = MenuItem.objects.create(category=category_obj, **validated_data)
         self._attach_item_addons(menu_item, self.initial_data.get('customAddons'))
         return menu_item
@@ -182,9 +205,12 @@ class MenuItemSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         category_name_or_id = validated_data.pop('category', None)
 
-        if category_name_or_id is not None:
-            instance.category = MenuCategory.objects.filter(name=category_name_or_id).first() or \
-                                MenuCategory.objects.filter(id=category_name_or_id).first()
+        if category_name_or_id:
+            category_obj = MenuCategory.objects.filter(name=category_name_or_id).first() or \
+                           MenuCategory.objects.filter(id=category_name_or_id).first()
+            if category_obj is None:
+                raise serializers.ValidationError({'category': 'Choose an existing category.'})
+            instance.category = category_obj
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)

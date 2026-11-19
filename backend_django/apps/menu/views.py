@@ -1,3 +1,4 @@
+from django.db.models import F, Sum
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -7,6 +8,9 @@ from apps.core.media import save_image
 from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager, is_manager_user
 from .models import AddonScope, MenuCategory, MenuItem, MenuItemAddon
 from .serializers import AddonSerializer, MenuCategorySerializer, MenuItemSerializer
+
+POPULAR_ORDER_STATUSES = ['PENDING', 'PREPARING', 'READY', 'SERVED', 'COMPLETED']
+
 
 class MenuCategoryViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
     queryset = MenuCategory.objects.all().order_by('sort_order', 'name')
@@ -25,6 +29,7 @@ class MenuItemViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         # Kitchen/floor staff can mark a dish sold out.
         'toggle_availability': [IsStaff],
         'addons': [AllowAny],
+        'popular': [AllowAny],
     }
     default_permissions = [IsManager]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -47,7 +52,28 @@ class MenuItemViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         item = self.get_object()
         item.available = not item.available
         item.save()
-        return Response(MenuItemSerializer(item).data, status=status.HTTP_200_OK)
+        return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='popular')
+    def popular(self, request):
+        """Best sellers by quantity ordered (excluding cancelled/draft orders)."""
+        try:
+            limit = max(1, min(int(request.query_params.get('limit', 8)), 24))
+        except ValueError:
+            limit = 8
+        ranked = (
+            MenuItem.objects.filter(order_items__order__status__in=POPULAR_ORDER_STATUSES)
+            .annotate(order_count=Sum('order_items__quantity'),
+                      revenue=Sum(F('order_items__quantity') * F('order_items__price')))
+            .order_by('-order_count', '-revenue')
+            .select_related('category').prefetch_related('custom_addons')[:limit]
+        )
+        data = []
+        for item in ranked:
+            row = self.get_serializer(item).data
+            row['orderCount'] = item.order_count
+            data.append(row)
+        return Response(data)
 
     @action(detail=True, methods=['get'], url_path='addons')
     def addons(self, request, pk=None):

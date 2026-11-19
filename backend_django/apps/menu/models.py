@@ -39,6 +39,8 @@ class MenuItem(models.Model):
         related_name='items'
     )
     image = models.ImageField(upload_to='menu_images/', blank=True, null=True)
+    # A pasted https:// image link (used when no file is uploaded).
+    image_url = models.CharField(max_length=500, blank=True, default='')
     available = models.BooleanField(default=True)
     preparation_time = models.PositiveIntegerField(default=15, help_text="Preparation time in minutes")
     dietary_tags = models.JSONField(default=list, blank=True)

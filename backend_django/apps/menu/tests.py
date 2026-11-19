@@ -92,3 +92,33 @@ class AddonScopeTests(BaseAPITest):
         path = tempfile.mkdtemp()
         self.addCleanup(__import__('shutil').rmtree, path, True)
         return path
+
+
+class MenuExtrasTests(BaseAPITest):
+    def test_popular_ranks_by_quantity_and_skips_cancelled(self):
+        cake = MenuItem.objects.create(name='Cake', price='80.00', category=self.category)
+        self.place_order(items=[{'menuItemId': cake.id, 'quantity': 3}])
+        self.place_order(items=[{'menuItemId': self.item.id, 'quantity': 1}])
+        cancelled = self.place_order(items=[{'menuItemId': self.item.id, 'quantity': 9}]).json()['id']
+        Order.objects.filter(id=cancelled).update(status='CANCELLED')
+        res = self.client.get(f'{API}/menu/popular?limit=5')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([(r['name'], r['orderCount']) for r in res.json()], [('Cake', 3), ('Milk', 1)])
+
+    def test_item_shape_and_image_url(self):
+        self.login(self.manager)
+        res = self.client.post(f'{API}/menu', {'name': 'Tea', 'price': '30', 'categoryId': self.category.id,
+                                               'image': 'https://cdn.example.com/tea.webp',
+                                               'available': 'true', 'dietaryTags': '["Vegan"]'}, format='multipart')
+        self.assertEqual(res.status_code, 201, res.json())
+        body = res.json()
+        self.assertEqual(body['categoryId'], self.category.id)
+        self.assertEqual(body['category'], 'Drinks')
+        self.assertEqual(body['image'], 'https://cdn.example.com/tea.webp')
+        self.assertEqual(body['dietaryTags'], ['Vegan'])
+        self.assertIsInstance(body['price'], (int, float))
+
+    def test_unknown_category_is_400(self):
+        self.login(self.manager)
+        res = self.client.post(f'{API}/menu', {'name': 'Tea', 'price': '30', 'category': 'Nope'}, format='json')
+        self.assertEqual(res.status_code, 400)

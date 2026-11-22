@@ -16,6 +16,7 @@ import { Order } from "@/types";
 import { soundAlerts } from "@/lib/audioAlerts";
 import { roundCount, groupItemsByRound, roundTotal } from "@/lib/kitchen";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 interface PaymentSettlementModalProps {
   order: Order | null;
@@ -85,7 +86,9 @@ export function PaymentSettlementModal({
 
   if (!isOpen || !order) return null;
 
-  const totalAmount = order.total || 0;
+  // A ticket paid earlier and then extended only owes its new rounds.
+  const alreadyPaid = order.amountPaid || 0;
+  const totalAmount = order.balanceDue ?? Math.max(0, (order.total || 0) - alreadyPaid);
   const cashTenderedNum = parseFloat(cashTendered) || 0;
   const changeDue = Math.max(0, cashTenderedNum - totalAmount);
 
@@ -153,7 +156,7 @@ export function PaymentSettlementModal({
               <span>Settle Payment</span>
             </h3>
             <p className="text-xs text-muted-foreground font-medium">
-              Order {order.id.slice(-6).toUpperCase()} {order.tableId && `• ${formatTableRef(order.tableId, tableLabels)}`}
+              Order #{orderTicketNumber(order)} {order.tableId && `• ${formatTableRef(order.tableId, tableLabels)}`}
             </p>
           </div>
           <button 
@@ -177,9 +180,14 @@ export function PaymentSettlementModal({
           <div>
             <span className="text-xs font-bold text-muted-foreground uppercase block">Amount Due</span>
             <span className="text-2xl font-black text-primary">{formatETB(totalAmount)}</span>
+            {alreadyPaid > 0 && (
+              <span className="text-[11px] font-semibold text-muted-foreground block">
+                {formatETB(alreadyPaid)} already paid · ticket total {formatETB(order.total || 0)}
+              </span>
+            )}
           </div>
           <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-xs font-extrabold px-3 py-1">
-            UNPAID
+            {alreadyPaid > 0 ? "BALANCE" : "UNPAID"}
           </Badge>
         </div>
 
@@ -203,7 +211,9 @@ export function PaymentSettlementModal({
                 ))}
               </div>
               <p className="text-[11px] text-muted-foreground font-medium border-t border-amber-500/15 pt-1.5">
-                One payment method settles the whole bill — all rounds in a single transaction.
+                {alreadyPaid > 0
+                  ? `${formatETB(alreadyPaid)} was paid earlier — this settles the rest of the ticket.`
+                  : "One payment method settles the whole bill — all rounds in a single transaction."}
               </p>
             </div>
           );
@@ -222,9 +232,9 @@ export function PaymentSettlementModal({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-bold">
             {(paymentMethods.length > 0 ? paymentMethods : [
               { id: "cash", name: "Cash", code: "CASH", type: "CASH" },
-              { id: "cbe", name: "CBE Birr / Transfer", code: "CBE_BIRR", type: "DIGITAL", accountNumber: "1000123456789", accountName: "Yadotena Restaurant", instructions: "Transfer to CBE Account 1000123456789 and input Txn ID" },
-              { id: "telebirr", name: "Telebirr", code: "TELEBIRR", type: "WALLET", accountNumber: "0911223344", accountName: "Yadotena Merchant", instructions: "Pay via Telebirr Merchant ID 0911223344" },
-              { id: "boa", name: "Bank of Abyssinia", code: "BOA", type: "DIGITAL", accountNumber: "88990011", accountName: "Yadotena POS" },
+              { id: "cbe", name: "CBE Birr / Transfer", code: "CBE_BIRR", type: "DIGITAL", accountNumber: "1000123456789", accountName: "Hilif Restaurant", instructions: "Transfer to CBE Account 1000123456789 and input Txn ID" },
+              { id: "telebirr", name: "Telebirr", code: "TELEBIRR", type: "WALLET", accountNumber: "0911223344", accountName: "Hilif Merchant", instructions: "Pay via Telebirr Merchant ID 0911223344" },
+              { id: "boa", name: "Bank of Abyssinia", code: "BOA", type: "DIGITAL", accountNumber: "88990011", accountName: "Hilif POS" },
             ]).map((pm: any) => {
               const code = pm.code || pm.name;
               const isSelected = selectedMethod === code || (selectedMethod === "CASH" && pm.type === "CASH");
@@ -261,10 +271,10 @@ export function PaymentSettlementModal({
         {/* Dynamic Payment Details & Inputs based on Selected DB Method */}
         {(() => {
           const fallbackMethods = [
-            { id: "cbe", name: "Commercial Bank of Ethiopia (CBE)", code: "CBE", type: "DIGITAL", accountNumber: "1000123456789", accountName: "Yadotena Milk & Foods", instructions: "Transfer exact bill amount to CBE Account 1000123456789 and input TXN Ref ID" },
-            { id: "telebirr", name: "Telebirr SuperApp", code: "TELEBIRR", type: "DIGITAL", accountNumber: "0911234567", accountName: "Yadotena Milk & Foods PLC", instructions: "Transfer via Telebirr App/Merchant to 0911234567 and input reference code" },
-            { id: "boa", name: "Bank of Abyssinia (BOA)", code: "BOA", type: "DIGITAL", accountNumber: "987654321", accountName: "Yadotena Milk & Foods", instructions: "Transfer to BOA Account 987654321 and input transaction reference" },
-            { id: "ebirr", name: "E-Birr / Mobile Wallet", code: "EBIRR", type: "DIGITAL", accountNumber: "0911234567", accountName: "Yadotena Milk & Foods PLC", instructions: "Transfer via E-Birr mobile agent or shortcode" },
+            { id: "cbe", name: "Commercial Bank of Ethiopia (CBE)", code: "CBE", type: "DIGITAL", accountNumber: "1000123456789", accountName: "Hilif Milk & Foods", instructions: "Transfer exact bill amount to CBE Account 1000123456789 and input TXN Ref ID" },
+            { id: "telebirr", name: "Telebirr SuperApp", code: "TELEBIRR", type: "DIGITAL", accountNumber: "0911234567", accountName: "Hilif Milk & Foods PLC", instructions: "Transfer via Telebirr App/Merchant to 0911234567 and input reference code" },
+            { id: "boa", name: "Bank of Abyssinia (BOA)", code: "BOA", type: "DIGITAL", accountNumber: "987654321", accountName: "Hilif Milk & Foods", instructions: "Transfer to BOA Account 987654321 and input transaction reference" },
+            { id: "ebirr", name: "E-Birr / Mobile Wallet", code: "EBIRR", type: "DIGITAL", accountNumber: "0911234567", accountName: "Hilif Milk & Foods PLC", instructions: "Transfer via E-Birr mobile agent or shortcode" },
           ];
 
           const allMethods = paymentMethods.length > 0 ? paymentMethods : fallbackMethods;

@@ -145,7 +145,7 @@ export function TableDetailView({
         <div className="max-w-3xl mx-auto p-3 sm:px-6 grid grid-cols-2 sm:flex gap-2">
           <button
             onClick={() => onAddItems(table, activeOrder)}
-            className="col-span-2 sm:flex-1 h-14 rounded-2xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+            className="col-span-2 sm:flex-1 h-14 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
           >
             <Plus className="h-5 w-5" strokeWidth={3} />
             Add items

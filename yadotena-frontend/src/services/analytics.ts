@@ -1,5 +1,5 @@
 /**
- * Yadotena Analytics API Client
+ * Hilif Analytics API Client
  * 
  * All analytics endpoints use consistent period parameters:
  * ?period=today|yesterday|this_week|last_week|this_month|last_month|this_year|custom

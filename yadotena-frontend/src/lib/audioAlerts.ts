@@ -1,5 +1,5 @@
 /**
- * Yadotena Audio Notification Engine — Final
+ * Hilif Audio Notification Engine — Final
  *
  * Five simple, pleasant bell sounds designed for a real café.
  * Each sound is immediately distinguishable by rhythm and pitch.

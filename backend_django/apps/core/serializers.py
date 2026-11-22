@@ -11,6 +11,9 @@ class RestaurantSettingSerializer(serializers.ModelSerializer):
                                                     min_value=0, max_value=100, required=False)
     vatPercent = serializers.DecimalField(source='vat_percent', max_digits=5, decimal_places=2,
                                           min_value=0, max_value=100, required=False)
+    deliveryFee = serializers.DecimalField(source='delivery_fee', max_digits=10, decimal_places=2,
+                                           min_value=0, required=False)
+    requireTableQrKey = serializers.BooleanField(source='require_table_qr_key', required=False)
     guestWifiSsid = serializers.CharField(source='guest_wifi_ssid', required=False, allow_blank=True)
     guestWifiPassword = serializers.CharField(source='guest_wifi_password', required=False, allow_blank=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -19,7 +22,7 @@ class RestaurantSettingSerializer(serializers.ModelSerializer):
         model = RestaurantSetting
         fields = [
             'restaurantName', 'phone', 'address', 'serviceChargePercent', 'vatPercent',
-            'guestWifiSsid', 'guestWifiPassword', 'updatedAt',
+            'deliveryFee', 'requireTableQrKey', 'guestWifiSsid', 'guestWifiPassword', 'updatedAt',
         ]
         extra_kwargs = {'phone': {'required': False}, 'address': {'required': False}}
 

@@ -11,9 +11,11 @@ import { FullPageMenuPOS } from "@/components/dashboard/FullPageMenuPOS";
 interface ActiveOrdersTabProps {
   /** Page-level filtered orders (type / table / payment) from the Orders page. */
   ordersOverride?: Order[];
+  /** Open a ticket's details (void / refund / cancel / move live there). */
+  onOpenOrder?: (order: Order) => void;
 }
 
-export function ActiveOrdersTab({ ordersOverride }: ActiveOrdersTabProps) {
+export function ActiveOrdersTab({ ordersOverride, onOpenOrder }: ActiveOrdersTabProps) {
   const [search, setSearch] = useState("");
   const [selectedOrderToEdit, setSelectedOrderToEdit] = useState<Order | null>(null);
   const [showExtraSelectionForOrder, setShowExtraSelectionForOrder] = useState<Order | null>(null);
@@ -111,6 +113,7 @@ export function ActiveOrdersTab({ ordersOverride }: ActiveOrdersTabProps) {
                 isUrgent={order.status === "PENDING"}
                 addonMap={addonMap}
                 onAddItems={() => setShowExtraSelectionForOrder(order)}
+                onOpen={onOpenOrder ? () => onOpenOrder(order) : undefined}
               />
             );
           })}

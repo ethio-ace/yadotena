@@ -18,6 +18,7 @@ import { FullPageMenuPOS } from "@/components/dashboard/FullPageMenuPOS";
 import { TableQRModal } from "@/components/dashboard/TableQRModal";
 import { Table, TableStatus, Order } from "@/types";
 import { soundAlerts } from "@/lib/audioAlerts";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 export default function TablesPage() {
   const queryClient = useQueryClient();
@@ -443,7 +444,7 @@ function TableCard({
         {activeOrder ? (
           <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
             <div className="flex justify-between items-center font-bold">
-              <span className="text-amber-600 dark:text-amber-400">Order #{activeOrder.id.slice(-6).toUpperCase()}</span>
+              <span className="text-amber-600 dark:text-amber-400">Order #{orderTicketNumber(activeOrder)}</span>
               <span className="font-mono">{formatETB(activeOrder.total)}</span>
             </div>
             <p className="text-[11px] text-muted-foreground font-medium">{activeOrder.items?.length || 0} items • Status: {activeOrder.status}</p>

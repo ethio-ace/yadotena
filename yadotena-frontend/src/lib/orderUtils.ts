@@ -148,14 +148,18 @@ export function toOrderItemPayload(items: OrderItem[]) {
 export function estimateOrderTotals(
   items: Array<{ price: number; quantity: number }>,
   orderType: "DINE_IN" | "TAKEAWAY" | "DELIVERY",
-  options?: { vatPercent?: number; serviceChargePercent?: number; includeDeliveryFee?: boolean }
+  options?: { vatPercent?: number; serviceChargePercent?: number; deliveryFee?: number; includeDeliveryFee?: boolean }
 ) {
-  const vatPercent = options?.vatPercent ?? 15;
+  // Pass the restaurant settings; the defaults mirror the backend's (VAT 0 =
+  // not VAT-registered).
+  const vatPercent = options?.vatPercent ?? 0;
   const serviceChargePercent = options?.serviceChargePercent ?? 10;
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const tax = subtotal * (vatPercent / 100);
   const serviceCharge = orderType === "DINE_IN" ? subtotal * (serviceChargePercent / 100) : 0;
-  const deliveryFee = orderType === "DELIVERY" && options?.includeDeliveryFee !== false ? 100 : 0;
+  const deliveryFee = orderType === "DELIVERY" && options?.includeDeliveryFee !== false && subtotal > 0
+    ? (options?.deliveryFee ?? 100)
+    : 0;
   const total = subtotal + tax + serviceCharge + deliveryFee;
 
   return { subtotal, tax, serviceCharge, deliveryFee, total };

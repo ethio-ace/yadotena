@@ -125,7 +125,7 @@ export default function ShopPage() {
           <div>
             <h1 className="text-3xl md:text-4xl font-black tracking-tight text-foreground flex items-center gap-2">
               <ShoppingBag className="h-8 w-8 text-primary" />
-              Yadotena Retail Storefront
+              Hilif Retail Storefront
             </h1>
             <p className="text-muted-foreground text-sm md:text-base mt-1 font-medium max-w-2xl">
               Authentic packaged sellable products to take home: Tomoca ground coffee packs, roasted coffee beans, sealed Niter Kibbeh butter jars, Ayib cheese tubs, wild honey jars & Berbere spice pouches.

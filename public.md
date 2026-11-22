@@ -1,7 +1,7 @@
 # Public (Customer) Interface — Technical & UI Analysis
 
 ## 1. Overview & Architectural Purpose
-The Public / Customer interface of **Yadotena Milk & Foods** is designed as an anonymous, view-only and table-bound QR dine-in ordering portal. 
+The Public / Customer interface of **Hilif Milk & Foods** is designed as an anonymous, view-only and table-bound QR dine-in ordering portal. 
 Per business rules:
 - **No public user authentication or account creation**: Customers browse digital menus, shop products, and track active tickets without logging in.
 - **Strict cart partitioning**: Cart state belongs to staff POS and customer dine-in sessions; public catalog browsing is view-only until a table is scanned or selected.

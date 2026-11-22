@@ -1,5 +1,5 @@
 """
-URL configuration for backend_django project (Yadotena Milk & Foods).
+URL configuration for backend_django project (Hilif Milk & Foods).
 """
 
 from django.contrib import admin

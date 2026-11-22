@@ -1,7 +1,7 @@
 # Manager Workspace — Technical & UI Analysis
 
 ## 1. Overview & Architectural Purpose
-The Manager Workspace (`/dashboard/manager` and associated sub-routes) serves as the operational nerve center for store managers at **Yadotena Milk & Foods**.
+The Manager Workspace (`/dashboard/manager` and associated sub-routes) serves as the operational nerve center for store managers at **Hilif Milk & Foods**.
 Key Responsibilities:
 - **Real-Time Floor & Order Supervision**: Monitoring active orders, floor table status, service alerts, and dispatch readiness.
 - **Catalog & Inventory Control**: Managing menu dishes, add-ons, pricing, availability toggles, and stock levels.

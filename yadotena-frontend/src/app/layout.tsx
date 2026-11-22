@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 import { AblySyncProvider } from "@/contexts/AblySyncProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 
-const BRAND = "Yadotena Milk and Foods";
+const BRAND = "Hilif Milk and Foods";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://yadotena.vercel.app"),
@@ -26,10 +26,10 @@ export const metadata: Metadata = {
     template: `%s | ${BRAND}`,
   },
   description:
-    "Yadotena Milk and Foods — pure farm-fresh dairy, artisan kitchen meals, coffee, teas, and over-the-counter retail goods.",
-  applicationName: "Yadotena",
+    "Hilif Milk and Foods — pure farm-fresh dairy, artisan kitchen meals, coffee, teas, and over-the-counter retail goods.",
+  applicationName: "Hilif",
   keywords: [
-    "Yadotena",
+    "Hilif",
     "café POS",
     "fresh dairy",
     "Ethiopian coffee",
@@ -45,11 +45,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: `${BRAND} | Fresh Dairy & Artisanal Kitchen`,
     description:
-      "Explore farm-fresh dairy, artisan kitchen meals, coffee & teas, and retail goods from Yadotena.",
+      "Explore farm-fresh dairy, artisan kitchen meals, coffee & teas, and retail goods from Hilif.",
     type: "website",
     locale: "en_ET",
     siteName: BRAND,
-    images: [{ url: "/icon.svg", width: 64, height: 64, alt: "Yadotena logo" }],
+    images: [{ url: "/icon.svg", width: 64, height: 64, alt: "Hilif logo" }],
   },
   twitter: {
     card: "summary",

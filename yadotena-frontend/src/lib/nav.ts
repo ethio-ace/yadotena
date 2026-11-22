@@ -13,6 +13,7 @@ import {
   ScrollText,
   Activity,
   Package,
+  Wallet,
 } from "lucide-react";
 import { Role } from "@/types";
 
@@ -60,6 +61,7 @@ export const managerNavGroups: NavGroup[] = [
   {
     group: "FINANCE",
     items: [
+      { name: "Day Close", href: "/dashboard/day-close", icon: Wallet },
       { name: "Payment Verification", href: "/dashboard/payments", icon: CreditCard },
       { name: "Expense Ledger", href: "/dashboard/expenses", icon: Receipt },
     ],
@@ -105,6 +107,7 @@ export const ownerNavGroups: NavGroup[] = [
   {
     group: "FINANCE",
     items: [
+      { name: "Day Close", href: "/dashboard/day-close", icon: Wallet },
       { name: "Payments", href: "/dashboard/payments", icon: CreditCard },
       { name: "Expenses", href: "/dashboard/expenses", icon: Receipt },
     ],

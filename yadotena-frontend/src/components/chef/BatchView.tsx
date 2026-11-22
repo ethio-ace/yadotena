@@ -27,6 +27,7 @@ export function BatchView({ orders, addonMap, tableLabels }: BatchViewProps) {
     totalQuantity: number;
     tickets: Array<{
       orderId: string;
+      dailyNumber?: number | null;
       destination: string;
       quantity: number;
       addons: string[];
@@ -46,6 +47,7 @@ export function BatchView({ orders, addonMap, tableLabels }: BatchViewProps) {
 
       existing.tickets.push({
         orderId: o.id,
+        dailyNumber: o.dailyNumber,
         destination: dest,
         quantity: item.quantity,
         addons: addonNames(item.selectedAddons, addonMap),
@@ -135,7 +137,7 @@ export function BatchView({ orders, addonMap, tableLabels }: BatchViewProps) {
                       <div key={idx} className="p-3 rounded-lg border border-zinc-800 bg-zinc-950 space-y-1.5 text-xs">
                         <div className="flex justify-between font-bold">
                           <span className="text-white">
-                            {t.destination} <span className="text-zinc-500">#{orderTicketNumber({ id: t.orderId })}</span>
+                            {t.destination} <span className="text-zinc-500">#{orderTicketNumber({ id: t.orderId, dailyNumber: t.dailyNumber })}</span>
                           </span>
                           <span className="text-zinc-300 font-black tabular-nums">{t.quantity}×</span>
                         </div>

@@ -1,7 +1,7 @@
 # Owner Analytics & Control Center — Technical & UI Analysis
 
 ## 1. Overview & Architectural Purpose
-The Owner Control Center (`/dashboard/owner` and sub-routes) provides executive-level financial oversight, revenue analytics, operational performance metrics, and system configuration tools for business owners at **Yadotena Milk & Foods**.
+The Owner Control Center (`/dashboard/owner` and sub-routes) provides executive-level financial oversight, revenue analytics, operational performance metrics, and system configuration tools for business owners at **Hilif Milk & Foods**.
 Key Capabilities:
 - **Executive Revenue & Profit Analytics**: Real-time tracking of Gross Revenue, Net Income (Revenue minus Expenses), Average Order Value, and channel mix.
 - **Dynamic Period Comparison & Drilldown**: Historical trend analysis across customizable date ranges (`Today`, `Yesterday`, `This Week`, `This Month`, `YTD`, `Custom`).

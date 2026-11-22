@@ -1,3 +1,3 @@
 """
-Yadotena Milk & Foods modular applications package.
+Hilif Milk & Foods modular applications package.
 """

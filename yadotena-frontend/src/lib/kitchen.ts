@@ -50,12 +50,14 @@ export function itemStatus(item: OrderItem): ItemKitchenStatus {
   return item.status || "PENDING";
 }
 
-/** Tailwind chip classes for a kitchen status (light-theme waiter surfaces). */
+/** Tailwind chip classes for a kitchen status (waiter surfaces). Shemma & Tibeb roles:
+ *  DRAFT gold (act: approve) · READY green (act: serve) · PREPARING ergo blue (informational) ·
+ *  CANCELLED berbere · waiting/served neutral. */
 export function statusChipClass(status: string): string {
   switch (status) {
     case "DRAFT": return "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300";
     case "READY": return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400";
-    case "PREPARING": return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400";
+    case "PREPARING": return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
     case "SERVED": return "bg-muted text-muted-foreground";
     case "CANCELLED": return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400";
     default: return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
@@ -67,7 +69,7 @@ export function statusDotClass(status: string): string {
   switch (status) {
     case "DRAFT": return "bg-orange-500";
     case "READY": return "bg-emerald-500";
-    case "PREPARING": return "bg-amber-500";
+    case "PREPARING": return "bg-blue-500";
     case "SERVED": return "bg-muted-foreground/50";
     case "CANCELLED": return "bg-red-500";
     default: return "bg-zinc-400";
@@ -238,8 +240,13 @@ export function orderDestination(order: Order, tableLabels?: Record<string, stri
   return "TAKEAWAY";
 }
 
-export function orderTicketNumber(order: { id: string }): string {
-  return order.id.slice(-6).toUpperCase();
+/**
+ * What staff call a ticket: today's short number ("27" → shown as "#27").
+ * Older tickets without one fall back to the last 6 characters of the id.
+ * Customer-facing screens keep the 6-char code — guests track orders by it.
+ */
+export function orderTicketNumber(order: { id: string; dailyNumber?: number | null }): string {
+  return order.dailyNumber ? String(order.dailyNumber) : order.id.slice(-6).toUpperCase();
 }
 
 /**

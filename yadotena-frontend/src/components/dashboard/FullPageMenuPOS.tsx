@@ -11,6 +11,7 @@ import { formatETB } from "@/lib/currency";
 import { findActiveOrderForTable } from "@/lib/tableUtils";
 import { ArrowLeft, Plus, Minus, Search, Utensils, ShoppingBag, Truck, CheckCircle2, Sparkles, X, Edit, ShoppingCart, AlertCircle } from "lucide-react";
 import { toOrderItemPayload, estimateOrderTotals, getApplicableAddonsForItem } from "@/lib/orderUtils";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 interface FullPageMenuPOSProps {
   orderType?: OrderType;
@@ -218,10 +219,18 @@ export function FullPageMenuPOS({
     handleUpdateQuantity(line.cartItemId, -1);
   };
 
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: api.settings.get, staleTime: 60_000 });
+  const vatPercent = Number(settings?.vatPercent ?? 0);
+  const servicePercent = Number(settings?.serviceChargePercent ?? 10);
   const { subtotal, tax, serviceCharge, deliveryFee, total } = estimateOrderTotals(
     orderItems,
     activeOrderType,
-    { includeDeliveryFee: activeOrderType === "DELIVERY" && !existingOrder }
+    {
+      vatPercent,
+      serviceChargePercent: servicePercent,
+      deliveryFee: Number(settings?.deliveryFee ?? 100),
+      includeDeliveryFee: activeOrderType === "DELIVERY" && !existingOrder,
+    }
   );
 
   const handleSubmit = () => {
@@ -398,13 +407,15 @@ export function FullPageMenuPOS({
             <span>Subtotal (New items)</span>
             <span className="font-medium text-foreground">{formatETB(subtotal)}</span>
           </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Tax (15%)</span>
-            <span>{formatETB(tax)}</span>
-          </div>
-          {activeOrderType === "DINE_IN" && (
+          {vatPercent > 0 && (
             <div className="flex justify-between text-muted-foreground">
-              <span>Service (10%)</span>
+              <span>VAT ({vatPercent}%)</span>
+              <span>{formatETB(tax)}</span>
+            </div>
+          )}
+          {activeOrderType === "DINE_IN" && servicePercent > 0 && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>Service ({servicePercent}%)</span>
               <span>{formatETB(serviceCharge)}</span>
             </div>
           )}
@@ -458,7 +469,7 @@ export function FullPageMenuPOS({
           </Button>
           <div className="font-bold bg-muted px-4 py-1.5 rounded-full text-sm flex items-center gap-2">
             {activeOrderType === "DINE_IN" ? <Utensils className="w-4 h-4"/> : activeOrderType === "TAKEAWAY" ? <ShoppingBag className="w-4 h-4"/> : <Truck className="w-4 h-4"/>}
-            {existingOrder ? `Adding to ${(existingOrder?.id || '').slice(-6).toUpperCase()}` : 
+            {existingOrder ? `Adding to ${existingOrder ? `#${orderTicketNumber(existingOrder)}` : ''}` : 
              activeOrderType === "DINE_IN" ? (activeTableName || "Dine-in") : 
              activeOrderType === "TAKEAWAY" ? "Takeaway" : "Delivery"}
           </div>

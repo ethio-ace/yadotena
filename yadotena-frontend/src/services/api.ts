@@ -1,4 +1,4 @@
-import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession, AddonItem, Product, ProductSale, ProductPurchase, ProductAnalytics } from "../types";
+import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession, AddonItem, Product, ProductSale, ProductPurchase, ProductAnalytics, RestaurantSettings, MenuIngredient, DayCloseReport } from "../types";
 
 import { API_BASE, SESSION_ENDED_EVENT, authHeaders } from "@/lib/config";
 
@@ -57,6 +57,12 @@ async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}):
       }
       else if (errorBody.unavailable_items) {
         message = `Unavailable: ${errorBody.unavailable_items.join(", ")}`;
+      }
+      else if (errorBody && typeof errorBody === "object") {
+        // DRF field errors: {"reason": ["Give a short reason…"]} — show the first one.
+        const first = Object.values(errorBody)[0];
+        const text = Array.isArray(first) ? first[0] : first;
+        if (typeof text === "string" && text) message = text;
       }
     } catch {
       // ignore parse errors
@@ -264,6 +270,8 @@ export const api = {
           selectedAddons?: string[];
         }>;
         idempotencyKey?: string;
+        /** Guest orders: the table's secret QR key (required when the owner enables it). */
+        tableKey?: string;
       }
     ): Promise<Order> => {
       const idempotencyKey = order.idempotencyKey || `idem-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -280,6 +288,7 @@ export const api = {
           customerPhone: order.customerPhone,
           deliveryAddress: order.deliveryAddress,
           idempotencyKey: idempotencyKey,
+          tableKey: order.tableKey || undefined,
           items: serializeOrderItems(order.items),
         }),
       });
@@ -314,13 +323,43 @@ export const api = {
       body: {
         roundNumber?: number;
         itemIds?: string[];
-        /** approve/reject review a guest's DRAFT round (waiter). */
-        action: "start" | "ready" | "serve" | "cancel" | "approve" | "reject";
+        /** approve/reject review a guest's DRAFT round (waiter). void = manager takes cooked/served lines off the bill. */
+        action: "start" | "ready" | "serve" | "cancel" | "approve" | "reject" | "void";
+        /** Required for void; recorded for cancel. */
+        reason?: string;
       }
     ): Promise<Order> => {
       return requestApiStrict<Order>(`/orders/${id}/kitchen`, {
         method: "POST",
         body: JSON.stringify(body),
+      });
+    },
+    /** Cancel the whole ticket. Floor staff: only untouched, unpaid tickets. */
+    cancel: async (id: string, reason: string): Promise<Order> => {
+      return requestApiStrict<Order>(`/orders/${id}/cancel`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+    },
+    /** Manager-only: take cooked/served lines off the bill (refunds any overpayment). */
+    voidItems: async (id: string, itemIds: string[], reason: string): Promise<Order> => {
+      return requestApiStrict<Order>(`/orders/${id}/kitchen`, {
+        method: "POST",
+        body: JSON.stringify({ action: "void", itemIds, reason }),
+      });
+    },
+    /** Manager-only refund, recorded as its own payment row. */
+    refund: async (id: string, amount: number, reason: string): Promise<Order> => {
+      return requestApiStrict<Order>(`/orders/${id}/refund`, {
+        method: "POST",
+        body: JSON.stringify({ amount, reason }),
+      });
+    },
+    /** Move a dine-in ticket; returns the ticket that now holds the food (merged if the table was busy). */
+    move: async (id: string, tableId: string): Promise<Order> => {
+      return requestApiStrict<Order>(`/orders/${id}/move`, {
+        method: "POST",
+        body: JSON.stringify({ tableId }),
       });
     },
   },
@@ -384,7 +423,6 @@ export const api = {
       receiptUrl?: string;
       reference?: string;
       notes?: string;
-      status?: string;
     }) => {
       return requestApiStrict<any>("/payments", {
         method: "POST",
@@ -396,7 +434,6 @@ export const api = {
           receiptUrl: data.receiptUrl,
           reference: data.reference || data.transactionRef,
           notes: data.notes,
-          status: data.status || "PAID",
         }),
       });
     },
@@ -446,11 +483,11 @@ export const api = {
   },
 
   settings: {
-    get: async (): Promise<any> => {
-      return requestApiStrict<any>("/settings", { method: "GET" });
+    get: async (): Promise<RestaurantSettings> => {
+      return requestApiStrict<RestaurantSettings>("/settings", { method: "GET" });
     },
-    update: async (data: any): Promise<any> => {
-      return requestApiStrict<any>("/settings", {
+    update: async (data: Partial<RestaurantSettings>): Promise<RestaurantSettings> => {
+      return requestApiStrict<RestaurantSettings>("/settings", {
         method: "PUT",
         body: JSON.stringify(data),
       });
@@ -555,6 +592,32 @@ export const api = {
   reports: {
     getSummary: async () => {
       return requestApiStrict<any>("/reports/summary", { method: "GET" });
+    },
+    /** End-of-day report for a cafe day (YYYY-MM-DD, default today). */
+    getDayClose: async (date?: string): Promise<DayCloseReport> => {
+      const q = date ? `?date=${encodeURIComponent(date)}` : "";
+      return requestApiStrict<DayCloseReport>(`/reports/day-close${q}`, { method: "GET" });
+    },
+    closeDay: async (data: { date: string; countedCash: number; notes?: string }): Promise<DayCloseReport> => {
+      return requestApiStrict<DayCloseReport>("/reports/day-close", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+  },
+
+  menuIngredients: {
+    getForItem: async (menuItemId: string): Promise<MenuIngredient[]> => {
+      return requestApiStrict<MenuIngredient[]>(`/menu-ingredients?menuItem=${encodeURIComponent(menuItemId)}`, { method: "GET" });
+    },
+    create: async (data: { menuItemId: string; productId: string; quantity: number }): Promise<MenuIngredient> => {
+      return requestApiStrict<MenuIngredient>("/menu-ingredients", { method: "POST", body: JSON.stringify(data) });
+    },
+    update: async (id: number, data: { quantity: number }): Promise<MenuIngredient> => {
+      return requestApiStrict<MenuIngredient>(`/menu-ingredients/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+    },
+    delete: async (id: number): Promise<void> => {
+      return requestApiStrict<void>(`/menu-ingredients/${id}`, { method: "DELETE" });
     },
   },
 

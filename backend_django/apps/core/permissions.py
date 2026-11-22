@@ -1,5 +1,5 @@
 """
-Role-based permissions for the Yadotena API.
+Role-based permissions for the Hilif API.
 
 Roles (apps.authentication.models.Role):
   OWNER, MANAGER  -> "managers": full back-office access

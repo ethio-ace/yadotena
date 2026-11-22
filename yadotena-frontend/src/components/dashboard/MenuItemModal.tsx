@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatETB } from "@/lib/currency";
 import { getImageUrl } from "@/lib/utils";
+import { RecipeEditor } from "@/components/dashboard/RecipeEditor";
 import { 
   X, Plus, Trash2, Utensils, Image as ImageIcon, Sparkles, 
   Clock, Flame, Check, Eye, Layers, Globe, CheckCircle2
@@ -618,6 +619,12 @@ export function MenuItemModal({ isOpen, onClose, itemToEdit }: MenuItemModalProp
                 {available ? "Available" : "Sold Out"}
               </Badge>
             </div>
+
+            {itemToEdit?.id ? (
+              <RecipeEditor menuItemId={itemToEdit.id} />
+            ) : (
+              <p className="text-[11px] text-muted-foreground">Save the dish first, then link the stock it uses (e.g. milk per cup).</p>
+            )}
 
             {error && <p className="text-xs text-destructive font-bold">{error}</p>}
 

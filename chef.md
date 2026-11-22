@@ -1,7 +1,7 @@
 # Chef & Kitchen (KDS) Interface — Technical & UI Analysis
 
 ## 1. Overview & Architectural Purpose
-The Kitchen Display System (KDS) at `/dashboard/kitchen` serves as the high-throughput "Air Traffic Control" center for Yadotena's kitchen stations.
+The Kitchen Display System (KDS) at `/dashboard/kitchen` serves as the high-throughput "Air Traffic Control" center for Hilif's kitchen stations.
 Core KDS Architecture Rules:
 - **Rounds are the unit of work, not whole orders**: Every order item carries a `round_number` (1 = original order, 2+ = appended later) and its own kitchen status (`PENDING` → `PREPARING` → `READY` → `SERVED` / `CANCELLED`).
 - **Derived order status**: The overall order status is strictly derived from its item statuses (`READY` wins over `PREPARING` over `PENDING`).

@@ -11,7 +11,7 @@ from . import services
 
 
 class PaymentViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
-    queryset = Payment.objects.all().select_related('order', 'payment_method')
+    queryset = Payment.objects.all().select_related('order', 'payment_method', 'recorded_by')
     serializer_class = PaymentSerializer
     http_method_names = ['get', 'post', 'head', 'options']
     # Floor staff settle bills; payment history is back-office.
@@ -29,7 +29,6 @@ class PaymentViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
             order_id=d['orderId'],
             method=d.get('method') or 'CASH',
             amount=d.get('amount'),
-            status=d.get('status') or 'PAID',
             transaction_ref=d.get('transactionRef') or d.get('reference'),
             receipt_url=d.get('receiptUrl'),
             notes=d.get('notes') or '',

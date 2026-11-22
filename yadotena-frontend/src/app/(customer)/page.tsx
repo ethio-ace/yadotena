@@ -15,7 +15,7 @@ export default function CustomerIndex() {
     <div className="flex h-screen items-center justify-center">
       <div className="animate-pulse flex flex-col items-center">
         <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-muted-foreground font-semibold">Loading Yadotena Menu & Shop...</p>
+        <p className="mt-4 text-muted-foreground font-semibold">Loading Hilif Menu & Shop...</p>
       </div>
     </div>
   );

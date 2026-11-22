@@ -154,7 +154,9 @@ export default function PaymentMethodsPage() {
   };
 
   // Derive Statistics from Payments
-  const totalSettledRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
+  // Refunds are their own records: they come off the totals.
+  const signedAmount = (p: { amount: number; status?: string }) => (p.status === "REFUNDED" ? -1 : 1) * (Number(p.amount) || 0);
+  const totalSettledRevenue = payments.reduce((sum, p) => sum + signedAmount(p), 0);
   const totalPaymentsCount = payments.length;
 
   const getMethodStats = (code: string) => {
@@ -162,16 +164,16 @@ export default function PaymentMethodsPage() {
       (p) => p.method.toLowerCase() === code.toLowerCase() || p.method.toLowerCase().includes(code.toLowerCase())
     );
     const count = matching.length;
-    const amount = matching.reduce((sum, p) => sum + p.amount, 0);
+    const amount = matching.reduce((sum, p) => sum + signedAmount(p), 0);
     const percentage = totalSettledRevenue > 0 ? (amount / totalSettledRevenue) * 100 : 0;
     return { count, amount, percentage };
   };
 
   const digitalPayments = payments.filter((p) => p.method.toUpperCase() !== "CASH");
-  const digitalVolume = digitalPayments.reduce((sum, p) => sum + p.amount, 0);
+  const digitalVolume = digitalPayments.reduce((sum, p) => sum + signedAmount(p), 0);
 
   const cashPayments = payments.filter((p) => p.method.toUpperCase() === "CASH");
-  const cashVolume = cashPayments.reduce((sum, p) => sum + p.amount, 0);
+  const cashVolume = cashPayments.reduce((sum, p) => sum + signedAmount(p), 0);
 
   const getProviderIcon = (code: string) => {
     const lower = code.toLowerCase();
@@ -471,7 +473,7 @@ export default function PaymentMethodsPage() {
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-muted-foreground uppercase">Account Holder Name</label>
                     <Input
-                      placeholder="e.g. Yadotena Milk & Foods PLC"
+                      placeholder="e.g. Hilif Milk & Foods PLC"
                       value={formData.accountName}
                       onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
                       className="rounded-xl text-xs"

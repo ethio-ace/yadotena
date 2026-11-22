@@ -33,7 +33,10 @@ interface CustomerDineInContextType {
   activeTableOrder: Order | null;
   rememberOrder: (orderId: string) => void;
   cart: CustomerCartItem[];
-  setTableId: (id: string | null) => void;
+  /** Connect a table. `key` is the secret from the table's QR (`?k=`), kept per table. */
+  setTableId: (id: string | null, key?: string | null) => void;
+  /** This table's QR key if this device scanned it (sent with guest orders). */
+  tableKey: string | null;
   clearTable: () => void;
   addToCart: (menuItem: MenuItem, quantity: number, selectedAddons: SelectedAddon[], specialInstructions: string) => void;
   updateCartItemQty: (cartItemId: string, newQty: number) => void;
@@ -44,7 +47,7 @@ interface CustomerDineInContextType {
   /** Remove one of a dish (from its newest line). */
   decrementItem: (menuItemId: string) => void;
   itemCount: number;
-  /** Items only — VAT and service charge are added by the restaurant on the bill. */
+  /** Items only — the service charge is added by the restaurant on the bill. */
   subtotal: number;
   total: number;
   /** Bumped on every add so the cart bar can pulse. */
@@ -60,6 +63,7 @@ interface CustomerDineInContextType {
 const STORAGE_TABLE_KEY = "yadotena_customer_table_id";
 const STORAGE_CART_KEY = "yadotena_customer_cart";
 const orderKey = (tableId: string) => `yadotena_customer_order_${tableId}`;
+const qrKeyKey = (tableId: string) => `yadotena_customer_table_key_${tableId}`;
 
 const readStorage = (key: string): string | null => {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -110,12 +114,19 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
   const tableId = activeTable?.id ?? null;
   const unmatchedTableCode = tableCode && tablesLoaded && !activeTable ? tableCode : null;
 
-  const setTableId = useCallback((code: string | null) => {
+  const [keyVersion, setKeyVersion] = useState(0);
+  const setTableId = useCallback((code: string | null, key?: string | null) => {
     // Store the canonical id when we can already resolve it.
     const canonical = code ? resolveTable(code, tables)?.id || code : null;
     setTableCode(canonical);
     writeStorage(STORAGE_TABLE_KEY, canonical);
+    if (canonical && key) {
+      writeStorage(qrKeyKey(canonical), key);
+      setKeyVersion((v) => v + 1);
+    }
   }, [tables]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyVersion re-reads storage after a scan
+  const tableKey = useMemo(() => (tableId ? readStorage(qrKeyKey(tableId)) : null), [tableId, keyVersion]);
   const clearTable = () => setTableId(null);
 
   const rememberOrder = useCallback((orderId: string) => {
@@ -181,7 +192,7 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
   return (
     <CustomerDineInContext.Provider
       value={{
-        tableId, unmatchedTableCode, tableName, activeTable, activeTableOrder, rememberOrder,
+        tableId, tableKey, unmatchedTableCode, tableName, activeTable, activeTableOrder, rememberOrder,
         cart, setTableId, clearTable, addToCart, updateCartItemQty, removeFromCart, clearCart,
         qtyInCart, decrementItem, itemCount, subtotal, total: subtotal, lastAddedAt,
         isCartOpen, setIsCartOpen, isTablePickerOpen, setIsTablePickerOpen, isQRScannerOpen, setIsQRScannerOpen,

@@ -91,11 +91,11 @@ export function RevenueExpenseChart({ metrics }: { metrics: OwnerMetrics }) {
             formatter={(value, name) => [formatETB(Number(value ?? 0)), name === "net" ? "Net (rev − exp)" : String(name)]}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="revenue" name="Revenue" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={26} />
+          <Bar dataKey="revenue" name="Revenue" fill="#006746" radius={[4, 4, 0, 0]} maxBarSize={26} />
           {hasExpenses && (
-            <Bar dataKey="expenses" name="Expenses" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={26} />
+            <Bar dataKey="expenses" name="Expenses" fill="#da5042" radius={[4, 4, 0, 0]} maxBarSize={26} />
           )}
-          {hasExpenses && <Bar dataKey="net" name="net" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={12} opacity={0.7} />}
+          {hasExpenses && <Bar dataKey="net" name="net" fill="#e6a313" radius={[4, 4, 0, 0]} maxBarSize={12} opacity={0.7} />}
         </BarChart>
       </ResponsiveContainer>
     </div>

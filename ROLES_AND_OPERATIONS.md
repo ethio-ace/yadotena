@@ -1,6 +1,6 @@
-# Yadotena POS — Staff Roles, Features & Operational Workflows
+# Hilif POS — Staff Roles, Features & Operational Workflows
 
-This document provides a comprehensive breakdown of the role-based features, permissions, user interfaces, and end-to-end operational workflows within the **Yadotena Point-Of-Sale (POS) System**.
+This document provides a comprehensive breakdown of the role-based features, permissions, user interfaces, and end-to-end operational workflows within the **Hilif Point-Of-Sale (POS) System**.
 
 ---
 
@@ -11,7 +11,7 @@ graph TD
     Owner["👑 OWNER"] -->|Full Control| Manager["👔 MANAGER"]
     Manager -->|Operations & Catalog| Waiter["☕ WAITER"]
     Manager -->|Kitchen & Queue| Chef["🍳 CHEF"]
-    Waiter -->|Order Entry & Settlement| CoreEngine["⚙️ YADOTENA CORE ENGINE"]
+    Waiter -->|Order Entry & Settlement| CoreEngine["⚙️ HILIF CORE ENGINE"]
     Chef -->|Food Prep State| CoreEngine
     CoreEngine -->|Realtime PubSub / SSE| KDS["Display Screens & Terminals"]
 ```
@@ -165,4 +165,4 @@ The **Chef** role operates the Kitchen Display System (KDS), managing order prep
 
 ---
 
-*Yadotena POS Roles & Operations Guide v1.0*
+*Hilif POS Roles & Operations Guide v1.0*

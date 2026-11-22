@@ -6,6 +6,7 @@ import { formatETB } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { DateRange } from "@/lib/owner";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 /**
  * Drillable revenue analytics.
@@ -501,7 +502,7 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
               {/* Legend — each series labels its own scale max (dual axis). */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-bold text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-amber-500" /> Revenue
+                  <span className="h-2 w-2 rounded-full bg-shewa-700" /> Revenue
                   <span className="text-[9px] font-semibold opacity-70">max {formatETB(maxRevenue)}</span>
                 </span>
                 {showExpenses ? (
@@ -533,21 +534,21 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
                 >
                   <defs>
                     <linearGradient id="revArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.22} />
-                      <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.01} />
+                      <stop offset="0%" stopColor="#006746" stopOpacity={0.22} />
+                      <stop offset="100%" stopColor="#006746" stopOpacity={0.01} />
                     </linearGradient>
                     <linearGradient id="expArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.16} />
-                      <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.01} />
+                      <stop offset="0%" stopColor="#da5042" stopOpacity={0.16} />
+                      <stop offset="100%" stopColor="#da5042" stopOpacity={0.01} />
                     </linearGradient>
                   </defs>
                   {expArea && <path d={expArea} fill="url(#expArea)" />}
                   {revArea && <path d={revArea} fill="url(#revArea)" />}
                   {expLine && (
-                    <path d={expLine} fill="none" stroke="#f43f5e" strokeWidth="1.8" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d={expLine} fill="none" stroke="#da5042" strokeWidth="1.8" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
                   )}
                   {revLine && (
-                    <path d={revLine} fill="none" stroke="#f59e0b" strokeWidth="2.4" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d={revLine} fill="none" stroke="#006746" strokeWidth="2.4" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
                   )}
                 </svg>
 
@@ -573,7 +574,7 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
                         // Invisible by default so the line stays clean; a small dot
                         // appears only on hover/focus to show the drill target.
                         "absolute -translate-x-1/2 -translate-y-1/2 h-4 w-4 rounded-full transition-all focus-visible:outline-2 focus-visible:outline-amber-500",
-                        hoverIdx === i ? "bg-amber-500 border-2 border-background shadow-md scale-125" : "bg-transparent border-0"
+                        hoverIdx === i ? "bg-shewa-700 border-2 border-background shadow-md scale-125" : "bg-transparent border-0"
                       )}
                       style={{ left: `${left}%`, top: `${top}%` }}
                     />
@@ -622,7 +623,7 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
                     <div className="min-w-0">
                       <p className="font-black text-foreground truncate">
                         {new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        <span className="ml-2 font-mono text-[10px] text-muted-foreground">{o.id.slice(-6).toUpperCase()}</span>
+                        <span className="ml-2 font-mono text-[10px] text-muted-foreground">#{orderTicketNumber(o)}</span>
                       </p>
                       <p className="text-[11px] text-muted-foreground truncate">
                         {o.items?.map((i) => `${i.quantity}× ${i.name}`).join(", ") || "No items"}
@@ -679,7 +680,7 @@ export function DrilldownTrend({ orders, expenses, range }: DrilldownTrendProps)
                               <p className="font-bold text-foreground truncate">
                                 {new Date(o.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}{" "}
                                 {new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                <span className="ml-2 font-mono text-[10px] text-muted-foreground">{o.id.slice(-6).toUpperCase()}</span>
+                                <span className="ml-2 font-mono text-[10px] text-muted-foreground">#{orderTicketNumber(o)}</span>
                               </p>
                               <p className="text-[11px] text-muted-foreground truncate">
                                 {o.items?.map((i) => `${i.quantity}× ${i.name}`).join(", ") || "No items"}

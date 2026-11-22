@@ -45,7 +45,7 @@ export function exportFullReportPDF(
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Yadotena Executive Operations Report - ${rangeLabel}</title>
+  <title>Hilif Executive Operations Report - ${rangeLabel}</title>
   <style>
     @media print {
       @page { margin: 15mm; size: A4 portrait; }
@@ -54,7 +54,7 @@ export function exportFullReportPDF(
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #0f172a;
+      color: #1c1916;
       background: #ffffff;
       margin: 0;
       padding: 24px;
@@ -64,21 +64,21 @@ export function exportFullReportPDF(
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      border-bottom: 3px solid #f59e0b;
+      border-bottom: 3px solid #006746;
       padding-bottom: 16px;
       margin-bottom: 24px;
     }
     .brand {
       font-size: 24px;
       font-weight: 900;
-      color: #0f172a;
+      color: #1c1916;
       letter-spacing: -0.5px;
     }
-    .brand span { color: #f59e0b; }
+    .brand span { color: #006746; }
     .title {
       font-size: 14px;
       font-weight: 700;
-      color: #64748b;
+      color: #68625c;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       margin-top: 4px;
@@ -86,20 +86,20 @@ export function exportFullReportPDF(
     .meta {
       text-align: right;
       font-size: 12px;
-      color: #475569;
+      color: #5c5752;
     }
-    .meta strong { color: #0f172a; }
+    .meta strong { color: #1c1916; }
     
     .section-title {
       font-size: 14px;
       font-weight: 800;
-      color: #0f172a;
+      color: #1c1916;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       margin-top: 28px;
       margin-bottom: 12px;
       padding-bottom: 4px;
-      border-bottom: 1px solid #e2e8f0;
+      border-bottom: 1px solid #dedcd4;
     }
     
     .kpi-grid {
@@ -109,21 +109,21 @@ export function exportFullReportPDF(
       margin-bottom: 24px;
     }
     .kpi-card {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
+      background: #f4f4f0;
+      border: 1px solid #dedcd4;
       border-radius: 8px;
       padding: 12px 14px;
     }
     .kpi-label {
       font-size: 11px;
       font-weight: 700;
-      color: #64748b;
+      color: #68625c;
       text-transform: uppercase;
     }
     .kpi-val {
       font-size: 18px;
       font-weight: 900;
-      color: #0f172a;
+      color: #1c1916;
       margin-top: 4px;
     }
     .kpi-sub {
@@ -140,27 +140,27 @@ export function exportFullReportPDF(
       margin-top: 8px;
     }
     th {
-      background: #f1f5f9;
-      color: #334155;
+      background: #ebebe5;
+      color: #47433f;
       font-weight: 800;
       text-align: left;
       padding: 8px 10px;
-      border-bottom: 2px solid #cbd5e1;
+      border-bottom: 2px solid #d6d4cb;
     }
     td {
       padding: 8px 10px;
-      border-bottom: 1px solid #e2e8f0;
+      border-bottom: 1px solid #dedcd4;
       color: #1e293b;
     }
-    tr:nth-child(even) td { background: #f8fafc; }
+    tr:nth-child(even) td { background: #f4f4f0; }
     .text-right { text-align: right; }
     
     .footer {
       margin-top: 40px;
       padding-top: 16px;
-      border-top: 1px solid #e2e8f0;
+      border-top: 1px solid #dedcd4;
       font-size: 11px;
-      color: #94a3b8;
+      color: #a9a39e;
       display: flex;
       justify-content: space-between;
     }
@@ -168,8 +168,8 @@ export function exportFullReportPDF(
       position: fixed;
       top: 16px;
       right: 16px;
-      background: #f59e0b;
-      color: #78350f;
+      background: #006746;
+      color: #6e4b00;
       border: none;
       padding: 10px 18px;
       border-radius: 8px;
@@ -184,7 +184,7 @@ export function exportFullReportPDF(
 
   <div class="header">
     <div>
-      <div class="brand">YADOTENA <span>MANAGEMENT</span></div>
+      <div class="brand">HILIF <span>MANAGEMENT</span></div>
       <div class="title">Official Executive Operations & Financial Report</div>
     </div>
     <div class="meta">
@@ -303,7 +303,7 @@ export function exportFullReportPDF(
   </table>
 
   <div class="footer">
-    <div>Confidential · Yadotena Enterprise Management System</div>
+    <div>Confidential · Hilif Enterprise Management System</div>
     <div>Page 1 of 1</div>
   </div>
 </body>

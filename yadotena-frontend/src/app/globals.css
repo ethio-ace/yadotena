@@ -29,51 +29,183 @@
   --radius-lg: var(--radius);
 }
 
+/* ── Shemma & Tibeb ─────────────────────────────────────────────────────
+   Hilif's colour system. A milk-white cotton field (shemma) carries the
+   content; colour is reserved for meaning, one job per hue:
+     shewa     brand green: primary actions, ready, paid, success
+     kibbeh    butter gold: new tickets, needs approval, pending, attention
+     berbere   spice red:   late, unpaid, destructive
+     ergo      milk blue:   neutral information
+     jacaranda violet:      delivery orders
+     roast     warm coffee neutrals (dark mode is roasted, not navy)
+   Tailwind's stock families are aliased onto these ramps (emerald → shewa,
+   amber/orange → kibbeh, rose/red → berbere, blue/sky/indigo → ergo,
+   purple/violet → jacaranda, zinc/slate/gray/… → roast), so every existing
+   utility speaks the system. Ramps are OKLCH, generated with contrast
+   checks: white on shewa-700 6.9:1, kibbeh-600/700 text ≥4.5:1 on white,
+   kibbeh-950 on kibbeh-500 7.5:1 (KDS CTA). */
+@theme {
+  /* shewa */
+  --color-shewa-50: oklch(0.975 0.014 163);
+  --color-shewa-100: oklch(0.945 0.029 163);
+  --color-shewa-200: oklch(0.890 0.053 163);
+  --color-shewa-300: oklch(0.820 0.083 163);
+  --color-shewa-400: oklch(0.720 0.106 163);
+  --color-shewa-500: oklch(0.615 0.118 163);
+  --color-shewa-600: oklch(0.530 0.112 163);
+  --color-shewa-700: oklch(0.455 0.098 163);
+  --color-shewa-800: oklch(0.385 0.083 163);
+  --color-shewa-900: oklch(0.325 0.069 163);
+  --color-shewa-950: oklch(0.230 0.049 163);
+  --color-emerald-50: var(--color-shewa-50); --color-emerald-100: var(--color-shewa-100); --color-emerald-200: var(--color-shewa-200); --color-emerald-300: var(--color-shewa-300); --color-emerald-400: var(--color-shewa-400); --color-emerald-500: var(--color-shewa-500); --color-emerald-600: var(--color-shewa-600); --color-emerald-700: var(--color-shewa-700); --color-emerald-800: var(--color-shewa-800); --color-emerald-900: var(--color-shewa-900); --color-emerald-950: var(--color-shewa-950);
+  --color-green-50: var(--color-shewa-50); --color-green-100: var(--color-shewa-100); --color-green-200: var(--color-shewa-200); --color-green-300: var(--color-shewa-300); --color-green-400: var(--color-shewa-400); --color-green-500: var(--color-shewa-500); --color-green-600: var(--color-shewa-600); --color-green-700: var(--color-shewa-700); --color-green-800: var(--color-shewa-800); --color-green-900: var(--color-shewa-900); --color-green-950: var(--color-shewa-950);
+  --color-teal-50: var(--color-shewa-50); --color-teal-100: var(--color-shewa-100); --color-teal-200: var(--color-shewa-200); --color-teal-300: var(--color-shewa-300); --color-teal-400: var(--color-shewa-400); --color-teal-500: var(--color-shewa-500); --color-teal-600: var(--color-shewa-600); --color-teal-700: var(--color-shewa-700); --color-teal-800: var(--color-shewa-800); --color-teal-900: var(--color-shewa-900); --color-teal-950: var(--color-shewa-950);
+  /* kibbeh */
+  --color-kibbeh-50: oklch(0.985 0.013 78);
+  --color-kibbeh-100: oklch(0.960 0.033 78);
+  --color-kibbeh-200: oklch(0.915 0.070 78);
+  --color-kibbeh-300: oklch(0.865 0.108 78);
+  --color-kibbeh-400: oklch(0.810 0.140 78);
+  --color-kibbeh-500: oklch(0.760 0.155 78);
+  --color-kibbeh-600: oklch(0.570 0.117 78);
+  --color-kibbeh-700: oklch(0.505 0.104 78);
+  --color-kibbeh-800: oklch(0.440 0.092 78);
+  --color-kibbeh-900: oklch(0.375 0.077 78);
+  --color-kibbeh-950: oklch(0.245 0.050 78);
+  --color-amber-50: var(--color-kibbeh-50); --color-amber-100: var(--color-kibbeh-100); --color-amber-200: var(--color-kibbeh-200); --color-amber-300: var(--color-kibbeh-300); --color-amber-400: var(--color-kibbeh-400); --color-amber-500: var(--color-kibbeh-500); --color-amber-600: var(--color-kibbeh-600); --color-amber-700: var(--color-kibbeh-700); --color-amber-800: var(--color-kibbeh-800); --color-amber-900: var(--color-kibbeh-900); --color-amber-950: var(--color-kibbeh-950);
+  --color-orange-50: var(--color-kibbeh-50); --color-orange-100: var(--color-kibbeh-100); --color-orange-200: var(--color-kibbeh-200); --color-orange-300: var(--color-kibbeh-300); --color-orange-400: var(--color-kibbeh-400); --color-orange-500: var(--color-kibbeh-500); --color-orange-600: var(--color-kibbeh-600); --color-orange-700: var(--color-kibbeh-700); --color-orange-800: var(--color-kibbeh-800); --color-orange-900: var(--color-kibbeh-900); --color-orange-950: var(--color-kibbeh-950);
+  --color-yellow-50: var(--color-kibbeh-50); --color-yellow-100: var(--color-kibbeh-100); --color-yellow-200: var(--color-kibbeh-200); --color-yellow-300: var(--color-kibbeh-300); --color-yellow-400: var(--color-kibbeh-400); --color-yellow-500: var(--color-kibbeh-500); --color-yellow-600: var(--color-kibbeh-600); --color-yellow-700: var(--color-kibbeh-700); --color-yellow-800: var(--color-kibbeh-800); --color-yellow-900: var(--color-kibbeh-900); --color-yellow-950: var(--color-kibbeh-950);
+  /* berbere */
+  --color-berbere-50: oklch(0.975 0.011 29);
+  --color-berbere-100: oklch(0.945 0.026 29);
+  --color-berbere-200: oklch(0.890 0.057 29);
+  --color-berbere-300: oklch(0.820 0.100 29);
+  --color-berbere-400: oklch(0.720 0.158 29);
+  --color-berbere-500: oklch(0.615 0.175 29);
+  --color-berbere-600: oklch(0.530 0.166 29);
+  --color-berbere-700: oklch(0.455 0.149 29);
+  --color-berbere-800: oklch(0.385 0.126 29);
+  --color-berbere-900: oklch(0.325 0.105 29);
+  --color-berbere-950: oklch(0.230 0.084 29);
+  --color-rose-50: var(--color-berbere-50); --color-rose-100: var(--color-berbere-100); --color-rose-200: var(--color-berbere-200); --color-rose-300: var(--color-berbere-300); --color-rose-400: var(--color-berbere-400); --color-rose-500: var(--color-berbere-500); --color-rose-600: var(--color-berbere-600); --color-rose-700: var(--color-berbere-700); --color-rose-800: var(--color-berbere-800); --color-rose-900: var(--color-berbere-900); --color-rose-950: var(--color-berbere-950);
+  --color-red-50: var(--color-berbere-50); --color-red-100: var(--color-berbere-100); --color-red-200: var(--color-berbere-200); --color-red-300: var(--color-berbere-300); --color-red-400: var(--color-berbere-400); --color-red-500: var(--color-berbere-500); --color-red-600: var(--color-berbere-600); --color-red-700: var(--color-berbere-700); --color-red-800: var(--color-berbere-800); --color-red-900: var(--color-berbere-900); --color-red-950: var(--color-berbere-950);
+  /* ergo */
+  --color-ergo-50: oklch(0.975 0.010 256);
+  --color-ergo-100: oklch(0.945 0.026 256);
+  --color-ergo-200: oklch(0.890 0.053 256);
+  --color-ergo-300: oklch(0.820 0.090 256);
+  --color-ergo-400: oklch(0.720 0.122 256);
+  --color-ergo-500: oklch(0.615 0.135 256);
+  --color-ergo-600: oklch(0.530 0.128 256);
+  --color-ergo-700: oklch(0.455 0.115 256);
+  --color-ergo-800: oklch(0.385 0.097 256);
+  --color-ergo-900: oklch(0.325 0.081 256);
+  --color-ergo-950: oklch(0.230 0.065 256);
+  --color-blue-50: var(--color-ergo-50); --color-blue-100: var(--color-ergo-100); --color-blue-200: var(--color-ergo-200); --color-blue-300: var(--color-ergo-300); --color-blue-400: var(--color-ergo-400); --color-blue-500: var(--color-ergo-500); --color-blue-600: var(--color-ergo-600); --color-blue-700: var(--color-ergo-700); --color-blue-800: var(--color-ergo-800); --color-blue-900: var(--color-ergo-900); --color-blue-950: var(--color-ergo-950);
+  --color-sky-50: var(--color-ergo-50); --color-sky-100: var(--color-ergo-100); --color-sky-200: var(--color-ergo-200); --color-sky-300: var(--color-ergo-300); --color-sky-400: var(--color-ergo-400); --color-sky-500: var(--color-ergo-500); --color-sky-600: var(--color-ergo-600); --color-sky-700: var(--color-ergo-700); --color-sky-800: var(--color-ergo-800); --color-sky-900: var(--color-ergo-900); --color-sky-950: var(--color-ergo-950);
+  --color-indigo-50: var(--color-ergo-50); --color-indigo-100: var(--color-ergo-100); --color-indigo-200: var(--color-ergo-200); --color-indigo-300: var(--color-ergo-300); --color-indigo-400: var(--color-ergo-400); --color-indigo-500: var(--color-ergo-500); --color-indigo-600: var(--color-ergo-600); --color-indigo-700: var(--color-ergo-700); --color-indigo-800: var(--color-ergo-800); --color-indigo-900: var(--color-ergo-900); --color-indigo-950: var(--color-ergo-950);
+  /* jacaranda */
+  --color-jacaranda-50: oklch(0.975 0.012 298);
+  --color-jacaranda-100: oklch(0.945 0.030 298);
+  --color-jacaranda-200: oklch(0.890 0.061 298);
+  --color-jacaranda-300: oklch(0.820 0.095 298);
+  --color-jacaranda-400: oklch(0.720 0.122 298);
+  --color-jacaranda-500: oklch(0.615 0.135 298);
+  --color-jacaranda-600: oklch(0.530 0.128 298);
+  --color-jacaranda-700: oklch(0.455 0.115 298);
+  --color-jacaranda-800: oklch(0.385 0.097 298);
+  --color-jacaranda-900: oklch(0.325 0.081 298);
+  --color-jacaranda-950: oklch(0.230 0.065 298);
+  --color-purple-50: var(--color-jacaranda-50); --color-purple-100: var(--color-jacaranda-100); --color-purple-200: var(--color-jacaranda-200); --color-purple-300: var(--color-jacaranda-300); --color-purple-400: var(--color-jacaranda-400); --color-purple-500: var(--color-jacaranda-500); --color-purple-600: var(--color-jacaranda-600); --color-purple-700: var(--color-jacaranda-700); --color-purple-800: var(--color-jacaranda-800); --color-purple-900: var(--color-jacaranda-900); --color-purple-950: var(--color-jacaranda-950);
+  --color-violet-50: var(--color-jacaranda-50); --color-violet-100: var(--color-jacaranda-100); --color-violet-200: var(--color-jacaranda-200); --color-violet-300: var(--color-jacaranda-300); --color-violet-400: var(--color-jacaranda-400); --color-violet-500: var(--color-jacaranda-500); --color-violet-600: var(--color-jacaranda-600); --color-violet-700: var(--color-jacaranda-700); --color-violet-800: var(--color-jacaranda-800); --color-violet-900: var(--color-jacaranda-900); --color-violet-950: var(--color-jacaranda-950);
+  /* roast */
+  --color-roast-50: oklch(0.982 0.001 62);
+  --color-roast-100: oklch(0.962 0.003 62);
+  --color-roast-200: oklch(0.918 0.005 62);
+  --color-roast-300: oklch(0.868 0.008 62);
+  --color-roast-400: oklch(0.720 0.010 62);
+  --color-roast-500: oklch(0.545 0.011 62);
+  --color-roast-600: oklch(0.460 0.010 62);
+  --color-roast-700: oklch(0.385 0.009 62);
+  --color-roast-800: oklch(0.300 0.008 62);
+  --color-roast-900: oklch(0.235 0.007 62);
+  --color-roast-950: oklch(0.175 0.005 62);
+  --color-zinc-50: var(--color-roast-50); --color-zinc-100: var(--color-roast-100); --color-zinc-200: var(--color-roast-200); --color-zinc-300: var(--color-roast-300); --color-zinc-400: var(--color-roast-400); --color-zinc-500: var(--color-roast-500); --color-zinc-600: var(--color-roast-600); --color-zinc-700: var(--color-roast-700); --color-zinc-800: var(--color-roast-800); --color-zinc-900: var(--color-roast-900); --color-zinc-950: var(--color-roast-950);
+  --color-slate-50: var(--color-roast-50); --color-slate-100: var(--color-roast-100); --color-slate-200: var(--color-roast-200); --color-slate-300: var(--color-roast-300); --color-slate-400: var(--color-roast-400); --color-slate-500: var(--color-roast-500); --color-slate-600: var(--color-roast-600); --color-slate-700: var(--color-roast-700); --color-slate-800: var(--color-roast-800); --color-slate-900: var(--color-roast-900); --color-slate-950: var(--color-roast-950);
+  --color-gray-50: var(--color-roast-50); --color-gray-100: var(--color-roast-100); --color-gray-200: var(--color-roast-200); --color-gray-300: var(--color-roast-300); --color-gray-400: var(--color-roast-400); --color-gray-500: var(--color-roast-500); --color-gray-600: var(--color-roast-600); --color-gray-700: var(--color-roast-700); --color-gray-800: var(--color-roast-800); --color-gray-900: var(--color-roast-900); --color-gray-950: var(--color-roast-950);
+  --color-neutral-50: var(--color-roast-50); --color-neutral-100: var(--color-roast-100); --color-neutral-200: var(--color-roast-200); --color-neutral-300: var(--color-roast-300); --color-neutral-400: var(--color-roast-400); --color-neutral-500: var(--color-roast-500); --color-neutral-600: var(--color-roast-600); --color-neutral-700: var(--color-roast-700); --color-neutral-800: var(--color-roast-800); --color-neutral-900: var(--color-roast-900); --color-neutral-950: var(--color-roast-950);
+  --color-stone-50: var(--color-roast-50); --color-stone-100: var(--color-roast-100); --color-stone-200: var(--color-roast-200); --color-stone-300: var(--color-roast-300); --color-stone-400: var(--color-roast-400); --color-stone-500: var(--color-roast-500); --color-stone-600: var(--color-roast-600); --color-stone-700: var(--color-roast-700); --color-stone-800: var(--color-roast-800); --color-stone-900: var(--color-roast-900); --color-stone-950: var(--color-roast-950);
+}
+
 :root {
   color-scheme: light;
-  --background: #ffffff;
-  --foreground: #020817;
+  --background: #f4f4f0;            /* shemma: undyed cotton / milk */
+  --foreground: #1c1916;            /* buna ink */
   --card: #ffffff;
-  --card-foreground: #020817;
+  --card-foreground: #1c1916;
   --popover: #ffffff;
-  --popover-foreground: #020817;
-  --primary: #ea580c; /* Vibrant Warm Orange */
+  --popover-foreground: #1c1916;
+  --primary: var(--color-shewa-700);
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #fff7ed;
-  --accent-foreground: #ea580c;
-  --destructive: #ef4444;
+  --secondary: #ebebe5;
+  --secondary-foreground: #1c1916;
+  --muted: #ebebe5;
+  --muted-foreground: #68625c;
+  --accent: #e7f4ec;
+  --accent-foreground: var(--color-shewa-800);
+  --destructive: var(--color-berbere-600);
   --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #ea580c;
-  --radius: 0.5rem;
+  --border: #dedcd4;
+  --input: #d6d4cb;
+  --ring: var(--color-shewa-600);
+  --radius: 0.625rem;
 }
 
 .dark {
   color-scheme: dark;
-  --background: #090d16;
-  --foreground: #f8fafc;
-  --card: #0f172a;
-  --card-foreground: #f8fafc;
-  --popover: #090d16;
-  --popover-foreground: #f8fafc;
-  --primary: #ea580c;
+  --background: #15120f;            /* roasted buna */
+  --foreground: #f2efea;
+  --card: #1d1915;
+  --card-foreground: #f2efea;
+  --popover: #1d1915;
+  --popover-foreground: #f2efea;
+  --primary: var(--color-shewa-600);
   --primary-foreground: #ffffff;
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #2a1b15;
-  --accent-foreground: #f97316;
-  --destructive: #7f1d1d;
-  --destructive-foreground: #f8fafc;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #ea580c;
+  --secondary: #27221e;
+  --secondary-foreground: #f2efea;
+  --muted: #27221e;
+  --muted-foreground: #aaa39c;
+  --accent: #1b2a22;
+  --accent-foreground: var(--color-shewa-300);
+  --destructive: var(--color-berbere-600);
+  --destructive-foreground: #ffffff;
+  --border: #312b26;
+  --input: #3a332d;
+  --ring: var(--color-shewa-400);
+}
+
+/* Horizontal strips (category chips, carousels) scroll by swipe/drag
+   without a visible bar. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* The tibeb: the woven border of the shemma. Hilif's one ornament —
+   used only at brand edges (customer header, login, receipts), never as
+   decoration inside working screens. */
+.tibeb {
+  height: 4px;
+  background:
+    repeating-linear-gradient(90deg,
+      var(--color-shewa-700) 0 18px,
+      var(--color-kibbeh-500) 18px 22px,
+      var(--color-shewa-700) 22px 26px,
+      var(--color-berbere-600) 26px 30px,
+      var(--color-shewa-700) 30px 34px,
+      var(--color-kibbeh-500) 34px 38px);
 }
 
 body {
@@ -167,9 +299,9 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(234, 88, 12, 0.25);
+  background: color-mix(in oklch, var(--color-roast-500) 35%, transparent);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(234, 88, 12, 0.6);
+  background: var(--color-shewa-600);
 }

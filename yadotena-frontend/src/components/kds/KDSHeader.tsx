@@ -64,7 +64,7 @@ export function KDSHeader({
       {/* BRAND & REALTIME INDICATOR */}
       <div className="flex items-center gap-3">
         <h1 className="text-sm font-black tracking-wider text-zinc-100 uppercase">
-          YADOTENA KITCHEN
+          HILIF KITCHEN
         </h1>
 
         <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-zinc-400">

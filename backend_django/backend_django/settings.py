@@ -1,5 +1,5 @@
 """
-Django settings for backend_django project (Yadotena Milk & Foods).
+Django settings for backend_django project (Hilif Milk & Foods).
 
 All deployment-specific values come from environment variables (see
 ``.env.example``). A ``.env`` file next to ``manage.py`` is loaded for local

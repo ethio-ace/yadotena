@@ -50,7 +50,7 @@ export const mockMenu: MenuItem[] = [
   },
   {
     id: "m0-3",
-    name: "Signature Yadotena Cream Milkshake",
+    name: "Signature Hilif Cream Milkshake",
     description: "Ultra-thick, rich milkshake prepared with fresh dairy cream, Madagascar vanilla, and strawberry coulis.",
     price: 260,
     category: "Fresh Dairy & Milk",

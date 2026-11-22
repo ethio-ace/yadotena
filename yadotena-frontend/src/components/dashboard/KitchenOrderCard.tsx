@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 import { formatETB } from "@/lib/currency";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { addonNames } from "@/lib/kitchen";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 export function KitchenOrderCard({ 
   order, 
@@ -18,7 +19,8 @@ export function KitchenOrderCard({
   hideAction,
   isUrgent,
   onAddItems,
-  addonMap
+  addonMap,
+  onOpen,
 }: any) {
   const tableLabels = useTableLabels();
   const tableDisplay = order.tableId
@@ -35,15 +37,26 @@ export function KitchenOrderCard({
     >
       {/* Card Header */}
       <CardHeader className={`p-3.5 border-b flex flex-row items-center justify-between gap-3 space-y-0 ${
-        isUrgent ? "bg-primary/10" : "bg-muted/30"
+        isUrgent ? "bg-amber-500/10" : "bg-muted/30"
       }`}>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-black text-foreground">
-              {order.id.slice(-6).toUpperCase()}
-            </span>
+            {onOpen ? (
+              <button
+                type="button"
+                onClick={onOpen}
+                className="text-sm font-black text-foreground underline decoration-dotted underline-offset-4 hover:text-primary"
+                title="Open ticket"
+              >
+                #{orderTicketNumber(order)}
+              </button>
+            ) : (
+              <span className="text-sm font-black text-foreground">
+                #{orderTicketNumber(order)}
+              </span>
+            )}
             {isUrgent && (
-              <Badge className="bg-primary text-primary-foreground text-[9px] font-black uppercase px-2 py-0.5 animate-pulse shrink-0">
+              <Badge className="bg-amber-500 text-amber-950 text-[9px] font-black uppercase px-2 py-0.5 animate-pulse shrink-0">
                 New Order
               </Badge>
             )}

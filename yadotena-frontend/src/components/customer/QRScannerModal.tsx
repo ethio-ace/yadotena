@@ -71,10 +71,11 @@ export function QRScannerModal({ isOpen, onClose }: QRScannerModalProps) {
       if (raw.includes("/menu") && raw.includes("table=")) {
         const url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
         const tableParam = url.searchParams.get("table");
+        const keyParam = url.searchParams.get("k");
         if (tableParam) {
-          setTableId(tableParam);
+          setTableId(tableParam, keyParam);
           onClose();
-          router.push(`/menu?table=${encodeURIComponent(tableParam)}`);
+          router.push(`/menu?table=${encodeURIComponent(tableParam)}${keyParam ? `&k=${encodeURIComponent(keyParam)}` : ""}`);
           return;
         }
       } else if (raw.includes("/order/")) {

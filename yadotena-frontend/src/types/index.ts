@@ -93,7 +93,11 @@ export interface PaymentRecord {
   status: string;
   transactionRef?: string;
   receiptUrl?: string;
+  /** Refund reason / staff note (staff-only). */
+  notes?: string;
   createdAt: string;
+  recordedById?: string | null;
+  recordedByName?: string | null;
 }
 
 /**
@@ -117,6 +121,9 @@ export interface OrderItem {
   status?: ItemKitchenStatus;
   startedAt?: string;
   completedAt?: string;
+  /** Why the line was cancelled/voided (staff-only). */
+  cancelReason?: string;
+  cancelledAt?: string | null;
 }
 
 export interface Order {
@@ -131,6 +138,10 @@ export interface Order {
   serviceCharge?: number;
   deliveryFee?: number;
   total: number;
+  /** Sum of PAID payment records (server-computed). */
+  amountPaid?: number;
+  /** What is still owed — only the new rounds on a ticket paid earlier. */
+  balanceDue?: number;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -145,6 +156,56 @@ export interface Order {
   
   // Specific to Delivery
   deliveryAddress?: string;
+
+  /** Short daily ticket number ("#27"), restarts every cafe day. */
+  dailyNumber?: number | null;
+  businessDate?: string | null;
+  /** Staff who took the order (guest orders: the approving waiter). Staff-only. */
+  createdById?: string | null;
+  createdByName?: string | null;
+  cancelReason?: string;
+  cancelledByName?: string | null;
+  cancelledAt?: string | null;
+  /** Set when this ticket was merged into another table's ticket. */
+  mergedInto?: string | null;
+}
+
+export interface RestaurantSettings {
+  restaurantName: string;
+  phone: string;
+  address: string;
+  serviceChargePercent: number;
+  /** 0 = not VAT-registered: no VAT line anywhere. */
+  vatPercent: number;
+  deliveryFee: number;
+  requireTableQrKey: boolean;
+  guestWifiSsid: string;
+  guestWifiPassword: string;
+  updatedAt?: string;
+}
+
+export interface MenuIngredient {
+  id: number;
+  menuItemId: string;
+  productId: string;
+  productName: string;
+  unit: string;
+  quantity: number;
+}
+
+export interface DayCloseReport {
+  date: string;
+  totals: { collected: number; refunded: number; net: number; tickets: number; sales: number; voidValue: number };
+  cash: { in: number; refunds: number; expenses: number; expected: number };
+  byMethod: { method: string; collected: number; refunded: number; net: number; count: number; isCash: boolean }[];
+  byStaff: { userId: string | null; name: string; collected: number; refunded: number; net: number; cash: number; count: number }[];
+  byWaiter: { userId: string | null; name: string; orders: number; sales: number }[];
+  refunds: { orderId: string; ticket: string; amount: number; method: string; reason: string; by: string; at: string }[];
+  voids: { orderId: string; ticket: string; name: string; quantity: number; value: number; reason: string; by: string; wasCooked: boolean; at: string }[];
+  cancelledTickets: { orderId: string; ticket: string; reason: string; by: string; at: string }[];
+  openTickets: { orderId: string; ticket: string; table: string; status: string; total: number; balanceDue: number; createdAt: string }[];
+  outOfStock: { id: string; name: string; stock: number; unit: string }[];
+  closed: null | { countedCash: number; expectedCash: number; difference: number; notes: string; closedBy: string; closedAt: string };
 }
 
 export interface DiningSession {
@@ -174,6 +235,8 @@ export interface Table {
   capacity: number;
   status: TableStatus;
   currentOrderId?: string;
+  /** Secret key printed in the table QR (staff-only). */
+  qrToken?: string;
 }
 
 export interface Expense {

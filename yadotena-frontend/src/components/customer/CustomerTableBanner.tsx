@@ -19,7 +19,7 @@ export function CustomerTableBanner() {
 
   if (!tableId) {
     return (
-      <div className="bg-gradient-to-r from-amber-500/10 via-primary/5 to-amber-500/10 border-b px-4 py-2 text-xs flex items-center justify-between gap-2">
+      <div className="bg-accent border-b px-4 py-2 text-xs flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-foreground font-medium truncate">
           <QrCode className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
           <span className="truncate">
@@ -54,8 +54,8 @@ export function CustomerTableBanner() {
   return (
     <div className={`border-b px-4 py-2.5 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm animate-in fade-in duration-300 ${
       activeTableOrder
-        ? "bg-gradient-to-r from-amber-500/20 via-primary/15 to-amber-500/20 border-amber-500/40"
-        : "bg-gradient-to-r from-emerald-600/15 via-primary/10 to-emerald-600/15 border-emerald-500/30"
+        ? "bg-amber-500/10 border-amber-500/40"
+        : "bg-accent border-emerald-500/30"
     }`}>
       <div className="flex items-center gap-2.5 min-w-0">
         <Badge className={`font-extrabold px-2.5 py-0.5 text-xs shrink-0 flex items-center gap-1 ${
@@ -83,7 +83,7 @@ export function CustomerTableBanner() {
         {activeTableOrder && (
           <Button
             size="sm"
-            className="h-7 text-xs font-bold rounded-full bg-amber-500 hover:bg-amber-600 text-amber-950 gap-1"
+            className="h-7 text-xs font-bold rounded-full bg-primary text-primary-foreground hover:bg-primary/90 gap-1"
             onClick={() => router.push(`/order/${activeTableOrder.id}`)}
           >
             <Receipt className="h-3 w-3" />

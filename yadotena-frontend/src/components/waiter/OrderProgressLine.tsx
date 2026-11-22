@@ -13,7 +13,7 @@ export function OrderProgressLine({ order, className }: { order: Order; classNam
   const parts: { n: number; label: string; cls: string }[] = [
     { n: p.approval, label: "to approve", cls: "text-orange-700 dark:text-orange-300 font-black" },
     { n: p.ready, label: "ready", cls: "text-emerald-600 dark:text-emerald-400 font-black" },
-    { n: p.cooking, label: "cooking", cls: "text-amber-700 dark:text-amber-400 font-bold" },
+    { n: p.cooking, label: "cooking", cls: "text-blue-700 dark:text-blue-300 font-bold" },
     { n: p.waiting, label: "waiting", cls: "text-muted-foreground font-bold" },
   ].filter((x) => x.n > 0);
 

@@ -21,7 +21,9 @@ export function TableQRModal({ table, isOpen, onClose }: TableQRModalProps) {
 
   // Uses current origin URL or default
   const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
-  const tableUrl = `${origin}/menu?table=${table.id}`;
+  // `k` is the table's secret key: with "Guests must scan the table QR to
+  // order" on, only phones that scanned this code can order for the table.
+  const tableUrl = `${origin}/menu?table=${encodeURIComponent(table.id)}${table.qrToken ? `&k=${encodeURIComponent(table.qrToken)}` : ""}`;
   const dynamicQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(tableUrl)}`;
 
   const handleCopyLink = () => {
@@ -72,7 +74,7 @@ export function TableQRModal({ table, isOpen, onClose }: TableQRModalProps) {
               <div className="h-8 w-8 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-base shadow-md shadow-primary/25">
                 🥛
               </div>
-              <span className="font-black text-lg tracking-tight">Yadotena Milk & Foods</span>
+              <span className="font-black text-lg tracking-tight">Hilif Milk & Foods</span>
             </div>
 
             {/* Table Badge */}
@@ -104,7 +106,7 @@ export function TableQRModal({ table, isOpen, onClose }: TableQRModalProps) {
             {/* Capacity & WiFi Note */}
             <div className="pt-2 border-t border-muted/50 w-full flex items-center justify-around text-[11px] text-muted-foreground font-medium">
               <span>🪑 Seats {table.capacity} Guests</span>
-              <span>📶 WiFi: Yadotena_Guest</span>
+              <span>📶 WiFi: Hilif_Guest</span>
             </div>
 
           </div>

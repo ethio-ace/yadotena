@@ -2,13 +2,20 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
 class RestaurantSetting(models.Model):
-    restaurant_name = models.CharField(max_length=200, default="Yadotena Milk & Foods")
+    restaurant_name = models.CharField(max_length=200, default="Hilif Milk & Foods")
     phone = models.CharField(max_length=50, default="+251 91 123 4567")
     address = models.CharField(max_length=255, default="Bole Road, Addis Ababa")
     service_charge_percent = models.DecimalField(max_digits=5, decimal_places=2, default=10.00)
-    vat_percent = models.DecimalField(max_digits=5, decimal_places=2, default=15.00)
-    guest_wifi_ssid = models.CharField(max_length=100, default="Yadotena_Milk_5G")
-    guest_wifi_password = models.CharField(max_length=100, default="Yadotena2026")
+    # 0 = not VAT-registered (the cafe today): no VAT line on bills. Only a
+    # VAT-registered business may charge VAT.
+    vat_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=100.00)
+    # When on, a guest order must carry the table's secret QR key (printed in
+    # the table QR), so nobody can order to a table by guessing its id.
+    # Off until the new QR codes are printed and on the tables.
+    require_table_qr_key = models.BooleanField(default=False)
+    guest_wifi_ssid = models.CharField(max_length=100, default="Hilif_Milk_5G")
+    guest_wifi_password = models.CharField(max_length=100, default="Hilif2026")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -63,3 +70,23 @@ class ActivityLog(models.Model):
 
     def __str__(self):
         return f"{self.created_at:%Y-%m-%d %H:%M} {self.user_name}: {self.action}"
+
+
+class DayClose(models.Model):
+    """End-of-day cash count. ``summary`` freezes the day-close report as it
+    stood when the manager closed the day."""
+    business_date = models.DateField(unique=True)
+    expected_cash = models.DecimalField(max_digits=12, decimal_places=2)
+    counted_cash = models.DecimalField(max_digits=12, decimal_places=2)
+    difference = models.DecimalField(max_digits=12, decimal_places=2)
+    notes = models.TextField(blank=True, default='')
+    summary = models.JSONField(default=dict, encoder=DjangoJSONEncoder)
+    closed_by = models.ForeignKey('authentication.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='day_closes')
+    closed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-business_date']
+
+    def __str__(self):
+        return f"Day close {self.business_date} (diff {self.difference})"

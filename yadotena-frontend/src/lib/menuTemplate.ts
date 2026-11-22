@@ -70,7 +70,7 @@ export const DEFAULT_TEMPLATE: MenuTemplate = {
     showLogo: true,
   },
   masthead: {
-    businessName: "Yadotena",
+    businessName: "Hilif",
     tagline: "Milk & Foods — Café & Artisan Kitchen",
     address: "Bole Road · Addis Ababa",
   },
@@ -92,7 +92,7 @@ export const DEFAULT_TEMPLATE: MenuTemplate = {
   contact: { enabled: true },
   qr: { enabled: true, url: "" },
   footer: {
-    note: "10% service charge & 15% VAT apply. We hope you enjoy your meal — mesgana, thank you!",
+    note: "A 10% service charge applies to dine-in. We hope you enjoy your meal — mesgana, thank you!",
   },
 };
 

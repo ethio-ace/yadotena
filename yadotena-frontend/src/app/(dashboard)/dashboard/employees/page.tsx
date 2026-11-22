@@ -528,7 +528,7 @@ function AddUserModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose
               <label className="text-xs font-bold text-foreground">Email Address *</label>
               <Input
                 type="email"
-                placeholder="almaz@yadotena.com"
+                placeholder="almaz@hilif.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="rounded-xl h-10 text-xs"

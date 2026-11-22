@@ -372,3 +372,35 @@ class SettingsExpensesMediaTests(BaseAPITest):
     def test_health_and_ready(self):
         self.assertEqual(self.client.get('/health').status_code, 200)
         self.assertEqual(self.client.get('/ready/').json(), {'ok': True, 'db': True})
+
+
+class FinalPassRegressionTests(BaseAPITest):
+    def test_expense_without_date_defaults_to_local_today(self):
+        from django.utils import timezone
+        self.login(self.manager)
+        res = self.client.post(f'{API}/expenses', {'amount': '50.00', 'category': 'Utilities',
+                                                   'description': 'Gas refill'}, format='json')
+        self.assertEqual(res.status_code, 201, res.content[:300])
+        self.assertEqual(res.data['date'], timezone.localdate().isoformat())
+
+    def test_settings_accept_patch_as_partial_update(self):
+        self.login(self.owner)
+        res = self.client.patch(f'{API}/settings', {'vatPercent': '12.00'}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(float(res.data['vatPercent']), 12.0)
+        self.login(self.manager)
+        self.assertEqual(self.client.patch(f'{API}/settings', {'vatPercent': '1'}, format='json').status_code, 403)
+
+    def test_corrupt_image_upload_is_400_not_500(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.login(self.manager)
+        broken = bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489'
+                               '0000000d4944415478da63f8ffff3f0005fe02fea7d6a4b30000000049454e44ae426082')
+        res = self.client.post(f'{API}/media/upload', {'file': SimpleUploadedFile('x.png', broken, 'image/png')})
+        self.assertEqual(res.status_code, 400, res.content[:200])
+
+    def test_review_rating_must_be_one_to_five(self):
+        self.anon()
+        self.assertEqual(self.client.post(f'{API}/reviews', {'rating': 9, 'comment': 'x'}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(f'{API}/reviews', {'rating': 0, 'comment': 'x'}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(f'{API}/reviews', {'rating': 4, 'comment': 'Lovely'}, format='json').status_code, 201)

@@ -1,5 +1,6 @@
 import secrets
 import uuid
+from django.conf import settings
 from django.db import models
 from apps.tables.models import Table
 from apps.menu.models import MenuItem
@@ -71,6 +72,19 @@ class Order(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     idempotency_key = models.CharField(max_length=64, unique=True, null=True, blank=True)
 
+    # Short number staff call out ("#27"); restarts every cafe day.
+    business_date = models.DateField(null=True, blank=True, db_index=True)
+    daily_number = models.PositiveIntegerField(null=True, blank=True)
+    # Staff member who took the order (for guest orders: the waiter who approved it).
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='orders_taken')
+    cancel_reason = models.CharField(max_length=255, blank=True, default='')
+    cancelled_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='orders_cancelled')
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    # Set when this ticket was folded into another table's ticket (table move).
+    merged_into = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='merged_from')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -78,6 +92,9 @@ class Order(models.Model):
         verbose_name = 'Order'
         verbose_name_plural = 'Orders'
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['business_date', 'daily_number'], name='unique_daily_ticket_number'),
+        ]
 
     def __str__(self):
         return f"{self.id} [{self.type}] - {self.status} ({self.total} ETB)"
@@ -95,6 +112,13 @@ class OrderItem(models.Model):
     status = models.CharField(max_length=20, choices=ItemStatus.choices, default=ItemStatus.PENDING, db_index=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    # Why a line was cancelled/voided, by whom and when (void report).
+    cancel_reason = models.CharField(max_length=255, blank=True, default='')
+    cancelled_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='items_cancelled')
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    # Recipe stock already taken for this line (taken once, when cooking starts).
+    stock_deducted = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = 'Order Item'

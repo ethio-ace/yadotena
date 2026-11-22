@@ -8,7 +8,7 @@ import { MenuItem, Order, PaymentRecord, ServiceRequest, Table } from "@/types";
 export interface ManagerMetrics {
   /** Today's non-terminal orders (active tickets on the floor/line). */
   todayOrders: Order[];
-  /** Sum of today's PAID orders (orders are pre-filtered to today via `since`). */
+  /** Money taken today: PAID minus REFUNDED payment records since local midnight (matches Day Close). */
   todayRevenue: number;
   /** Total orders created today. */
   totalOrdersToday: number;
@@ -64,8 +64,14 @@ export function computeManagerMetrics(opts: {
   // AVAILABLE is an occupied table.
   const activeTables = tables.filter((t) => t.status !== "AVAILABLE").length;
   const pendingServiceCalls = serviceRequests.filter((r) => r.status === "PENDING").length;
-  const paidOrders = orders.filter((o) => o.paymentStatus === "PAID");
-  const todayRevenue = paidOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const midnight = new Date(startOfTodayISO()).getTime();
+  const todayPayments = payments.filter(
+    (p) => (p.status === "PAID" || p.status === "REFUNDED") && new Date(p.createdAt).getTime() >= midnight
+  );
+  const todayRevenue = todayPayments.reduce(
+    (sum, p) => sum + (p.status === "REFUNDED" ? -1 : 1) * (Number(p.amount) || 0), 0
+  );
+  const paidTicketCount = new Set(todayPayments.filter((p) => p.status === "PAID").map((p) => p.orderId)).size;
   const unavailableItems = menuItems.filter((i) => i.available === false);
   const outOfStockCount = unavailableItems.length;
 
@@ -76,7 +82,7 @@ export function computeManagerMetrics(opts: {
     todayOrders: activeOrders,
     todayRevenue,
     totalOrdersToday: orders.length,
-    avgOrderValue: paidOrders.length > 0 ? todayRevenue / paidOrders.length : 0,
+    avgOrderValue: paidTicketCount > 0 ? todayRevenue / paidTicketCount : 0,
     unpaidOrders,
     pendingVerification,
     outOfStockCount,

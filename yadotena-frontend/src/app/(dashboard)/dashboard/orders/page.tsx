@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { OrdersFilterBar, OrderFilters } from "@/components/dashboard/orders/OrdersFilterBar";
 import { formatETB } from "@/lib/currency";
 import { formatTableRef } from "@/hooks/useTableLabels";
+import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { ShoppingBag, Clock, CheckCircle2, AlertCircle, Plus, Sparkles, ChefHat, Truck, X } from "lucide-react";
 
 // Heavy tab surfaces are code-split so the initial load stays light and each
@@ -47,6 +48,7 @@ function OrderTabSkeleton() {
 export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<"ACTIVE" | "HISTORY" | "NEW" | "DISPATCH">("ACTIVE");
   const [filters, setFilters] = useState<OrderFilters>({ type: "ALL", tableId: "", payment: "ALL" });
+  const [inspectId, setInspectId] = useState<string | null>(null);
 
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
@@ -268,10 +270,16 @@ export default function OrdersPage() {
       </div>
 
       {/* Tab Contents */}
-      {activeTab === "ACTIVE" && <ActiveOrdersTab ordersOverride={filteredOrders} />}
+      {activeTab === "ACTIVE" && <ActiveOrdersTab ordersOverride={filteredOrders} onOpenOrder={(o) => setInspectId(o.id)} />}
       {activeTab === "DISPATCH" && <ReadyDeliveryPane />}
       {activeTab === "NEW" && <PlaceOrderTab />}
-      {activeTab === "HISTORY" && <OrderHistoryTab ordersOverride={filteredOrders} />}
+      {activeTab === "HISTORY" && <OrderHistoryTab ordersOverride={filteredOrders} onOpenOrder={(o) => setInspectId(o.id)} />}
+      {/* Always the live copy from the query, so voids/refunds show at once. */}
+      <OrderDetailsModal
+        order={orders.find((o) => o.id === inspectId) ?? null}
+        isOpen={!!inspectId}
+        onClose={() => setInspectId(null)}
+      />
     </div>
   );
 }

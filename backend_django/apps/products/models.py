@@ -62,3 +62,21 @@ class ProductPurchase(models.Model):
 
     def __str__(self):
         return f"{self.quantity}x {self.product.name} cost {self.total_cost} ETB"
+
+
+class MenuIngredient(models.Model):
+    """How much of a stock product one serving of a menu item uses
+    (e.g. Macchiato -> 0.15 L Milk). Stock is taken when cooking starts."""
+    menu_item = models.ForeignKey('menu.MenuItem', on_delete=models.CASCADE, related_name='ingredients')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='used_in')
+    quantity = models.DecimalField(max_digits=10, decimal_places=3)
+
+    class Meta:
+        verbose_name = 'Menu Ingredient'
+        verbose_name_plural = 'Menu Ingredients'
+        constraints = [
+            models.UniqueConstraint(fields=['menu_item', 'product'], name='unique_menu_ingredient'),
+        ]
+
+    def __str__(self):
+        return f"{self.menu_item_id}: {self.quantity} {self.product.unit} {self.product.name}"

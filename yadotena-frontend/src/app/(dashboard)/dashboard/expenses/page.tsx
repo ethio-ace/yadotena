@@ -42,14 +42,8 @@ export default function ExpensesPage() {
     },
   });
 
-  const fallbackExpenses = [
-    { id: "exp1", date: new Date().toISOString(), category: "Dairy Supplies", description: "300 Liters Raw Milk Purchase from Farm", amount: 14500, paymentMethod: "Telebirr Merchant", reference: "TXN-88492019", recordedBy: "Store Manager" },
-    { id: "exp2", date: new Date().toISOString(), category: "Utilities", description: "Electricity & Cold Room Generator Fuel", amount: 6200, paymentMethod: "CBE Bank Transfer", reference: "FT2408139820", recordedBy: "Store Manager" },
-    { id: "exp3", date: new Date().toISOString(), category: "Kitchen Hardware", description: "Stainless Steel Cheese Mold Press", amount: 8400, paymentMethod: "Register Cash Drawer", recordedBy: "Owner" },
-    { id: "exp4", date: new Date().toISOString(), category: "Staff Salaries", description: "Weekly Waiter & Kitchen Staff Payroll", amount: 32000, paymentMethod: "CBE Bank Transfer", reference: "FT2408110042", recordedBy: "Owner" },
-  ];
-
-  const expenses = apiExpenses.length > 0 ? apiExpenses : fallbackExpenses;
+  // Real records only — never show sample rows in a money ledger.
+  const expenses = apiExpenses;
 
   const filteredExpenses = expenses.filter((e: any) => {
     if (categoryFilter === "ALL") return true;
@@ -67,7 +61,9 @@ export default function ExpensesPage() {
       amount: Number(amount),
       paymentMethod,
       reference: isDigitalPayment && reference.trim() ? reference.trim() : undefined,
-      date: new Date().toISOString(),
+      // Local calendar day (YYYY-MM-DD): a UTC ISO string books late-night
+      // Addis expenses on the previous day.
+      date: new Date().toLocaleDateString("en-CA"),
     });
   };
 

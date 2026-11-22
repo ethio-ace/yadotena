@@ -19,6 +19,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navItemsForRole } from "@/lib/nav";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 function SearchGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -209,7 +210,7 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
                             className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60 transition-colors"
                           >
                             <ClipboardList className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            <span className="font-mono font-bold text-xs">#{o.id.slice(-6).toUpperCase()}</span>
+                            <span className="font-mono font-bold text-xs">#{orderTicketNumber(o)}</span>
                             <span className="text-xs text-muted-foreground truncate flex-1">
                               {o.type.replace("_", " ").toLowerCase()}
                               {o.tableId ? ` · ${formatTableRef(o.tableId, tableLabels)}` : o.customerName ? ` · ${o.customerName}` : ""}
@@ -526,21 +527,21 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
 
       {/* Live Urgent Notification Bar for Pending Orders & Waiter Calls */}
       {totalUrgentCount > 0 && (
-        <div className="bg-primary text-primary-foreground px-4 py-2 flex flex-wrap items-center justify-between gap-2 shadow-md animate-in slide-in-from-top duration-300">
+        <div className="bg-amber-500 text-amber-950 px-4 py-2 flex flex-wrap items-center justify-between gap-2 shadow-md animate-in slide-in-from-top duration-300">
           <div className="flex items-center gap-2 text-xs font-bold">
             <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-950 opacity-60"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-950"></span>
             </span>
 
             {pendingServiceRequests.length > 0 && (
-              <span className="flex items-center gap-1 bg-black/20 rounded-full px-2.5 py-0.5">
+              <span className="flex items-center gap-1 bg-amber-950/10 rounded-full px-2.5 py-0.5">
                 🛎️ {pendingServiceRequests.length} Table Assistance {pendingServiceRequests.length === 1 ? "Call" : "Calls"} Active
               </span>
             )}
 
             {pendingOrders.length > 0 && (
-              <span className="flex items-center gap-1 bg-black/20 rounded-full px-2.5 py-0.5">
+              <span className="flex items-center gap-1 bg-amber-950/10 rounded-full px-2.5 py-0.5">
                 🔥 {pendingOrders.length} New Unprepared {pendingOrders.length === 1 ? "Order" : "Orders"}
               </span>
             )}
@@ -554,7 +555,7 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
             {pendingServiceRequests.length > 0 && (
               <Button
                 size="sm"
-                className="bg-white/20 hover:bg-white/30 text-white border border-white/30 rounded-full text-xs font-bold h-7 px-3"
+                className="bg-amber-950/10 hover:bg-amber-950/20 text-amber-950 border border-amber-950/25 rounded-full text-xs font-bold h-7 px-3"
                 onClick={() => setShowNotifications(true)}
               >
                 View Table Calls ({pendingServiceRequests.length})
@@ -565,7 +566,7 @@ export default function Header({ user = { name: "Staff Member", role: "WAITER" }
               <Link href="/dashboard/kitchen">
                 <Button
                   size="sm"
-                  className="bg-white text-rose-700 hover:bg-white/90 rounded-full text-xs font-black h-7 px-3 shadow-sm"
+                  className="bg-amber-950 text-amber-50 hover:bg-amber-900 rounded-full text-xs font-black h-7 px-3 shadow-sm"
                 >
                   Go to Kitchen Display
                   <ChevronRight className="h-3.5 w-3.5 ml-1" />

@@ -38,17 +38,19 @@ function CustomerHeader() {
 
       {/* Public Header */}
       {/* Fixed 64px tall — the menu's sticky search/tabs sit right under it (top-[64px]). */}
-      <header className="sticky top-0 z-40 h-16 bg-background/90 backdrop-blur-md border-b px-3 sm:px-4 md:px-8 flex items-center justify-between gap-2 shadow-sm">
+      <header className="sticky top-0 z-40 h-16 bg-background/90 backdrop-blur-md px-3 sm:px-4 md:px-8 flex items-center justify-between gap-2 shadow-sm">
+        {/* The tibeb: woven shemma border, inside the h-16 so sticky offsets stay 64px. */}
+        <div className="tibeb absolute inset-x-0 bottom-0" aria-hidden="true" />
         <div className="flex items-center gap-4 min-w-0">
           <Link href="/menu" className="flex items-center gap-2.5 group min-w-0">
             <img
               src="/icon.svg"
-              alt="Yadotena logo"
+              alt="Hilif logo"
               className="h-10 w-10 rounded-2xl shadow-md shadow-primary/20 group-hover:scale-105 transition-transform shrink-0"
             />
             <div className="min-w-0">
               <h1 className="font-black text-base md:text-lg text-foreground tracking-tight leading-none group-hover:text-primary transition-colors truncate">
-                Yadotena <span className="text-primary text-xs font-bold hidden sm:inline">Milk & Foods</span>
+                Hilif <span className="text-primary text-xs font-bold hidden sm:inline">Milk & Foods</span>
               </h1>
               <p className="text-[10px] text-muted-foreground font-semibold mt-0.5 hidden sm:block">
                 Artisanal Kitchen & Fresh Store

@@ -38,6 +38,9 @@ class RestaurantSettingView(APIView):
                      prev=prev, next=serializer.data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    # Settings updates are always partial, so PATCH means the same thing.
+    patch = put
+
 class ReportsSummaryView(APIView):
     permission_classes = [IsManager]
 

@@ -169,7 +169,7 @@ function MethodEditor({
                 <input
                   value={draft.accountName}
                   onChange={(e) => set("accountName", e.target.value)}
-                  placeholder="e.g. Yadotena Milk & Foods PLC"
+                  placeholder="e.g. Hilif Milk & Foods PLC"
                   className="w-full h-10 px-3 rounded-xl border bg-background text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
                 />
               </div>
@@ -223,7 +223,7 @@ function MethodEditor({
               type="button"
               onClick={handleSubmit}
               disabled={save.isPending}
-              className="flex-1 h-10 rounded-xl bg-amber-500 text-white font-black text-xs hover:bg-amber-600 transition-colors shadow-sm"
+              className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground font-black text-xs hover:bg-primary/90 transition-colors shadow-sm"
             >
               {save.isPending ? "Saving..." : isEdit ? "Save Changes" : "Add Method"}
             </button>
@@ -263,7 +263,7 @@ export function PaymentMethodsManager() {
         </p>
         <button
           onClick={() => setAdding(true)}
-          className="h-8 px-3 rounded-xl bg-amber-500 text-white font-black text-[11px] flex items-center gap-1.5 hover:bg-amber-600 transition-colors shadow-sm"
+          className="h-8 px-3 rounded-xl bg-primary text-primary-foreground font-black text-[11px] flex items-center gap-1.5 hover:bg-primary/90 transition-colors shadow-sm"
         >
           <Plus className="h-3.5 w-3.5" />
           Add Method

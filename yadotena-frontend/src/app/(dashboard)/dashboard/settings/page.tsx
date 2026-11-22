@@ -17,6 +17,8 @@ const SettingsSchema = Yup.object().shape({
   address: Yup.string().required("Address is required"),
   serviceChargePercent: Yup.number().min(0).max(100).required("Service charge percentage is required"),
   vatPercent: Yup.number().min(0).max(100).required("VAT percentage is required"),
+  deliveryFee: Yup.number().min(0).required("Delivery fee is required"),
+  requireTableQrKey: Yup.boolean(),
   guestWifiSsid: Yup.string(),
   guestWifiPassword: Yup.string(),
 });
@@ -33,12 +35,14 @@ export default function SettingsPage() {
 
   const formik = useFormik({
     initialValues: {
-      restaurantName: "Yadotena Milk & Foods",
+      restaurantName: "Hilif Milk & Foods",
       phone: "+251 91 123 4567",
       address: "Bole Road, Addis Ababa",
       serviceChargePercent: 10,
-      vatPercent: 15,
-      guestWifiSsid: "Yadotena_Milk_5G",
+      vatPercent: 0,
+      deliveryFee: 100,
+      requireTableQrKey: false,
+      guestWifiSsid: "Hilif_Milk_5G",
       guestWifiPassword: "",
     },
     validationSchema: SettingsSchema,
@@ -60,12 +64,14 @@ export default function SettingsPage() {
       .then((data) => {
         if (data) {
           formik.setValues({
-            restaurantName: data.restaurantName || "Yadotena Milk & Foods",
+            restaurantName: data.restaurantName || "Hilif Milk & Foods",
             phone: data.phone || "+251 91 123 4567",
             address: data.address || "Bole Road, Addis Ababa",
             serviceChargePercent: data.serviceChargePercent ?? 10,
-            vatPercent: data.vatPercent ?? 15,
-            guestWifiSsid: data.guestWifiSsid || "Yadotena_Milk_5G",
+            vatPercent: data.vatPercent ?? 0,
+            deliveryFee: data.deliveryFee ?? 100,
+            requireTableQrKey: !!data.requireTableQrKey,
+            guestWifiSsid: data.guestWifiSsid || "Hilif_Milk_5G",
             guestWifiPassword: data.guestWifiPassword || "",
           });
         }
@@ -149,7 +155,7 @@ Couldn’t load store settings. Check your connection and refresh to try again.
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="vatPercent" className="text-sm font-semibold">VAT Sales Tax (%)</label>
+              <label htmlFor="vatPercent" className="text-sm font-semibold">VAT (%)</label>
               <Input
                 id="vatPercent"
                 name="vatPercent"
@@ -159,8 +165,42 @@ Couldn’t load store settings. Check your connection and refresh to try again.
                 value={formik.values.vatPercent}
                 className="rounded-xl h-11"
               />
+              <p className="text-[11px] text-muted-foreground">
+                Keep at 0 unless the café is VAT-registered — only registered businesses may charge VAT.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="deliveryFee" className="text-sm font-semibold">Delivery fee (ETB)</label>
+              <Input
+                id="deliveryFee"
+                name="deliveryFee"
+                type="number"
+                min={0}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                value={formik.values.deliveryFee}
+                className="rounded-xl h-11"
+              />
+              <p className="text-[11px] text-muted-foreground">Added once to every delivery order.</p>
             </div>
           </div>
+
+          <label className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer">
+            <input
+              type="checkbox"
+              name="requireTableQrKey"
+              checked={formik.values.requireTableQrKey}
+              onChange={formik.handleChange}
+              className="mt-0.5 h-4 w-4 accent-[var(--color-primary)]"
+            />
+            <span>
+              <span className="block text-sm font-semibold">Guests must scan the table QR to order</span>
+              <span className="block text-[11px] text-muted-foreground mt-0.5">
+                Stops people ordering to a table by typing its number. Turn this on only after the new QR codes
+                (Tables → QR code, printed after this update) are on every table — old printed codes stop working for ordering.
+              </span>
+            </span>
+          </label>
 
           <div className="space-y-2">
             <label htmlFor="address" className="text-sm font-semibold">Physical Address</label>

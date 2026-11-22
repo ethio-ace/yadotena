@@ -500,13 +500,13 @@ export default function OrderTrackingPage() {
               )}
               {order.tax !== undefined && order.tax > 0 && (
                 <div className="flex justify-between text-muted-foreground text-xs">
-                  <span>VAT (15%)</span>
+                  <span>VAT</span>
                   <span>{formatETB(order.tax)}</span>
                 </div>
               )}
               {order.serviceCharge !== undefined && order.serviceCharge > 0 && (
                 <div className="flex justify-between text-muted-foreground text-xs">
-                  <span>Service Charge (10%)</span>
+                  <span>Service charge</span>
                   <span>{formatETB(order.serviceCharge)}</span>
                 </div>
               )}
@@ -536,9 +536,20 @@ export default function OrderTrackingPage() {
               <CreditCard className="h-3.5 w-3.5" /> Payment Details
             </h3>
 
+            {!isPaid && payments.length > 0 && (order.balanceDue ?? 0) > 0 && (
+              <div className="mb-3 p-3 rounded-xl border bg-amber-500/5 border-amber-500/20">
+                <div className="font-bold text-sm text-amber-700 dark:text-amber-400">Balance due {formatETB(order.balanceDue ?? 0)}</div>
+                <div className="text-xs text-muted-foreground font-medium">For items added after your earlier payment.</div>
+              </div>
+            )}
             {payments.length > 0 ? (
               <div className="space-y-3">
-                {payments.map(p => (
+                {payments.map(p => p.status === "REFUNDED" ? (
+                  <div key={p.id} className="p-4 rounded-xl border bg-red-500/5 border-red-500/20 flex items-center justify-between">
+                    <span className="font-bold text-sm uppercase tracking-wide">Refunded · {p.method}</span>
+                    <span className="font-mono font-black text-red-600 dark:text-red-400 text-sm">−{formatETB(p.amount)}</span>
+                  </div>
+                ) : (
                   <div key={p.id} className="p-4 rounded-xl border bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/20 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -580,7 +591,7 @@ export default function OrderTrackingPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-bold text-sm text-amber-700 dark:text-amber-400">Payment Pending</div>
-                    <div className="text-xs text-muted-foreground font-medium">Amount due: {formatETB(order.total)}</div>
+                    <div className="text-xs text-muted-foreground font-medium">Amount due: {formatETB(order.balanceDue ?? order.total)}</div>
                   </div>
                   <Button
                     variant="secondary"

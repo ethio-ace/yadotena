@@ -34,13 +34,13 @@ export function OwnerHeader({
         <div className="flex items-center gap-2.5">
           <img
             src="/icon.svg"
-            alt="Yadotena logo"
+            alt="Hilif logo"
             className="h-9 w-9 rounded-xl shrink-0 shadow-sm border border-amber-500/20"
           />
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-black text-base tracking-tight text-foreground">
-                YADOTENA <span className="text-amber-600 dark:text-amber-400 font-extrabold">BUSINESS</span>
+                HILIF <span className="text-primary dark:text-shewa-400 font-extrabold">BUSINESS</span>
               </h1>
               <Badge variant="outline" className="text-[10px] font-bold px-2 py-0 hidden sm:inline-flex">
                 Owner Control Center

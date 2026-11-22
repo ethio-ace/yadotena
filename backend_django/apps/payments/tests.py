@@ -74,7 +74,7 @@ class PaymentMethodTests(BaseAPITest):
         self.login(self.manager)
         res = self.client.post(f'{API}/payment-methods', {
             'name': 'Awash Bank', 'code': 'awash', 'type': 'digital',
-            'accountNumber': '0132', 'accountName': 'Yadotena', 'isActive': True,
+            'accountNumber': '0132', 'accountName': 'Hilif', 'isActive': True,
         }, format='json')
         self.assertEqual(res.status_code, 201, res.json())
         self.assertEqual(res.json()['code'], 'AWASH')

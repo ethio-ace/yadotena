@@ -25,7 +25,10 @@ def save_image(upload, folder='uploads'):
         with Image.open(io.BytesIO(data)) as img:
             fmt = img.format
             img.verify()
-    except (UnidentifiedImageError, OSError):
+    # Pillow signals a corrupt file (e.g. a half-downloaded PNG) with
+    # SyntaxError/ValueError, and a pixel bomb with DecompressionBombError —
+    # all are bad input (400), never a server error.
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Image.DecompressionBombError):
         raise ValidationError({'image': 'File is not a valid image.'})
     if fmt not in ALLOWED_FORMATS:
         raise ValidationError({'image': 'Use a JPEG, PNG, WebP or GIF image.'})

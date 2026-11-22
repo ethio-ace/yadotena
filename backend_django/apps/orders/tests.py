@@ -20,8 +20,8 @@ class OrderFlowBase(BaseAPITest):
     def kitchen_act(self, order_id, action, **extra):
         return self.client.post(f'{API}/orders/{order_id}/kitchen', {'action': action, **extra}, format='json')
 
-    def set_status(self, order_id, new_status):
-        return self.client.post(f'{API}/orders/{order_id}/status', {'status': new_status}, format='json')
+    def set_status(self, order_id, new_status, **extra):
+        return self.client.post(f'{API}/orders/{order_id}/status', {'status': new_status, **extra}, format='json')
 
     def item_statuses(self, order_id):
         return sorted(Order.objects.get(id=order_id).items.values_list('round_number', 'status'))
@@ -104,10 +104,10 @@ class WholeOrderStatusTests(OrderFlowBase):
 
     def test_terminal_orders_are_immutable(self):
         oid = self.new_order()
-        self.assertEqual(self.set_status(oid, 'CANCELLED').data['status'], 'CANCELLED')
+        self.assertEqual(self.set_status(oid, 'CANCELLED', reason='Customer left').data['status'], 'CANCELLED')
         self.assertEqual(self.item_statuses(oid), [(1, 'CANCELLED')])
         self.assertEqual(self.set_status(oid, 'PREPARING').status_code, 409)
-        self.assertEqual(self.set_status(oid, 'CANCELLED').status_code, 200)  # idempotent
+        self.assertEqual(self.set_status(oid, 'CANCELLED', reason='again').status_code, 200)  # idempotent
 
     def test_patch_order_with_status_is_status_change(self):
         oid = self.new_order()
@@ -119,7 +119,7 @@ class WholeOrderStatusTests(OrderFlowBase):
         oid = self.new_order(type='DINE_IN', tableId='t1')
         self.table.refresh_from_db()
         self.assertNotEqual(self.table.status, 'AVAILABLE')
-        self.set_status(oid, 'CANCELLED')
+        self.set_status(oid, 'CANCELLED', reason='Wrong table')
         self.table.refresh_from_db()
         self.assertEqual(self.table.status, 'AVAILABLE')
 
@@ -211,3 +211,70 @@ class GuestOrderTests(OrderFlowBase):
     def test_staff_orders_skip_approval(self):
         oid = self.new_order()
         self.assertEqual(self.item_statuses(oid), [(1, 'PENDING')])
+
+
+class FlowRefinementTests(OrderFlowBase):
+    """End-to-end edges: counter sales, kitchen cancels, paid tickets that grow."""
+
+    def pay(self, oid):
+        from apps.payments.services import record_payment
+        return record_payment(order_id=oid, method='CASH', recorded_by=self.waiter)[0]
+
+    def test_counter_sale_never_reaches_the_kitchen(self):
+        self.login(self.waiter)
+        res = self.place_order(type='TAKEAWAY', status='COMPLETED')
+        oid = res.data['id']
+        self.assertEqual(self.item_statuses(oid), [(1, 'SERVED')])
+        self.assertEqual(res.data['status'], 'SERVED')
+        self.pay(oid)
+        self.assertEqual(Order.objects.get(id=oid).status, 'COMPLETED')
+
+    def test_guest_cannot_skip_the_kitchen_or_approval(self):
+        res = self.place_order(as_user=None, type='DINE_IN', tableId='t1', status='COMPLETED')
+        self.assertEqual(self.item_statuses(res.data['id']), [(1, 'DRAFT')])
+
+    def test_kitchen_cancel_drops_line_from_bill_and_closes_empty_ticket(self):
+        self.login(self.waiter)
+        oid = self.place_order(type='DINE_IN', tableId='t1').data['id']
+        self.login(self.kitchen)
+        res = self.kitchen_act(oid, 'CANCEL', roundNumber=1)
+        self.assertEqual(res.data['status'], 'CANCELLED')
+        self.assertEqual(float(res.data['total']), 0.0)
+        self.table.refresh_from_db()
+        self.assertIsNone(self.table.current_order_id)
+
+    def test_kitchen_serve_closes_a_paid_ticket(self):
+        self.login(self.waiter)
+        oid = self.place_order(type='DINE_IN', tableId='t1').data['id']
+        self.pay(oid)
+        self.login(self.kitchen)
+        for action in ('START', 'READY'):
+            self.kitchen_act(oid, action, roundNumber=1)
+        res = self.kitchen_act(oid, 'SERVE', roundNumber=1)
+        self.assertEqual(res.data['status'], 'COMPLETED')
+        self.table.refresh_from_db()
+        self.assertEqual(self.table.status, 'AVAILABLE')
+
+    def test_round_added_after_payment_is_billed(self):
+        self.login(self.waiter)
+        oid = self.place_order(type='DINE_IN', tableId='t1').data['id']
+        first = self.pay(oid)
+        paid_total = float(Order.objects.get(id=oid).total)
+        res = self.client.post(f'{API}/orders/{oid}/add-items',
+                               {'items': [{'menuItemId': self.item.id, 'quantity': 2}]}, format='json')
+        self.assertEqual(res.data['paymentStatus'], 'PENDING')
+        self.assertAlmostEqual(res.data['amountPaid'], paid_total)
+        self.assertAlmostEqual(res.data['balanceDue'], float(res.data['total']) - paid_total)
+        second = self.pay(oid)
+        self.assertNotEqual(first.pk, second.pk)
+        self.assertAlmostEqual(float(second.amount), res.data['balanceDue'])
+        order = Order.objects.get(id=oid)
+        self.assertEqual(order.payment_status, 'PAID')
+
+    def test_bad_quantity_is_a_400_not_a_crash(self):
+        res = self.place_order(as_user=None, type='DINE_IN', tableId='t1',
+                               items=[{'menuItemId': self.item.id, 'quantity': 'lots'}])
+        self.assertEqual(res.status_code, 400)
+        res = self.place_order(as_user=None, type='DINE_IN', tableId='t1',
+                               items=[{'menuItemId': self.item.id, 'quantity': 500}])
+        self.assertEqual(res.status_code, 400)

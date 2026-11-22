@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 interface PaymentMethod {
   id: string;
@@ -155,7 +156,11 @@ export default function PaymentsPage() {
     (o.tableId && o.tableId.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const totalCollected = paidOrders.reduce((acc: number, order: any) => acc + order.total, 0);
+  // Money actually taken: payment records, refunds subtracted.
+  const totalCollected = payments.reduce(
+    (acc: number, p: any) => acc + (p.status === "REFUNDED" ? -1 : p.status === "PAID" ? 1 : 0) * (Number(p.amount) || 0),
+    0
+  );
 
   const getProviderIcon = (code: string) => {
     const lower = code.toLowerCase();
@@ -277,7 +282,7 @@ export default function PaymentsPage() {
                     className="cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-colors"
                   >
                     <td className="px-4 py-3 font-black text-foreground">
-                      {order.id.slice(-6).toUpperCase()}
+                      #{orderTicketNumber(order)}
                     </td>
                     <td className="px-4 py-3 font-bold">
                       {order.type === "DINE_IN" ? (formatTableRef(order.tableId, tableLabels) || "Table") : (order.customerName || "Takeout Guest")}
@@ -495,7 +500,7 @@ export default function PaymentsPage() {
                   <div className="space-y-1">
                     <label className="font-bold text-foreground">Account Holder Name</label>
                     <Input
-                      placeholder="e.g. Yadotena Milk PLC"
+                      placeholder="e.g. Hilif Milk PLC"
                       value={formData.accountName}
                       onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
                       className="h-9 text-xs rounded-xl"
@@ -528,7 +533,7 @@ export default function PaymentsPage() {
                   <Receipt className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base">Settlement Receipt {selectedOrderForDetail.id.slice(-6).toUpperCase()}</h3>
+                  <h3 className="font-black text-base">Settlement Receipt #{orderTicketNumber(selectedOrderForDetail)}</h3>
                   <p className="text-[11px] text-muted-foreground font-mono">Order ID: {selectedOrderForDetail.id}</p>
                 </div>
               </div>

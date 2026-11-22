@@ -60,7 +60,7 @@ export function WaiterSidebar({ view, readyCount, approvalCount, pendingCalls, f
         <div className="h-14 border-b px-4 flex items-center gap-2.5 shrink-0">
           <img src="/icon.svg" alt="" className="h-7 w-7 rounded-lg shrink-0" />
           <div className="min-w-0">
-            <p className="font-black text-[13px] tracking-tight leading-none truncate">YADOTENA</p>
+            <p className="font-black text-[13px] tracking-tight leading-none truncate">HILIF</p>
             <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mt-0.5">Waiter</p>
           </div>
         </div>
@@ -72,7 +72,7 @@ export function WaiterSidebar({ view, readyCount, approvalCount, pendingCalls, f
               "w-full h-12 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97]",
               view === "cafe-order"
                 ? "bg-amber-600 text-white"
-                : "bg-amber-500 text-amber-950 hover:bg-amber-400 shadow-sm shadow-amber-500/20"
+                : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shadow-primary/20"
             )}
           >
             <Plus className="h-5 w-5" strokeWidth={3} />
@@ -156,7 +156,7 @@ export function WaiterSidebar({ view, readyCount, approvalCount, pendingCalls, f
               className="flex-1 flex flex-col items-center justify-center"
               aria-label="New order"
             >
-              <span className="h-11 w-11 rounded-2xl bg-amber-500 text-amber-950 flex items-center justify-center shadow-md shadow-amber-500/30">
+              <span className="h-11 w-11 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shadow-primary/30">
                 <Plus className="h-6 w-6" strokeWidth={3} />
               </span>
             </button>

@@ -1,13 +1,15 @@
 import { Table, Order } from "@/types";
 
 /**
- * Checks if an order is active (not completed, not cancelled, and not paid).
+ * Is this ticket still open on its table? Mirrors the backend's
+ * OPEN_ORDER_STATUSES: only COMPLETED/CANCELLED are closed. A ticket paid
+ * early is still open while its food cooks (the server auto-completes it
+ * once everything is served) — treating PAID as closed made the table look
+ * free while new orders silently merged into the paid ticket.
  */
 export function isOrderActive(order?: Order | null): boolean {
   if (!order) return false;
-  if (order.status === "COMPLETED" || order.status === "CANCELLED") return false;
-  if (order.paymentStatus === "PAID") return false;
-  return true;
+  return order.status !== "COMPLETED" && order.status !== "CANCELLED";
 }
 
 /**

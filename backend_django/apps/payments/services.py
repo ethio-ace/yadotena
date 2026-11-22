@@ -1,13 +1,11 @@
-from decimal import Decimal
 
 from django.db import transaction
 from django.db.models import Q
-from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.core.ably_utils import publish_event
 from apps.orders.models import ItemStatus, Order, OrderStatus, PaymentStatus
-from apps.orders.services import _money, _sync_table_for_order
+from apps.orders.services import _money, _sync_table_for_order, balance_due, sync_payment_status
 from .models import Payment, PaymentMethod
 
 # Unpaid tickets that are finished on the floor close as soon as they are paid.
@@ -22,17 +20,19 @@ def resolve_method(value):
 
 
 @transaction.atomic
-def record_payment(*, order_id, method='CASH', amount=None, status=PaymentStatus.PAID,
+def record_payment(*, order_id, method='CASH', amount=None,
                    transaction_ref=None, receipt_url=None, notes='', recorded_by=None):
     """Settle an order. Returns ``(payment, created)``.
 
+    Always records money *in* (PAID). Refunds go through
+    ``orders.services.record_refund`` (manager only, with a reason).
+
     - The order row is locked so two terminals cannot settle it twice.
-    - The amount is server-authoritative: never less than the order total.
+    - The amount is server-authoritative: exactly the balance still due
+      (the whole total, or only the new rounds on a ticket paid earlier).
     - Settling an already-paid order returns the existing payment.
     """
-    status = (status or PaymentStatus.PAID).upper()
-    if status not in PaymentStatus.values:
-        raise ValidationError({'status': f'Must be one of {", ".join(PaymentStatus.values)}.'})
+    status = PaymentStatus.PAID
 
     order = Order.objects.select_for_update().select_related('table').filter(id=order_id).first()
     if order is None:
@@ -43,11 +43,12 @@ def record_payment(*, order_id, method='CASH', amount=None, status=PaymentStatus
         if existing:
             return existing, False
 
-    try:
-        amount = _money(amount) if amount not in (None, '') else Decimal('0')
-    except Exception:
-        raise ValidationError({'amount': 'A valid amount is required.'})
-    amount = max(amount, _money(order.total))
+    if amount not in (None, ''):
+        try:
+            _money(amount)
+        except Exception:
+            raise ValidationError({'amount': 'A valid amount is required.'})
+    amount = balance_due(order)
     if amount <= 0:
         raise ValidationError({'amount': 'Order has no payable total.'})
 
@@ -69,8 +70,8 @@ def record_payment(*, order_id, method='CASH', amount=None, status=PaymentStatus
         recorded_by=recorded_by if getattr(recorded_by, 'is_authenticated', False) else None,
     )
 
-    order.payment_status = status
-    fields = ['payment_status', 'updated_at']
+    sync_payment_status(order)
+    fields = ['updated_at']
     # Close on payment only when nothing is left to do: a guest round still
     # awaiting approval (DRAFT items) or food still in the kitchen keeps the
     # ticket open on the table.
@@ -81,10 +82,8 @@ def record_payment(*, order_id, method='CASH', amount=None, status=PaymentStatus
         fields.append('status')
     order.save(update_fields=fields)
 
-    if order.status == OrderStatus.COMPLETED and order.table_id:
-        _sync_table_for_order(order)
-        order.table.sessions.filter(status='ACTIVE').update(status='CLOSED', closed_at=timezone.now())
-        publish_event('yadotena-realtime', 'table.updated', {'id': str(order.table_id), 'status': order.table.status})
+    if order.status == OrderStatus.COMPLETED:
+        _sync_table_for_order(order)  # frees the table and closes its dining session
 
     publish_event('yadotena-realtime', 'order.updated', {
         'id': order.id, 'status': order.status, 'paymentStatus': order.payment_status,

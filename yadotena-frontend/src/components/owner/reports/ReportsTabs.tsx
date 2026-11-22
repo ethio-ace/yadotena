@@ -40,7 +40,7 @@ export function ReportsTabs({
           className={cn(
             "px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all border",
             active === t.key
-              ? "bg-amber-500 text-amber-950 border-amber-500 shadow-sm"
+              ? "bg-primary text-primary-foreground border-primary shadow-sm"
               : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/50"
           )}
         >

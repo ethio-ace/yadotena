@@ -13,12 +13,16 @@ import { isRetailProduct } from "./orderUtils";
  * internally consistent against any backend. (The aggregation endpoint stays
  * for Phase 2's heavier Sales surfaces.)
  *
- * - Revenue / paid orders / avg ticket: sum of PAID order totals in range.
- * - Daily trend: PAID totals grouped by local day, zero-filled over the range.
- * - Top products: item quantities & snapshot prices aggregated over PAID
- *   orders. No profitability claim — no cost data exists (spec §39).
- * - Payment mix: method of each PAID payment record, as a share of paid
- *   orders with a recorded settlement.
+ * - Revenue = money that actually moved in the range (cash basis): PAID
+ *   payment records minus REFUNDED records, by the time of the payment. So a
+ *   ticket opened yesterday and paid today counts today, a table that paid
+ *   and kept ordering never drops out, and refunds come off the day they
+ *   were given back. Matches the Day Close report and the cash drawer.
+ * - Paid orders / avg ticket: distinct tickets with a payment in range.
+ * - Daily / hourly trend: the same payment amounts by local day / hour.
+ * - Top products: billed (non-cancelled) lines of tickets paid in range.
+ *   No profitability claim — no cost data exists (spec §39).
+ * - Payment mix: every PAID payment record in range, by method.
  * - Expenses are filtered by their recorded `date` within the same range.
  * - Attention items (unpaid orders, out-of-stock products, pending
  *   verification) come from real order / menu / payment records.
@@ -421,13 +425,19 @@ export function computeOwnerMetrics(opts: {
     return t > 0 && t >= fromTime && t <= toTime;
   });
 
-  // Revenue / paid orders: PAID order totals within the range. (The backend
-  // `since` filter trims payloads once deployed; older backends ignore it, so
-  // the client instant filter below is the source of truth.)
-  const paidRangeOrders = rangeOrders.filter((o) => o.paymentStatus === "PAID");
-  const revenue = paidRangeOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-  const paidOrders = paidRangeOrders.length;
+  // Revenue: payment records in range (cash basis). A refund is its own row.
+  const rangePayments = payments.filter((p) => {
+    if (p.status !== "PAID" && p.status !== "REFUNDED") return false;
+    const t = parseDate(p.createdAt).getTime();
+    return t > 0 && t >= fromTime && t <= toTime;
+  });
+  const signed = (p: PaymentRecord) => (p.status === "REFUNDED" ? -1 : 1) * (Number(p.amount) || 0);
+  const revenue = rangePayments.reduce((sum, p) => sum + signed(p), 0);
+  const paidOrderIds = new Set(rangePayments.filter((p) => p.status === "PAID").map((p) => p.orderId));
+  const paidOrders = paidOrderIds.size;
   const averageTicket = paidOrders > 0 ? revenue / paidOrders : 0;
+  // Tickets paid in range (for top products), whenever they were opened.
+  const paidRangeOrders = orders.filter((o) => paidOrderIds.has(o.id));
 
   const expensesInRange = expenses
     .filter((e) => e.date >= range.from && e.date <= range.to)
@@ -444,6 +454,7 @@ export function computeOwnerMetrics(opts: {
   const productMap = new Map<string, { qty: number; revenue: number }>();
   for (const o of paidRangeOrders) {
     for (const item of o.items ?? []) {
+      if (item.status === "CANCELLED") continue; // voided lines were not sold
       const cur = productMap.get(item.name) ?? { qty: 0, revenue: 0 };
       cur.qty += item.quantity || 0;
       cur.revenue += (item.price || 0) * (item.quantity || 0);
@@ -459,10 +470,9 @@ export function computeOwnerMetrics(opts: {
   // strings vary per record ("cbe_birr", "cbe", "CBE Birr"), so entries are
   // merged by their normalized display label first — one chip per method.
   const mixMap = new Map<string, number>();
-  for (const o of paidRangeOrders) {
-    const paidPayment = (o.payments ?? []).find((p) => p.status === "PAID");
-    if (!paidPayment?.method) continue;
-    const label = formatPaymentMethod(paidPayment.method);
+  for (const p of rangePayments) {
+    if (p.status !== "PAID" || !p.method) continue;
+    const label = formatPaymentMethod(p.method);
     mixMap.set(label, (mixMap.get(label) ?? 0) + 1);
   }
   const mixTotal = [...mixMap.values()].reduce((a, b) => a + b, 0);
@@ -478,9 +488,9 @@ export function computeOwnerMetrics(opts: {
   // Daily trend: PAID totals bucketed by local day, zero-filled over the
   // range so quiet days still render honest bars.
   const dailyByDay = new Map<string, number>();
-  for (const o of paidRangeOrders) {
-    const key = fmtDate(new Date(o.createdAt));
-    dailyByDay.set(key, (dailyByDay.get(key) ?? 0) + (o.total || 0));
+  for (const p of rangePayments) {
+    const key = fmtDate(parseDate(p.createdAt));
+    dailyByDay.set(key, (dailyByDay.get(key) ?? 0) + signed(p));
   }
   // Daily expenses on the same day grid (for revenue-vs-expense charts).
   const expensesByDay = new Map<string, number>();
@@ -508,11 +518,11 @@ export function computeOwnerMetrics(opts: {
   // Hour-of-day revenue profile — zero-filled 24 slots so quiet hours show
   // honest empty bars instead of disappearing.
   const hourlyByHour = new Map<number, { revenue: number; orders: number }>();
-  for (const o of paidRangeOrders) {
-    const h = new Date(o.createdAt).getHours();
+  for (const p of rangePayments) {
+    const h = parseDate(p.createdAt).getHours();
     const cur = hourlyByHour.get(h) ?? { revenue: 0, orders: 0 };
-    cur.revenue += o.total || 0;
-    cur.orders += 1;
+    cur.revenue += signed(p);
+    if (p.status === "PAID") cur.orders += 1;
     hourlyByHour.set(h, cur);
   }
   const hourLabels = [

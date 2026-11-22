@@ -1,4 +1,4 @@
-# Yadotena Milk & Foods
+# Hilif Milk & Foods
 
 Café management: public QR menu with guest table ordering (waiter-approved) plus staff dashboards for owner,
 manager, waiter and kitchen.

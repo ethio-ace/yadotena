@@ -249,14 +249,13 @@ export default function OwnerDashboardPage() {
                 {/* Primary KPI Cards - Revenue Focus */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Revenue Card - Primary */}
-                  <div className="col-span-1 md:col-span-2 lg:col-span-2 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-6 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full -mr-16 -mt-16" />
+                  <div className="col-span-1 md:col-span-2 lg:col-span-2 bg-primary/[0.06] border border-primary/20 rounded-2xl p-6 shadow-sm relative overflow-hidden">
                     <div className="relative">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider">
+                        <span className="text-sm font-bold text-primary dark:text-shewa-300 uppercase tracking-wider">
                           Total Revenue
                         </span>
-                        <div className="h-12 w-12 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                        <div className="h-12 w-12 rounded-2xl bg-primary/15 text-primary dark:text-shewa-300 flex items-center justify-center">
                           <Wallet className="h-6 w-6" />
                         </div>
                       </div>
@@ -499,7 +498,7 @@ export default function OwnerDashboardPage() {
                 </div>
 
                 {/* Quick Stats Footer */}
-                <div className="bg-gradient-to-r from-amber-500/5 via-transparent to-amber-500/5 border border-amber-500/10 rounded-2xl p-6">
+                <div className="bg-primary/[0.04] border border-primary/10 rounded-2xl p-6">
                   <h3 className="font-black text-lg text-foreground flex items-center gap-2 mb-4">
                     <Zap className="h-5 w-5 text-amber-500" /> Quick Insights
                   </h3>

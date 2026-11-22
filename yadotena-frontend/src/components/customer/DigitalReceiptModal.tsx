@@ -75,7 +75,7 @@ export function DigitalReceiptModal({
               <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-primary text-primary-foreground font-black text-xl shadow-md shadow-primary/25 mb-1">
                 🥛
               </div>
-              <h2 className="font-black text-xl tracking-tight">YADOTENA MILK & FOODS</h2>
+              <h2 className="font-black text-xl tracking-tight">HILIF MILK & FOODS</h2>
               <p className="text-xs text-muted-foreground font-semibold">
                 Artisanal Dining & Dairy House
               </p>
@@ -187,13 +187,13 @@ export function DigitalReceiptModal({
               </div>
               {order.tax !== undefined && order.tax > 0 && (
                 <div className="flex justify-between text-muted-foreground text-[11px]">
-                  <span>VAT (15%)</span>
+                  <span>VAT</span>
                   <span>{formatETB(order.tax)}</span>
                 </div>
               )}
               {order.serviceCharge !== undefined && order.serviceCharge > 0 && (
                 <div className="flex justify-between text-muted-foreground text-[11px]">
-                  <span>Service Charge (10%)</span>
+                  <span>Service charge</span>
                   <span>{formatETB(order.serviceCharge)}</span>
                 </div>
               )}
@@ -219,32 +219,32 @@ export function DigitalReceiptModal({
               {/* QR Code SVG */}
               <div className="p-2 bg-white rounded-xl shadow-sm border border-neutral-200">
                 <svg viewBox="0 0 100 100" className="w-14 h-14 fill-neutral-900" shapeRendering="crispEdges">
-                  <rect x="0" y="0" width="28" height="28" fill="#18181b" rx="2" />
+                  <rect x="0" y="0" width="28" height="28" fill="#201d1b" rx="2" />
                   <rect x="4" y="4" width="20" height="20" fill="white" rx="1" />
-                  <rect x="8" y="8" width="12" height="12" fill="#059669" rx="1" />
+                  <rect x="8" y="8" width="12" height="12" fill="#0a7f59" rx="1" />
 
-                  <rect x="72" y="0" width="28" height="28" fill="#18181b" rx="2" />
+                  <rect x="72" y="0" width="28" height="28" fill="#201d1b" rx="2" />
                   <rect x="76" y="4" width="20" height="20" fill="white" rx="1" />
-                  <rect x="80" y="8" width="12" height="12" fill="#059669" rx="1" />
+                  <rect x="80" y="8" width="12" height="12" fill="#0a7f59" rx="1" />
 
-                  <rect x="0" y="72" width="28" height="28" fill="#18181b" rx="2" />
+                  <rect x="0" y="72" width="28" height="28" fill="#201d1b" rx="2" />
                   <rect x="4" y="76" width="20" height="20" fill="white" rx="1" />
-                  <rect x="8" y="80" width="12" height="12" fill="#059669" rx="1" />
+                  <rect x="8" y="80" width="12" height="12" fill="#0a7f59" rx="1" />
 
-                  <rect x="36" y="8" width="8" height="8" fill="#18181b" />
-                  <rect x="52" y="8" width="12" height="8" fill="#18181b" />
-                  <rect x="36" y="24" width="12" height="8" fill="#18181b" />
-                  <rect x="44" y="36" width="12" height="12" fill="#18181b" />
-                  <rect x="64" y="36" width="8" height="12" fill="#18181b" />
-                  <rect x="36" y="72" width="12" height="8" fill="#18181b" />
-                  <rect x="56" y="72" width="8" height="12" fill="#18181b" />
-                  <rect x="40" y="88" width="16" height="8" fill="#18181b" />
+                  <rect x="36" y="8" width="8" height="8" fill="#201d1b" />
+                  <rect x="52" y="8" width="12" height="8" fill="#201d1b" />
+                  <rect x="36" y="24" width="12" height="8" fill="#201d1b" />
+                  <rect x="44" y="36" width="12" height="12" fill="#201d1b" />
+                  <rect x="64" y="36" width="8" height="12" fill="#201d1b" />
+                  <rect x="36" y="72" width="12" height="8" fill="#201d1b" />
+                  <rect x="56" y="72" width="8" height="12" fill="#201d1b" />
+                  <rect x="40" y="88" width="16" height="8" fill="#201d1b" />
                 </svg>
               </div>
             </div>
 
             <div className="text-center text-[10px] text-muted-foreground pt-1 italic font-medium">
-              Thank you for dining at Yadotena Milk & Foods! 🥛✨
+              Thank you for dining at Hilif Milk & Foods! 🥛✨
             </div>
           </div>
 

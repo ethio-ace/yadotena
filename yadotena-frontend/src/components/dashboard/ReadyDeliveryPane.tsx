@@ -14,6 +14,7 @@ import {
   Truck, CheckCircle, Clock, ShoppingBag, Phone, MapPin, 
   Utensils, ArrowUpRight, Sparkles, Check, AlertCircle, RefreshCw
 } from "lucide-react";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 interface ReadyDeliveryPaneProps {
   onClose?: () => void;
@@ -199,7 +200,7 @@ export function ReadyDeliveryPane({ onClose }: ReadyDeliveryPaneProps) {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-black text-base text-foreground">
-                          {order.id.slice(-6).toUpperCase()}
+                          #{orderTicketNumber(order)}
                         </span>
                         <Badge 
                           variant="outline" 

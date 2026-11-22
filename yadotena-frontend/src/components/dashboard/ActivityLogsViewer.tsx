@@ -381,7 +381,7 @@ export function ActivityLogsViewer({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `yadotena_audit_report_${format(new Date(), "yyyyMMdd_HHmm")}.csv`);
+    link.setAttribute("download", `hilif_audit_report_${format(new Date(), "yyyyMMdd_HHmm")}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

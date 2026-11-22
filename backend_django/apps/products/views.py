@@ -6,8 +6,8 @@ from django.db.models import Sum
 from django.utils import timezone
 from datetime import timedelta
 from apps.core.ably_utils import publish_event
-from .models import Product, ProductSale, ProductPurchase
-from .serializers import ProductSerializer, ProductSaleSerializer, ProductPurchaseSerializer
+from .models import MenuIngredient, Product, ProductSale, ProductPurchase
+from .serializers import MenuIngredientSerializer, ProductSerializer, ProductSaleSerializer, ProductPurchaseSerializer
 from apps.expenses.models import Expense, ExpenseCategory
 from decimal import Decimal
 from apps.core.permissions import IsManager
@@ -135,3 +135,17 @@ class ProductPurchaseViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(purchase)
         publish_event('yadotena-realtime', 'product.changed', {})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class MenuIngredientViewSet(viewsets.ModelViewSet):
+    """Recipe lines: how much stock one serving of a menu item uses.
+    ``GET /menu-ingredients?menuItem=<id>`` lists one dish's recipe."""
+    serializer_class = MenuIngredientSerializer
+    permission_classes = [IsManager]
+
+    def get_queryset(self):
+        qs = MenuIngredient.objects.select_related('product').order_by('product__name')
+        menu_item = self.request.query_params.get('menuItem') or self.request.query_params.get('menu_item')
+        if menu_item:
+            qs = qs.filter(menu_item_id=menu_item)
+        return qs

@@ -92,7 +92,7 @@ export function ChefHeader({
           </div>
           <div>
             <div className="text-sm font-extrabold tracking-tight text-white leading-none">
-              Yadotena <span className="text-zinc-600">·</span> Kitchen
+              Hilif <span className="text-zinc-600">·</span> Kitchen
             </div>
             <div className="text-[10px] font-medium text-zinc-500 mt-1">{chefName}</div>
           </div>

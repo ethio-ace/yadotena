@@ -25,7 +25,7 @@ export function BusinessSnapshot({ metrics, comparison }: BusinessSnapshotProps)
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {/* Revenue — the lead number */}
         <div className="col-span-2 lg:col-span-2 bg-card border rounded-2xl p-5 shadow-sm relative overflow-hidden">
-          <div className="absolute inset-y-0 left-0 w-1 bg-amber-500" />
+          <div className="absolute inset-y-0 left-0 w-1 bg-primary" />
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Revenue

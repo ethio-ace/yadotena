@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { OrderControls } from "@/components/OrderControls";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Order, MenuItem, AddonItem } from "@/types";
@@ -7,6 +8,7 @@ import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount, has
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { X, CreditCard, CheckCircle2, Receipt, Eye, ExternalLink, Image as ImageIcon, RotateCcw } from "lucide-react";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 interface OrderDetailsModalProps {
   order: Order | null;
@@ -19,7 +21,7 @@ interface OrderDetailsModalProps {
 }
 
 export function OrderDetailsModal({
-  order,
+  order: orderProp,
   isOpen,
   onClose,
   menu = [],
@@ -28,19 +30,26 @@ export function OrderDetailsModal({
   onRejectOrder,
 }: OrderDetailsModalProps) {
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
+  // Result of a void/refund/cancel/move made here; the parent's copy may be a stale snapshot.
+  // Keyed by the ticket that was open, so a move that merges into another
+  // ticket still shows the merged result.
+  const [updated, setUpdated] = useState<{ from: string; order: Order } | null>(null);
+  const order = updated && orderProp && updated.from === orderProp.id ? updated.order : orderProp;
   const tableLabels = useTableLabels();
 
   const { data: addons = [] } = useQuery<AddonItem[]>({
     queryKey: ["addons"],
     queryFn: () => api.addons.getAll(),
-    enabled: isOpen && !!order,
+    enabled: isOpen && !!orderProp,
   });
   const addonMap = useMemo(() => Object.fromEntries(addons.map(a => [a.id, a.name])), [addons]);
 
   if (!isOpen || !order) return null;
 
   const isPaid = order.paymentStatus === "PAID";
+  const isRefunded = order.paymentStatus === "REFUNDED";
   const payments = order.payments || [];
+  const close = () => { setUpdated(null); onClose(); };
 
   const getItemImage = (menuItemId: string) => {
     const mi = menu.find(m => m.id === menuItemId);
@@ -62,19 +71,19 @@ export function OrderDetailsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={close}>
       <div className="bg-card w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
         
         {/* Header */}
         <div className="p-5 border-b bg-muted/20 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-black tracking-tight">#{order.id.slice(-6).toUpperCase()}</h2>
+              <h2 className="text-xl font-black tracking-tight">#{orderTicketNumber(order)}</h2>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
                 {order.status}
               </span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${isPaid ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-amber-500/10 text-amber-600 border-amber-500/30"}`}>
-                {isPaid ? "PAID" : "UNPAID"}
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${isPaid ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : isRefunded ? "bg-red-500/10 text-red-600 border-red-500/30" : "bg-amber-500/10 text-amber-600 border-amber-500/30"}`}>
+                {isPaid ? "PAID" : isRefunded ? "REFUNDED" : "UNPAID"}
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
@@ -87,9 +96,15 @@ export function OrderDetailsModal({
               )}
               <span>•</span>
               <span>{new Date(order.createdAt).toLocaleString()}</span>
+              {order.createdByName && (
+                <>
+                  <span>•</span>
+                  <span>by {order.createdByName}</span>
+                </>
+              )}
             </p>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground">
+          <button onClick={close} className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -115,7 +130,7 @@ export function OrderDetailsModal({
                     } else {
                       await api.orders.updateStatus(order.id, "PREPARING");
                     }
-                    onClose();
+                    close();
                   }}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
                 >
@@ -129,7 +144,7 @@ export function OrderDetailsModal({
                     } else {
                       await api.orders.updateStatus(order.id, "CANCELLED");
                     }
-                    onClose();
+                    close();
                   }}
                   className="py-2.5 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 font-bold text-xs border border-red-500/30 active:scale-95 transition-all flex items-center justify-center gap-1.5"
                 >
@@ -137,6 +152,20 @@ export function OrderDetailsModal({
                   <span>Reject Order</span>
                 </button>
               </div>
+            </div>
+          )}
+
+          {order.status === "CANCELLED" && (
+            <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/5 text-sm">
+              <div className="font-bold text-red-700 dark:text-red-400">
+                {order.mergedInto ? "Moved to another table" : "Cancelled"}
+              </div>
+              {order.cancelReason && <div className="text-xs text-muted-foreground mt-0.5">{order.cancelReason}</div>}
+              {order.cancelledByName && (
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  by {order.cancelledByName}{order.cancelledAt ? ` · ${new Date(order.cancelledAt).toLocaleString()}` : ""}
+                </div>
+              )}
             </div>
           )}
 
@@ -178,9 +207,10 @@ export function OrderDetailsModal({
                       {items.map((item, idx) => {
                         const img = getItemImage(item.menuItemId);
                         const aNames = addonNames(item.selectedAddons, addonMap);
+                        const voided = item.status === "CANCELLED";
 
                         return (
-                          <div key={item.id || idx} className="p-3 rounded-xl border bg-background/50 space-y-1.5">
+                          <div key={item.id || idx} className={`p-3 rounded-xl border bg-background/50 space-y-1.5 ${voided ? "opacity-60" : ""}`}>
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex items-center gap-3 min-w-0">
                                 {img ? (
@@ -191,7 +221,12 @@ export function OrderDetailsModal({
                                   </div>
                                 )}
                                 <div className="min-w-0">
-                                  <div className="font-bold text-sm truncate">{item.quantity}× {item.name}</div>
+                                  <div className={`font-bold text-sm truncate ${voided ? "line-through" : ""}`}>{item.quantity}× {item.name}</div>
+                                  {voided && (
+                                    <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 truncate">
+                                      Not billed{item.cancelReason ? ` — ${item.cancelReason}` : ""}
+                                    </p>
+                                  )}
                                   {item.specialInstructions && (
                                     <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate">
                                       &ldquo;{item.specialInstructions}&rdquo;
@@ -199,7 +234,7 @@ export function OrderDetailsModal({
                                   )}
                                 </div>
                               </div>
-                              <div className="font-mono font-bold text-sm shrink-0">
+                              <div className={`font-mono font-bold text-sm shrink-0 ${voided ? "line-through text-muted-foreground" : ""}`}>
                                 {formatETB(item.price * item.quantity)}
                               </div>
                             </div>
@@ -235,13 +270,13 @@ export function OrderDetailsModal({
             )}
             {order.tax !== undefined && order.tax > 0 && (
               <div className="flex justify-between text-muted-foreground text-xs">
-                <span>VAT (15%)</span>
+                <span>VAT</span>
                 <span>{formatETB(order.tax)}</span>
               </div>
             )}
             {order.serviceCharge !== undefined && order.serviceCharge > 0 && (
               <div className="flex justify-between text-muted-foreground text-xs">
-                <span>Service Charge (10%)</span>
+                <span>Service charge</span>
                 <span>{formatETB(order.serviceCharge)}</span>
               </div>
             )}
@@ -257,9 +292,40 @@ export function OrderDetailsModal({
               <CreditCard className="h-3.5 w-3.5" /> Payment Details
             </h3>
 
+            {!isPaid && payments.length > 0 && (order.balanceDue ?? 0) > 0 && (
+              <div className="mb-3 p-3 rounded-xl border bg-amber-500/5 border-amber-500/20 flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-bold text-sm text-amber-700 dark:text-amber-400">Balance due {formatETB(order.balanceDue ?? 0)}</div>
+                  <div className="text-xs text-muted-foreground">Items were added after the earlier payment.</div>
+                </div>
+                {onSettle && (
+                  <button
+                    onClick={() => { close(); onSettle(order); }}
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md active:scale-95 transition-all shrink-0">
+                    Settle
+                  </button>
+                )}
+              </div>
+            )}
             {payments.length > 0 ? (
               <div className="space-y-3">
-                {payments.map(p => (
+                {payments.map(p => p.status === "REFUNDED" ? (
+                  <div key={p.id} className="p-4 rounded-xl border bg-red-500/5 border-red-500/20 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <RotateCcw className="h-4 w-4 text-red-600 dark:text-red-400" />
+                        <span className="font-bold text-sm uppercase tracking-wide">Refund · {p.method}</span>
+                      </div>
+                      <span className="font-mono font-black text-red-600 dark:text-red-400 text-sm">
+                        −{formatETB(p.amount)}
+                      </span>
+                    </div>
+                    {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
+                    <p className="text-[11px] text-muted-foreground">
+                      {p.recordedByName ? `by ${p.recordedByName} · ` : ""}{new Date(p.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                ) : (
                   <div key={p.id} className="p-4 rounded-xl border bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/20 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -281,7 +347,7 @@ export function OrderDetailsModal({
                     {p.createdAt && (
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Paid At:</span>
-                        <span>{new Date(p.createdAt).toLocaleString()}</span>
+                        <span>{new Date(p.createdAt).toLocaleString()}{p.recordedByName ? ` · ${p.recordedByName}` : ""}</span>
                       </div>
                     )}
 
@@ -322,11 +388,11 @@ export function OrderDetailsModal({
               <div className="p-4 rounded-xl border bg-amber-500/5 border-amber-500/20 flex items-center justify-between">
                 <div>
                   <div className="font-bold text-sm text-amber-700 dark:text-amber-400">Payment Pending</div>
-                  <div className="text-xs text-muted-foreground">Amount due: {formatETB(order.total)}</div>
+                  <div className="text-xs text-muted-foreground">Amount due: {formatETB(order.balanceDue ?? order.total)}</div>
                 </div>
                 {onSettle && (
                   <button
-                    onClick={() => { onClose(); onSettle(order); }}
+                    onClick={() => { close(); onSettle(order); }}
                     className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md active:scale-95 transition-all">
                     Settle Payment
                   </button>
@@ -334,6 +400,8 @@ export function OrderDetailsModal({
               </div>
             )}
           </div>
+
+          <OrderControls order={order} onUpdated={(next) => setUpdated({ from: orderProp!.id, order: next })} />
         </div>
 
         {/* Footer */}

@@ -48,7 +48,7 @@ export function HourlyProfile({ metrics }: { metrics: OwnerMetrics }) {
               labelFormatter={(label) => `Hour ${label}`}
             />
             <ReferenceLine x={peak.hour} stroke="var(--primary)" strokeDasharray="4 4" opacity={0.6} />
-            <Bar dataKey="revenue" name="revenue" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={18} />
+            <Bar dataKey="revenue" name="revenue" fill="#006746" radius={[3, 3, 0, 0]} maxBarSize={18} />
           </BarChart>
         </ResponsiveContainer>
       </div>

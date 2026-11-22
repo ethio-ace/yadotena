@@ -13,20 +13,20 @@ from apps.reviews.models import Review
 from apps.core.models import RestaurantSetting
 
 class Command(BaseCommand):
-    help = 'Seeds initial realistic data for Yadotena Milk & Foods platform'
+    help = 'Seeds initial realistic data for Hilif Milk & Foods platform'
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.NOTICE('Starting Yadotena Milk & Foods data seeding...'))
+        self.stdout.write(self.style.NOTICE('Starting Hilif Milk & Foods data seeding...'))
 
         # 1. Restaurant Settings
         setting, _ = RestaurantSetting.objects.get_or_create(id=1)
-        setting.restaurant_name = "Yadotena Milk & Foods"
+        setting.restaurant_name = "Hilif Milk & Foods"
         setting.phone = "+251 91 123 4567"
         setting.address = "Bole Road, Addis Ababa, Ethiopia"
         setting.service_charge_percent = 10.00
         setting.vat_percent = 15.00
-        setting.guest_wifi_ssid = "Yadotena_Milk_5G"
-        setting.guest_wifi_password = "Yadotena2026"
+        setting.guest_wifi_ssid = "Hilif_Milk_5G"
+        setting.guest_wifi_password = "Hilif2026"
         setting.save()
         self.stdout.write(self.style.SUCCESS('✓ Restaurant settings configured.'))
 
@@ -113,7 +113,7 @@ class Command(BaseCommand):
             },
             {
                 "id": "m0-3",
-                "name": "Signature Yadotena Cream Milkshake",
+                "name": "Signature Hilif Cream Milkshake",
                 "description": "Ultra-thick, rich milkshake prepared with fresh dairy cream, Madagascar vanilla, and strawberry coulis.",
                 "price": 260.00,
                 "category": "Fresh Dairy & Milk",
@@ -392,4 +392,4 @@ class Command(BaseCommand):
         )
         self.stdout.write(self.style.SUCCESS('✓ Customer reviews seeded.'))
 
-        self.stdout.write(self.style.SUCCESS('🎉 ALL YADOTENA MILK & FOODS DATA SUCCESSFULLY SEEDED!'))
+        self.stdout.write(self.style.SUCCESS('🎉 ALL HILIF MILK & FOODS DATA SUCCESSFULLY SEEDED!'))

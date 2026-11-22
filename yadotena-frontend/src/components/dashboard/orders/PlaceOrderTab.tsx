@@ -16,6 +16,7 @@ import {
 import { FullPageMenuPOS } from "@/components/dashboard/FullPageMenuPOS";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
 import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 export function PlaceOrderTab() {
   const queryClient = useQueryClient();
@@ -248,7 +249,7 @@ export function PlaceOrderTab() {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-                    Order #{activeTableModal.order.id.slice(-6).toUpperCase()} • {activeTableModal.table.capacity} seats
+                    Order #{orderTicketNumber(activeTableModal.order)} • {activeTableModal.table.capacity} seats
                   </p>
                 </div>
                 <button 
@@ -312,7 +313,7 @@ export function PlaceOrderTab() {
               {/* Action Buttons */}
               <div className="p-5 border-t bg-muted/10 space-y-2.5">
                 <Button
-                  className="w-full h-13 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-black text-sm gap-2 shadow-lg shadow-amber-600/20"
+                  className="w-full h-13 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-sm gap-2 shadow-lg shadow-primary/20"
                   onClick={() => handleStartAddItems(activeTableModal.table, activeTableModal.order)}
                 >
                   <Plus className="h-5 w-5" />

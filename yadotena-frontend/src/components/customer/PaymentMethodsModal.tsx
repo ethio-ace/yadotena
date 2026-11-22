@@ -33,9 +33,9 @@ interface PaymentMethodInfo {
 
 const FALLBACK_METHODS = [
   { id: "cash", name: "Cash", code: "CASH", type: "CASH", accountNumber: "", accountName: "", instructions: "Pay cash directly to your waiter." },
-  { id: "cbe", name: "Commercial Bank of Ethiopia (CBE)", code: "CBE", type: "DIGITAL", accountNumber: "1000123456789", accountName: "Yadotena Milk & Foods", instructions: "Transfer the exact bill amount to the CBE account above, then call your waiter to verify and settle." },
-  { id: "telebirr", name: "Telebirr SuperApp", code: "TELEBIRR", type: "DIGITAL", accountNumber: "0911234567", accountName: "Yadotena Milk & Foods PLC", instructions: "Send via Telebirr app to the merchant number above, then call your waiter to verify and settle." },
-  { id: "boa", name: "Bank of Abyssinia (BOA)", code: "BOA", type: "DIGITAL", accountNumber: "987654321", accountName: "Yadotena Milk & Foods", instructions: "Transfer to the BOA account above, then call your waiter to verify and settle." },
+  { id: "cbe", name: "Commercial Bank of Ethiopia (CBE)", code: "CBE", type: "DIGITAL", accountNumber: "1000123456789", accountName: "Hilif Milk & Foods", instructions: "Transfer the exact bill amount to the CBE account above, then call your waiter to verify and settle." },
+  { id: "telebirr", name: "Telebirr SuperApp", code: "TELEBIRR", type: "DIGITAL", accountNumber: "0911234567", accountName: "Hilif Milk & Foods PLC", instructions: "Send via Telebirr app to the merchant number above, then call your waiter to verify and settle." },
+  { id: "boa", name: "Bank of Abyssinia (BOA)", code: "BOA", type: "DIGITAL", accountNumber: "987654321", accountName: "Hilif Milk & Foods", instructions: "Transfer to the BOA account above, then call your waiter to verify and settle." },
 ];
 
 export function PaymentMethodsModal({

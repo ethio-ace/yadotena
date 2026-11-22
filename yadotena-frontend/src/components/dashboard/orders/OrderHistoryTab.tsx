@@ -9,13 +9,16 @@ import { formatETB } from "@/lib/currency";
 import { format } from "date-fns";
 import { Order, OrderStatus } from "@/types";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 interface OrderHistoryTabProps {
   /** Page-level filtered orders (type / table / payment) from the Orders page. */
   ordersOverride?: Order[];
+  /** Open a ticket's details (void / refund / cancel live there). */
+  onOpenOrder?: (order: Order) => void;
 }
 
-export function OrderHistoryTab({ ordersOverride }: OrderHistoryTabProps) {
+export function OrderHistoryTab({ ordersOverride, onOpenOrder }: OrderHistoryTabProps) {
   const tableLabels = useTableLabels();
   const [search, setSearch] = useState("");
 
@@ -65,8 +68,12 @@ export function OrderHistoryTab({ ordersOverride }: OrderHistoryTabProps) {
 
   const renderRows = (list: Order[]) =>
     list.map((order) => (
-      <tr key={order.id} className="hover:bg-muted/30 transition-colors">
-        <td className="px-6 py-4 font-mono font-bold text-xs">{order.id.slice(-6).toUpperCase()}</td>
+      <tr
+        key={order.id}
+        className={`hover:bg-muted/30 transition-colors ${onOpenOrder ? "cursor-pointer" : ""}`}
+        onClick={onOpenOrder ? () => onOpenOrder(order) : undefined}
+      >
+        <td className="px-6 py-4 font-mono font-bold text-xs">#{orderTicketNumber(order)}</td>
         <td className="px-6 py-4">
           <Badge variant="outline" className="capitalize">{order.type.replace("_", " ").toLowerCase()}</Badge>
         </td>
@@ -82,12 +89,18 @@ export function OrderHistoryTab({ ordersOverride }: OrderHistoryTabProps) {
         <td className="px-6 py-4">
           <div className="flex items-center gap-1.5">
             {getStatusBadge(order.status)}
-            <Badge
-              variant={order.paymentStatus === "PAID" ? "outline" : "destructive"}
-              className={`text-[10px] ${order.paymentStatus === "PAID" ? "text-emerald-600 border-emerald-500/30 bg-emerald-500/10" : ""}`}
-            >
-              {order.paymentStatus === "PAID" ? "Paid" : "Unpaid"}
-            </Badge>
+            {order.status === "CANCELLED" && order.paymentStatus !== "PAID" ? (
+              order.paymentStatus === "REFUNDED" && (
+                <Badge variant="outline" className="text-[10px]">Refunded</Badge>
+              )
+            ) : (
+              <Badge
+                variant={order.paymentStatus === "PAID" ? "outline" : "destructive"}
+                className={`text-[10px] ${order.paymentStatus === "PAID" ? "text-emerald-600 border-emerald-500/30 bg-emerald-500/10" : ""}`}
+              >
+                {order.paymentStatus === "PAID" ? "Paid" : order.paymentStatus === "REFUNDED" ? "Refunded" : "Unpaid"}
+              </Badge>
+            )}
           </div>
         </td>
         <td className="px-6 py-4 text-muted-foreground text-xs">

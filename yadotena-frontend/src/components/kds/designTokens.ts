@@ -1,6 +1,6 @@
 /**
- * Yadotena KDS — Calm Production Board Design Tokens
- * Restrained monochrome-first color palette with a single Yadotena Amber accent.
+ * Hilif KDS — Calm Production Board Design Tokens
+ * Restrained monochrome-first color palette with a single Hilif Amber accent.
  */
 
 export const kdsTokens = {
@@ -16,7 +16,7 @@ export const kdsTokens = {
   textSecondary: "text-zinc-400",
   textMuted: "text-zinc-500",
 
-  // Single Brand Accent (Yadotena Amber)
+  // Single Brand Accent (Hilif Amber)
   accent: "amber-500",
   accentText: "text-amber-400",
   accentBg: "bg-amber-500",

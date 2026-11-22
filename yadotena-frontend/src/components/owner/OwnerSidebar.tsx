@@ -49,12 +49,12 @@ export function OwnerSidebar({
             >
               <img
                 src="/icon.svg"
-                alt="Yadotena logo"
+                alt="Hilif logo"
                 className="h-9 w-9 rounded-xl shrink-0 shadow-md"
               />
               {(!isCollapsed || isOpenMobile) && (
                 <span className="font-black text-lg tracking-tight text-foreground">
-                  YADOTENA
+                  HILIF
                 </span>
               )}
             </Link>
@@ -94,7 +94,7 @@ export function OwnerSidebar({
                       className={cn(
                         "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all group relative",
                         isActive
-                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black border border-amber-500/20 shadow-sm"
+                          ? "bg-primary/10 text-primary font-black border border-primary/15"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       )}
                       title={isCollapsed ? item.name : undefined}
@@ -102,7 +102,7 @@ export function OwnerSidebar({
                       <Icon
                         className={cn(
                           "h-4 w-4 shrink-0 transition-colors",
-                          isActive ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground group-hover:text-foreground"
+                          isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                         )}
                       />
 

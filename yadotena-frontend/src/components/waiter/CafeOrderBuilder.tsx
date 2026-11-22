@@ -272,7 +272,7 @@ export function CafeOrderBuilder({
     <button
       onClick={submit}
       disabled={cart.length === 0 || isSubmitting}
-      className="w-full h-14 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:bg-muted disabled:text-muted-foreground text-amber-950 font-black text-base flex items-center justify-between px-5 active:scale-[0.98] transition-all"
+      className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground font-black text-base flex items-center justify-between px-5 active:scale-[0.98] transition-all"
     >
       <span className="flex items-center gap-2">
         {isSubmitting ? <span className="h-4 w-4 border-2 border-amber-950/30 border-t-amber-950 rounded-full animate-spin" /> : <Check className="h-5 w-5" strokeWidth={3} />}
@@ -366,7 +366,7 @@ export function CafeOrderBuilder({
                   </button>
 
                   {n > 0 && (
-                    <span className="absolute top-2 right-2 h-7 min-w-7 px-1.5 rounded-full bg-amber-500 text-amber-950 text-sm font-black flex items-center justify-center shadow tabular-nums">
+                    <span className="absolute top-2 right-2 h-7 min-w-7 px-1.5 rounded-full bg-primary text-primary-foreground text-sm font-black flex items-center justify-center shadow tabular-nums">
                       {n}
                     </span>
                   )}
@@ -424,7 +424,7 @@ export function CafeOrderBuilder({
             onClick={() => setCartOpen(true)}
             className="w-full h-14 rounded-2xl bg-foreground text-background font-black text-base flex items-center gap-3 px-4 shadow-xl active:scale-[0.99] transition-transform"
           >
-            <span className="h-7 min-w-7 px-1.5 rounded-full bg-amber-500 text-amber-950 text-sm flex items-center justify-center tabular-nums">{cartCount}</span>
+            <span className="h-7 min-w-7 px-1.5 rounded-full bg-primary text-primary-foreground text-sm flex items-center justify-center tabular-nums">{cartCount}</span>
             <span className="flex-1 text-left">Review order</span>
             <span className="tabular-nums">{formatETB(cartTotal)}</span>
           </button>
@@ -489,7 +489,7 @@ export function CafeOrderBuilder({
                           onClick={() => setSheetAddons(on ? sheetAddons.filter((s) => s.id !== a.id) : [...sheetAddons, a])}
                           className={cn(
                             "w-full h-12 flex items-center justify-between gap-3 px-3 rounded-xl border-2 text-sm font-bold transition-colors",
-                            on ? "border-amber-500 bg-amber-500 text-amber-950" : "border-border hover:border-amber-500/50"
+                            on ? "border-amber-500 bg-primary text-primary-foreground" : "border-border hover:border-primary/50"
                           )}
                         >
                           <span className="flex items-center gap-2.5 min-w-0">
@@ -514,7 +514,7 @@ export function CafeOrderBuilder({
                         onClick={() => setSheetNote(sheetNote === n ? "" : n)}
                         className={cn(
                           "h-9 px-3 rounded-full text-xs font-bold border-2 transition-colors",
-                          sheetNote === n ? "border-amber-500 bg-amber-500 text-amber-950" : "border-border text-muted-foreground hover:text-foreground"
+                          sheetNote === n ? "border-amber-500 bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:text-foreground"
                         )}
                       >
                         {n}
@@ -540,7 +540,7 @@ export function CafeOrderBuilder({
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
-                <button onClick={confirmOptions} className="flex-1 h-12 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm active:scale-[0.98] transition-all tabular-nums">
+                <button onClick={confirmOptions} className="flex-1 h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-sm active:scale-[0.98] transition-all tabular-nums">
                   Add · {formatETB(lineTotal)}
                 </button>
               </div>

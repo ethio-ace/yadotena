@@ -5,6 +5,7 @@ import { CheckCircle2, ChevronRight } from "lucide-react";
 import { Order } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { cn } from "@/lib/utils";
+import { orderTicketNumber } from "@/lib/kitchen";
 
 interface LiveTicketsProps {
   orders: Order[];
@@ -78,7 +79,7 @@ export function LiveTickets({ orders, tableNameById }: LiveTicketsProps) {
                   <p className="text-sm font-black text-foreground truncate">
                     {orderLabel(order)}
                     <span className="ml-2 font-mono text-[11px] font-bold text-muted-foreground tabular-nums">
-                      #{order.id.slice(-6).toUpperCase()}
+                      #{orderTicketNumber(order)}
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground truncate">

@@ -59,7 +59,7 @@ export function ManagerSidebar({
           >
             <img
               src="/icon.svg"
-              alt="Yadotena logo"
+              alt="Hilif logo"
               width="64"
               height="64"
               className="h-9 w-9 rounded-xl shrink-0 shadow-md"
@@ -67,7 +67,7 @@ export function ManagerSidebar({
             {expanded && (
               <span className="flex flex-col leading-none">
                 <span className="font-black text-base tracking-tight text-foreground">
-                  YADOTENA
+                  HILIF
                 </span>
                 <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground mt-1">
                   Operations

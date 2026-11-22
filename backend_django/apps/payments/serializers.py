@@ -8,19 +8,24 @@ class PaymentSerializer(serializers.ModelSerializer):
     transactionRef = serializers.CharField(source='transaction_ref', read_only=True)
     receiptUrl = serializers.CharField(source='receipt_url', read_only=True)
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    recordedById = serializers.CharField(source='recorded_by_id', read_only=True, allow_null=True)
+    recordedByName = serializers.SerializerMethodField()
 
     class Meta:
         model = Payment
         fields = ['id', 'orderId', 'method', 'paymentMethodId', 'amount', 'status',
-                  'transactionRef', 'receiptUrl', 'notes', 'createdAt']
+                  'transactionRef', 'receiptUrl', 'notes', 'createdAt', 'recordedById', 'recordedByName']
         read_only_fields = fields
+
+    def get_recordedByName(self, payment):
+        user = payment.recorded_by
+        return (user.name or user.email) if user else None
 
 
 class PaymentCreateSerializer(serializers.Serializer):
     orderId = serializers.CharField()
     method = serializers.CharField(required=False, allow_blank=True, default='CASH')
     amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
-    status = serializers.CharField(required=False, default='PAID')
     transactionRef = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     reference = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     receiptUrl = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=500)

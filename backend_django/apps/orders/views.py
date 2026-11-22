@@ -6,14 +6,18 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+from django.utils import timezone
+from rest_framework.exceptions import MethodNotAllowed
+from apps.tables.models import Table
 from .models import Order
 from .serializers import OrderSerializer, OrderItemInputSerializer
 from . import services
 from apps.core.activity import log_activity
-from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager
+from apps.core.permissions import ActionPermissionMixin, AllowAny, IsStaff, IsManager, is_staff_user
 from apps.core.throttles import PublicActionThrottle
 
-ORDER_QS = Order.objects.prefetch_related('items', 'payments').select_related('table')
+ORDER_QS = (Order.objects.prefetch_related('items', 'payments__recorded_by')
+            .select_related('table', 'created_by', 'cancelled_by'))
 
 
 class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
@@ -34,6 +38,9 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         'partial_update': [IsStaff],
         'update_status': [IsStaff],
         'kitchen': [IsStaff],
+        'cancel': [IsStaff],      # floor staff: untouched tickets only (service checks)
+        'move': [IsStaff],
+        'refund': [IsManager],
         'destroy': [IsManager],
     }
     default_permissions = [IsStaff]
@@ -59,8 +66,13 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
             qs = qs.filter(payment_status=payment_status.upper())
         if params.get('search'):
             term = params['search']
-            qs = qs.filter(Q(id__icontains=term) | Q(customer_name__icontains=term)
-                           | Q(customer_phone__icontains=term) | Q(table__name__icontains=term))
+            match = (Q(id__icontains=term) | Q(customer_name__icontains=term)
+                     | Q(customer_phone__icontains=term) | Q(table__name__icontains=term))
+            number = term.strip().lstrip('#')
+            if number.isdigit():
+                # "#27" = today's ticket 27.
+                match |= Q(business_date=timezone.localdate(), daily_number=int(number))
+            qs = qs.filter(match)
         since = params.get('since')
         if since:
             parsed = parse_datetime(since.replace(' ', '+'))
@@ -72,7 +84,8 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         order = serializer.save()
-        if str(self.request.data.get('paymentStatus', '')).upper() == 'PAID':
+        # Staff only: a guest must never be able to mark their own order paid.
+        if is_staff_user(self.request.user) and str(self.request.data.get('paymentStatus', '')).upper() == 'PAID':
             # POS "already paid" toggle: record a real payment so revenue,
             # collected totals and the audit trail stay consistent.
             from apps.payments.services import record_payment
@@ -111,7 +124,8 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         if not new_status:
             raise DRFValidationError({'status': 'Status is required'})
         previous = order.status
-        order = services.update_order_status(order, new_status)
+        order = services.update_order_status(order, new_status, user=request.user,
+                                             reason=request.data.get('reason', ''))
         log_activity(request, 'UPDATE_ORDER_STATUS', 'ORDER', order.pk,
                      f'Updated Order #{order.pk} status from {previous} to {order.status}',
                      prev={'status': previous}, next={'status': order.status})
@@ -128,12 +142,16 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         item_ids = request.data.get('itemIds') or []
         if not isinstance(item_ids, list):
             raise DRFValidationError({'itemIds': 'Must be a list.'})
+        reason = request.data.get('reason', '')
         order = services.kitchen_action(order, request.data.get('action'),
-                                        round_number=round_number, item_ids=item_ids)
+                                        round_number=round_number, item_ids=item_ids,
+                                        user=request.user, reason=reason)
         action_name = str(request.data.get('action')).upper()
+        note = f' — {reason}' if reason else ''
         log_activity(request, 'KITCHEN_ACTION', 'ORDER', order.pk,
-                     f'Kitchen {action_name} on Order #{order.pk} (round {round_number or "all"})',
-                     next={'action': action_name, 'round': round_number, 'status': order.status})
+                     f'Kitchen {action_name} on Order #{order.pk} (round {round_number or "all"}){note}',
+                     next={'action': action_name, 'round': round_number, 'status': order.status,
+                           'itemIds': item_ids, 'reason': reason})
         return Response(self._serialize(order))
 
     @action(detail=True, methods=['post'], url_path='add-items')
@@ -146,6 +164,59 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
                      f'Added {len(input_serializer.validated_data)} item(s) to Order #{order.pk}',
                      next={'total': order.total})
         return Response(self._serialize(order))
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, pk=None):
+        """Cancel the whole ticket: {reason}. Started/paid tickets need a manager."""
+        order = self.get_object()
+        previous = order.status
+        reason = request.data.get('reason', '')
+        order = services.cancel_order(order, user=request.user, reason=reason)
+        log_activity(request, 'CANCEL_ORDER', 'ORDER', order.pk,
+                     f'Cancelled Order #{order.pk} — {order.cancel_reason}',
+                     prev={'status': previous}, next={'status': order.status, 'reason': order.cancel_reason})
+        return Response(self._serialize(order))
+
+    @action(detail=True, methods=['post'], url_path='move')
+    def move(self, request, pk=None):
+        """Move a dine-in ticket to another table: {tableId}. Merges if that table is busy."""
+        order = self.get_object()
+        table_id = request.data.get('tableId') or request.data.get('table_id')
+        target_table = Table.objects.filter(id=table_id).first() if table_id else None
+        if target_table is None:
+            raise DRFValidationError({'tableId': 'Choose the table to move to.'})
+        source = order.table.name if order.table else 'no table'
+        result = services.move_order(order, target_table, user=request.user)
+        merged = result.pk != order.pk
+        log_activity(request, 'MOVE_ORDER', 'ORDER', order.pk,
+                     f'Moved Order #{order.pk} from {source} to {target_table.name}'
+                     + (f' (merged into #{result.pk})' if merged else ''),
+                     next={'tableId': target_table.pk, 'mergedInto': result.pk if merged else None})
+        return Response(self._serialize(result))
+
+    @action(detail=True, methods=['post'], url_path='refund')
+    def refund(self, request, pk=None):
+        """Manager refund: {amount, reason, method?}. Recorded as its own payment row."""
+        order = self.get_object()
+        reason = services._require_reason(request.data.get('reason'))
+        amount = request.data.get('amount')
+        try:
+            amount = services._money(amount)
+        except Exception:
+            raise DRFValidationError({'amount': 'A valid amount is required.'})
+        from django.db import transaction
+        with transaction.atomic():
+            locked = Order.objects.select_for_update().get(pk=order.pk)
+            refund = services.record_refund(locked, amount, user=request.user, reason=reason,
+                                            method=request.data.get('method') or None)
+        log_activity(request, 'REFUND_PAYMENT', 'ORDER', order.pk,
+                     f'Refunded ETB {refund.amount:.2f} ({refund.method}) on Order #{order.pk} — {reason}',
+                     next={'amount': refund.amount, 'method': refund.method, 'reason': reason})
+        return Response(self._serialize(order))
+
+    def destroy(self, request, *args, **kwargs):
+        # Deleting a ticket erases sales history; cancel it with a reason instead.
+        raise MethodNotAllowed('DELETE', detail='Orders cannot be deleted. Cancel the order with a reason instead.')
 
     def _serialize(self, order):
         return self.get_serializer(ORDER_QS.get(pk=order.pk)).data

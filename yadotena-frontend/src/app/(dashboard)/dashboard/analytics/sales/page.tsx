@@ -110,7 +110,7 @@ export default function SalesAnalyticsPage() {
                   {peakHour && peakHour.revenue > 0 && (
                     <ReferenceLine x={peakHour.hour} stroke="var(--primary)" strokeDasharray="4 4" opacity={0.6} />
                   )}
-                  <Bar dataKey="revenue" name="revenue" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={18} />
+                  <Bar dataKey="revenue" name="revenue" fill="#006746" radius={[3, 3, 0, 0]} maxBarSize={18} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

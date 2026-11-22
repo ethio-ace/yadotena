@@ -23,7 +23,9 @@ class Expense(models.Model):
     # values are suggestions, not a closed list).
     category = models.CharField(max_length=100, default=ExpenseCategory.DAIRY_SUPPLIES)
     description = models.TextField()
-    date = models.DateField(default=timezone.now)
+    # localdate, not now: a DateField default must be a date (a datetime made the
+    # create response crash), and the cafe day is Addis time, not UTC.
+    date = models.DateField(default=timezone.localdate)
     recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_expenses')
     payment_method = models.CharField(max_length=50, default='Cash')
     reference = models.CharField(max_length=120, blank=True, default='')

@@ -70,27 +70,28 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-background to-orange-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 p-4 animate-in fade-in duration-500">
+    <div className="relative min-h-screen flex items-center justify-center bg-background p-4 animate-in fade-in duration-500">
       {/* Light by default (app-wide defaultTheme); staff can switch here. */}
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
-      <Card className="w-full max-w-lg border shadow-xl dark:shadow-2xl rounded-3xl overflow-hidden bg-card/95 dark:bg-slate-900/90 text-card-foreground dark:text-slate-50 dark:border-slate-800 backdrop-blur-md">
+      <Card className="w-full max-w-lg border shadow-xl dark:shadow-2xl rounded-3xl overflow-hidden bg-card text-card-foreground">
+        <div className="tibeb" aria-hidden="true" />
         <CardHeader className="text-center pb-2 pt-8 space-y-2">
-          <div className="mx-auto h-16 w-16 rounded-3xl bg-amber-500 flex items-center justify-center shadow-xl shadow-amber-500/30">
+          <div className="mx-auto h-16 w-16 rounded-3xl bg-primary flex items-center justify-center shadow-xl shadow-primary/25">
             <svg viewBox="0 0 64 64" className="h-11 w-11" aria-hidden="true">
               <path d="M21 10c0-3.2 4-3.2 4-6.4" stroke="#fff" strokeWidth="2.6" fill="none" strokeLinecap="round"/>
               <path d="M33 10c0-3.2 4-3.2 4-6.4" stroke="#fff" strokeWidth="2.6" fill="none" strokeLinecap="round"/>
               <rect x="15" y="22" width="34" height="4.5" rx="2.25" fill="#fff"/>
               <path d="M17 25.5h30v6.5a11 11 0 0 1-11 11H28a11 11 0 0 1-11-11z" fill="#fff"/>
               <path d="M47 28.5h3.2a4.4 4.4 0 0 1 0 8.8H47" stroke="#fff" strokeWidth="3.2" fill="none" strokeLinecap="round"/>
-              <rect x="13" y="46.5" width="38" height="4.5" rx="2.25" fill="#fff" opacity="0.92"/>
+              <rect x="13" y="46.5" width="38" height="4.5" rx="2.25" fill="#e6a313"/>
             </svg>
           </div>
           <CardTitle className="text-2xl sm:text-3xl font-black tracking-tight">
-            Yadotena Staff & Operations Console
+            Hilif Staff & Operations Console
           </CardTitle>
-          <CardDescription className="text-xs font-semibold text-muted-foreground dark:text-slate-400">
+          <CardDescription className="text-xs font-semibold text-muted-foreground">
             Authorized Personnel Portal for Waiters, Chefs, Managers & Owners
           </CardDescription>
         </CardHeader>
@@ -112,15 +113,15 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground/80 dark:text-slate-300">Staff Email or System Username</label>
+              <label className="text-xs font-bold text-foreground/80">Staff Email or System Username</label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-slate-400" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="rounded-2xl h-12 pl-10 text-xs bg-background dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-100 focus:ring-primary"
+                  className="rounded-2xl h-12 pl-10 text-xs bg-background focus:ring-primary"
                   required
                 />
               </div>
@@ -128,16 +129,16 @@ export default function LoginPage() {
 
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="text-xs font-bold text-foreground/80 dark:text-slate-300">Password</label>
+                <label className="text-xs font-bold text-foreground/80">Password</label>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-slate-400" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="password"
                   placeholder="Your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="rounded-2xl h-12 pl-10 text-xs bg-background dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-100 focus:ring-primary"
+                  className="rounded-2xl h-12 pl-10 text-xs bg-background focus:ring-primary"
                   required
                 />
               </div>
@@ -156,7 +157,7 @@ export default function LoginPage() {
           {/* Quick demo logins — development only */}
           {showDemoLogins && (
           <div className="pt-2">
-            <p className="text-[11px] font-bold text-muted-foreground dark:text-slate-400 text-center mb-2">
+            <p className="text-[11px] font-bold text-muted-foreground text-center mb-2">
               ⚡ Dev only — demo accounts (password: <span className="text-primary font-black">{DEMO_PASSWORD}</span>)
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -164,7 +165,7 @@ export default function LoginPage() {
                 type="button"
                 variant="outline"
                 onClick={() => fillQuickDemo("waiter@demo.com")}
-                className="rounded-xl h-10 text-[11px] font-bold justify-start px-3 bg-background hover:bg-muted dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="rounded-xl h-10 text-[11px] font-bold justify-start px-3 bg-background hover:bg-muted"
               >
                 <span>🧑‍🍳 Waiter Console</span>
               </Button>
@@ -172,7 +173,7 @@ export default function LoginPage() {
                 type="button"
                 variant="outline"
                 onClick={() => fillQuickDemo("kitchen@demo.com")}
-                className="rounded-xl h-10 text-[11px] font-bold justify-start px-3 bg-background hover:bg-muted dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="rounded-xl h-10 text-[11px] font-bold justify-start px-3 bg-background hover:bg-muted"
               >
                 <span>🍳 Kitchen KDS</span>
               </Button>
@@ -180,7 +181,7 @@ export default function LoginPage() {
                 type="button"
                 variant="outline"
                 onClick={() => fillQuickDemo("manager@demo.com")}
-                className="rounded-xl h-10 text-[11px] font-bold justify-start px-3 bg-background hover:bg-muted dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="rounded-xl h-10 text-[11px] font-bold justify-start px-3 bg-background hover:bg-muted"
               >
                 <span>💼 Operations Manager</span>
               </Button>
@@ -188,7 +189,7 @@ export default function LoginPage() {
                 type="button"
                 variant="outline"
                 onClick={() => fillQuickDemo("owner@demo.com")}
-                className="rounded-xl h-10 text-[11px] font-bold justify-start px-3 bg-background hover:bg-muted dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="rounded-xl h-10 text-[11px] font-bold justify-start px-3 bg-background hover:bg-muted"
               >
                 <span>👑 Executive Owner</span>
               </Button>
@@ -197,7 +198,7 @@ export default function LoginPage() {
           )}
         </CardContent>
 
-        <CardFooter className="flex flex-col items-center justify-center pt-2 pb-6 border-t dark:border-slate-800 bg-muted/40 dark:bg-slate-950/40 text-xs text-muted-foreground dark:text-slate-400">
+        <CardFooter className="flex flex-col items-center justify-center pt-2 pb-6 border-t bg-muted/40 text-xs text-muted-foreground">
           <p className="text-[11px]">Dine-In Customer Stand Menu?</p>
           <Link
             href="/menu?table=t3"

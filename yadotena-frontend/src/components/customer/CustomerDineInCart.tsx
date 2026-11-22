@@ -15,7 +15,7 @@ import { X, Plus, Minus, AlertCircle, Loader2, CheckCircle2, ChevronRight, Utens
  */
 export function CustomerDineInCart() {
   const {
-    tableId, tableName, activeTableOrder, rememberOrder,
+    tableId, tableKey, tableName, activeTableOrder, rememberOrder,
     cart, isCartOpen, setIsCartOpen, updateCartItemQty, removeFromCart, clearCart,
     itemCount, subtotal, lastAddedAt, setIsTablePickerOpen,
   } = useCustomerDineIn();
@@ -49,6 +49,7 @@ export function CustomerDineInCart() {
       const order = await api.orders.create({
         type: "DINE_IN",
         tableId,
+        tableKey: tableKey || undefined,
         customerName: customerName.trim() || undefined,
         paymentStatus: "PENDING",
         idempotencyKey: idemKey.current,
@@ -226,7 +227,7 @@ export function CustomerDineInCart() {
                       <span className="text-sm font-bold">Items total</span>
                       <span className="text-xl font-black tabular-nums">{formatETB(subtotal)}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">VAT and service charge are added on your bill. A waiter confirms your order before it goes to the kitchen.</p>
+                    <p className="text-xs text-muted-foreground">Dine-in service charge is added on your bill. A waiter confirms your order before it goes to the kitchen.</p>
                     <button
                       onClick={submit}
                       disabled={isSubmitting}

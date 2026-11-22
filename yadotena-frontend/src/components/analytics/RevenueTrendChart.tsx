@@ -78,9 +78,9 @@ export function RevenueTrendChart({ data, title = "Revenue Trend", showCompariso
               ]}
             />
             {hasComparison && <Legend wrapperStyle={{ fontSize: 11 }} />}
-            <Bar dataKey="current" name="current" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            <Bar dataKey="current" name="current" fill="#006746" radius={[4, 4, 0, 0]} maxBarSize={28} />
             {hasComparison && (
-              <Bar dataKey="previous" name="previous" fill="#9ca3af" radius={[4, 4, 0, 0]} maxBarSize={28} opacity={0.6} />
+              <Bar dataKey="previous" name="previous" fill="#a9a39e" radius={[4, 4, 0, 0]} maxBarSize={28} opacity={0.6} />
             )}
           </BarChart>
         </ResponsiveContainer>

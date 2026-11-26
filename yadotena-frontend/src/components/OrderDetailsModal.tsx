@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { OrderControls } from "@/components/OrderControls";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
@@ -8,6 +8,7 @@ import { addonNames, groupItemsByRound, roundStatus, roundTotal, roundCount, has
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { X, CreditCard, CheckCircle2, Receipt, Eye, ExternalLink, Image as ImageIcon, RotateCcw } from "lucide-react";
 import { OrderProgressStepper } from "@/components/dashboard/OrderProgressStepper";
+import { DeliveryInfo } from "@/components/waiter/DeliveryInfo";
 import { orderTicketNumber } from "@/lib/kitchen";
 
 interface OrderDetailsModalProps {
@@ -43,6 +44,18 @@ export function OrderDetailsModal({
     enabled: isOpen && !!orderProp,
   });
   const addonMap = useMemo(() => Object.fromEntries(addons.map(a => [a.id, a.name])), [addons]);
+
+  // Escape closes the ticket (unless the receipt viewer is open on top).
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (selectedReceipt) setSelectedReceipt(null);
+      else { setUpdated(null); onClose(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, selectedReceipt, onClose]);
 
   if (!isOpen || !order) return null;
 
@@ -169,8 +182,10 @@ export function OrderDetailsModal({
             </div>
           )}
 
+          <DeliveryInfo order={order} />
+
           {/* Live Stepper */}
-          <OrderProgressStepper status={order.status} />
+          <OrderProgressStepper status={order.status} orderType={order.type} />
 
           {/* Order Items — grouped into round tickets, each with its own state */}
           <div>

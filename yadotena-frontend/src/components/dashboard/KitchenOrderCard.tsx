@@ -25,6 +25,8 @@ export function KitchenOrderCard({
   const tableLabels = useTableLabels();
   const tableDisplay = order.tableId
     ? formatTableRef(order.tableId, tableLabels)
+    : order.type === "DELIVERY"
+    ? (order.customerName ? `Delivery: ${order.customerName}` : "Delivery")
     : (order.customerName ? `Takeout: ${order.customerName}` : "Takeout / Express");
 
   return (

@@ -82,6 +82,9 @@ export default function OrdersPage() {
   const pendingCount = orders.filter((o) => o.status === "PENDING").length;
   const preparingCount = orders.filter((o) => o.status === "PREPARING").length;
   const readyCount = orders.filter((o) => o.status === "READY").length;
+  // Tab badges follow the page filters, so they match the cards shown below.
+  const activeTabCount = filteredOrders.filter((o) => ["PENDING", "PREPARING", "READY"].includes(o.status)).length;
+  const readyTabCount = filteredOrders.filter((o) => o.status === "READY").length;
   const completedCount = orders.filter((o) => o.status === "COMPLETED").length;
 
   return (
@@ -232,7 +235,7 @@ export default function OrdersPage() {
           onClick={() => setActiveTab("ACTIVE")}
         >
           <Clock className="h-4 w-4" />
-          <span>Active Tickets ({pendingCount + preparingCount})</span>
+          <span>Active Tickets ({activeTabCount})</span>
         </Button>
 
         <Button
@@ -243,7 +246,7 @@ export default function OrdersPage() {
           onClick={() => setActiveTab("DISPATCH")}
         >
           <Truck className="h-4 w-4 text-emerald-500" />
-          <span>Ready & Dispatch ({readyCount})</span>
+          <span>Ready & Dispatch ({readyTabCount})</span>
         </Button>
 
         <Button

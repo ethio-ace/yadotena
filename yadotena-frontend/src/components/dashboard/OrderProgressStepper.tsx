@@ -1,19 +1,24 @@
 "use client";
 
-import { OrderStatus } from "@/types";
+import { OrderStatus, OrderType } from "@/types";
 import { Check, Clock, Utensils, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface OrderProgressStepperProps {
   status: OrderStatus;
+  /** Delivery tickets say "delivered" and "we'll call you" instead of table wording. */
+  orderType?: OrderType;
   className?: string;
 }
 
-export function OrderProgressStepper({ status, className = "" }: OrderProgressStepperProps) {
+export function OrderProgressStepper({ status, orderType, className = "" }: OrderProgressStepperProps) {
+  const delivery = orderType === "DELIVERY";
   const steps: Array<{ key: OrderStatus | "SERVED_STEP"; label: string; sub: string }> = [
     { key: "PENDING", label: "Received", sub: "Confirmed" },
     { key: "PREPARING", label: "Preparing", sub: "In Kitchen" },
     { key: "READY", label: "Ready", sub: "Ready to Serve" },
-    { key: "SERVED_STEP", label: "Served", sub: "Served / Settled" },
+    delivery
+      ? { key: "SERVED_STEP", label: "Delivered", sub: "On its way / delivered" }
+      : { key: "SERVED_STEP", label: "Served", sub: "Served / Settled" },
   ];
 
   const getStepIndex = (st: OrderStatus): number => {
@@ -54,7 +59,7 @@ export function OrderProgressStepper({ status, className = "" }: OrderProgressSt
       <div className="flex items-center justify-between text-xs mb-1">
         <span className="font-bold uppercase tracking-wider text-muted-foreground">Order Status Tracker</span>
         <span className="font-bold text-xs px-2.5 py-0.5 rounded-full border bg-card shadow-sm">
-          {status === "DRAFT" && <span className="text-orange-600 dark:text-orange-400">⏳ Sent — your waiter will confirm it</span>}
+          {status === "DRAFT" && <span className="text-orange-600 dark:text-orange-400">⏳ {delivery ? "Sent — we'll call you to confirm" : "Sent — your waiter will confirm it"}</span>}
           {status === "PENDING" && <span className="text-amber-600 dark:text-amber-400">✓ Confirmed — waiting for the kitchen</span>}
           {status === "PREPARING" && <span className="text-purple-600 dark:text-purple-400">🔥 In Kitchen Preparation</span>}
           {status === "READY" && <span className="text-emerald-600 dark:text-emerald-400">✨ Ready to Serve</span>}

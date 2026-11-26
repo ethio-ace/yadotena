@@ -140,7 +140,7 @@ export function KitchenOrderCard({
           <p className="mt-1 text-[11px] font-medium text-zinc-500">
             <span className="font-mono font-bold text-zinc-500">#{orderNumber}</span>
             <span className="mx-1.5 text-zinc-700">·</span>
-            {extended ? `Round ${round} · added later` : order.type === "DINE_IN" ? "Dine-in" : "Takeaway"}
+            {extended ? `Round ${round} · added later` : order.type === "DINE_IN" ? "Dine-in" : order.type === "DELIVERY" ? "Delivery · pack for rider" : "Takeaway"}
           </p>
         </div>
 

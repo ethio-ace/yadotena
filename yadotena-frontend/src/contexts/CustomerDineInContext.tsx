@@ -22,14 +22,39 @@ export interface CustomerCartItem {
   itemTotal: number;
 }
 
+export type CustomerOrderMode = "DINE_IN" | "DELIVERY";
+
+export interface DeliveryDetails {
+  name: string;
+  phone: string;
+  address: string;
+}
+
 interface CustomerDineInContextType {
+  /** Eating here (table) or delivery. Delivery only when the owner has it on. */
+  orderMode: CustomerOrderMode;
+  setOrderMode: (mode: CustomerOrderMode) => void;
+  /** Owner switched website delivery on (it may still be outside hours). */
+  deliveryAvailable: boolean;
+  /** Inside delivery hours right now (server-computed). */
+  deliveryOpenNow: boolean;
+  /** "09:00–21:00", or "" when there are no hours set. */
+  deliveryHours: string;
+  deliveryFee: number;
+  /** Last details used on this device, so repeat customers don't retype. */
+  deliveryDetails: DeliveryDetails;
+  setDeliveryDetails: (d: DeliveryDetails) => void;
   /** A real table id from the roster — never a raw QR/typed code. */
   tableId: string | null;
   /** A code we were given (QR, typed, remembered) that matches no table. */
   unmatchedTableCode: string | null;
   tableName: string;
   activeTable: Table | null;
-  /** The open order this device placed for its table (tracked by id — guests can't list orders). */
+  /** State of the public table roster — "empty" means no tables exist on the server. */
+  tablesStatus: "loading" | "error" | "empty" | "ready";
+  retryTables: () => void;
+  /** The open order this device placed for its table — or its delivery, in delivery mode
+   *  (tracked by id — guests can't list orders). */
   activeTableOrder: Order | null;
   rememberOrder: (orderId: string) => void;
   cart: CustomerCartItem[];
@@ -64,6 +89,10 @@ const STORAGE_TABLE_KEY = "yadotena_customer_table_id";
 const STORAGE_CART_KEY = "yadotena_customer_cart";
 const orderKey = (tableId: string) => `yadotena_customer_order_${tableId}`;
 const qrKeyKey = (tableId: string) => `yadotena_customer_table_key_${tableId}`;
+const STORAGE_MODE_KEY = "yadotena_customer_order_mode";
+const STORAGE_DELIVERY_KEY = "yadotena_customer_delivery_details";
+const DELIVERY_ORDER_SLOT = "delivery";
+const EMPTY_DELIVERY: DeliveryDetails = { name: "", phone: "", address: "" };
 
 const readStorage = (key: string): string | null => {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -90,13 +119,58 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
   const [isTablePickerOpen, setIsTablePickerOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [modeChoice, setModeChoice] = useState<CustomerOrderMode>("DINE_IN");
+  const [deliveryDetails, setDeliveryDetailsState] = useState<DeliveryDetails>(EMPTY_DELIVERY);
 
-  const { data: tables = [], isSuccess: tablesLoaded } = useQuery({ queryKey: ["tables"], queryFn: api.tables.getAll });
+  // Public settings: is delivery on, its hours and fee. Re-checked so the
+  // menu notices when the delivery window opens or closes.
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.settings.get,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+  const deliveryAvailable = !!settings?.deliveryEnabled;
+  const deliveryOpenNow = deliveryAvailable && settings?.deliveryOpenNow !== false;
+  const deliveryHours =
+    settings?.deliveryStartTime && settings?.deliveryEndTime && settings.deliveryStartTime !== settings.deliveryEndTime
+      ? `${settings.deliveryStartTime}–${settings.deliveryEndTime}`
+      : "";
+  const deliveryFee = Number(settings?.deliveryFee || 0);
+  // Delivery switched off by the owner → everyone is a dine-in guest again.
+  const orderMode: CustomerOrderMode = modeChoice === "DELIVERY" && deliveryAvailable ? "DELIVERY" : "DINE_IN";
+  const setOrderMode = useCallback((mode: CustomerOrderMode) => {
+    setModeChoice(mode);
+    writeStorage(STORAGE_MODE_KEY, mode);
+  }, []);
+  const setDeliveryDetails = useCallback((d: DeliveryDetails) => {
+    setDeliveryDetailsState(d);
+    writeStorage(STORAGE_DELIVERY_KEY, JSON.stringify(d));
+  }, []);
+
+  const {
+    data: tables = [],
+    isSuccess: tablesLoaded,
+    isError: tablesFailed,
+    refetch: refetchTables,
+  } = useQuery({ queryKey: ["tables"], queryFn: api.tables.getAll, retry: 3 });
+  // Without a roster no code can resolve, so the menu must say why instead of looping on "choose your table".
+  const tablesStatus: CustomerDineInContextType["tablesStatus"] = tablesLoaded
+    ? tables.length === 0 ? "empty" : "ready"
+    : tablesFailed ? "error" : "loading";
+  const retryTables = useCallback(() => { refetchTables(); }, [refetchTables]);
 
   // Restore table, cart and this device's last order from storage.
   useEffect(() => {
     const savedTable = readStorage(STORAGE_TABLE_KEY);
     if (savedTable) setTableCode(savedTable);
+    if (readStorage(STORAGE_MODE_KEY) === "DELIVERY") setModeChoice("DELIVERY");
+    try {
+      const savedDelivery = readStorage(STORAGE_DELIVERY_KEY);
+      if (savedDelivery) setDeliveryDetailsState({ ...EMPTY_DELIVERY, ...JSON.parse(savedDelivery) });
+    } catch {
+      // Corrupt details — the form starts empty.
+    }
     try {
       const savedCart = readStorage(STORAGE_CART_KEY);
       if (savedCart) setCart(JSON.parse(savedCart));
@@ -129,12 +203,14 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
   const tableKey = useMemo(() => (tableId ? readStorage(qrKeyKey(tableId)) : null), [tableId, keyVersion]);
   const clearTable = () => setTableId(null);
 
+  // Where this device remembers its last order: per table, or one delivery slot.
+  const orderSlot = orderMode === "DELIVERY" ? DELIVERY_ORDER_SLOT : tableId;
   const rememberOrder = useCallback((orderId: string) => {
-    if (tableId) writeStorage(orderKey(tableId), orderId);
+    if (orderSlot) writeStorage(orderKey(orderSlot), orderId);
     setOrderVersion((v) => v + 1);
-  }, [tableId]);
+  }, [orderSlot]);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- orderVersion re-reads storage after rememberOrder
-  const myOrderId = useMemo(() => (tableId ? readStorage(orderKey(tableId)) : null), [tableId, orderVersion]);
+  const myOrderId = useMemo(() => (orderSlot ? readStorage(orderKey(orderSlot)) : null), [orderSlot, orderVersion]);
 
   // Public endpoint: an order can be read by its (unguessable) id.
   const { data: myOrder } = useQuery({
@@ -192,7 +268,9 @@ export function CustomerDineInProvider({ children }: { children: React.ReactNode
   return (
     <CustomerDineInContext.Provider
       value={{
-        tableId, tableKey, unmatchedTableCode, tableName, activeTable, activeTableOrder, rememberOrder,
+        orderMode, setOrderMode, deliveryAvailable, deliveryOpenNow, deliveryHours, deliveryFee,
+        deliveryDetails, setDeliveryDetails,
+        tableId, tableKey, unmatchedTableCode, tableName, activeTable, tablesStatus, retryTables, activeTableOrder, rememberOrder,
         cart, setTableId, clearTable, addToCart, updateCartItemQty, removeFromCart, clearCart,
         qtyInCart, decrementItem, itemCount, subtotal, total: subtotal, lastAddedAt,
         isCartOpen, setIsCartOpen, isTablePickerOpen, setIsTablePickerOpen, isQRScannerOpen, setIsQRScannerOpen,

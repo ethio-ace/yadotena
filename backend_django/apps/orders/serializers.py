@@ -1,7 +1,25 @@
+import re
+
 from rest_framework import serializers
-from .models import Order, OrderItem
+from .models import Order, OrderItem, PaymentPreference
 from . import services
 from apps.core.permissions import is_staff_user
+
+
+def normalize_phone(raw):
+    """Ethiopian mobile numbers to 09…/07… form; other numbers kept as digits.
+    Returns None for anything that can't be a phone number."""
+    text = str(raw or '').strip()
+    digits = re.sub(r'\D', '', text)
+    if digits.startswith('251') and len(digits) == 12:
+        return '0' + digits[3:]
+    if len(digits) == 9 and digits[0] in '79':
+        return '0' + digits
+    if len(digits) == 10 and digits.startswith('0'):
+        return digits
+    if 7 <= len(digits) <= 15:
+        return ('+' if text.startswith('+') else '') + digits
+    return None
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -52,6 +70,8 @@ class OrderSerializer(serializers.ModelSerializer):
     customerName = serializers.CharField(source='customer_name', required=False, allow_null=True, allow_blank=True)
     customerPhone = serializers.CharField(source='customer_phone', required=False, allow_null=True, allow_blank=True)
     deliveryAddress = serializers.CharField(source='delivery_address', required=False, allow_null=True, allow_blank=True)
+    paymentPreference = serializers.ChoiceField(source='payment_preference', choices=PaymentPreference.choices,
+                                                required=False, allow_blank=True)
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
@@ -66,7 +86,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'id', 'type', 'status', 'paymentStatus', 'items', 'payments', 'itemsInput',
             'subtotal', 'tax', 'serviceCharge', 'deliveryFee', 'total', 'amountPaid', 'balanceDue',
             'createdAt', 'updatedAt', 'tableId', 'tableName',
-            'customerName', 'customerPhone', 'deliveryAddress', 'notes', 'idempotencyKey',
+            'customerName', 'customerPhone', 'deliveryAddress', 'paymentPreference', 'notes', 'idempotencyKey',
             'dailyNumber', 'businessDate', 'createdById', 'createdByName',
             'cancelReason', 'cancelledByName', 'cancelledAt', 'mergedInto',
         ]
@@ -130,7 +150,13 @@ class OrderSerializer(serializers.ModelSerializer):
         # for goods handed over on the spot, so they never hit the kitchen.
         requested = str(self.initial_data.get('status') or '').upper()
         skip_kitchen = not guest and requested in ('COMPLETED', 'SERVED')
-        if guest:
+        guest_type = str(self.initial_data.get('type') or 'DINE_IN').upper()
+        if guest and guest_type == 'DELIVERY':
+            # Website delivery: no table; staff call the number to confirm,
+            # then approve the DRAFT round into the kitchen.
+            validated_data.update(self._guest_delivery_fields(validated_data, items_data))
+            table_id = None
+        elif guest:
             # Public-menu orders: dine-in at a real table only, no contact or
             # delivery data, and they wait for a waiter's approval (DRAFT).
             from apps.tables.models import Table
@@ -146,7 +172,7 @@ class OrderSerializer(serializers.ModelSerializer):
             if not items_data:
                 raise serializers.ValidationError({'items': 'Add at least one item.'})
             validated_data['type'] = 'DINE_IN'
-            for field in ('customer_phone', 'delivery_address'):
+            for field in ('customer_phone', 'delivery_address', 'payment_preference'):
                 validated_data.pop(field, None)
 
         payload = {
@@ -156,9 +182,40 @@ class OrderSerializer(serializers.ModelSerializer):
         return services.create_order(payload, items_data, idempotency_key=idempotency_key, guest=guest,
                                      skip_kitchen=skip_kitchen, user=self.context['request'].user)
 
+    def _guest_delivery_fields(self, validated_data, items_data) -> dict:
+        settings = services.get_restaurant_settings()
+        if not settings.delivery_enabled:
+            raise serializers.ValidationError({'type': 'Delivery is not available right now.'})
+        if not settings.delivery_open_now():
+            start = settings.delivery_start_time.strftime('%H:%M')
+            end = settings.delivery_end_time.strftime('%H:%M')
+            raise serializers.ValidationError({'type': f'We deliver between {start} and {end}. Please order again then.'})
+        if not items_data:
+            raise serializers.ValidationError({'items': 'Add at least one item.'})
+        errors = {}
+        name = str(validated_data.get('customer_name') or '').strip()
+        if len(name) < 2:
+            errors['customerName'] = 'Tell us your name.'
+        phone = normalize_phone(validated_data.get('customer_phone'))
+        if not phone:
+            errors['customerPhone'] = 'Enter a phone number we can call (e.g. 0911 234 567).'
+        address = str(validated_data.get('delivery_address') or '').strip()
+        if len(address) < 5:
+            errors['deliveryAddress'] = 'Tell us where to deliver (area, street, building, landmark).'
+        if errors:
+            raise serializers.ValidationError(errors)
+        return {
+            'type': 'DELIVERY',
+            'customer_name': name[:200],
+            'customer_phone': phone,
+            'delivery_address': address[:500],
+            'payment_preference': validated_data.get('payment_preference') or PaymentPreference.ON_DELIVERY,
+            'notes': str(validated_data.get('notes') or '').strip()[:500],
+        }
+
     # Editable after creation: who the order is for and how it leaves. Money,
     # status, table (use /move) and items (use add-items / kitchen) are not.
-    EDITABLE_FIELDS = ('type', 'customer_name', 'customer_phone', 'delivery_address', 'notes')
+    EDITABLE_FIELDS = ('type', 'customer_name', 'customer_phone', 'delivery_address', 'payment_preference', 'notes')
 
     def update(self, instance, validated_data):
         if instance.status in services.TERMINAL_ORDER_STATUSES:

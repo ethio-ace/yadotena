@@ -14,8 +14,12 @@ export function CustomerTableBanner() {
     activeTableOrder,
     clearTable,
     setIsTablePickerOpen,
-    setIsQRScannerOpen
+    setIsQRScannerOpen,
+    orderMode,
   } = useCustomerDineIn();
+
+  // Delivery customers aren't in the café: no "connect your table" prompt.
+  if (orderMode === "DELIVERY") return null;
 
   if (!tableId) {
     return (

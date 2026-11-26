@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from django.db import IntegrityError, transaction
@@ -55,6 +56,9 @@ STARTED_ITEM_STATUSES = {ItemStatus.PREPARING, ItemStatus.READY, ItemStatus.SERV
 # Per-line cap: stops a fat-fingered "500" (or a hostile guest) from
 # flooding the kitchen. Larger catering orders get split into lines.
 MAX_ITEM_QUANTITY = 99
+# A table may hold several tickets (new party, separate bill), but the same
+# items for the same table this soon is almost always a double-send.
+DUPLICATE_ORDER_WINDOW = timedelta(minutes=10)
 
 
 def _money(value) -> Decimal:
@@ -73,6 +77,61 @@ def get_open_order_for_table(table: Table):
         .order_by('-created_at')
         .first()
     )
+
+
+def _items_signature(rows) -> tuple:
+    """Order-independent fingerprint of a set of lines (dish, qty, add-ons, note)."""
+    sig = []
+    for menu_item_id, quantity, addons, note in rows:
+        addon_ids = sorted(str(a.get('id') if isinstance(a, dict) else a) for a in (addons or []))
+        sig.append((str(menu_item_id), int(quantity), tuple(addon_ids), (note or '').strip().lower()))
+    return tuple(sorted(sig))
+
+
+def find_duplicate_order(validated_items: list, **scope) -> Optional[Order]:
+    """A live ticket matching ``scope`` (a table, or a delivery phone number)
+    created in the last 10 minutes with exactly these items."""
+    if not scope or not all(scope.values()):
+        return None
+    wanted = _items_signature(
+        (i['menu_item'].id, i['quantity'], i['selected_addons'], i['special_instructions'])
+        for i in validated_items
+    )
+    since = timezone.now() - DUPLICATE_ORDER_WINDOW
+    recent = (
+        Order.objects.filter(created_at__gte=since, **scope)
+        .exclude(status=OrderStatus.CANCELLED)
+        .prefetch_related('items')
+    )
+    for order in recent:
+        # Compare each round on its own: the duplicate may be an appended round.
+        rounds = {}
+        for item in order.items.all():
+            if item.status == ItemStatus.CANCELLED:
+                continue
+            rounds.setdefault(item.round_number, []).append(
+                (item.menu_item_id, item.quantity, item.selected_addons, item.special_instructions))
+        if any(_items_signature(rows) == wanted for rows in rounds.values()):
+            return order
+    return None
+
+
+def _reject_duplicate(table: Table, validated_items: list) -> None:
+    dup = find_duplicate_order(validated_items, table=table)
+    if dup:
+        number = f'#{dup.daily_number}' if dup.daily_number else dup.pk
+        raise Conflict(
+            f'The same items were just ordered for {table.name} (ticket {number}) '
+            f'less than 10 minutes ago. Add to that ticket or change the order.'
+        )
+
+
+def _reject_duplicate_delivery(phone: str, validated_items: list) -> None:
+    if find_duplicate_order(validated_items, type=OrderType.DELIVERY, customer_phone=phone):
+        raise Conflict(
+            'This delivery order was already sent from this phone number a few minutes ago. '
+            'We will call you to confirm it.'
+        )
 
 
 def _clean_reason(reason) -> str:
@@ -394,12 +453,16 @@ def _sync_table_for_order(order: Order, *, creating: bool = False):
     elif order.status == OrderStatus.READY:
         table.status = 'WAITING_FOR_SERVICE'
     elif order.status in TERMINAL_ORDER_STATUSES:
-        table.status = 'AVAILABLE'
-        table.current_order_id = None
-        table.sessions.filter(status='ACTIVE').update(status='CLOSED', closed_at=timezone.now())
+        # The table may still hold other open tickets; only free it when none are left.
+        other = get_open_order_for_table(table)
+        if other:
+            if table.current_order_id == order.id:
+                table.current_order_id = other.id
+                table.save(update_fields=['current_order_id', 'updated_at'])
+            return
+        _free_table(table)
+        return
     table.save(update_fields=['status', 'current_order_id', 'updated_at'])
-    if order.status in TERMINAL_ORDER_STATUSES:
-        publish_event('yadotena-realtime', 'table.updated', {'id': str(table.id), 'status': table.status})
 
 
 @transaction.atomic
@@ -430,9 +493,19 @@ def create_order(validated_data: dict, items_data: list, *, idempotency_key: Opt
     order_type = validated_data.get('type', OrderType.DINE_IN)
 
     if order_type == OrderType.DINE_IN and table:
-        open_order = get_open_order_for_table(table)
-        if open_order:
-            return add_items_to_order(open_order, items_data, item_status=item_status)
+        if guest:
+            # Guests can't see or pick tickets, so their order joins the
+            # table's open ticket as a new round (a waiter approves it).
+            open_order = get_open_order_for_table(table)
+            if open_order:
+                return add_items_to_order(open_order, items_data, item_status=item_status)
+        else:
+            # Staff may open as many tickets per table as they like (new
+            # party, separate bill) — but not the same items twice in 10 min.
+            _reject_duplicate(table, validated_items)
+
+    if order_type == OrderType.DELIVERY and validated_data.get('customer_phone'):
+        _reject_duplicate_delivery(validated_data['customer_phone'], validated_items)
 
     # Money is only ever marked paid by recording a payment.
     validated_data.pop('payment_status', None)

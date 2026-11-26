@@ -261,3 +261,120 @@ class DayCloseTests(ControlBase):
     def test_day_close_is_manager_only(self):
         self.login(self.waiter)
         self.assertEqual(self.client.get(f'{API}/reports/day-close').status_code, 403)
+
+
+class MultipleTicketsPerTableTests(ControlBase):
+    def test_staff_can_open_a_second_ticket_on_a_busy_table(self):
+        a = self.new_order(type='DINE_IN', tableId='t1')
+        self.cook_and_serve(a)
+        b = self.new_order(type='DINE_IN', tableId='t1',
+                           items=[{'menuItemId': self.item.id, 'quantity': 2}])
+        self.assertNotEqual(a, b)
+        self.assertEqual(self.order(a).items.count(), 1)
+        self.table.refresh_from_db()
+        self.assertEqual(self.table.current_order_id, b)
+
+    def test_same_items_on_same_table_within_ten_minutes_is_refused(self):
+        self.new_order(type='DINE_IN', tableId='t1')
+        res = self.place_order(type='DINE_IN', tableId='t1')
+        self.assertEqual(res.status_code, 409, res.data)
+        self.assertIn('10 minutes', res.data['detail'])
+        # Another table, or a different set of items, is fine.
+        Table.objects.create(id='t2', name='Table 02')
+        self.assertEqual(self.place_order(type='DINE_IN', tableId='t2').status_code, 201)
+
+    def test_same_items_allowed_after_ten_minutes_or_once_cancelled(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        a = self.new_order(type='DINE_IN', tableId='t1')
+        Order.objects.filter(id=a).update(created_at=timezone.now() - timedelta(minutes=11))
+        b = self.new_order(type='DINE_IN', tableId='t1')
+        self.login(self.waiter)
+        self.client.post(f'{API}/orders/{b}/cancel', {'reason': 'wrong table'}, format='json')
+        self.assertEqual(self.place_order(type='DINE_IN', tableId='t1').status_code, 201)
+
+    def test_closing_one_ticket_keeps_the_table_busy_for_the_other(self):
+        a = self.new_order(type='DINE_IN', tableId='t1')
+        b = self.new_order(type='DINE_IN', tableId='t1',
+                           items=[{'menuItemId': self.item.id, 'quantity': 3}])
+        self.login(self.waiter)
+        self.client.post(f'{API}/orders/{b}/cancel', {'reason': 'party left'}, format='json')
+        self.table.refresh_from_db()
+        self.assertNotEqual(self.table.status, 'AVAILABLE')
+        self.assertEqual(self.table.current_order_id, a)
+        self.client.post(f'{API}/orders/{a}/cancel', {'reason': 'party left'}, format='json')
+        self.table.refresh_from_db()
+        self.assertEqual((self.table.status, self.table.current_order_id), ('AVAILABLE', None))
+
+
+class GuestDeliveryTests(ControlBase):
+    def setUp(self):
+        super().setUp()
+        RestaurantSetting.objects.update_or_create(id=1, defaults={'delivery_enabled': True, 'delivery_fee': Decimal('80.00')})
+
+    def delivery(self, **extra):
+        payload = {'type': 'DELIVERY', 'customerName': 'Selam', 'customerPhone': '+251 911 22 33 44',
+                   'deliveryAddress': 'Bole, near Edna Mall, blue gate', 'paymentPreference': 'TRANSFER', **extra}
+        return self.place_order(as_user=None, **payload)
+
+    def test_guest_delivery_is_draft_with_fee_and_normalised_phone(self):
+        res = self.delivery(tableId='t1')
+        self.assertEqual(res.status_code, 201, res.data)
+        order = self.order(res.data['id'])
+        self.assertEqual((order.type, order.status, order.table_id), ('DELIVERY', 'DRAFT', None))
+        self.assertEqual(order.customer_phone, '0911223344')
+        self.assertEqual(order.payment_preference, 'TRANSFER')
+        self.assertEqual(order.delivery_fee, Decimal('80.00'))
+        self.assertNotIn('customerPhone', res.data)  # public response stays masked
+        # Staff call, then approve into the kitchen.
+        self.login(self.waiter)
+        approved = self.kitchen_act(order.id, 'APPROVE')
+        self.assertEqual(approved.data['status'], 'PENDING')
+        self.assertEqual(approved.data['customerPhone'], '0911223344')
+
+    def test_guest_delivery_needs_contact_details(self):
+        res = self.delivery(customerName='', customerPhone='12', deliveryAddress='')
+        self.assertEqual(res.status_code, 400)
+        self.assertLessEqual({'customerName', 'customerPhone', 'deliveryAddress'}, set(res.data))
+
+    def test_guest_delivery_refused_when_switched_off(self):
+        RestaurantSetting.objects.filter(id=1).update(delivery_enabled=False)
+        res = self.delivery()
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('not available', str(res.data['type']))
+
+    def test_guest_delivery_respects_hours(self):
+        from datetime import datetime, time
+        from unittest import mock
+        from django.utils import timezone
+        RestaurantSetting.objects.filter(id=1).update(delivery_start_time=time(9), delivery_end_time=time(21))
+        late = timezone.make_aware(datetime(2026, 11, 24, 22, 30))
+        with mock.patch('django.utils.timezone.localtime', return_value=late):
+            res = self.delivery()
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('09:00 and 21:00', str(res.data['type']))
+        s = RestaurantSetting.get_settings()
+        self.assertTrue(s.delivery_open_now(timezone.make_aware(datetime(2026, 11, 24, 12))))
+        # Overnight window.
+        s.delivery_start_time, s.delivery_end_time = time(18), time(2)
+        self.assertTrue(s.delivery_open_now(timezone.make_aware(datetime(2026, 11, 24, 1))))
+        self.assertFalse(s.delivery_open_now(timezone.make_aware(datetime(2026, 11, 24, 12))))
+
+    def test_same_delivery_from_same_phone_within_ten_minutes_is_refused(self):
+        self.assertEqual(self.delivery().status_code, 201)
+        self.assertEqual(self.delivery(customerPhone='0911223344').status_code, 409)
+        self.assertEqual(self.delivery(customerPhone='0922000000').status_code, 201)
+
+    def test_public_settings_show_delivery_state(self):
+        self.anon()
+        res = self.client.get(f'{API}/settings')
+        self.assertTrue(res.data['deliveryEnabled'])
+        self.assertTrue(res.data['deliveryOpenNow'])
+
+    def test_owner_sets_delivery_hours_through_settings(self):
+        self.login(self.owner)
+        res = self.client.put(f'{API}/settings', {'deliveryStartTime': '09:00', 'deliveryEndTime': '21:30'}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual((res.data['deliveryStartTime'], res.data['deliveryEndTime']), ('09:00', '21:30'))
+        res = self.client.put(f'{API}/settings', {'deliveryStartTime': None, 'deliveryEndTime': None}, format='json')
+        self.assertIsNone(res.data['deliveryStartTime'])

@@ -19,6 +19,9 @@ const SettingsSchema = Yup.object().shape({
   vatPercent: Yup.number().min(0).max(100).required("VAT percentage is required"),
   deliveryFee: Yup.number().min(0).required("Delivery fee is required"),
   requireTableQrKey: Yup.boolean(),
+  deliveryEnabled: Yup.boolean(),
+  deliveryStartTime: Yup.string(),
+  deliveryEndTime: Yup.string(),
   guestWifiSsid: Yup.string(),
   guestWifiPassword: Yup.string(),
 });
@@ -42,13 +45,21 @@ export default function SettingsPage() {
       vatPercent: 0,
       deliveryFee: 100,
       requireTableQrKey: false,
+      deliveryEnabled: false,
+      deliveryStartTime: "",
+      deliveryEndTime: "",
       guestWifiSsid: "Hilif_Milk_5G",
       guestWifiPassword: "",
     },
     validationSchema: SettingsSchema,
     onSubmit: async (values) => {
       try {
-        await api.settings.update(values);
+        // Empty time inputs mean "no limit" on the server.
+        await api.settings.update({
+          ...values,
+          deliveryStartTime: values.deliveryStartTime || null,
+          deliveryEndTime: values.deliveryEndTime || null,
+        });
         setSaveError(null);
         setIsSaved(true);
         setTimeout(() => setIsSaved(false), 3000);
@@ -71,6 +82,9 @@ export default function SettingsPage() {
             vatPercent: data.vatPercent ?? 0,
             deliveryFee: data.deliveryFee ?? 100,
             requireTableQrKey: !!data.requireTableQrKey,
+            deliveryEnabled: !!data.deliveryEnabled,
+            deliveryStartTime: data.deliveryStartTime || "",
+            deliveryEndTime: data.deliveryEndTime || "",
             guestWifiSsid: data.guestWifiSsid || "Hilif_Milk_5G",
             guestWifiPassword: data.guestWifiPassword || "",
           });
@@ -201,6 +215,42 @@ Couldn’t load store settings. Check your connection and refresh to try again.
               </span>
             </span>
           </label>
+
+          <div className="p-4 rounded-xl border space-y-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="deliveryEnabled"
+                checked={formik.values.deliveryEnabled}
+                onChange={formik.handleChange}
+                className="mt-0.5 h-4 w-4 accent-[var(--color-primary)]"
+              />
+              <span>
+                <span className="block text-sm font-semibold">Take delivery orders on the website</span>
+                <span className="block text-[11px] text-muted-foreground mt-0.5">
+                  Customers get a “Delivery” option on the menu (share{" "}
+                  <span className="font-mono">{typeof window !== "undefined" ? window.location.origin : ""}/menu?mode=delivery</span>).
+                  Every website delivery waits in the waiter&apos;s “Guest orders” until staff call the customer and approve it.
+                  Turn off on days without a rider. Staff can always take phone delivery orders.
+                </span>
+              </span>
+            </label>
+            {formik.values.deliveryEnabled && (
+              <div className="grid grid-cols-2 gap-3 max-w-sm">
+                <div className="space-y-1">
+                  <label htmlFor="deliveryStartTime" className="text-xs font-semibold">Delivery from</label>
+                  <Input id="deliveryStartTime" name="deliveryStartTime" type="time" value={formik.values.deliveryStartTime} onChange={formik.handleChange} className="rounded-xl h-11" />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="deliveryEndTime" className="text-xs font-semibold">until</label>
+                  <Input id="deliveryEndTime" name="deliveryEndTime" type="time" value={formik.values.deliveryEndTime} onChange={formik.handleChange} className="rounded-xl h-11" />
+                </div>
+                <p className="col-span-2 text-[11px] text-muted-foreground">
+                  Addis time. Leave both empty to accept delivery whenever it&apos;s switched on. A window like 18:00 → 02:00 runs past midnight.
+                </p>
+              </div>
+            )}
+          </div>
 
           <div className="space-y-2">
             <label htmlFor="address" className="text-sm font-semibold">Physical Address</label>

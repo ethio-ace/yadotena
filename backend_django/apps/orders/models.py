@@ -33,6 +33,12 @@ class OrderType(models.TextChoices):
     TAKEAWAY = 'TAKEAWAY', 'Takeaway'
     DELIVERY = 'DELIVERY', 'Delivery'
 
+class PaymentPreference(models.TextChoices):
+    """How a delivery customer said they will pay (a hint for staff, not money)."""
+    ON_DELIVERY = 'ON_DELIVERY', 'Pay on delivery'
+    TRANSFER = 'TRANSFER', 'Transfer before delivery'
+
+
 class PaymentStatus(models.TextChoices):
     PENDING = 'PENDING', 'Pending'
     PAID = 'PAID', 'Paid'
@@ -62,6 +68,7 @@ class Order(models.Model):
     customer_name = models.CharField(max_length=200, blank=True, null=True)
     customer_phone = models.CharField(max_length=50, blank=True, null=True)
     delivery_address = models.TextField(blank=True, null=True)
+    payment_preference = models.CharField(max_length=20, choices=PaymentPreference.choices, blank=True, default='')
     notes = models.TextField(blank=True, default='')
 
     # Financial breakdown

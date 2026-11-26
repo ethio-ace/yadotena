@@ -6,6 +6,7 @@ import { formatETB } from "@/lib/currency";
 import { formatTableRef, useTableLabels } from "@/hooks/useTableLabels";
 import { formatWait, orderProgress, orderTicketNumber } from "@/lib/kitchen";
 import { OrderProgressLine } from "@/components/waiter/OrderProgressLine";
+import { DeliveryInfo } from "@/components/waiter/DeliveryInfo";
 import { CheckCircle2, CreditCard, ClipboardList, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -154,9 +155,19 @@ export function OrdersBoard({ orders, tab, busyOrderId, onTabChange, onServe, on
                     </p>
                   </div>
                 </button>
+                {o.type === "DELIVERY" && o.status !== "COMPLETED" && o.status !== "CANCELLED" && (
+                  <div className="px-4 pb-3 -mt-1">
+                    <DeliveryInfo order={o} />
+                  </div>
+                )}
                 {orderProgress(o).approval > 0 ? (
                   // Guest order: show exactly what they asked for, then one decision.
                   <div className="px-4 pb-4 -mt-1 space-y-3">
+                    {o.type === "DELIVERY" && (
+                      <p className="text-xs font-bold text-violet-700 dark:text-violet-400">
+                        Website delivery — call the customer to confirm the order and address, then approve.
+                      </p>
+                    )}
                     <ul className="rounded-xl bg-orange-50 dark:bg-orange-950/20 border border-orange-500/30 px-3 py-2 space-y-1">
                       {(o.items || []).filter((i) => i.status === "DRAFT").map((i, idx) => (
                         <li key={i.id || idx} className="text-sm">
@@ -178,7 +189,7 @@ export function OrdersBoard({ orders, tab, busyOrderId, onTabChange, onServe, on
                         disabled={busyOrderId === o.id}
                         className="h-11 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-black flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-all"
                       >
-                        <Check className="h-4 w-4" strokeWidth={3} /> Approve · send to kitchen
+                        <Check className="h-4 w-4" strokeWidth={3} /> {o.type === "DELIVERY" ? "Confirmed · send to kitchen" : "Approve · send to kitchen"}
                       </button>
                     </div>
                   </div>

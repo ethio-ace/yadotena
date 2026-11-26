@@ -156,6 +156,8 @@ export interface Order {
   
   // Specific to Delivery
   deliveryAddress?: string;
+  /** How a delivery customer said they'll pay (a hint for staff, not money). */
+  paymentPreference?: PaymentPreference | "";
 
   /** Short daily ticket number ("#27"), restarts every cafe day. */
   dailyNumber?: number | null;
@@ -170,6 +172,8 @@ export interface Order {
   mergedInto?: string | null;
 }
 
+export type PaymentPreference = "ON_DELIVERY" | "TRANSFER";
+
 export interface RestaurantSettings {
   restaurantName: string;
   phone: string;
@@ -178,6 +182,13 @@ export interface RestaurantSettings {
   /** 0 = not VAT-registered: no VAT line anywhere. */
   vatPercent: number;
   deliveryFee: number;
+  /** Website delivery switched on by the owner. */
+  deliveryEnabled?: boolean;
+  /** Cafe-local "HH:MM"; null = no limit. A window may cross midnight. */
+  deliveryStartTime?: string | null;
+  deliveryEndTime?: string | null;
+  /** Server-computed: enabled and inside the hours right now. */
+  deliveryOpenNow?: boolean;
   requireTableQrKey: boolean;
   guestWifiSsid: string;
   guestWifiPassword: string;

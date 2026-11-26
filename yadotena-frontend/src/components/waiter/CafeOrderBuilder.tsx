@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { MenuItem, MenuCategory, AddonItem, MenuItemAddon, Table, Order } from "@/types";
+import { MenuItem, MenuCategory, AddonItem, MenuItemAddon, Table, Order, PaymentPreference } from "@/types";
 import { formatETB } from "@/lib/currency";
 import { getApplicableAddonsForItem, isShopProductItem } from "@/lib/orderUtils";
-import { findActiveOrderForTable } from "@/lib/tableUtils";
+import { findActiveOrdersForTable } from "@/lib/tableUtils";
 import { addonNames, orderTicketNumber } from "@/lib/kitchen";
-import { ArrowLeft, Search, X, Minus, Plus, Check, ChevronDown, SlidersHorizontal, ShoppingBag, Package, Utensils } from "lucide-react";
+import { ArrowLeft, Search, X, Minus, Plus, Check, ChevronDown, SlidersHorizontal, ShoppingBag, Package, Utensils, Bike } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface CartItem {
@@ -19,8 +19,23 @@ export interface CartItem {
   note: string;
 }
 
-/** Where the order goes. `table` + an active order on it = append mode. */
-export type OrderTarget = { kind: "table"; table: Table } | { kind: "takeaway" } | { kind: "shop" };
+/** A phone-in delivery: who, where, and how they'll pay. */
+export interface DeliveryCustomer {
+  name: string;
+  phone: string;
+  address: string;
+  note: string;
+  paymentPreference: PaymentPreference;
+}
+
+/** Where the order goes. A table can take a new ticket or extend an open one. */
+export type OrderTarget =
+  | { kind: "table"; table: Table }
+  | { kind: "takeaway" }
+  | { kind: "delivery"; customer: DeliveryCustomer }
+  | { kind: "shop" };
+
+const EMPTY_CUSTOMER: DeliveryCustomer = { name: "", phone: "", address: "", note: "", paymentPreference: "ON_DELIVERY" };
 
 interface CafeOrderBuilderProps {
   menu: MenuItem[];
@@ -31,6 +46,8 @@ interface CafeOrderBuilderProps {
   isShopMode?: boolean;
   /** Table chosen before entering (tapped on the floor) — skips the picker. */
   preselectedTable?: Table | null;
+  /** Open in append mode on this ticket ("Add items"); otherwise a new ticket. */
+  appendToOrderId?: string | null;
   cart: CartItem[];
   isSubmitting: boolean;
   onCartChange: (cart: CartItem[]) => void;
@@ -50,21 +67,32 @@ function imageSrc(item: MenuItem): string | null {
 
 /**
  * The one order-entry screen: pick where it goes (table / takeaway), tap
- * dishes, send. Picking a busy table switches to append mode, so the waiter
- * never has to think about "new order vs add items".
+ * dishes, send. A busy table defaults to a NEW ticket (a table can hold
+ * several); the mode row lets the waiter add to an open ticket instead.
  */
 export function CafeOrderBuilder({
   menu, categories, allAddons, tables, orders,
-  isShopMode, preselectedTable, cart, isSubmitting, onCartChange, onBack, onSubmit,
+  isShopMode, preselectedTable, appendToOrderId, cart, isSubmitting, onCartChange, onBack, onSubmit,
 }: CafeOrderBuilderProps) {
   const [target, setTarget] = useState<OrderTarget | null>(
     isShopMode ? { kind: "shop" } : preselectedTable ? { kind: "table", table: preselectedTable } : null
   );
 
-  const appendOrder = useMemo(
-    () => (target?.kind === "table" ? findActiveOrderForTable(target.table, orders) || null : null),
+  // Open tickets on the chosen table; the waiter picks "new ticket" (default)
+  // or one of them to add to.
+  const tableOrders = useMemo(
+    () => (target?.kind === "table" ? findActiveOrdersForTable(target.table, orders) : []),
     [target, orders]
   );
+  const [appendId, setAppendId] = useState<string | null>(appendToOrderId ?? null);
+  const appendOrder = tableOrders.find((o) => o.id === appendId) || null;
+
+  // Phone-in delivery details (step 1b), kept so "Change" can edit them.
+  const [deliveryForm, setDeliveryForm] = useState<DeliveryCustomer | null>(null);
+  const deliveryReady = !!deliveryForm
+    && deliveryForm.name.trim().length >= 2
+    && deliveryForm.phone.replace(/\D/g, "").length >= 9
+    && deliveryForm.address.trim().length >= 5;
 
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
@@ -149,17 +177,83 @@ export function CafeOrderBuilder({
   const title =
     target?.kind === "table" ? target.table.name
     : target?.kind === "takeaway" ? "Takeaway"
+    : target?.kind === "delivery" ? `Delivery · ${target.customer.name}`
     : target?.kind === "shop" ? "Shop sale" : "New order";
   const subtitle = appendOrder
     ? `Adding to order #${orderTicketNumber(appendOrder)}`
-    : target?.kind === "table" ? "New dine-in order"
+    : target?.kind === "table" ? (tableOrders.length ? "New ticket on a busy table" : "New dine-in order")
     : target?.kind === "takeaway" ? "Counter pickup"
+    : target?.kind === "delivery" ? `${target.customer.phone} · ${target.customer.address}`
     : target?.kind === "shop" ? "Packaged products · pay at counter" : "";
+
+  // ── STEP 1b — phone-in delivery details ──────────────────────────────────
+  if (!target && deliveryForm) {
+    const set = (patch: Partial<DeliveryCustomer>) => setDeliveryForm({ ...deliveryForm, ...patch });
+    const field = "mt-1 w-full h-12 px-3 rounded-xl border bg-background text-base";
+    return (
+      <div className="h-full overflow-y-auto animate-in fade-in duration-150">
+        <form
+          className="max-w-xl mx-auto p-4 sm:p-6 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (deliveryReady) setTarget({ kind: "delivery", customer: { ...deliveryForm, name: deliveryForm.name.trim(), phone: deliveryForm.phone.trim(), address: deliveryForm.address.trim(), note: deliveryForm.note.trim() } });
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setDeliveryForm(null)} aria-label="Back" className="h-10 w-10 -ml-2 rounded-xl flex items-center justify-center hover:bg-muted">
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <h1 className="text-xl font-black">Delivery — who and where?</h1>
+          </div>
+          <label className="block">
+            <span className="text-xs font-bold text-muted-foreground">Customer name</span>
+            <input autoFocus value={deliveryForm.name} onChange={(e) => set({ name: e.target.value })} className={field} />
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold text-muted-foreground">Phone</span>
+            <input type="tel" inputMode="tel" value={deliveryForm.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="09xx xxx xxx" className={field} />
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold text-muted-foreground">Address</span>
+            <textarea rows={2} value={deliveryForm.address} onChange={(e) => set({ address: e.target.value })} placeholder="Area, street, building, landmark" className="mt-1 w-full px-3 py-2.5 rounded-xl border bg-background text-base resize-none" />
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold text-muted-foreground">Note for the rider (optional)</span>
+            <input value={deliveryForm.note} onChange={(e) => set({ note: e.target.value })} className={field} />
+          </label>
+          <div role="radiogroup" aria-label="Payment" className="grid grid-cols-2 gap-2">
+            {([["ON_DELIVERY", "Pays on delivery"], ["TRANSFER", "Transfers first"]] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={deliveryForm.paymentPreference === value}
+                onClick={() => set({ paymentPreference: value })}
+                className={cn(
+                  "h-12 rounded-xl border-2 text-sm font-black",
+                  deliveryForm.paymentPreference === value ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="submit"
+            disabled={!deliveryReady}
+            className="w-full h-14 rounded-2xl bg-primary disabled:bg-muted disabled:text-muted-foreground text-primary-foreground font-black text-base"
+          >
+            Continue to menu
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   // ── STEP 1 — where is this order going? ──────────────────────────────────
   if (!target) {
     const rows = tables
-      .map((t) => ({ t, order: findActiveOrderForTable(t, orders) }))
+      .map((t) => ({ t, order: findActiveOrdersForTable(t, orders)[0] }))
       .sort((a, b) => Number(!!a.order) - Number(!!b.order) || a.t.name.localeCompare(b.t.name, undefined, { numeric: true }));
     return (
       <div className="h-full overflow-y-auto animate-in fade-in duration-150">
@@ -171,13 +265,22 @@ export function CafeOrderBuilder({
             <h1 className="text-xl font-black">New order — where to?</h1>
           </div>
 
-          <button
-            onClick={() => setTarget({ kind: "takeaway" })}
-            className="w-full h-16 rounded-2xl border-2 border-dashed font-black text-base flex items-center justify-center gap-2.5 hover:border-amber-500 hover:bg-amber-500/5 active:scale-[0.99] transition-all"
-          >
-            <ShoppingBag className="h-5 w-5" />
-            Takeaway (no table)
-          </button>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              onClick={() => setTarget({ kind: "takeaway" })}
+              className="h-16 rounded-2xl border-2 border-dashed font-black text-base flex items-center justify-center gap-2.5 hover:border-amber-500 hover:bg-amber-500/5 active:scale-[0.99] transition-all"
+            >
+              <ShoppingBag className="h-5 w-5" />
+              Takeaway
+            </button>
+            <button
+              onClick={() => setDeliveryForm(deliveryForm || EMPTY_CUSTOMER)}
+              className="h-16 rounded-2xl border-2 border-dashed font-black text-base flex items-center justify-center gap-2.5 hover:border-violet-500 hover:bg-violet-500/5 active:scale-[0.99] transition-all"
+            >
+              <Bike className="h-5 w-5" />
+              Delivery
+            </button>
+          </div>
 
           <div>
             <p className="text-xs font-black uppercase tracking-wider text-muted-foreground mb-2">Or pick a table</p>
@@ -185,7 +288,7 @@ export function CafeOrderBuilder({
               {rows.map(({ t, order }) => (
                 <button
                   key={t.id}
-                  onClick={() => setTarget({ kind: "table", table: t })}
+                  onClick={() => { setAppendId(null); setTarget({ kind: "table", table: t }); }}
                   className={cn(
                     "h-20 p-2 rounded-2xl border-2 flex flex-col items-center justify-center text-center active:scale-[0.97] transition-all",
                     order ? "border-amber-500/50 bg-amber-50/40 dark:bg-amber-950/10" : "hover:border-amber-500"
@@ -193,7 +296,7 @@ export function CafeOrderBuilder({
                 >
                   <span className="font-black text-sm truncate max-w-full">{t.name}</span>
                   <span className={cn("text-[11px] font-bold mt-0.5", order ? "text-amber-700 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400")}>
-                    {order ? `Add to #${orderTicketNumber(order)}` : "Open"}
+                    {order ? `Busy · #${orderTicketNumber(order)}` : "Open"}
                   </span>
                 </button>
               ))}
@@ -301,6 +404,29 @@ export function CafeOrderBuilder({
             </button>
           )}
         </div>
+
+        {tableOrders.length > 0 && (
+          <div className="px-3 sm:px-4 py-2 border-b shrink-0 flex gap-1.5 overflow-x-auto scrollbar-none" role="radiogroup" aria-label="Ticket">
+            {[null, ...tableOrders.map((o) => o.id)].map((id) => {
+              const o = id ? tableOrders.find((x) => x.id === id)! : null;
+              const active = appendId === id;
+              return (
+                <button
+                  key={id ?? "new"}
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setAppendId(id)}
+                  className={cn(
+                    "h-9 px-3.5 rounded-full text-xs font-black whitespace-nowrap border-2 transition-colors",
+                    active ? "bg-primary border-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {o ? `Add to #${orderTicketNumber(o)} · ${formatETB(o.total)}` : "New ticket"}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Search + categories */}
         <div className="px-3 sm:px-4 py-2.5 space-y-2.5 border-b shrink-0">

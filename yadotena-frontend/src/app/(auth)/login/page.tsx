@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { setStoredToken } from "@/lib/config";
 import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -12,8 +12,14 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  // Uncontrolled inputs: text typed before React hydrates (slow phones) is
+  // kept by the browser; a controlled value would be reset to "" on hydrate.
+  // False in the server HTML, true once React runs. Until then the submit
+  // button stays disabled, so an early tap/Enter can't fall back to a native
+  // form submit (which would drop the typed text or put it in the URL).
+  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -21,6 +27,8 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const email = emailRef.current?.value || "";
+    const password = passwordRef.current?.value || "";
     setLoading(true);
     setError("");
     setSuccess("");
@@ -65,8 +73,8 @@ export default function LoginPage() {
   const showDemoLogins = process.env.NODE_ENV !== "production";
   const DEMO_PASSWORD = "password123";
   const fillQuickDemo = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword(DEMO_PASSWORD);
+    if (emailRef.current) emailRef.current.value = demoEmail;
+    if (passwordRef.current) passwordRef.current.value = DEMO_PASSWORD;
   };
 
   return (
@@ -111,7 +119,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} method="post" className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-foreground/80">Staff Email or System Username</label>
               <div className="relative">
@@ -119,8 +127,9 @@ export default function LoginPage() {
                 <Input
                   type="text"
                   placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  ref={emailRef}
+                  name="email"
+                  autoComplete="username"
                   className="rounded-2xl h-12 pl-10 text-xs bg-background focus:ring-primary"
                   required
                 />
@@ -136,8 +145,9 @@ export default function LoginPage() {
                 <Input
                   type="password"
                   placeholder="Your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  ref={passwordRef}
+                  name="password"
+                  autoComplete="current-password"
                   className="rounded-2xl h-12 pl-10 text-xs bg-background focus:ring-primary"
                   required
                 />
@@ -147,7 +157,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="w-full h-12 rounded-2xl font-black text-xs shadow-lg shadow-primary/25 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 transition-all mt-2"
-              disabled={loading}
+              disabled={loading || !hydrated}
             >
               {loading ? "Authenticating Staff..." : "Sign in to Staff Station"}
               <ArrowRight className="h-4 w-4" />

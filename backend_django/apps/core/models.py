@@ -14,6 +14,11 @@ class RestaurantSetting(models.Model):
     # the table QR), so nobody can order to a table by guessing its id.
     # Off until the new QR codes are printed and on the tables.
     require_table_qr_key = models.BooleanField(default=False)
+    # Website delivery: off until the owner launches it. Hours are cafe-local
+    # (Addis) times; either left empty = no limit. A window may cross midnight.
+    delivery_enabled = models.BooleanField(default=False)
+    delivery_start_time = models.TimeField(null=True, blank=True)
+    delivery_end_time = models.TimeField(null=True, blank=True)
     guest_wifi_ssid = models.CharField(max_length=100, default="Hilif_Milk_5G")
     guest_wifi_password = models.CharField(max_length=100, default="Hilif2026")
     updated_at = models.DateTimeField(auto_now=True)
@@ -24,6 +29,19 @@ class RestaurantSetting(models.Model):
 
     def __str__(self):
         return f"{self.restaurant_name} Settings"
+
+    def delivery_open_now(self, now=None) -> bool:
+        """Is website delivery accepting orders right now (cafe-local time)?"""
+        if not self.delivery_enabled:
+            return False
+        start, end = self.delivery_start_time, self.delivery_end_time
+        if not start or not end or start == end:
+            return True
+        from django.utils import timezone
+        t = (now or timezone.localtime()).time()
+        if start < end:
+            return start <= t < end
+        return t >= start or t < end  # e.g. 18:00 → 02:00
 
     @classmethod
     def get_settings(cls):

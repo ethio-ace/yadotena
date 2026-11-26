@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Order, MenuItem, Table, ServiceRequest, AddonItem, MenuCategory } from "@/types";
 import { soundAlerts } from "@/lib/audioAlerts";
-import { findActiveOrderForTable } from "@/lib/tableUtils";
+import { findActiveOrdersForTable } from "@/lib/tableUtils";
 import { orderTicketNumber } from "@/lib/kitchen";
 import { isShopProductItem } from "@/lib/orderUtils";
 
@@ -40,8 +40,12 @@ export default function WaiterWorkspacePage() {
 
   // Busy table being looked at (id, so it re-resolves against fresh data).
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
+  // Which of that table's open tickets is shown (null = newest).
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   // Table the order builder was opened for (null = builder asks where to).
   const [builderTable, setBuilderTable] = useState<Table | null>(null);
+  // Ticket the builder appends to ("Add items"); null = a new ticket.
+  const [builderAppendId, setBuilderAppendId] = useState<string | null>(null);
   // Bumped on every builder entry so its internal step state starts fresh.
   const [builderKey, setBuilderKey] = useState(0);
 
@@ -85,7 +89,7 @@ export default function WaiterWorkspacePage() {
     if (!ordersLoaded) return;
     if (prevApprovals.current !== null && approvalCount > prevApprovals.current) {
       soundAlerts.playNewOrder();
-      setToast({ message: "New guest order — check Tables to approve", kind: "success" });
+      setToast({ message: "New guest order — waiting for your approval", kind: "success" });
     }
     prevApprovals.current = approvalCount;
   }, [approvalCount, ordersLoaded]);
@@ -130,18 +134,20 @@ export default function WaiterWorkspacePage() {
     else setView(v);
   };
 
-  const openBuilder = (table: Table | null) => {
-    // A cart started for one table must never leak onto another.
-    if ((table?.id ?? null) !== (builderTable?.id ?? null)) setCafeCart([]);
+  const openBuilder = (table: Table | null, appendToOrderId: string | null = null) => {
+    // A cart started for one table (or ticket) must never leak onto another.
+    if ((table?.id ?? null) !== (builderTable?.id ?? null) || appendToOrderId !== builderAppendId) setCafeCart([]);
     setBuilderTable(table);
+    setBuilderAppendId(appendToOrderId);
     setBuilderKey((k) => k + 1);
     setActiveTableId(null);
     setView("cafe-order");
   };
 
   const openTable = (table: Table) => {
-    if (findActiveOrderForTable(table, orders)) {
+    if (findActiveOrdersForTable(table, orders).length) {
       setActiveTableId(table.id);
+      setActiveOrderId(null);
     } else {
       // Free table (even if its stored status is stale) → straight to ordering.
       openBuilder(table);
@@ -180,12 +186,21 @@ export default function WaiterWorkspacePage() {
       return mi && !isShopProductItem(mi);
     });
 
+    const delivery = target.kind === "delivery" ? target.customer : null;
     createOrderMutation.mutate(
       {
-        type: target.kind === "table" ? "DINE_IN" : "TAKEAWAY",
-        status: isShop || !hasKitchenWork ? "COMPLETED" : "PENDING",
+        type: target.kind === "table" ? "DINE_IN" : delivery ? "DELIVERY" : "TAKEAWAY",
+        // A delivery always stays on the boards until it's handed to the rider.
+        status: !delivery && (isShop || !hasKitchenWork) ? "COMPLETED" : "PENDING",
         paymentStatus: "PENDING",
         tableId: target.kind === "table" ? target.table.id : undefined,
+        ...(delivery && {
+          customerName: delivery.name,
+          customerPhone: delivery.phone,
+          deliveryAddress: delivery.address,
+          notes: delivery.note || undefined,
+          paymentPreference: delivery.paymentPreference,
+        }),
         // Server derives id/name/price snapshots.
         items: payload as unknown as Parameters<typeof api.orders.create>[0]["items"],
         idempotencyKey: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -202,8 +217,9 @@ export default function WaiterWorkspacePage() {
           }
           setCafeCart([]);
           setBuilderTable(null);
+          setBuilderAppendId(null);
           showToast(
-            `Sent to kitchen · ${target.kind === "table" ? tableName(target.table) : "Takeaway"} #${orderTicketNumber(newOrder)}`,
+            `Sent to kitchen · ${target.kind === "table" ? tableName(target.table) : delivery ? `Delivery for ${delivery.name}` : "Takeaway"} #${orderTicketNumber(newOrder)}`,
             "success"
           );
           backToTables();
@@ -230,7 +246,10 @@ export default function WaiterWorkspacePage() {
     onError: (err: Error) => { soundAlerts.playError(); showToast(err?.message || "Couldn't update that order. Try again."); },
   });
   const reviewOrder = (o: Order, action: "approve" | "reject", roundNumber?: number) => {
-    if (action === "reject" && !window.confirm("Reject the guest's order? Tell them so they can order again.")) return;
+    const prompt = o.type === "DELIVERY"
+      ? "Reject this delivery order? Call the customer to let them know."
+      : "Reject the guest's order? Tell them so they can order again.";
+    if (action === "reject" && !window.confirm(prompt)) return;
     reviewMutation.mutate({ id: o.id, action, roundNumber });
   };
 
@@ -239,7 +258,8 @@ export default function WaiterWorkspacePage() {
 
   // ── Derived view state ───────────────────────────────────────────────────
   const activeTable = activeTableId ? tables.find((t) => t.id === activeTableId) || null : null;
-  const activeOrder = activeTable ? findActiveOrderForTable(activeTable, orders) : undefined;
+  const tableOrders = activeTable ? findActiveOrdersForTable(activeTable, orders) : [];
+  const activeOrder = tableOrders.find((o) => o.id === activeOrderId) || tableOrders[0];
   const focusMode = !!activeTable || view === "cafe-order" || view === "shop-sale";
   const busyOrderId = updateStatusMutation.isPending
     ? updateStatusMutation.variables?.id
@@ -275,10 +295,13 @@ export default function WaiterWorkspacePage() {
             <TableDetailView
               table={activeTable}
               activeOrder={activeOrder}
+              tableOrders={tableOrders}
+              onSelectOrder={(o) => setActiveOrderId(o.id)}
+              onNewOrder={(t) => openBuilder(t)}
               allAddons={allAddons}
               isServing={busyOrderId === activeOrder.id}
               onBack={backToTables}
-              onAddItems={(t) => openBuilder(t)}
+              onAddItems={(t, o) => openBuilder(t, o.id)}
               onServeReady={serveReady}
               onViewOrder={setInspectOrder}
               onSettleOrder={setPaymentOrder}
@@ -323,6 +346,7 @@ export default function WaiterWorkspacePage() {
             menu={menu} categories={categories} allAddons={allAddons}
             tables={tables} orders={orders}
             preselectedTable={builderTable}
+            appendToOrderId={builderAppendId}
             cart={cafeCart}
             isSubmitting={submitting}
             onCartChange={setCafeCart}

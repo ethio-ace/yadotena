@@ -7,7 +7,11 @@ export const API_BASE_URL = API_BASE;
 // Strict requests for order-critical flows — never silently fall back to mocks
 async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  // Writes get longer: aborting a slow POST loses the response even when the
+  // server created the order (retries are safe — they reuse the idempotency key).
+  const method = (options.method || "GET").toUpperCase();
+  const timeoutMs = method === "GET" ? 20000 : 45000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const headers = new Headers(options.headers || {});
 
@@ -38,6 +42,11 @@ async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}):
       headers,
       signal: controller.signal,
     });
+  } catch {
+    if (controller.signal.aborted) {
+      throw new Error("The server is taking too long to answer. Please try again.");
+    }
+    throw new Error("Can't reach the server. Check your connection and try again.");
   } finally {
     clearTimeout(timeoutId);
   }
@@ -49,8 +58,10 @@ async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}):
 
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
+    let body: unknown;
     try {
       const errorBody = await res.json();
+      body = errorBody;
       if (errorBody.detail) message = errorBody.detail;
       else if (errorBody.error) {
         message = typeof errorBody.error === "string" ? errorBody.error : JSON.stringify(errorBody.error);
@@ -67,7 +78,8 @@ async function requestApiStrict<T>(endpoint: string, options: RequestInit = {}):
     } catch {
       // ignore parse errors
     }
-    throw new Error(message);
+    // Keep the parsed body (e.g. DRF field errors) for forms that highlight fields.
+    throw Object.assign(new Error(message), { status: res.status, body });
   }
 
   if (res.status === 204) {
@@ -287,6 +299,8 @@ export const api = {
           customerName: order.customerName,
           customerPhone: order.customerPhone,
           deliveryAddress: order.deliveryAddress,
+          paymentPreference: order.paymentPreference || undefined,
+          notes: order.notes || undefined,
           idempotencyKey: idempotencyKey,
           tableKey: order.tableKey || undefined,
           items: serializeOrderItems(order.items),

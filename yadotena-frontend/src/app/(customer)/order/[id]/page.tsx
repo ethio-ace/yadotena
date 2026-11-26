@@ -30,8 +30,14 @@ const getStatusColor = (status: string) => {
   }
 };
 
-const getRoundCustomerStatus = (status: string) => {
+const getRoundCustomerStatus = (status: string, delivery = false) => {
   switch (status) {
+    case "DRAFT":
+      return {
+        label: delivery ? "Awaiting our call" : "Awaiting waiter",
+        colorClass: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
+        dotClass: "bg-amber-500 animate-pulse",
+      };
     case "READY":
       return {
         label: "Ready to Serve",
@@ -46,7 +52,7 @@ const getRoundCustomerStatus = (status: string) => {
       };
     case "SERVED":
       return {
-        label: "Served at Table",
+        label: delivery ? "Out for delivery" : "Served at Table",
         colorClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30",
         dotClass: "bg-blue-500",
       };
@@ -222,7 +228,7 @@ export default function OrderTrackingPage() {
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-black tracking-tight leading-none">#{ticketNumber}</h2>
                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getStatusColor(order.status)}`}>
-                  {order.status.replace(/_/g, " ")}
+                  {order.status === "DRAFT" ? "AWAITING CONFIRMATION" : order.status.replace(/_/g, " ")}
                 </span>
                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${isPaid ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-amber-500/10 text-amber-600 border-amber-500/30"}`}>
                   {isPaid ? "PAID" : "UNPAID"}
@@ -260,6 +266,15 @@ export default function OrderTrackingPage() {
 
       <div className="p-4 md:p-6 flex-1">
         <div className="max-w-2xl mx-auto space-y-4">
+
+          {order.type === "DELIVERY" && order.status === "DRAFT" && (
+            <div className="rounded-2xl bg-amber-500/15 border border-amber-500/30 px-4 py-3 text-sm">
+              <p className="font-black">We&apos;ll call you to confirm</p>
+              <p className="text-muted-foreground">
+                Keep your phone close — once we&apos;ve confirmed your order and address, the kitchen starts cooking.
+              </p>
+            </div>
+          )}
 
           {/* Prominent Order Tracking ID Header Banner */}
           <div className="bg-gradient-to-r from-primary/10 via-amber-500/10 to-primary/10 border-2 border-primary/20 rounded-3xl p-5 shadow-sm space-y-3 relative overflow-hidden">
@@ -315,7 +330,7 @@ export default function OrderTrackingPage() {
 
           {/* Live Order Progress Stepper */}
           <div className="bg-card border rounded-2xl shadow-sm p-5">
-            <OrderProgressStepper status={order.status} />
+            <OrderProgressStepper status={order.status} orderType={order.type} />
           </div>
 
           {/* Dine-In Assistance Hub */}
@@ -402,7 +417,7 @@ export default function OrderTrackingPage() {
             <div className="space-y-4">
               {groupItemsByRound(order.items).map((rg) => {
                 const rStatus = roundStatus(rg.items, order.status);
-                const statusInfo = getRoundCustomerStatus(rStatus);
+                const statusInfo = getRoundCustomerStatus(rStatus, order.type === "DELIVERY");
                 const rSubtotal = roundTotal(rg.items);
 
                 return (
@@ -435,7 +450,7 @@ export default function OrderTrackingPage() {
                         const img = getItemImage(item.menuItemId);
                         const aNames = addonNames(item.selectedAddons, addonMap);
                         const iStatus = item.status || rStatus;
-                        const itemStatusInfo = getRoundCustomerStatus(iStatus);
+                        const itemStatusInfo = getRoundCustomerStatus(iStatus, order.type === "DELIVERY");
 
                         return (
                           <div key={item.id || idx} className="p-3.5 rounded-xl border bg-card space-y-2 shadow-xs">
@@ -604,7 +619,11 @@ export default function OrderTrackingPage() {
                   </Button>
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  {canRequestAssistance
+                  {order.type === "DELIVERY"
+                    ? order.paymentPreference === "TRANSFER"
+                      ? "Send the amount to one of the accounts shown once we've called to confirm. The rider checks the payment on arrival."
+                      : "Pay the rider on delivery — cash or mobile money. You can also transfer to the accounts shown."
+                    : canRequestAssistance
                     ? "Send the amount digitally using the accounts shown, then call your waiter to confirm and settle. Cash can be paid directly to your waiter."
                     : "Send the amount digitally using the accounts shown, or pay cash at the counter — our staff will verify and settle your bill."}
                 </p>

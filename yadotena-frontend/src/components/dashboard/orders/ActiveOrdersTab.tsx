@@ -43,7 +43,9 @@ export function ActiveOrdersTab({ ordersOverride, onOpenOrder }: ActiveOrdersTab
       api.orders.updateStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-    }
+    },
+    // A refused transition (e.g. closing an unpaid ticket) must not fail silently.
+    onError: (err: Error) => window.alert(err?.message || "That change didn't go through."),
   });
 
   const activeOrders = orders?.filter(o => 
@@ -58,14 +60,20 @@ export function ActiveOrdersTab({ ordersOverride, onOpenOrder }: ActiveOrdersTab
     return !search || matchesId || matchesCustomer || matchesTable;
   });
 
-  const getActionPropsForStatus = (status: OrderStatus) => {
-    switch (status) {
+  const getActionPropsForStatus = (order: Order) => {
+    switch (order.status) {
       case "PENDING":
         return { actionText: "Start Preparing", actionVariant: "default", nextStatus: "PREPARING" as OrderStatus };
       case "PREPARING":
         return { actionText: "Mark as Ready", actionVariant: "outline", nextStatus: "READY" as OrderStatus };
-      case "READY":
-        return { actionText: "Close Table (Completed)", actionVariant: "default", nextStatus: "COMPLETED" as OrderStatus };
+      case "READY": {
+        // Only a settled ticket can close; otherwise hand the food over (served)
+        // and the bill stays open until it is paid.
+        const handover = order.type === "DELIVERY" ? "Hand to rider" : order.type === "TAKEAWAY" ? "Hand over" : "Mark served";
+        return order.paymentStatus === "PAID"
+          ? { actionText: `${handover} & close`, actionVariant: "default", nextStatus: "COMPLETED" as OrderStatus }
+          : { actionText: handover, actionVariant: "default", nextStatus: "SERVED" as OrderStatus };
+      }
       default:
         return { actionText: "", actionVariant: "outline", nextStatus: "PENDING" as OrderStatus };
     }
@@ -101,7 +109,7 @@ export function ActiveOrdersTab({ ordersOverride, onOpenOrder }: ActiveOrdersTab
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredOrders.map(order => {
-            const { actionText, actionVariant, nextStatus } = getActionPropsForStatus(order.status);
+            const { actionText, actionVariant, nextStatus } = getActionPropsForStatus(order);
             return (
               <KitchenOrderCard 
                 key={order.id} 

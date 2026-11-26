@@ -16,7 +16,7 @@ export function TablePickerModal() {
     setIsQRScannerOpen
   } = useCustomerDineIn();
 
-  const { data: tables = [], isLoading } = useQuery({
+  const { data: tables = [], isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["tables"],
     queryFn: api.tables.getAll,
     enabled: isTablePickerOpen,
@@ -76,6 +76,19 @@ export function TablePickerModal() {
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div key={i} className="h-24 bg-muted/60 rounded-2xl" />
               ))}
+            </div>
+          ) : isError ? (
+            <div className="py-8 text-center space-y-3">
+              <p className="text-sm font-semibold">We couldn&apos;t load the tables.</p>
+              <p className="text-xs text-muted-foreground">Check your connection and try again.</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+                {isFetching ? "Trying…" : "Try again"}
+              </Button>
+            </div>
+          ) : tables.length === 0 ? (
+            <div className="py-8 text-center space-y-2">
+              <p className="text-sm font-semibold">No tables are set up yet.</p>
+              <p className="text-xs text-muted-foreground">Please ask a waiter to take your order.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">

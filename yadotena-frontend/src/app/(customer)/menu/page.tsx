@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { api } from "@/services/api";
 import { MenuItem } from "@/types";
-import { Search, X, Plus, Minus, Utensils, MapPin, Receipt, LayoutList, ChevronRight } from "lucide-react";
+import { Search, X, Plus, Minus, Utensils, MapPin, Receipt, LayoutList, ChevronRight, Bike, Clock } from "lucide-react";
 import { ItemDetailModal } from "@/components/customer/ItemDetailModal";
 import { formatETB } from "@/lib/currency";
 import { getImageUrl, cn } from "@/lib/utils";
@@ -44,13 +44,24 @@ function MenuContent() {
   const searchParams = useSearchParams();
   const tableParam = searchParams.get("table");
   const tableKeyParam = searchParams.get("k");
-  const { tableId, tableName, unmatchedTableCode, setTableId, setIsTablePickerOpen, activeTableOrder } = useCustomerDineIn();
+  const modeParam = searchParams.get("mode");
+  const {
+    tableId, tableName, unmatchedTableCode, tablesStatus, setTableId, setIsTablePickerOpen, activeTableOrder,
+    orderMode, setOrderMode, deliveryAvailable, deliveryOpenNow, deliveryHours, deliveryFee,
+  } = useCustomerDineIn();
 
-  // Scanning a table QR (…/menu?table=t4) connects the table; the context
-  // resolves the code against the real roster.
+  // Scanning a table QR (…/menu?table=t4) connects the table (and means the
+  // guest is here, not ordering delivery); the context resolves the code
+  // against the real roster. A shared …/menu?mode=delivery link opens delivery.
   useEffect(() => {
-    if (tableParam) setTableId(tableParam, tableKeyParam);
-  }, [tableParam, tableKeyParam, setTableId]);
+    if (tableParam) {
+      setTableId(tableParam, tableKeyParam);
+      setOrderMode("DINE_IN");
+    } else if (modeParam === "delivery") {
+      setOrderMode("DELIVERY");
+    }
+  }, [tableParam, tableKeyParam, modeParam, setTableId, setOrderMode]);
+  const isDelivery = orderMode === "DELIVERY";
 
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -175,9 +186,61 @@ function MenuContent() {
 
   return (
     <div className="max-w-6xl mx-auto pb-28 lg:px-6">
-      {/* ── Table line: who this order is for ─────────────────────────── */}
+      {/* ── Dine in / Delivery switch (only once the owner turns delivery on) ── */}
+      {deliveryAvailable && (
+        <div className="px-4 lg:px-0 pt-3">
+          <div role="radiogroup" aria-label="How would you like your order?" className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-muted max-w-sm">
+            {([
+              { mode: "DINE_IN", label: "Eat here", Icon: Utensils },
+              { mode: "DELIVERY", label: "Delivery", Icon: Bike },
+            ] as const).map(({ mode, label, Icon }) => (
+              <button
+                key={mode}
+                role="radio"
+                aria-checked={orderMode === mode}
+                onClick={() => setOrderMode(mode)}
+                className={cn(
+                  "h-10 rounded-xl text-sm font-black flex items-center justify-center gap-2 transition-colors",
+                  orderMode === mode ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4" /> {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Who / where this order is for ──────────────────────────────── */}
       <div className="px-4 lg:px-0 pt-3 pb-2">
-        {tableId ? (
+        {isDelivery ? (
+          <div className="flex items-center gap-2 text-sm">
+            {deliveryOpenNow ? (
+              <>
+                <Bike className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
+                <span className="font-bold truncate">
+                  Delivery{deliveryFee > 0 ? ` · ${formatETB(deliveryFee)} fee` : ""}
+                  {deliveryHours && <span className="font-medium text-muted-foreground"> · {deliveryHours}</span>}
+                </span>
+              </>
+            ) : (
+              <>
+                <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                <span className="font-bold">
+                  Delivery is closed now{deliveryHours ? ` — we deliver ${deliveryHours}` : ""}. You can still browse.
+                </span>
+              </>
+            )}
+            {activeTableOrder && (
+              <Link
+                href={`/order/${encodeURIComponent(activeTableOrder.id)}`}
+                className="ml-auto h-8 px-3 rounded-lg border bg-card text-xs font-bold flex items-center gap-1.5 shrink-0 hover:bg-muted"
+              >
+                <Receipt className="h-3.5 w-3.5" /> My order
+              </Link>
+            )}
+          </div>
+        ) : tableId ? (
           <div className="flex items-center gap-2 text-sm">
             <MapPin className="h-4 w-4 text-primary shrink-0" />
             <span className="font-bold truncate">Ordering for {tableName}</span>
@@ -202,7 +265,13 @@ function MenuContent() {
             <span className="flex-1 min-w-0">
               <span className="block font-bold text-sm leading-tight">Choose your table to order</span>
               <span className="block text-xs text-muted-foreground">
-                {unmatchedTableCode
+                {tablesStatus === "loading" && tableParam
+                  ? "Connecting to your table…"
+                  : tablesStatus === "error"
+                  ? "We couldn't reach the restaurant. Tap to try again."
+                  : tablesStatus === "empty"
+                  ? "Table ordering isn't set up yet. Please ask a waiter."
+                  : unmatchedTableCode
                   ? `We couldn't find a table called “${unmatchedTableCode}”. Tap to pick yours.`
                   : "Or scan the QR code on your table. You can browse first."}
               </span>

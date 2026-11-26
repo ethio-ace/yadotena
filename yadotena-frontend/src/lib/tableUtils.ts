@@ -79,3 +79,28 @@ export function resolveTable(code?: string | null, tables?: Table[] | null): Tab
   // Only accept an unambiguous alias match.
   return matches.length === 1 ? matches[0] : undefined;
 }
+
+/**
+ * Every open ticket on a table, newest first. Staff can open several tickets
+ * on one table (a new party, a separate bill), so the floor and the table
+ * screen must not assume there is only one.
+ */
+export function findActiveOrdersForTable(table?: Table | null, orders?: Order[] | null): Order[] {
+  if (!table || !orders || orders.length === 0) return [];
+  const normalize = (s?: string) =>
+    (s || "").toLowerCase().trim().replace(/^(table\s*|tbl-?|t)/i, "").trim().replace(/^0+/, "");
+  const idNorm = normalize(table.id);
+  const nameNorm = normalize(table.name);
+  const exact = orders.filter(
+    (o) => isOrderActive(o) && (o.id === table.currentOrderId || o.tableId === table.id || (!!table.name && o.tableId === table.name))
+  );
+  // Only fall back to alias matching (legacy `t1` codes) when nothing matched exactly.
+  const matched = exact.length
+    ? exact
+    : orders.filter((o) => {
+        if (!isOrderActive(o) || !o.tableId) return false;
+        const n = normalize(o.tableId);
+        return !!n && (n === idNorm || n === nameNorm);
+      });
+  return [...matched].sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}

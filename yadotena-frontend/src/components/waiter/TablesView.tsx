@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Table, Order } from "@/types";
 import { formatETB } from "@/lib/currency";
-import { findActiveOrderForTable } from "@/lib/tableUtils";
+import { findActiveOrdersForTable } from "@/lib/tableUtils";
 import { formatWait, orderProgress, orderTicketNumber } from "@/lib/kitchen";
 import { OrderProgressLine } from "@/components/waiter/OrderProgressLine";
 import { BellRing, CheckCircle2, LayoutGrid, Smartphone, Users } from "lucide-react";
@@ -44,7 +44,10 @@ export function TablesView({
   const rows = useMemo(
     () =>
       tables
-        .map((table) => ({ table, order: findActiveOrderForTable(table, orders) }))
+        .map((table) => {
+          const open = findActiveOrdersForTable(table, orders);
+          return { table, order: open[0], open };
+        })
         .sort((a, b) => a.table.name.localeCompare(b.table.name, undefined, { numeric: true })),
     [tables, orders]
   );
@@ -114,11 +117,11 @@ export function TablesView({
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 md:pb-6">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {visible.map(({ table, order }) => {
+          {visible.map(({ table, order, open }) => {
             const calls = callsByTable[table.id] || 0;
-            const progress = order ? orderProgress(order) : null;
-            const ready = progress?.ready || 0;
-            const toApprove = progress?.approval || 0;
+            // A table can hold several tickets: alert on work from any of them.
+            const ready = open.reduce((n, o) => n + orderProgress(o).ready, 0);
+            const toApprove = open.reduce((n, o) => n + orderProgress(o).approval, 0);
             return (
               <button
                 key={table.id}
@@ -143,7 +146,9 @@ export function TablesView({
                       <Smartphone className="h-3 w-3" /> New
                     </span>
                   ) : order ? (
-                    <span className="shrink-0 font-mono text-[11px] font-black text-muted-foreground">#{orderTicketNumber(order)}</span>
+                    <span className="shrink-0 font-mono text-[11px] font-black text-muted-foreground">
+                      #{orderTicketNumber(order)}{open.length > 1 ? ` +${open.length - 1}` : ""}
+                    </span>
                   ) : null}
                 </div>
 

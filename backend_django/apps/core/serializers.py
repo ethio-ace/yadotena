@@ -14,6 +14,10 @@ class RestaurantSettingSerializer(serializers.ModelSerializer):
     deliveryFee = serializers.DecimalField(source='delivery_fee', max_digits=10, decimal_places=2,
                                            min_value=0, required=False)
     requireTableQrKey = serializers.BooleanField(source='require_table_qr_key', required=False)
+    deliveryEnabled = serializers.BooleanField(source='delivery_enabled', required=False)
+    deliveryStartTime = serializers.TimeField(source='delivery_start_time', format='%H:%M', required=False, allow_null=True)
+    deliveryEndTime = serializers.TimeField(source='delivery_end_time', format='%H:%M', required=False, allow_null=True)
+    deliveryOpenNow = serializers.SerializerMethodField()
     guestWifiSsid = serializers.CharField(source='guest_wifi_ssid', required=False, allow_blank=True)
     guestWifiPassword = serializers.CharField(source='guest_wifi_password', required=False, allow_blank=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -22,9 +26,13 @@ class RestaurantSettingSerializer(serializers.ModelSerializer):
         model = RestaurantSetting
         fields = [
             'restaurantName', 'phone', 'address', 'serviceChargePercent', 'vatPercent',
-            'deliveryFee', 'requireTableQrKey', 'guestWifiSsid', 'guestWifiPassword', 'updatedAt',
+            'deliveryFee', 'deliveryEnabled', 'deliveryStartTime', 'deliveryEndTime', 'deliveryOpenNow',
+            'requireTableQrKey', 'guestWifiSsid', 'guestWifiPassword', 'updatedAt',
         ]
         extra_kwargs = {'phone': {'required': False}, 'address': {'required': False}}
+
+    def get_deliveryOpenNow(self, instance):
+        return instance.delivery_open_now()
 
     def to_internal_value(self, data):
         data = dict(data)

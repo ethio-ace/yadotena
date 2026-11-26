@@ -37,6 +37,21 @@ export function AblySyncProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!clientRef.current) {
+        // The backend answers 503 when ABLY_API_KEY isn't set. Don't start a
+        // client that would retry forever — report "failed" so screens fall
+        // back to polling (the KDS polls every 3s when not connected).
+        try {
+          const probe = await fetch(`${API_BASE}/auth/ably-token`, { headers: { Accept: "application/json" } });
+          if (probe.status === 503) {
+            console.warn("Realtime is not configured on the server (ABLY_API_KEY missing); using polling.");
+            if (isSubscribed) setConnectionState("failed");
+            return;
+          }
+        } catch {
+          // Network hiccup — let Ably's own retry logic handle it below.
+        }
+        if (!isSubscribed) return;
+
         try {
           // Token auth: the backend signs a short-lived, subscribe-only token
           // request (public, so customers get live order updates too). Ably

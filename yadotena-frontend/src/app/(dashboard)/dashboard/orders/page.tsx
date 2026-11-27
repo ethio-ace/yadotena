@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,9 @@ import { OrdersFilterBar, OrderFilters } from "@/components/dashboard/orders/Ord
 import { formatETB } from "@/lib/currency";
 import { formatTableRef } from "@/hooks/useTableLabels";
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
+import { PaymentSettlementModal } from "@/components/PaymentSettlementModal";
+import { GuestApprovalsPanel } from "@/components/dashboard/orders/GuestApprovalsPanel";
+import { Order } from "@/types";
 import { ShoppingBag, Clock, CheckCircle2, AlertCircle, Plus, Sparkles, ChefHat, Truck, X } from "lucide-react";
 
 // Heavy tab surfaces are code-split so the initial load stays light and each
@@ -49,6 +52,8 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<"ACTIVE" | "HISTORY" | "NEW" | "DISPATCH">("ACTIVE");
   const [filters, setFilters] = useState<OrderFilters>({ type: "ALL", tableId: "", payment: "ALL" });
   const [inspectId, setInspectId] = useState<string | null>(null);
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
@@ -188,6 +193,9 @@ export default function OrdersPage() {
         </Card>
       </div>
 
+      {/* Guest orders need a staff decision before the kitchen sees them. */}
+      <GuestApprovalsPanel orders={orders} />
+
       {/* Filters (type / table / payment) applied across all tabs */}
       <OrdersFilterBar tables={tables} filters={filters} onChange={setFilters} />
 
@@ -282,6 +290,17 @@ export default function OrdersPage() {
         order={orders.find((o) => o.id === inspectId) ?? null}
         isOpen={!!inspectId}
         onClose={() => setInspectId(null)}
+        onSettle={(o: Order) => { setInspectId(null); setPaymentOrder(o); }}
+      />
+      <PaymentSettlementModal
+        order={paymentOrder}
+        isOpen={!!paymentOrder}
+        onClose={() => setPaymentOrder(null)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["orders"] });
+          queryClient.invalidateQueries({ queryKey: ["tables"] });
+          setPaymentOrder(null);
+        }}
       />
     </div>
   );

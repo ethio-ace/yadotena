@@ -14,6 +14,7 @@ import {
   Activity,
   Package,
   Wallet,
+  ConciergeBell,
 } from "lucide-react";
 import { Role } from "@/types";
 
@@ -45,6 +46,7 @@ export const managerNavGroups: NavGroup[] = [
   {
     group: "OPERATIONS",
     items: [
+      { name: "Service Floor", href: "/dashboard/waiter", icon: ConciergeBell },
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
       { name: "Order Supervision", href: "/dashboard/orders", icon: ClipboardList },
       { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
@@ -99,6 +101,7 @@ export const ownerNavGroups: NavGroup[] = [
       { name: "Add-ons", href: "/dashboard/addons", icon: Layers },
       { name: "Products & Stock", href: "/dashboard/products", icon: Package },
       { name: "Printable Menu", href: "/dashboard/print-menu", icon: ScrollText },
+      { name: "Service Floor", href: "/dashboard/waiter", icon: ConciergeBell },
       { name: "Floor Tables", href: "/dashboard/tables", icon: Grid3X3 },
       { name: "Orders", href: "/dashboard/orders", icon: ClipboardList },
       { name: "Notifications", href: "/dashboard/notifications", icon: Bell },

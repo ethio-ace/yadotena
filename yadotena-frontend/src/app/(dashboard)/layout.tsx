@@ -58,7 +58,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isOwnerAppRoute =
     session.user.role === "OWNER" &&
     (pathname === "/dashboard/owner" || pathname === "/dashboard");
-  const hideSharedChrome = isChefKds || isWaiter || isManagerAppRoute || isOwnerAppRoute;
+  // Owners/managers can step onto the floor: the waiter workspace brings its
+  // own sidebar (with a "Back to dashboard" link), so skip the shared chrome.
+  const isServiceFloor = pathname === "/dashboard/waiter";
+  const hideSharedChrome = isChefKds || isWaiter || isManagerAppRoute || isOwnerAppRoute || isServiceFloor;
 
   return (
     <SoundNotificationProvider>

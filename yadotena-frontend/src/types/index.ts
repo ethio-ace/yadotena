@@ -327,3 +327,23 @@ export interface ProductAnalytics {
     year: ProductAnalyticsPeriod;
   };
 }
+
+/** One ticket on the public café TV board (GET /orders/board). */
+export interface OrderBoardEntry {
+  /** Customer-facing 6-char code (same as the receipt / tracking page). */
+  code: string;
+  tableName: string;
+  type: "DINE_IN" | "TAKEAWAY" | "DELIVERY";
+  stage: "received" | "preparing" | "ready";
+  items: { name: string; quantity: number }[];
+  /** Quantity of the ticket's other live lines (in an earlier stage). */
+  otherItems: number;
+  /** When the ticket entered its current stage (ISO). */
+  since: string;
+  createdAt: string;
+}
+
+export interface OrderBoard {
+  orders: OrderBoardEntry[];
+  generatedAt: string;
+}

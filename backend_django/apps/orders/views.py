@@ -32,6 +32,7 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         'create': [AllowAny],
         'retrieve': [AllowAny],
         'lookup': [AllowAny],
+        'board': [AllowAny],
         'add_items': [IsStaff],
         'list': [IsStaff],
         'update': [IsStaff],
@@ -116,6 +117,11 @@ class OrderViewSet(ActionPermissionMixin, viewsets.ModelViewSet):
         if order is None:
             return Response({'detail': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response(self.get_serializer(order).data)
+
+    @action(detail=False, methods=['get'], url_path='board')
+    def board(self, request):
+        """Public order-progress board for the café TV (no private fields)."""
+        return Response(services.order_board())
 
     @action(detail=True, methods=['patch', 'post'], url_path='status')
     def update_status(self, request, pk=None):

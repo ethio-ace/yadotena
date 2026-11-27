@@ -1,4 +1,4 @@
-import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession, AddonItem, Product, ProductSale, ProductPurchase, ProductAnalytics, RestaurantSettings, MenuIngredient, DayCloseReport } from "../types";
+import { MenuItem, Order, Table, User, ServiceRequest, Expense, MenuCategory, DiningSession, AddonItem, Product, ProductSale, ProductPurchase, ProductAnalytics, RestaurantSettings, MenuIngredient, DayCloseReport, OrderBoard } from "../types";
 
 import { API_BASE, SESSION_ENDED_EVENT, authHeaders } from "@/lib/config";
 
@@ -267,6 +267,10 @@ export const api = {
     },
     getById: async (id: string): Promise<Order | undefined> => {
       return requestApiStrict<Order>(`/orders/${id}`, { method: "GET" });
+    },
+    /** Public order-progress board for the café TV (codes, tables, stages — nothing private). */
+    board: async (): Promise<OrderBoard> => {
+      return requestApiStrict<OrderBoard>("/orders/board", { method: "GET" });
     },
     /** Public order tracking by full order id or 6-character ticket number. */
     lookup: async (number: string): Promise<Order> => {

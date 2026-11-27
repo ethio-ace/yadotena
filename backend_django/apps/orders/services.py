@@ -746,3 +746,55 @@ def _free_table(table: Table) -> None:
     table.save(update_fields=['status', 'current_order_id', 'updated_at'])
     table.sessions.filter(status='ACTIVE').update(status='CLOSED', closed_at=timezone.now())
     publish_event('yadotena-realtime', 'table.updated', {'id': str(table.id), 'status': table.status})
+
+
+# ── Public order board (café TV) ─────────────────────────────────────────────
+BOARD_STAGES = (  # highest first: an order shows in the stage of its most advanced live work
+    ('ready', ItemStatus.READY),
+    ('preparing', ItemStatus.PREPARING),
+    ('received', ItemStatus.PENDING),
+)
+BOARD_WINDOW = timedelta(hours=12)  # forgotten tickets don't haunt the screen forever
+
+
+def order_board(now=None) -> dict:
+    """What the in-café TV shows: kitchen progress per ticket, nothing private.
+
+    Only the customer-facing 6-char code, the table's display name, the order
+    type, the stage and the dish names/quantities of the live lines. No
+    customer names, phones, addresses, notes or money. Delivery tickets are
+    left out (the guest isn't in the room); DRAFT rounds aren't shown until a
+    waiter approves them.
+    """
+    now = now or timezone.now()
+    live_statuses = [s for _, s in BOARD_STAGES]
+    orders = (Order.objects
+              .filter(items__status__in=live_statuses, created_at__gte=now - BOARD_WINDOW)
+              .exclude(status=OrderStatus.CANCELLED)
+              .exclude(type=OrderType.DELIVERY)
+              .select_related('table')
+              .prefetch_related('items')
+              .distinct())
+    board = []
+    for order in orders:
+        items = [i for i in order.items.all() if i.status in live_statuses]
+        stage, stage_status = next((name, s) for name, s in BOARD_STAGES if any(i.status == s for i in items))
+        stage_items = [i for i in items if i.status == stage_status]
+        if stage == 'ready':
+            since = max((i.completed_at for i in stage_items if i.completed_at), default=None)
+        elif stage == 'preparing':
+            since = min((i.started_at for i in stage_items if i.started_at), default=None)
+        else:
+            since = None
+        board.append({
+            'code': order.id[-6:].upper(),
+            'tableName': order.table.name if order.table else '',
+            'type': order.type,
+            'stage': stage,
+            'items': [{'name': i.name, 'quantity': i.quantity} for i in stage_items],
+            'otherItems': sum(i.quantity for i in items if i.status != stage_status),
+            'since': (since or order.created_at).isoformat(),
+            'createdAt': order.created_at.isoformat(),
+        })
+    board.sort(key=lambda o: o['createdAt'])
+    return {'orders': board, 'generatedAt': now.isoformat()}

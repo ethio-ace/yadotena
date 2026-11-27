@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { LayoutGrid, ClipboardList, BellRing, Plus, ShoppingBag, LogOut, Volume2, VolumeX } from "lucide-react";
+import { LayoutGrid, ClipboardList, BellRing, Plus, ShoppingBag, LogOut, Volume2, VolumeX, ArrowLeft } from "lucide-react";
 import { useSoundNotifications } from "@/contexts/SoundNotificationContext";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +47,12 @@ function Badge({ count, tone }: { count: number; tone: "ready" | "call" | "appro
 export function WaiterSidebar({ view, readyCount, approvalCount, pendingCalls, focusMode, onNavigate }: WaiterSidebarProps) {
   const { data: session } = useSession();
   const { isMuted, toggleMute, unlockAudio } = useSoundNotifications();
+  // Owners and managers use this same workspace to approve guest orders and
+  // settle bills; they get a way back to their dashboard instead of sign-out.
+  const role = session?.user?.role;
+  const isFloorStaff = !role || role === "WAITER";
+  const roleLabel = role === "OWNER" ? "Owner · Floor" : role === "MANAGER" ? "Manager · Floor" : "Waiter";
+  const homeHref = role === "OWNER" ? "/dashboard/owner" : "/dashboard/manager";
   const isActive = (key: WaiterView) => view === key || (key === "tables" && (view === "cafe-order" || view === "shop-sale"));
   const badgeFor = (key: WaiterView) =>
     key === "orders" ? (approvalCount > 0 ? <Badge count={approvalCount} tone="approve" /> : <Badge count={readyCount} tone="ready" />) : key === "calls" ? <Badge count={pendingCalls} tone="call" /> : null;
@@ -61,7 +68,7 @@ export function WaiterSidebar({ view, readyCount, approvalCount, pendingCalls, f
           <img src="/icon.svg" alt="" className="h-7 w-7 rounded-lg shrink-0" />
           <div className="min-w-0">
             <p className="font-black text-[13px] tracking-tight leading-none truncate">HILIF</p>
-            <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mt-0.5">Waiter</p>
+            <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mt-0.5">{roleLabel}</p>
           </div>
         </div>
 
@@ -118,14 +125,25 @@ export function WaiterSidebar({ view, readyCount, approvalCount, pendingCalls, f
               {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               {isMuted ? "Muted" : "Sound"}
             </button>
-            <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              title="Sign out"
-              className="flex-1 h-9 rounded-lg text-xs font-bold text-muted-foreground hover:bg-red-500/10 hover:text-red-600 flex items-center justify-center gap-1.5"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </button>
+            {isFloorStaff ? (
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                title="Sign out"
+                className="flex-1 h-9 rounded-lg text-xs font-bold text-muted-foreground hover:bg-red-500/10 hover:text-red-600 flex items-center justify-center gap-1.5"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </button>
+            ) : (
+              <Link
+                href={homeHref}
+                title="Back to dashboard"
+                className="flex-1 h-9 rounded-lg text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Dashboard
+              </Link>
+            )}
           </div>
         </div>
       </aside>
@@ -138,9 +156,15 @@ export function WaiterSidebar({ view, readyCount, approvalCount, pendingCalls, f
           <button onClick={() => { unlockAudio(); toggleMute(); }} aria-label={isMuted ? "Turn sound on" : "Mute sound"} className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground">
             {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>
-          <button onClick={() => signOut({ callbackUrl: "/login" })} aria-label="Sign out" className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground">
-            <LogOut className="h-4 w-4" />
-          </button>
+          {isFloorStaff ? (
+            <button onClick={() => signOut({ callbackUrl: "/login" })} aria-label="Sign out" className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground">
+              <LogOut className="h-4 w-4" />
+            </button>
+          ) : (
+            <Link href={homeHref} aria-label="Back to dashboard" className="h-9 px-2.5 rounded-lg flex items-center gap-1 text-xs font-bold text-muted-foreground">
+              <ArrowLeft className="h-4 w-4" /> Dashboard
+            </Link>
+          )}
         </div>
       )}
 

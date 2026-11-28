@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { OrderBoardEntry, RestaurantSettings, MenuItem } from "@/types";
 import { cn, getImageUrl } from "@/lib/utils";
-import { ChefHat, CheckCircle2, Clock3, Wifi, QrCode, Flame, Maximize } from "lucide-react";
+import { ChefHat, CheckCircle2, Clock3, Wifi, QrCode, Flame, Maximize, Sun, Moon } from "lucide-react";
 
 /**
  * Café TV order board. Guests in the room see where their order is:
@@ -25,10 +25,59 @@ const CAP = { received: 7, preparing: 7, ready: 9 } as const;
 type Stage = OrderBoardEntry["stage"];
 
 const STAGES: { key: Stage; title: string; hint: string; icon: React.ElementType; tone: string; head: string }[] = [
-  { key: "received", title: "Received", hint: "In the queue", icon: Clock3, tone: "border-amber-500/40", head: "text-amber-400" },
-  { key: "preparing", title: "Preparing", hint: "Being made now", icon: ChefHat, tone: "border-blue-400/40", head: "text-blue-300" },
-  { key: "ready", title: "Ready", hint: "Dine-in: on its way · Takeaway: collect at the counter", icon: CheckCircle2, tone: "border-emerald-500/60", head: "text-emerald-400" },
+  { key: "received", title: "Received", hint: "In the queue", icon: Clock3, tone: "border-amber-500/40", head: "text-(--tv-gold)" },
+  { key: "preparing", title: "Preparing", hint: "Being made now", icon: ChefHat, tone: "border-blue-400/40", head: "text-(--tv-blue)" },
+  { key: "ready", title: "Ready", hint: "Dine-in: on its way · Takeaway: collect at the counter", icon: CheckCircle2, tone: "border-emerald-500/60", head: "text-(--tv-green)" },
 ];
+
+/**
+ * The TV picks its own theme (default dark), independent of the device's app
+ * theme. `?theme=light|dark` sets it from the URL (handy for kiosk bookmarks);
+ * the on-screen toggle remembers the choice in localStorage.
+ */
+type TvTheme = "dark" | "light";
+const THEME_KEY = "hilif-tv-theme";
+const THEME_EVENT = "hilif-tv-theme";
+
+function readTvTheme(): TvTheme {
+  const q = new URLSearchParams(window.location.search).get("theme");
+  if (q === "light" || q === "dark") return q;
+  try {
+    return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+function subscribeTvTheme(cb: () => void) {
+  window.addEventListener(THEME_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(THEME_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+function setTvTheme(t: TvTheme) {
+  try { localStorage.setItem(THEME_KEY, t); } catch {}
+  // Drop a ?theme= override so the toggle wins.
+  const url = new URL(window.location.href);
+  if (url.searchParams.has("theme")) {
+    url.searchParams.delete("theme");
+    window.history.replaceState(null, "", url);
+  }
+  window.dispatchEvent(new Event(THEME_EVENT));
+}
+
+function useTvTheme(): TvTheme {
+  return useSyncExternalStore(subscribeTvTheme, readTvTheme, () => "dark");
+}
+
+/** Stage accents: light shades on the dark board, deeper ones on the light board. */
+const TV_TONES: Record<TvTheme, React.CSSProperties> = {
+  dark: { "--tv-gold": "var(--color-amber-400)", "--tv-blue": "var(--color-blue-300)", "--tv-green": "var(--color-emerald-400)", "--tv-card": "color-mix(in oklab, var(--foreground) 4%, transparent)" } as React.CSSProperties,
+  light: { "--tv-gold": "var(--color-amber-700)", "--tv-blue": "var(--color-blue-700)", "--tv-green": "var(--color-emerald-700)", "--tv-card": "var(--card)" } as React.CSSProperties,
+};
 
 function useNow(intervalMs: number) {
   const [now, setNow] = useState(() => Date.now());
@@ -75,26 +124,26 @@ function TicketCard({ o, now }: { o: OrderBoardEntry; now: number }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border-2 px-[1.1vw] py-[0.9vw] bg-white/[0.04] transition-colors",
-        o.stage === "ready" ? "border-emerald-500/70 bg-emerald-500/10" : "border-white/10",
+        "rounded-2xl border-2 px-[1.1vw] py-[0.9vw] bg-(--tv-card) transition-colors",
+        o.stage === "ready" ? "border-emerald-500/70 bg-emerald-500/10" : "border-foreground/10",
         fresh && "tv-fresh"
       )}
     >
       <div className="flex items-baseline justify-between gap-3">
-        <span className={cn("font-mono font-black tracking-wider leading-none", o.stage === "ready" ? "text-[2.4vw] text-emerald-300" : "text-[1.9vw]")}>
+        <span className={cn("font-mono font-black tracking-wider leading-none", o.stage === "ready" ? "text-[2.4vw] text-(--tv-green)" : "text-[1.9vw]")}>
           {o.code}
         </span>
-        <span className="text-[1.05vw] font-bold text-white/70 truncate">{where(o)}</span>
+        <span className="text-[1.05vw] font-bold text-foreground/70 truncate">{where(o)}</span>
       </div>
-      <p className="mt-[0.5vw] text-[0.95vw] text-white/60 leading-snug line-clamp-2">
+      <p className="mt-[0.5vw] text-[0.95vw] text-foreground/60 leading-snug line-clamp-2">
         {shown.map((i) => `${i.quantity}× ${i.name}`).join(" · ")}
         {more > 0 && ` · +${more} more`}
       </p>
       {o.stage === "preparing" && (
-        <p className="mt-[0.35vw] text-[0.85vw] font-bold text-blue-300/80">{mins < 1 ? "Just started" : `Cooking ${mins} min`}</p>
+        <p className="mt-[0.35vw] text-[0.85vw] font-bold text-(--tv-blue)/80">{mins < 1 ? "Just started" : `Cooking ${mins} min`}</p>
       )}
       {o.stage === "ready" && fresh && (
-        <p className="mt-[0.35vw] text-[0.85vw] font-black uppercase tracking-wider text-emerald-300">Just ready</p>
+        <p className="mt-[0.35vw] text-[0.85vw] font-black uppercase tracking-wider text-(--tv-green)">Just ready</p>
       )}
     </div>
   );
@@ -120,31 +169,31 @@ function InfoRail({ settings, popular }: { settings?: RestaurantSettings; popula
   const qr = menuUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=8&data=${encodeURIComponent(menuUrl)}` : "";
 
   return (
-    <aside className="rounded-3xl border-2 border-white/10 bg-white/[0.03] p-[1.4vw] flex flex-col min-h-0 overflow-hidden">
+    <aside className="rounded-3xl border-2 border-foreground/10 bg-foreground/[0.03] p-[1.4vw] flex flex-col min-h-0 overflow-hidden">
       <div key={panel} className="flex-1 min-h-0 flex flex-col animate-in fade-in duration-700">
         {panel === "order" && (
           <div className="flex-1 flex flex-col items-center justify-center text-center gap-[1vw]">
-            <QrCode className="h-[2.2vw] w-[2.2vw] text-amber-400" />
+            <QrCode className="h-[2.2vw] w-[2.2vw] text-(--tv-gold)" />
             <p className="text-[1.6vw] font-black leading-tight">Scan to see the menu</p>
             {qr && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={qr} alt="QR code for the menu" className="w-[11vw] h-[11vw] rounded-xl bg-white p-[0.4vw]" />
             )}
-            <p className="text-[0.95vw] text-white/60 leading-snug">
+            <p className="text-[0.95vw] text-foreground/60 leading-snug">
               Scan the code on your table to order — your waiter confirms it. Track it with the code on your phone.
             </p>
           </div>
         )}
         {panel === "wifi" && settings && (
           <div className="flex-1 flex flex-col items-center justify-center text-center gap-[1vw]">
-            <Wifi className="h-[2.6vw] w-[2.6vw] text-blue-300" />
+            <Wifi className="h-[2.6vw] w-[2.6vw] text-(--tv-blue)" />
             <p className="text-[1.6vw] font-black">Free Wi-Fi</p>
-            <div className="w-full rounded-2xl bg-white/[0.06] p-[1vw] space-y-[0.6vw]">
-              <p className="text-[0.85vw] uppercase tracking-widest text-white/50 font-bold">Network</p>
+            <div className="w-full rounded-2xl bg-foreground/[0.06] p-[1vw] space-y-[0.6vw]">
+              <p className="text-[0.85vw] uppercase tracking-widest text-foreground/50 font-bold">Network</p>
               <p className="text-[1.5vw] font-black break-all">{settings.guestWifiSsid}</p>
               {settings.guestWifiPassword && (
                 <>
-                  <p className="text-[0.85vw] uppercase tracking-widest text-white/50 font-bold pt-[0.4vw]">Password</p>
+                  <p className="text-[0.85vw] uppercase tracking-widest text-foreground/50 font-bold pt-[0.4vw]">Password</p>
                   <p className="text-[1.5vw] font-mono font-black break-all">{settings.guestWifiPassword}</p>
                 </>
               )}
@@ -154,14 +203,14 @@ function InfoRail({ settings, popular }: { settings?: RestaurantSettings; popula
         {panel === "popular" && (
           <div className="flex-1 min-h-0 flex flex-col gap-[0.8vw]">
             <p className="text-[1.4vw] font-black flex items-center gap-2">
-              <Flame className="h-[1.4vw] w-[1.4vw] text-amber-400" /> Popular here
+              <Flame className="h-[1.4vw] w-[1.4vw] text-(--tv-gold)" /> Popular here
             </p>
             <ul className="flex-1 min-h-0 flex flex-col gap-[0.7vw] overflow-hidden">
               {popular.slice(0, 5).map((m) => {
                 const src = m.imageUrl || m.image;
                 return (
-                  <li key={m.id} className="flex items-center gap-[0.8vw] rounded-xl bg-white/[0.05] p-[0.5vw]">
-                    <div className="relative h-[3.6vw] w-[3.6vw] shrink-0 rounded-lg bg-white/10 overflow-hidden flex items-center justify-center text-[1.4vw] font-black text-white/40">
+                  <li key={m.id} className="flex items-center gap-[0.8vw] rounded-xl bg-foreground/[0.05] p-[0.5vw]">
+                    <div className="relative h-[3.6vw] w-[3.6vw] shrink-0 rounded-lg bg-foreground/10 overflow-hidden flex items-center justify-center text-[1.4vw] font-black text-foreground/40">
                       {m.name.charAt(0)}
                       {src && (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -170,7 +219,7 @@ function InfoRail({ settings, popular }: { settings?: RestaurantSettings; popula
                     </div>
                     <div className="min-w-0">
                       <p className="text-[1.05vw] font-bold truncate">{m.name}</p>
-                      <p className="text-[0.9vw] text-white/55 tabular-nums">{Number(m.price).toLocaleString()} ETB</p>
+                      <p className="text-[0.9vw] text-foreground/55 tabular-nums">{Number(m.price).toLocaleString()} ETB</p>
                     </div>
                   </li>
                 );
@@ -181,7 +230,7 @@ function InfoRail({ settings, popular }: { settings?: RestaurantSettings; popula
       </div>
       <div className="flex justify-center gap-1.5 pt-[0.8vw]">
         {panels.map((p) => (
-          <span key={p} className={cn("h-1.5 rounded-full transition-all", p === panel ? "w-6 bg-white/70" : "w-1.5 bg-white/25")} />
+          <span key={p} className={cn("h-1.5 rounded-full transition-all", p === panel ? "w-6 bg-foreground/70" : "w-1.5 bg-foreground/25")} />
         ))}
       </div>
     </aside>
@@ -190,6 +239,7 @@ function InfoRail({ settings, popular }: { settings?: RestaurantSettings; popula
 
 export function OrderBoardScreen() {
   useWakeLock();
+  const theme = useTvTheme();
   const now = useNow(15_000);
   const clockNow = useNow(1_000);
 
@@ -235,7 +285,7 @@ export function OrderBoardScreen() {
   const name = settings?.restaurantName || "Hilif";
 
   return (
-    <div className={cn("dark fixed inset-0 bg-background text-white flex flex-col select-none overflow-hidden", idle && "cursor-none")}>
+    <div style={TV_TONES[theme]} className={cn(theme, "fixed inset-0 bg-background text-foreground flex flex-col select-none overflow-hidden", idle && "cursor-none")}>
       <style>{`
         @keyframes tv-glow { 0%,100% { box-shadow: 0 0 0 0 rgb(16 185 129 / 0); } 50% { box-shadow: 0 0 0 0.35vw rgb(16 185 129 / 0.35); } }
         .tv-fresh { animation: tv-glow 2.2s ease-in-out infinite; }
@@ -248,18 +298,28 @@ export function OrderBoardScreen() {
         <img src="/icon.svg" alt="" className="h-[4.5vh] w-[4.5vh] rounded-xl" />
         <div className="min-w-0">
           <p className="text-[1.7vw] font-black tracking-tight leading-none truncate">{name}</p>
-          <p className="text-[0.9vw] text-white/50 font-bold uppercase tracking-[0.2em] mt-[0.3vw]">Order status</p>
+          <p className="text-[0.9vw] text-foreground/50 font-bold uppercase tracking-[0.2em] mt-[0.3vw]">Order status</p>
         </div>
         <div className="flex-1" />
         {offline && (
-          <span className="text-[0.9vw] font-bold text-amber-400 flex items-center gap-2 mr-[1.5vw]">
-            <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" /> Reconnecting…
+          <span className="text-[0.9vw] font-bold text-(--tv-gold) flex items-center gap-2 mr-[1.5vw]">
+            <span className="h-2 w-2 rounded-full bg-(--tv-gold) animate-pulse" /> Reconnecting…
           </span>
         )}
         {!idle && (
           <button
+            onClick={() => setTvTheme(theme === "dark" ? "light" : "dark")}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            className="mr-[0.8vw] h-10 px-3 rounded-lg border border-foreground/20 text-foreground/70 text-sm font-bold flex items-center gap-2 hover:bg-foreground/10"
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {theme === "dark" ? "Light" : "Dark"}
+          </button>
+        )}
+        {!idle && (
+          <button
             onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}
-            className="mr-[1.5vw] h-10 px-3 rounded-lg border border-white/20 text-white/70 text-sm font-bold flex items-center gap-2 hover:bg-white/10"
+            className="mr-[1.5vw] h-10 px-3 rounded-lg border border-foreground/20 text-foreground/70 text-sm font-bold flex items-center gap-2 hover:bg-foreground/10"
           >
             <Maximize className="h-4 w-4" /> Full screen
           </button>
@@ -268,7 +328,7 @@ export function OrderBoardScreen() {
           <p className="text-[2.4vw] font-black tabular-nums leading-none">
             {clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </p>
-          <p className="text-[0.9vw] text-white/50 font-bold mt-[0.3vw]">
+          <p className="text-[0.9vw] text-foreground/50 font-bold mt-[0.3vw]">
             {clock.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
@@ -282,20 +342,20 @@ export function OrderBoardScreen() {
           const cap = CAP[s.key];
           const extra = list.length - cap;
           return (
-            <section key={s.key} className={cn("rounded-3xl border-2 bg-white/[0.02] flex flex-col min-h-0 overflow-hidden", s.tone)}>
+            <section key={s.key} className={cn("rounded-3xl border-2 bg-foreground/[0.02] flex flex-col min-h-0 overflow-hidden", s.tone)}>
               <div className="px-[1.2vw] pt-[1.1vw] pb-[0.8vw] flex items-center gap-[0.7vw]">
                 <s.icon className={cn("h-[1.8vw] w-[1.8vw]", s.head)} />
                 <h2 className={cn("text-[1.7vw] font-black", s.head)}>{s.title}</h2>
-                <span className="ml-auto text-[1.4vw] font-black tabular-nums text-white/70">{list.length}</span>
+                <span className="ml-auto text-[1.4vw] font-black tabular-nums text-foreground/70">{list.length}</span>
               </div>
-              <p className="px-[1.2vw] -mt-[0.4vw] pb-[0.8vw] text-[0.85vw] text-white/45 font-medium">{s.hint}</p>
+              <p className="px-[1.2vw] -mt-[0.4vw] pb-[0.8vw] text-[0.85vw] text-foreground/45 font-medium">{s.hint}</p>
               <div className="flex-1 min-h-0 px-[1vw] pb-[1vw] flex flex-col gap-[0.7vw] overflow-hidden">
                 {list.slice(0, cap).map((o) => <TicketCard key={o.code + o.createdAt} o={o} now={now} />)}
                 {extra > 0 && (
-                  <p className="text-center text-[1vw] font-bold text-white/50 pt-[0.3vw]">+{extra} more</p>
+                  <p className="text-center text-[1vw] font-bold text-foreground/50 pt-[0.3vw]">+{extra} more</p>
                 )}
                 {list.length === 0 && (
-                  <p className="m-auto text-[1vw] text-white/30 font-bold">
+                  <p className="m-auto text-[1vw] text-foreground/30 font-bold">
                     {s.key === "ready" ? "Nothing waiting" : s.key === "preparing" ? "Kitchen is free" : "No new orders"}
                   </p>
                 )}
@@ -307,9 +367,9 @@ export function OrderBoardScreen() {
       </main>
 
       {/* Footer */}
-      <footer className="h-[6vh] px-[2.5vw] flex items-center justify-center gap-[2vw] shrink-0 border-t border-white/10 text-[1vw] text-white/55 font-medium">
+      <footer className="h-[6vh] px-[2.5vw] flex items-center justify-center gap-[2vw] shrink-0 border-t border-foreground/10 text-[1vw] text-foreground/55 font-medium">
         <span>Your order code is on your receipt and your phone</span>
-        <span className="text-white/25">•</span>
+        <span className="text-foreground/25">•</span>
         <span>Need anything? Tap “Call waiter” on your order page</span>
       </footer>
     </div>

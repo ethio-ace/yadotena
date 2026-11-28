@@ -137,7 +137,8 @@
   --color-stone-50: var(--color-roast-50); --color-stone-100: var(--color-roast-100); --color-stone-200: var(--color-roast-200); --color-stone-300: var(--color-roast-300); --color-stone-400: var(--color-roast-400); --color-stone-500: var(--color-roast-500); --color-stone-600: var(--color-roast-600); --color-stone-700: var(--color-roast-700); --color-stone-800: var(--color-roast-800); --color-stone-900: var(--color-roast-900); --color-stone-950: var(--color-roast-950);
 }
 
-:root {
+:root,
+.light {
   color-scheme: light;
   --background: #f4f4f0;            /* shemma: undyed cotton / milk */
   --foreground: #1c1916;            /* buna ink */
